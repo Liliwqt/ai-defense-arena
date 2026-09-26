@@ -1,0 +1,170 @@
+"""Offline checks for project-wide grounded questions."""
+
+import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
+
+import httpx2
+from openai import APIConnectionError, APIStatusError, OpenAIError
+
+from project_files import ProjectFile
+from question_generator import (
+    QuestionDraft,
+    QuestionGenerationError,
+    build_project_source,
+    describe_openai_error,
+    generate_first_question,
+)
+
+
+class FakeClient:
+    def __init__(self, parsed=None, error=None):
+        self.responses = self
+        self.parsed = parsed
+        self.error = error
+        self.request = None
+
+    def parse(self, **kwargs):
+        self.request = kwargs
+        if self.error:
+            raise self.error
+        return SimpleNamespace(output_parsed=self.parsed)
+
+
+class QuestionGeneratorTests(unittest.TestCase):
+    def setUp(self):
+        self.files = [
+            ProjectFile("README.md", "# Queue\nThe project uses SQLite.\n"),
+            ProjectFile("src/queue.py", "# Storage\nDATABASE = 'queue.db'\n"),
+        ]
+
+    def test_question_reads_all_files_and_cites_exact_code_line(self):
+        client = FakeClient(
+            QuestionDraft(question="  Why use a local database?  ", source_file=2, evidence_line=2)
+        )
+
+        result = generate_first_question(self.files, "test-key", client=client)
+
+        self.assertEqual(result.question, "Why use a local database?")
+        self.assertEqual(result.filename, "src/queue.py")
+        self.assertEqual(result.evidence_line, 2)
+        self.assertEqual(result.evidence_text, "DATABASE = 'queue.db'")
+        self.assertEqual(client.request["model"], "gpt-6-luna")
+        self.assertEqual(client.request["reasoning"], {"effort": "low"})
+        self.assertIs(client.request["store"], False)
+        prompt = client.request["input"][1]["content"]
+        self.assertIn("FILE 1: README.md", prompt)
+        self.assertIn("FILE 2: src/queue.py", prompt)
+        self.assertIn("2: DATABASE = 'queue.db'", prompt)
+        self.assertIn("Eligible citation file IDs: [2]", prompt)
+
+    def test_document_citation_is_rejected_when_code_exists(self):
+        client = FakeClient(QuestionDraft(question="Why SQLite?", source_file=1, evidence_line=2))
+        with self.assertRaisesRegex(QuestionGenerationError, "invalid project file"):
+            generate_first_question(self.files, "test-key", client=client)
+
+    def test_unknown_file_id_is_rejected(self):
+        client = FakeClient(QuestionDraft(question="Why SQLite?", source_file=99, evidence_line=2))
+        with self.assertRaisesRegex(QuestionGenerationError, "invalid project file"):
+            generate_first_question(self.files, "test-key", client=client)
+
+    def test_invalid_line_is_rejected(self):
+        client = FakeClient(QuestionDraft(question="Why SQLite?", source_file=2, evidence_line=99))
+        with self.assertRaisesRegex(QuestionGenerationError, "invalid source line"):
+            generate_first_question(self.files, "test-key", client=client)
+
+    def test_blank_line_is_rejected(self):
+        files = [ProjectFile("src/queue.py", "\nDATABASE = 'queue.db'\n")]
+        client = FakeClient(QuestionDraft(question="Why SQLite?", source_file=1, evidence_line=1))
+        with self.assertRaisesRegex(QuestionGenerationError, "invalid source line"):
+            generate_first_question(files, "test-key", client=client)
+
+    def test_document_only_project_can_cite_document(self):
+        files = [self.files[0]]
+        client = FakeClient(QuestionDraft(question="Why SQLite?", source_file=1, evidence_line=2))
+        result = generate_first_question(files, "test-key", client=client)
+        self.assertEqual(result.filename, "README.md")
+
+    def test_empty_files_are_not_offered_as_citations(self):
+        source, lookup, eligible = build_project_source(
+            [self.files[0], ProjectFile("src/empty.py", "")]
+        )
+        self.assertIn("README.md", source)
+        self.assertNotIn("empty.py", source)
+        self.assertEqual(set(lookup), {1})
+        self.assertEqual(eligible, {1})
+
+    def test_oversized_project_is_rejected(self):
+        files = [ProjectFile("src/large.py", "a" * 300_001)]
+        with self.assertRaisesRegex(QuestionGenerationError, "300 KB"):
+            build_project_source(files)
+
+    def test_missing_key_does_not_call_api(self):
+        client = FakeClient(QuestionDraft(question="Why SQLite?", source_file=2, evidence_line=2))
+        with self.assertRaisesRegex(QuestionGenerationError, "OPENAI_API_KEY"):
+            generate_first_question(self.files, None, client=client)
+        self.assertIsNone(client.request)
+
+    def test_surrounding_whitespace_is_removed_from_key(self):
+        client = FakeClient(QuestionDraft(question="Why SQLite?", source_file=2, evidence_line=2))
+        with patch("question_generator.OpenAI", return_value=client) as constructor:
+            generate_first_question(self.files, "  test-key\n")
+        self.assertEqual(constructor.call_args.kwargs["api_key"], "test-key")
+
+    def test_embedded_whitespace_in_key_is_rejected(self):
+        client = FakeClient(QuestionDraft(question="Why SQLite?", source_file=2, evidence_line=2))
+        with self.assertRaisesRegex(QuestionGenerationError, "contains whitespace"):
+            generate_first_question(self.files, "test\nkey", client=client)
+        self.assertIsNone(client.request)
+
+    def test_api_error_remains_retryable(self):
+        client = FakeClient(error=OpenAIError("Service unavailable"))
+        with self.assertRaises(OpenAIError):
+            generate_first_question(self.files, "test-key", client=client)
+
+
+class ErrorMessageTests(unittest.TestCase):
+    def make_status_error(self, status, message="request failed", code=None, error_type=None):
+        request = httpx2.Request("POST", "https://api.openai.com/v1/responses")
+        response = httpx2.Response(status, request=request)
+        body = {}
+        if code:
+            body["code"] = code
+        if error_type:
+            body["type"] = error_type
+        return APIStatusError(message, response=response, body=body)
+
+    def test_invalid_key_has_clear_message(self):
+        error = self.make_status_error(401)
+        message = describe_openai_error(error, "gpt-6-luna", "secret-key")
+        self.assertIn("OPENAI_API_KEY", message)
+        self.assertIn("401", message)
+
+    def test_unavailable_model_names_override(self):
+        error = self.make_status_error(404)
+        message = describe_openai_error(error, "gpt-6-luna")
+        self.assertIn("gpt-6-luna", message)
+        self.assertIn("OPENAI_MODEL", message)
+
+    def test_quota_error_is_distinct_from_rate_limit(self):
+        quota = self.make_status_error(429, code="credit_balance_exhausted")
+        limit = self.make_status_error(429, code="rate_limit_exceeded")
+        self.assertIn("billing", describe_openai_error(quota, "gpt-6-luna"))
+        self.assertIn("Wait briefly", describe_openai_error(limit, "gpt-6-luna"))
+        quota_without_code = self.make_status_error(429, error_type="insufficient_quota")
+        self.assertIn("billing", describe_openai_error(quota_without_code, "gpt-6-luna"))
+
+    def test_bad_request_includes_redacted_detail(self):
+        error = self.make_status_error(400, "Bad model; key secret-key")
+        message = describe_openai_error(error, "gpt-6-luna", "secret-key")
+        self.assertIn("Bad model", message)
+        self.assertNotIn("secret-key", message)
+
+    def test_connection_error_explains_network_issue(self):
+        request = httpx2.Request("POST", "https://api.openai.com/v1/responses")
+        error = APIConnectionError(request=request)
+        self.assertIn("internet connection", describe_openai_error(error, "gpt-6-luna"))
+
+
+if __name__ == "__main__":
+    unittest.main()

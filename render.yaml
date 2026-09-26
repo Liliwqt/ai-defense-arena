@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: ai-defense-arena
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn game_server:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /health
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GAME_HOST_PASSCODE
+        sync: false

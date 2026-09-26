@@ -1,0 +1,177 @@
+"""Offline multiplayer room checks; all AI calls are mocked."""
+
+import os
+from pathlib import Path
+import unittest
+from unittest.mock import patch
+
+from fastapi.testclient import TestClient
+from openai import OpenAIError
+
+import game_server
+from question_generator import GroundedQuestion
+
+
+class GameServerTests(unittest.TestCase):
+    def setUp(self):
+        game_server.rooms.clear()
+        self.client = TestClient(game_server.app)
+        self.client.__enter__()
+        self.addCleanup(lambda: self.client.__exit__(None, None, None))
+        self.files = [
+            ("files", ("README.md", Path("sample_project/README.md").read_bytes(), "text/markdown")),
+            ("files", ("queue.py", Path("sample_project/queue.py").read_bytes(), "text/x-python")),
+        ]
+        code_lines = Path("sample_project/queue.py").read_text().splitlines()
+        self.questions = [
+            GroundedQuestion(text, "queue.py", line, code_lines[line - 1])
+            for text, line in [
+                ("Why use SQLite?", 5),
+                ("How would you protect reservation names?", 8),
+                ("How would concurrent requests affect that choice?", 9),
+                ("How would you restrict access to this result?", 33),
+            ]
+        ]
+
+    def create_room(self):
+        response = self.client.post(
+            "/api/rooms",
+            data={"host_name": "Alex", "host_passcode": "offline-passcode"},
+            files=self.files,
+        )
+        self.assertEqual(response.status_code, 201, response.text)
+        return response.json()
+
+    def join_room(self, code, name="Sam"):
+        response = self.client.post(f"/api/rooms/{code}/join", json={"name": name})
+        self.assertEqual(response.status_code, 200, response.text)
+        return response.json()
+
+    def receive_phase(self, socket, phase):
+        for _ in range(8):
+            event = socket.receive_json()
+            if event["type"] == "snapshot" and event["state"]["phase"] == phase:
+                return event["state"]
+        self.fail(f"Never received phase {phase}")
+
+    def connect(self, code, token):
+        socket = self.client.websocket_connect(f"/ws/{code}")
+        socket.__enter__()
+        socket.send_json({"type": "hello", "token": token})
+        first = socket.receive_json()
+        self.assertEqual(first["type"], "snapshot")
+        return socket, first["state"]
+
+    def test_creation_requires_host_passcode_and_upload_validation(self):
+        with patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode"}):
+            denied = self.client.post(
+                "/api/rooms",
+                data={"host_name": "Alex", "host_passcode": "wrong"},
+                files=self.files,
+            )
+            self.assertEqual(denied.status_code, 403)
+            self.assertFalse(game_server.rooms)
+            invalid = self.client.post(
+                "/api/rooms",
+                data={"host_name": "Alex", "host_passcode": "offline-passcode"},
+                files=[("files", ("secret.env", b"PRIVATE=1", "text/plain"))],
+            )
+            self.assertEqual(invalid.status_code, 422)
+            self.assertFalse(game_server.rooms)
+            host = self.create_room()
+            self.assertEqual(len(game_server.rooms[host["room_code"]].files), 2)
+            for name in ("Sam", "Lee", "Kai"):
+                self.join_room(host["room_code"], name)
+            full = self.client.post(f"/api/rooms/{host['room_code']}/join", json={"name": "Fifth"})
+            self.assertEqual(full.status_code, 409)
+
+    def test_two_clients_share_four_turns_and_first_answer_wins(self):
+        with (
+            patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode", "OPENAI_API_KEY": "test-key"}),
+            patch("game_server.generate_first_question", return_value=self.questions[0]) as first_call,
+            patch("game_server.generate_panel_question", side_effect=self.questions[1:]) as later_calls,
+        ):
+            host = self.create_room()
+            guest = self.join_room(host["room_code"])
+            host_socket, host_initial = self.connect(host["room_code"], host["player_token"])
+            try:
+                self.assertTrue(host_initial["self_is_host"])
+                self.assertEqual(host_initial["self_seat"], 0)
+                guest_socket, guest_initial = self.connect(guest["room_code"], guest["player_token"])
+                try:
+                    self.assertFalse(guest_initial["self_is_host"])
+                    self.assertEqual(guest_initial["self_seat"], 1)
+                    guest_socket.send_json({"type": "start"})
+                    self.assertIn("Only the host", guest_socket.receive_json()["message"])
+                    host_socket.send_json({"type": "start"})
+                    for socket in (host_socket, guest_socket):
+                        state = self.receive_phase(socket, "question")
+                        self.assertEqual(state["turns"][0]["evidence_text"], self.questions[0].evidence_text)
+                    self.assertEqual(first_call.call_count, 1)
+
+                    guest_socket.send_json({"type": "submit_answer", "turn": 0, "answer": "A simple prototype."})
+                    for socket in (host_socket, guest_socket):
+                        state = self.receive_phase(socket, "question")
+                        self.assertEqual(len(state["turns"]), 2)
+                        self.assertEqual(state["turns"][0]["answer"], "A simple prototype.")
+                        self.assertEqual(state["turns"][0]["answered_by"], "Sam")
+                    host_socket.send_json({"type": "submit_answer", "turn": 0, "answer": "Too late."})
+                    self.assertIn("already been answered", host_socket.receive_json()["message"])
+
+                    for turn, socket, answer in (
+                        (1, host_socket, "Add sign-in."),
+                        (2, guest_socket, "Queue database writes."),
+                        (3, host_socket, "Check access before returning names."),
+                    ):
+                        socket.send_json({"type": "submit_answer", "turn": turn, "answer": answer})
+                        phase = "complete" if turn == 3 else "question"
+                        for observer in (host_socket, guest_socket):
+                            state = self.receive_phase(observer, phase)
+                            self.assertEqual(state["turns"][turn]["answer"], answer)
+                    self.assertEqual(len(state["turns"]), 4)
+                    self.assertEqual(later_calls.call_count, 3)
+                    self.assertEqual([turn["panelist"] for turn in state["turns"]], list(game_server.PANELIST_ORDER))
+                finally:
+                    guest_socket.__exit__(None, None, None)
+            finally:
+                host_socket.__exit__(None, None, None)
+
+    def test_failure_retains_answer_then_host_retries_and_guest_reconnects(self):
+        with (
+            patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode", "OPENAI_API_KEY": "test-key"}),
+            patch("game_server.generate_first_question", return_value=self.questions[0]),
+            patch("game_server.generate_panel_question", side_effect=[OpenAIError("temporary outage"), self.questions[1]]),
+        ):
+            host = self.create_room()
+            guest = self.join_room(host["room_code"])
+            host_socket, _ = self.connect(host["room_code"], host["player_token"])
+            try:
+                guest_socket, _ = self.connect(guest["room_code"], guest["player_token"])
+                host_socket.send_json({"type": "start"})
+                self.receive_phase(host_socket, "question")
+                self.receive_phase(guest_socket, "question")
+                guest_socket.send_json({"type": "submit_answer", "turn": 0, "answer": "Keep the answer."})
+                for socket in (host_socket, guest_socket):
+                    state = self.receive_phase(socket, "retry")
+                    self.assertEqual(state["turns"][0]["answer"], "Keep the answer.")
+                    self.assertEqual(len(state["turns"]), 1)
+                guest_socket.__exit__(None, None, None)
+                self.receive_phase(host_socket, "retry")  # Guest is now offline.
+                guest_socket, joined_state = self.connect(guest["room_code"], guest["player_token"])
+                try:
+                    self.assertEqual(joined_state["turns"][0]["answer"], "Keep the answer.")
+                    guest_socket.send_json({"type": "retry"})
+                    self.assertIn("Only the host", guest_socket.receive_json()["message"])
+                    host_socket.send_json({"type": "retry"})
+                    for socket in (host_socket, guest_socket):
+                        state = self.receive_phase(socket, "question")
+                        self.assertEqual(len(state["turns"]), 2)
+                        self.assertEqual(state["turns"][0]["answer"], "Keep the answer.")
+                finally:
+                    guest_socket.__exit__(None, None, None)
+            finally:
+                host_socket.__exit__(None, None, None)
+
+
+if __name__ == "__main__":
+    unittest.main()

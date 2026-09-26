@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Defense Arena</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.86.0/dist/phaser.min.js" defer></script>
+  <script src="/game.js" defer></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div>
+        <p class="eyebrow">PROJECT DEFENSE SIMULATOR</p>
+        <h1>AI Defense Arena</h1>
+        <p class="subtitle">Your team faces the panel together. Defend one design choice at a time.</p>
+      </div>
+      <div class="room-pill" id="room-pill">No room yet</div>
+    </header>
+
+    <div class="preview-banner" id="preview-banner" hidden>Visual preview: the question and players below are mock data. No room or AI request is active.</div>
+
+    <div class="layout">
+      <section class="arena-card" aria-label="Defense room">
+        <div class="arena-head">
+          <span>DEFENSE ROOM</span>
+          <span id="round-indicator">Waiting for a room</span>
+        </div>
+        <div id="game" aria-label="Panelists face the defender team"></div>
+        <div class="arena-status" role="status" id="arena-status">Create or join a room to begin.</div>
+      </section>
+
+      <aside class="control-card">
+        <div id="connect-forms">
+          <div class="tabs" role="tablist" aria-label="Room options">
+            <button type="button" id="create-tab" class="tab active" aria-selected="true">Create room</button>
+            <button type="button" id="join-tab" class="tab" aria-selected="false">Join room</button>
+          </div>
+
+          <form id="create-form" class="form-stack">
+            <label>Your name<input name="host_name" maxlength="24" autocomplete="name" required placeholder="Your name"></label>
+            <label>Host passcode<input name="host_passcode" type="password" autocomplete="off" required placeholder="Server passcode"></label>
+            <label>Project files or ZIP<input name="files" type="file" multiple required></label>
+            <p class="field-hint">Select source files together, or one ZIP. The host's passcode is sent only to the server.</p>
+            <button class="primary" type="submit">Create defense room</button>
+          </form>
+
+          <form id="join-form" class="form-stack" hidden>
+            <label>Room code<input name="room_code" maxlength="12" autocomplete="off" required placeholder="Enter room code"></label>
+            <label>Your name<input name="name" maxlength="24" autocomplete="name" required placeholder="Your name"></label>
+            <button class="primary" type="submit">Join team</button>
+          </form>
+        </div>
+
+        <div id="room-controls" hidden>
+          <div class="room-details">
+            <span class="eyebrow">ROOM CODE</span>
+            <strong id="room-code">—</strong>
+            <span id="role-label">Defender</span>
+          </div>
+          <p class="connection" id="connection-status">Connecting…</p>
+          <div class="host-controls" id="host-controls" hidden>
+            <button type="button" class="primary" id="start-button" hidden>Start defense</button>
+            <button type="button" class="primary" id="retry-button" hidden>Retry question</button>
+            <button type="button" class="secondary" id="restart-button">Restart defense</button>
+          </div>
+          <form id="answer-form" class="form-stack" hidden>
+            <label>Your answer<textarea name="answer" rows="5" maxlength="4000" required placeholder="Explain your team's design choice…"></textarea></label>
+            <button type="submit" class="primary">Submit answer</button>
+            <p class="field-hint">Any teammate can answer. The first valid answer received by the server counts.</p>
+          </form>
+          <p class="field-hint" id="wait-message"></p>
+          <button type="button" class="secondary leave-button" id="leave-button">Leave room</button>
+        </div>
+
+        <div class="message" role="alert" id="message" hidden></div>
+      </aside>
+    </div>
+
+    <section class="transcript-card" aria-labelledby="transcript-heading">
+      <div class="transcript-head">
+        <div>
+          <p class="eyebrow">SESSION HISTORY</p>
+          <h2 id="transcript-heading">Defense transcript</h2>
+        </div>
+        <span id="transcript-count">0 / 4 answered</span>
+      </div>
+      <div id="transcript" class="transcript-empty">Questions and team answers will appear here.</div>
+    </section>
+  </main>
+</body>
+</html>
