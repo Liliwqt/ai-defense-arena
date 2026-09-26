@@ -171,7 +171,13 @@ function connectSocket() {
       render();
     } else if (message.type === "error") {
       waitingForAnswerAck = false;
-      showMessage(String(message.message || "Room action failed."));
+      const error = String(message.message || "Room action failed.");
+      if (error.startsWith("Room not found.") || error.startsWith("This room link is no longer valid.")) {
+        leaveRoom();
+        showMessage("That room is no longer available. Create or join a new room.");
+        return;
+      }
+      showMessage(error);
       render();
     }
   });

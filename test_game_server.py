@@ -85,6 +85,16 @@ class GameServerTests(unittest.TestCase):
             full = self.client.post(f"/api/rooms/{host['room_code']}/join", json={"name": "Fifth"})
             self.assertEqual(full.status_code, 409)
 
+    def test_websocket_requires_a_valid_room_token(self):
+        with self.client.websocket_connect("/ws/UNKNOWN") as socket:
+            socket.send_json({"type": "hello", "token": "invalid"})
+            self.assertIn("Room not found", socket.receive_json()["message"])
+        with patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode"}):
+            host = self.create_room()
+        with self.client.websocket_connect(f"/ws/{host['room_code']}") as socket:
+            socket.send_json({"type": "hello", "token": "invalid"})
+            self.assertIn("no longer valid", socket.receive_json()["message"])
+
     def test_two_clients_share_four_turns_and_first_answer_wins(self):
         with (
             patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode", "OPENAI_API_KEY": "test-key"}),

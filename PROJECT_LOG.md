@@ -73,3 +73,11 @@ Append new entries to the **end** of this file in date order:
 - Changed: initialized the repository, committed the complete local checkpoint, and pushed `main` to the private repository `https://github.com/Liliwqt/ai-defense-arena`. The `render.yaml` Blueprint is ready for connection to Render.
 - Verification: GitHub reports `isPrivate: true` and `main` as the default branch; working tree was clean after the initial push. Source files were scanned for common API-key and private-key patterns before publishing, with no matches.
 - Remaining: this environment has no Render authentication or runtime `OPENAI_API_KEY` / `GAME_HOST_PASSCODE`; Render deploy and live AI/device checks await access. Do not mark user review complete.
+
+### 2026-09-26 — Recovery from expired rooms
+
+- Session: root.
+- Files: `game_server.py`, `game/game.js`, `test_game_server.py`, `PROJECT_LOG.md`.
+- Changed: handle a WebSocket peer that disconnects during authentication without an ASGI exception. If a stored room or token is invalid after a server restart, the browser clears it and returns to create/join instead of reconnecting forever.
+- Verification: 37 offline tests passed, JavaScript syntax passed, and a headless browser with a stored expired room returned to the create/join form and cleared its stored code.
+- Remaining: hosted live AI/device verification and user review pending.

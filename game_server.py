@@ -284,7 +284,11 @@ async def join_room(code: str, request: JoinRequest) -> dict[str, str]:
 
 
 async def _send_error(socket: WebSocket, message: str) -> None:
-    await socket.send_json({"type": "error", "message": message})
+    try:
+        await socket.send_json({"type": "error", "message": message})
+    except (RuntimeError, OSError, WebSocketDisconnect):
+        # The peer may close while the server is preparing its reply.
+        pass
 
 
 async def _handle_action(room: Room, player: Player, socket: WebSocket, message: dict) -> None:
@@ -366,13 +370,18 @@ async def room_socket(socket: WebSocket, code: str) -> None:
     room = rooms.get(code.upper())
     if room is None:
         await _send_error(socket, "Room not found. Check the invite code.")
-        await socket.close(code=1008)
+        try:
+            await socket.close(code=1008)
+        except (RuntimeError, OSError, WebSocketDisconnect):
+            pass
         return
     try:
         raw = await asyncio.wait_for(socket.receive_text(), timeout=10)
         hello = json.loads(raw) if len(raw) <= 500 else None
         token = hello.get("token") if isinstance(hello, dict) and hello.get("type") == "hello" else None
-    except (asyncio.TimeoutError, json.JSONDecodeError, WebSocketDisconnect):
+    except WebSocketDisconnect:
+        return
+    except (asyncio.TimeoutError, json.JSONDecodeError):
         token = None
     async with room.lock:
         player = room.players.get(token) if isinstance(token, str) else None
@@ -381,7 +390,10 @@ async def room_socket(socket: WebSocket, code: str) -> None:
             room.revision += 1
     if player is None:
         await _send_error(socket, "This room link is no longer valid. Join again.")
-        await socket.close(code=1008)
+        try:
+            await socket.close(code=1008)
+        except (RuntimeError, OSError, WebSocketDisconnect):
+            pass
         return
     await publish(room)
     try:
