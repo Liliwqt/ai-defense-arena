@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from openai import OpenAIError
 
 import game_server
-from question_generator import GroundedQuestion
+from question_generator import CoachingReport, GroundedQuestion
 
 
 class GameServerTests(unittest.TestCase):
@@ -179,6 +179,196 @@ class GameServerTests(unittest.TestCase):
                         self.assertEqual(state["turns"][0]["answer"], "Keep the answer.")
                 finally:
                     guest_socket.__exit__(None, None, None)
+            finally:
+                host_socket.__exit__(None, None, None)
+
+
+    def _complete_four_turns(self, host_socket, guest_socket, mock_coaching):
+        """Drive four question/answer turns and return the complete state for both sockets."""
+        host_socket.send_json({"type": "start"})
+        for socket in (host_socket, guest_socket):
+            self.receive_phase(socket, "question")
+        for turn, socket, answer in (
+            (0, guest_socket, "SQLite keeps it simple."),
+            (1, host_socket, "Parameterised queries."),
+            (2, guest_socket, "Single writer is fine."),
+            (3, host_socket, "Check access before returning."),
+        ):
+            socket.send_json({"type": "submit_answer", "turn": turn, "answer": answer})
+            expected = "complete" if turn == 3 else "question"
+            for observer in (host_socket, guest_socket):
+                self.receive_phase(observer, expected)
+        # Coaching arrives asynchronously; wait for it.
+        states = {}
+        for socket, label in ((host_socket, "host"), (guest_socket, "guest")):
+            state = self.receive_phase(socket, "complete")
+            while state.get("feedback_status") == "generating":
+                state = self.receive_phase(socket, "complete")
+            states[label] = state
+        return states
+
+    def test_coaching_report_is_sent_after_fourth_answer(self):
+        mock_report = CoachingReport(
+            summary="Solid defense.",
+            strengths=[{"turn": 0, "text": "Good SQLite rationale."}],
+            improvements=[{"turn": 1, "text": "Elaborate on validation."}],
+            next_step="Practice edge cases.",
+        )
+        with (
+            patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode", "OPENAI_API_KEY": "test-key"}),
+            patch("game_server.generate_first_question", return_value=self.questions[0]),
+            patch("game_server.generate_panel_question", side_effect=self.questions[1:]),
+            patch("game_server.generate_coaching_report", return_value=mock_report) as coaching_call,
+        ):
+            host = self.create_room()
+            guest = self.join_room(host["room_code"])
+            host_socket, _ = self.connect(host["room_code"], host["player_token"])
+            try:
+                guest_socket, _ = self.connect(guest["room_code"], guest["player_token"])
+                try:
+                    states = self._complete_four_turns(host_socket, guest_socket, mock_report)
+                    for label, state in states.items():
+                        self.assertEqual(state["feedback_status"], "ready", f"{label} should have ready feedback")
+                        fb = state["feedback"]
+                        self.assertEqual(fb["summary"], "Solid defense.")
+                        self.assertEqual(fb["strengths"], [{"turn": 0, "text": "Good SQLite rationale."}])
+                        self.assertEqual(fb["improvements"], [{"turn": 1, "text": "Elaborate on validation."}])
+                        self.assertEqual(fb["next_step"], "Practice edge cases.")
+                    self.assertEqual(coaching_call.call_count, 1)
+                finally:
+                    guest_socket.__exit__(None, None, None)
+            finally:
+                host_socket.__exit__(None, None, None)
+
+    def test_coaching_failure_host_can_retry_once(self):
+        mock_report = CoachingReport(
+            summary="Good session.",
+            strengths=[{"turn": 2, "text": "Addressed concurrency."}],
+            improvements=[{"turn": 3, "text": "Be more specific about access control."}],
+            next_step="Run load tests.",
+        )
+        with (
+            patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode", "OPENAI_API_KEY": "test-key"}),
+            patch("game_server.generate_first_question", return_value=self.questions[0]),
+            patch("game_server.generate_panel_question", side_effect=self.questions[1:]),
+            patch("game_server.generate_coaching_report",
+                  side_effect=[OpenAIError("coaching timeout"), mock_report]) as coaching_call,
+        ):
+            host = self.create_room()
+            guest = self.join_room(host["room_code"])
+            host_socket, _ = self.connect(host["room_code"], host["player_token"])
+            try:
+                guest_socket, _ = self.connect(guest["room_code"], guest["player_token"])
+                try:
+                    host_socket.send_json({"type": "start"})
+                    for socket in (host_socket, guest_socket):
+                        self.receive_phase(socket, "question")
+                    for turn, socket, answer in (
+                        (0, guest_socket, "SQLite keeps it simple."),
+                        (1, host_socket, "Parameterised queries."),
+                        (2, guest_socket, "Single writer is fine."),
+                        (3, host_socket, "Check access before returning."),
+                    ):
+                        socket.send_json({"type": "submit_answer", "turn": turn, "answer": answer})
+                        expected = "complete" if turn == 3 else "question"
+                        for observer in (host_socket, guest_socket):
+                            self.receive_phase(observer, expected)
+                    # Wait for coaching failure.
+                    for socket in (host_socket, guest_socket):
+                        state = self.receive_phase(socket, "complete")
+                        while state.get("feedback_status") == "generating":
+                            state = self.receive_phase(socket, "complete")
+                        self.assertEqual(state["feedback_status"], "failed")
+                        self.assertIsNone(state["feedback"])
+                        self.assertIsNotNone(state["error"])
+                        # All four answers preserved.
+                        self.assertEqual(len([t for t in state["turns"] if t["answer"]]), 4)
+                    # Guest cannot retry coaching.
+                    guest_socket.send_json({"type": "retry_coaching"})
+                    self.assertIn("Only the host", guest_socket.receive_json()["message"])
+                    # Host retries.
+                    host_socket.send_json({"type": "retry_coaching"})
+                    for socket in (host_socket, guest_socket):
+                        state = self.receive_phase(socket, "complete")
+                        while state.get("feedback_status") == "generating":
+                            state = self.receive_phase(socket, "complete")
+                        self.assertEqual(state["feedback_status"], "ready")
+                        self.assertEqual(state["feedback"]["summary"], "Good session.")
+                    self.assertEqual(coaching_call.call_count, 2)
+                finally:
+                    guest_socket.__exit__(None, None, None)
+            finally:
+                host_socket.__exit__(None, None, None)
+
+    def test_restart_clears_coaching_and_only_one_coaching_call_per_defense(self):
+        mock_report = CoachingReport(
+            summary="Good first run.",
+            strengths=[{"turn": 0, "text": "Clear."}],
+            improvements=[{"turn": 1, "text": "Go deeper."}],
+            next_step="Rehearse once more.",
+        )
+        with (
+            patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode", "OPENAI_API_KEY": "test-key"}),
+            patch("game_server.generate_first_question", return_value=self.questions[0]),
+            patch("game_server.generate_panel_question", side_effect=self.questions[1:] + self.questions[1:]),
+            patch("game_server.generate_coaching_report", return_value=mock_report) as coaching_call,
+        ):
+            host = self.create_room()
+            host_socket, _ = self.connect(host["room_code"], host["player_token"])
+            try:
+                guest = self.join_room(host["room_code"])
+                guest_socket, _ = self.connect(guest["room_code"], guest["player_token"])
+                try:
+                    states = self._complete_four_turns(host_socket, guest_socket, mock_report)
+                    self.assertEqual(states["host"]["feedback_status"], "ready")
+                    self.assertEqual(coaching_call.call_count, 1)
+                    # Host restarts — coaching must be cleared.
+                    host_socket.send_json({"type": "restart"})
+                    for socket in (host_socket, guest_socket):
+                        state = self.receive_phase(socket, "generating")
+                        self.assertEqual(state["feedback_status"], "none")
+                        self.assertIsNone(state["feedback"])
+                    # Stale coaching result must not arrive after restart.
+                    # Complete a second defense.
+                    states2 = self._complete_four_turns(host_socket, guest_socket, mock_report)
+                    self.assertEqual(states2["host"]["feedback_status"], "ready")
+                    # Exactly one coaching call per completed defense (2 total).
+                    self.assertEqual(coaching_call.call_count, 2)
+                finally:
+                    guest_socket.__exit__(None, None, None)
+            finally:
+                host_socket.__exit__(None, None, None)
+
+    def test_reconnecting_client_receives_coaching_report(self):
+        mock_report = CoachingReport(
+            summary="Reconnect check.",
+            strengths=[{"turn": 3, "text": "Strong finish."}],
+            improvements=[{"turn": 0, "text": "Start with more context."}],
+            next_step="Review sources.",
+        )
+        with (
+            patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode", "OPENAI_API_KEY": "test-key"}),
+            patch("game_server.generate_first_question", return_value=self.questions[0]),
+            patch("game_server.generate_panel_question", side_effect=self.questions[1:]),
+            patch("game_server.generate_coaching_report", return_value=mock_report),
+        ):
+            host = self.create_room()
+            guest = self.join_room(host["room_code"])
+            host_socket, _ = self.connect(host["room_code"], host["player_token"])
+            try:
+                guest_socket, _ = self.connect(guest["room_code"], guest["player_token"])
+                try:
+                    states = self._complete_four_turns(host_socket, guest_socket, mock_report)
+                    self.assertEqual(states["guest"]["feedback_status"], "ready")
+                finally:
+                    guest_socket.__exit__(None, None, None)
+                # Guest reconnects and must immediately receive the coaching report.
+                guest_socket2, rejoined_state = self.connect(guest["room_code"], guest["player_token"])
+                try:
+                    self.assertEqual(rejoined_state["feedback_status"], "ready")
+                    self.assertEqual(rejoined_state["feedback"]["summary"], "Reconnect check.")
+                finally:
+                    guest_socket2.__exit__(None, None, None)
             finally:
                 host_socket.__exit__(None, None, None)
 

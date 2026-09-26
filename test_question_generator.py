@@ -9,10 +9,14 @@ from openai import APIConnectionError, APIStatusError, OpenAIError
 
 from project_files import ProjectFile
 from question_generator import (
+    AnsweredQuestion,
+    CoachingDraft,
+    CoachingPoint,
     QuestionDraft,
     QuestionGenerationError,
     build_project_source,
     describe_openai_error,
+    generate_coaching_report,
     generate_first_question,
 )
 
@@ -121,6 +125,101 @@ class QuestionGeneratorTests(unittest.TestCase):
         client = FakeClient(error=OpenAIError("Service unavailable"))
         with self.assertRaises(OpenAIError):
             generate_first_question(self.files, "test-key", client=client)
+
+
+class CoachingReportTests(unittest.TestCase):
+    def setUp(self):
+        self.files = [
+            ProjectFile("README.md", "# Queue\nThe project uses SQLite.\n"),
+            ProjectFile("src/queue.py", "# Storage\nDATABASE = 'queue.db'\n"),
+        ]
+        self.history = [
+            AnsweredQuestion("Technical Architect", "Why SQLite?", "Simplicity for a prototype."),
+            AnsweredQuestion("Security Reviewer", "How do you protect names?", "Parameterised queries."),
+            AnsweredQuestion("Technical Architect", "What about concurrency?", "Single-writer SQLite is fine here."),
+            AnsweredQuestion("Security Reviewer", "Who can see results?", "Only authenticated users."),
+        ]
+
+    def _draft(self, summary="Good work.", strengths=None, improvements=None, next_step="Practice more."):
+        return CoachingDraft(
+            summary=summary,
+            strengths=strengths or [CoachingPoint(turn=0, text="Clear rationale for SQLite choice.")],
+            improvements=improvements or [CoachingPoint(turn=1, text="Expand on input validation.")],
+            next_step=next_step,
+        )
+
+    def test_valid_report_is_returned_with_all_fields(self):
+        client = FakeClient(self._draft())
+        result = generate_coaching_report(self.files, self.history, "test-key", client=client)
+        self.assertEqual(result.summary, "Good work.")
+        self.assertEqual(result.strengths, [{"turn": 0, "text": "Clear rationale for SQLite choice."}])
+        self.assertEqual(result.improvements, [{"turn": 1, "text": "Expand on input validation."}])
+        self.assertEqual(result.next_step, "Practice more.")
+        prompt = client.request["input"][1]["content"]
+        self.assertIn("FILE 1: README.md", prompt)
+        self.assertIn("FILE 2: src/queue.py", prompt)
+        self.assertIn("Why SQLite?", prompt)
+        self.assertIn("Only authenticated users.", prompt)
+        self.assertEqual(client.request["reasoning"], {"effort": "low"})
+        self.assertIs(client.request["store"], False)
+
+    def test_invalid_turn_reference_is_rejected(self):
+        draft = self._draft(strengths=[CoachingPoint(turn=5, text="Good.")])
+        client = FakeClient(draft)
+        with self.assertRaisesRegex(QuestionGenerationError, "invalid turn"):
+            generate_coaching_report(self.files, self.history, "test-key", client=client)
+
+    def test_empty_strength_text_is_rejected(self):
+        draft = self._draft(strengths=[CoachingPoint(turn=0, text="   ")])
+        client = FakeClient(draft)
+        with self.assertRaisesRegex(QuestionGenerationError, "empty"):
+            generate_coaching_report(self.files, self.history, "test-key", client=client)
+
+    def test_empty_summary_is_rejected(self):
+        draft = self._draft(summary="   ")
+        client = FakeClient(draft)
+        with self.assertRaisesRegex(QuestionGenerationError, "summary is empty"):
+            generate_coaching_report(self.files, self.history, "test-key", client=client)
+
+    def test_empty_next_step_is_rejected(self):
+        draft = self._draft(next_step="   ")
+        client = FakeClient(draft)
+        with self.assertRaisesRegex(QuestionGenerationError, "next step is empty"):
+            generate_coaching_report(self.files, self.history, "test-key", client=client)
+
+    def test_none_output_is_rejected(self):
+        client = FakeClient(None)
+        with self.assertRaisesRegex(QuestionGenerationError, "no coaching report"):
+            generate_coaching_report(self.files, self.history, "test-key", client=client)
+
+    def test_wrong_turn_count_is_rejected(self):
+        short_history = self.history[:3]
+        client = FakeClient(self._draft())
+        with self.assertRaisesRegex(QuestionGenerationError, "4 answered turns"):
+            generate_coaching_report(self.files, short_history, "test-key", client=client)
+        self.assertIsNone(client.request)
+
+    def test_missing_api_key_does_not_call_api(self):
+        client = FakeClient(self._draft())
+        with self.assertRaisesRegex(QuestionGenerationError, "OPENAI_API_KEY"):
+            generate_coaching_report(self.files, self.history, None, client=client)
+        self.assertIsNone(client.request)
+
+    def test_whitespace_key_is_rejected(self):
+        client = FakeClient(self._draft())
+        with self.assertRaisesRegex(QuestionGenerationError, "contains whitespace"):
+            generate_coaching_report(self.files, self.history, "test\nkey", client=client)
+        self.assertIsNone(client.request)
+
+    def test_all_four_turn_references_are_valid(self):
+        draft = self._draft(
+            strengths=[CoachingPoint(turn=t, text=f"Good on turn {t}.") for t in range(4)],
+            improvements=[CoachingPoint(turn=t, text=f"Improve turn {t}.") for t in range(4)],
+        )
+        client = FakeClient(draft)
+        result = generate_coaching_report(self.files, self.history, "test-key", client=client)
+        self.assertEqual(len(result.strengths), 4)
+        self.assertEqual(len(result.improvements), 4)
 
 
 class ErrorMessageTests(unittest.TestCase):

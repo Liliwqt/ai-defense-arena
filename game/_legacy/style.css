@@ -75,6 +75,19 @@ textarea{resize:vertical;min-height:115px}
 .turn-card p{line-height:1.45;margin:6px 0;color:#e4effb;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.84rem}
 .turn-card .citation{font-size:.75rem;color:#9bcbe8}
 .turn-card .answer{border-top:1px solid #304c65;padding-top:10px;margin-top:12px;color:#bcdcf6}
+.coaching-report{border:1px solid #435e76;background:#0e2035;border-radius:12px;padding:15px 17px;margin-bottom:14px}
+.coaching-title{color:#ffd97d;font-size:.85rem;margin:0 0 10px;letter-spacing:.05em}
+.coaching-summary{font-size:.87rem;line-height:1.5;color:#ddeeff;margin:0 0 12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.coaching-preparing{font-size:.85rem;color:#8abdd8;margin:0;font-style:italic}
+.coaching-error{font-size:.85rem;color:#f7a8b4;margin:0}
+.coaching-section{margin-top:11px}
+.coaching-section-title{font-size:.76rem;font-weight:900;letter-spacing:.09em;margin:0 0 6px}
+.coaching-strength-title{color:#7adba6}
+.coaching-improve-title{color:#f4a96a}
+.coaching-item{font-size:.84rem;line-height:1.45;margin:4px 0;color:#cce8f8;white-space:pre-wrap;overflow-wrap:anywhere;padding-left:14px;border-left:3px solid #314e68}
+.coaching-strength{border-left-color:#3fba82}
+.coaching-improve{border-left-color:#d97f3a}
+.coaching-item[data-turn]::before{content:"Q" attr(data-turn) " · ";font-size:.72rem;font-weight:900;opacity:.7;margin-right:4px}
 .rotate-prompt{display:none}
 @media(max-height:520px) and (orientation:landscape){:root{--dock-height:clamp(148px,42dvh,185px)}.hud{min-height:48px;padding:5px 12px}.brand .eyebrow{display:none}h1{font-size:.95rem}.hud-actions{gap:5px}.room-pill,.progress-pill,.hud-button{min-height:29px;padding:5px 8px;font-size:.65rem}.preview-banner{font-size:.6rem;padding:3px 7px}.question-card{gap:3px;padding:7px 16px}.question-heading h2{font-size:.95rem}.question-heading .eyebrow{display:none}.question-number{font-size:.62rem;padding:3px 7px}.question-text{font-size:.9rem;margin:0 0 6px}.source-block{padding:5px 8px}.source-ref,.source-block pre{font-size:.68rem}.question-footer{padding-top:4px;min-height:28px}.arena-status{font-size:.67rem}.card-action{min-width:115px;padding:6px 9px;font-size:.74rem}}
 @media(max-width:700px) and (orientation:portrait){.rotate-prompt{position:fixed;inset:0;z-index:30;display:grid;place-items:center;background:#081729f5;padding:25px;text-align:center}.rotate-card{max-width:320px}.rotate-icon{font-size:4rem;color:#77c7f7;line-height:1}.rotate-card h2{font-size:1.65rem;margin:9px 0}.rotate-card p{color:#bbd3e8;line-height:1.5;margin:0}}

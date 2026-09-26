@@ -18,8 +18,10 @@ from defense_session import DefenseSession, MAX_ANSWER_CHARS, PANELIST_ORDER
 from project_files import MAX_ARCHIVE_BYTES, MAX_FILE_BYTES, ProjectFile, read_project_files
 from question_generator import (
     DEFAULT_MODEL,
+    CoachingReport,
     QuestionGenerationError,
     describe_openai_error,
+    generate_coaching_report,
     generate_first_question,
     generate_panel_question,
 )
@@ -29,7 +31,7 @@ MAX_PLAYERS = 4
 MAX_ROOMS = 20
 MAX_REQUEST_BYTES = 11_000_000
 ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-GAME_DIR = Path(__file__).resolve().parent / "game"
+GAME_DIR = Path(__file__).resolve().parent / "game" / "dist"
 
 
 @dataclass(frozen=True)
@@ -61,6 +63,9 @@ class Room:
     error: str | None = None
     revision: int = 0
     generation_id: int = 0
+    feedback_status: str = "none"   # none | generating | ready | failed
+    feedback: CoachingReport | None = None
+    feedback_generation_id: int = 0
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     broadcast_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
@@ -87,6 +92,14 @@ class Room:
             active_panelist = PANELIST_ORDER[0]
         else:
             active_panelist = None
+        feedback_dict = None
+        if self.feedback is not None:
+            feedback_dict = {
+                "summary": self.feedback.summary,
+                "strengths": self.feedback.strengths,
+                "improvements": self.feedback.improvements,
+                "next_step": self.feedback.next_step,
+            }
         return {
             "room_code": self.code,
             "self_seat": recipient.seat if recipient is not None else None,
@@ -106,6 +119,8 @@ class Room:
             "error": self.error,
             "revision": self.revision,
             "files": [file.name for file in self.files],
+            "feedback_status": self.feedback_status,
+            "feedback": feedback_dict,
         }
 
 
@@ -222,6 +237,42 @@ def _schedule_generation(room: Room, generation_id: int, first: bool) -> None:
     task.add_done_callback(lambda finished: finished.exception() if not finished.cancelled() else None)
 
 
+async def _generate_coaching(room: Room, feedback_generation_id: int) -> None:
+    api_key = os.getenv("OPENAI_API_KEY")
+    model = os.getenv("OPENAI_MODEL") or DEFAULT_MODEL
+    async with room.lock:
+        if room.feedback_generation_id != feedback_generation_id or room.defense is None:
+            return
+        history = room.defense.answered_history()
+    try:
+        report = await asyncio.to_thread(
+            generate_coaching_report, room.files, history, api_key, model
+        )
+    except Exception as error:
+        async with room.lock:
+            if room.feedback_generation_id != feedback_generation_id:
+                return
+            room.feedback_status = "failed"
+            room.error = _safe_generation_error(error)
+            room.revision += 1
+        await publish(room)
+        return
+
+    async with room.lock:
+        if room.feedback_generation_id != feedback_generation_id:
+            return
+        room.feedback = report
+        room.feedback_status = "ready"
+        room.error = None
+        room.revision += 1
+    await publish(room)
+
+
+def _schedule_coaching(room: Room, feedback_generation_id: int) -> None:
+    task = asyncio.create_task(_generate_coaching(room, feedback_generation_id))
+    task.add_done_callback(lambda finished: finished.exception() if not finished.cancelled() else None)
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -296,8 +347,10 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
     error = None
     generate_first = None
     generation_id = None
+    start_coaching = False
+    feedback_generation_id = None
     async with room.lock:
-        if action in {"start", "restart", "retry"} and not player.is_host:
+        if action in {"start", "restart", "retry", "retry_coaching"} and not player.is_host:
             error = "Only the host can control the defense."
         elif action == "start":
             if room.phase != "lobby" or room.defense is not None:
@@ -316,6 +369,9 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
             room.error = None
             room.generation_id += 1
             generation_id = room.generation_id
+            room.feedback_status = "none"
+            room.feedback = None
+            room.feedback_generation_id += 1
             room.revision += 1
             generate_first = True
         elif action == "retry":
@@ -327,6 +383,16 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
                 room.error = None
                 room.generation_id += 1
                 generation_id = room.generation_id
+                room.revision += 1
+        elif action == "retry_coaching":
+            if room.phase != "complete" or room.feedback_status != "failed":
+                error = "There is no failed coaching report to retry."
+            else:
+                room.feedback_status = "generating"
+                room.error = None
+                room.feedback_generation_id += 1
+                feedback_generation_id = room.feedback_generation_id
+                start_coaching = True
                 room.revision += 1
         elif action == "submit_answer":
             turn = message.get("turn")
@@ -348,6 +414,10 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
                     room.answered_by[turn] = player.name
                     if room.defense.completed:
                         room.phase = "complete"
+                        room.feedback_status = "generating"
+                        room.feedback_generation_id += 1
+                        feedback_generation_id = room.feedback_generation_id
+                        start_coaching = True
                     else:
                         room.phase = "generating"
                         generate_first = False
@@ -362,6 +432,8 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
     await publish(room)
     if generate_first is not None and generation_id is not None:
         _schedule_generation(room, generation_id, generate_first)
+    if start_coaching and feedback_generation_id is not None:
+        _schedule_coaching(room, feedback_generation_id)
 
 
 @app.websocket("/ws/{code}")

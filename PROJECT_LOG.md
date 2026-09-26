@@ -6,17 +6,17 @@ Use this file to track completed updates across agents and session windows. See 
 
 - Project intake, source-line grounded questions, and the four-question defense flow are implemented.
 - The multiplayer Phaser/FastAPI room is implemented locally: four fixed panel seats, four defender seats, upload/create/join, synchronized questions and answers, host retry, and reconnect snapshots. The Streamlit app remains available.
-- The fullscreen room is deployed to Render at commit `18a7d1c`. Hosted layout checks and a fresh live four-answer room walkthrough passed with exact source-line citations. The user’s personal visual review and physical separate-device confirmation remain pending.
-- Feedback and additional panelists have not been implemented.
+- The earlier fullscreen room is deployed to Render at commit `18a7d1c`; its hosted four-answer walkthrough passed with exact source-line citations. The React frontend and shared coaching report are implemented locally but have not been pushed or deployed.
+- The user reviewed the combined React/coaching screen and approved deployment on 2026-09-27. Physical separate-device confirmation and hosted live coaching verification remain pending. Additional panelists have not been implemented.
 
 ## Active work
 
-- None. Hosted fullscreen verification is complete; user visual review remains pending.
+- Root session, started 2026-09-26: local React/coaching verification is complete and the user approved deployment; committing selected files and checking Render. Preserve unrelated screenshots and `react-migration-plan.md`.
 
 ## Pending verification and next step
 
-- Ask the user to review the hosted fullscreen room. Physical separate-device confirmation remains pending; the completed automated walkthrough used separate browser contexts on this machine.
-- Keep feedback and more panelists out of this checkpoint until that review.
+- The built React app passed a mocked two-browser walkthrough through FastAPI, and the user approved the combined screen for deployment.
+- After approval, deploy to Render and run a live coaching walkthrough. Physical separate-device confirmation remains pending. Keep more panelists out of this checkpoint.
 
 ## Change entry template
 
@@ -121,3 +121,35 @@ Append new entries to the **end** of this file in date order:
 - Changed: confirmed the deployed fullscreen room through a complete live session; no application code changed.
 - Verification: the user-hosted room accepted two independent browser clients. All four real AI questions appeared in Technical Architect, Security Reviewer, Technical Architect, Security Reviewer order. Every displayed citation and final transcript citation matched the exact uploaded `sample_project/queue.py` line. Answers from alternating clients reached both clients. The phone-sized browser reconnected during question two and recovered the current snapshot. A fresh fourth-seat browser received all four answers and the visible transcript, then retained them after reload. No page errors were recorded. The completion script's extra click on an already-open transcript drawer timed out; a separate fresh-client check confirmed this was a test-script mistake, not an app failure.
 - Remaining: the user’s personal visual review and physical separate-device confirmation. Hosted screenshots remain local so the completed room is not reset by another deploy. No feedback or additional panelists were added.
+
+### 2026-09-26 — Shared coaching report after fourth answer
+
+- Session: root.
+- Files: `question_generator.py`, `game_server.py`, `game/index.html`, `game/game.js`, `game/style.css`, `test_question_generator.py`, `test_game_server.py`, `PROJECT_LOG.md`.
+- Changed: after the fourth answer is accepted the server makes one Responses API call (gpt-6-luna, low reasoning, structured output, store:false) and produces a shared `CoachingReport` with a summary, 1–3 strengths, 1–3 improvements (each referencing a turn 0–3), and one next step. No numeric score. The report is validated (non-empty text, valid turn references 0–3) before broadcasting. `feedback_status` (`none`/`generating`/`ready`/`failed`) and `feedback` are included in every WebSocket snapshot so reconnecting clients receive the full report. The room stays in `complete` phase throughout; a `retry_coaching` action (host-only) is available when `feedback_status` is `failed`. Restarting a defense clears feedback and bumps `feedback_generation_id` so any stale in-flight result is discarded. The question card shows "Preparing coaching report" while generating and adapts its message for ready/failed states. The Transcript drawer opens automatically when coaching becomes ready (or when the host should retry on failure). The coaching report appears at the top of the Transcript panel above the four turn cards. A "Retry coaching report" button appears in the host controls drawer when the report has failed.
+- Verification: 51 offline tests pass (14 up from 37 in game_server, 10 new in question_generator.CoachingReportTests). New tests cover: valid report returned with correct fields and prompt contents; invalid/empty turn reference, text, summary, and next_step rejections; wrong turn count; missing/whitespace API key; one coaching call per completed defense; failure and host retry; reconnect delivers report; restart clears coaching and stale result does not arrive. JavaScript syntax check passed. No paid AI calls were made for this change.
+- Remaining: present the combined local screen to the user for review. After approval, push and deploy to Render; complete one live sample-project defense and confirm the coaching refers to answers actually given on both clients. Record in this log.
+
+### 2026-09-26 — React + TypeScript + Vite + Tailwind frontend migration
+
+- Session: root.
+- Files: `game/src/` (all new TypeScript/React source files), `game/package.json`, `game/vite.config.ts`, `game/vitest.config.ts`, `game/tsconfig.json`, `game/tailwind.config.js`, `game/postcss.config.js`, `game/index.html`, `game/src/index.css`, `game/_legacy/` (backed-up vanilla JS files), `game_server.py` (GAME_DIR → `game/dist`), `render.yaml` (build command extended), `.gitignore` (node_modules + dist excluded), `PROJECT_LOG.md`.
+- Changed: replaced the vanilla JS/HTML/CSS frontend with a Vite 6 + React 18 + TypeScript 5 + Tailwind CSS 3 + Phaser 3 application. The Phaser DefenseScene is ported to TypeScript and wrapped in a PhaserScene React component using useEffect. All WebSocket logic lives in the useRoomSocket hook. Components: App, HUD, QuestionCard, RotatePrompt, Drawer, ControlsPanel, TranscriptPanel, CoachingReport, TurnCard. FastAPI backend, WebSocket protocol, room logic, and all Python files are unchanged except GAME_DIR now points to `game/dist`. The Render build command now runs `npm ci && npm run build` after pip install. Legacy vanilla files are preserved in `game/_legacy/` for reference.
+- Verification: 51 Python backend tests pass. 39 frontend component/hook tests pass (vitest + React Testing Library): useRoomSocket (5), HUD (5), QuestionCard (7), CoachingReport (6), TranscriptPanel (4), ControlsPanel (7), Drawer (5). `npm run build` produces `game/dist/` with no TypeScript errors. JavaScript syntax clean. No paid AI calls were made.
+- Remaining: push to private GitHub `main` and trigger a Render redeploy; run `npm ci && npm run build` in the Render build environment; smoke-test `/health`, preview URL, and a fresh live room on two devices. Record hosted verification here. Render deploy and separate-device check require Render access not available in this environment.
+
+### 2026-09-27 — React coaching room local integration review
+
+- Session: root.
+- Files: `README.md`, `AGENTS.md`, `.gitignore`, `PROJECT_LOG.md`, `game/src/App.tsx`, `game/src/components/Drawer.tsx`, `game/src/components/Drawer.test.tsx`, `game/src/hooks/useRoomSocket.test.ts`, `game/src/index.css`, `game/src/phaser/DefenseScene.ts`, and new `screenshots/react-coaching-*.png` review artifacts.
+- Changed: documented the required npm build before FastAPI starts, clarified that coaching and React are local while the earlier fullscreen version is hosted, and ignored generated TypeScript build info. Fixed answer-field focus and keyboard focus restoration in the drawer. Rebalanced the short-landscape dock and compact Phaser cue so the question, long citation, and eight seats remain visible without overlap; removed an unwrapped mock socket callback from the frontend tests.
+- Verification: 51 Python unittest tests and 40 frontend Vitest tests passed; `npm ci --offline && npm run build`, local `/health`, and React asset serving passed; npm reported zero vulnerabilities. Two independent browser contexts completed all four mocked cited questions and answers; they verified answer synchronization, one question-generation failure and host retry, reconnect, one coaching failure and host retry, a shared coaching report tied to those answers, transcript, exact source-line matches, keyboard drawer actions, desktop/phone-landscape rendering, and portrait rotation. No browser page errors or paid AI calls. A long question and source line remained independently scrollable on phone landscape.
+- Remaining: user review of the combined local screen. After approval, commit the selected migration/coaching/docs files, push, verify Render's build and assets, and complete a fresh live hosted defense with coaching. Physical second-device confirmation remains separate. The older unrelated screenshots and draft migration plan were preserved.
+
+### 2026-09-27 — Combined screen approved for deployment
+
+- Session: root, with user review.
+- Files: `PROJECT_LOG.md`.
+- Changed: the user reviewed the local preview/screenshots and approved committing and deploying the React/coaching room.
+- Verification: approval was explicitly received in the review prompt; hosted verification has not yet happened.
+- Remaining: push the selected code and docs, verify the Render deployment, then run a fresh live coaching defense.

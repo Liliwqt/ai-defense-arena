@@ -193,6 +193,7 @@ function connectSocket() {
       const previousCurrent = findCurrentTurn(roomState);
       const answeredPreviousTurn = previousCurrent && message.state.turns?.[previousCurrent.index]?.answer;
       const previousPhase = roomState?.phase;
+      const previousFeedbackStatus = roomState?.feedback_status;
       if (answeredPreviousTurn) {
         $("answer-form").elements.answer.value = "";
         if (waitingForAnswerAck && drawerMode === "controls") closeDrawer();
@@ -203,6 +204,8 @@ function connectSocket() {
       render();
       if (roomState.phase === "retry" && previousPhase !== "retry" && isHost(roomState)) openDrawer("controls");
       if (roomState.phase === "complete" && previousPhase !== "complete") openDrawer("transcript");
+      if (roomState.feedback_status === "ready" && previousFeedbackStatus !== "ready") openDrawer("transcript");
+      if (roomState.feedback_status === "failed" && previousFeedbackStatus !== "failed" && isHost(roomState)) openDrawer("controls");
     } else if (message.type === "error") {
       waitingForAnswerAck = false;
       const error = String(message.message || "Room action failed.");
@@ -266,18 +269,71 @@ function textElement(tag, className, value) {
   return element;
 }
 
+function renderCoachingReport(state, container) {
+  const status = state?.feedback_status;
+  const report = state?.feedback;
+  if (!status || status === "none") return;
+  const section = document.createElement("section");
+  section.className = "coaching-report";
+  const heading = textElement("h3", "coaching-title", "Coaching Report");
+  section.appendChild(heading);
+  if (status === "generating") {
+    section.appendChild(textElement("p", "coaching-preparing", "Preparing your coaching report…"));
+    container.appendChild(section);
+    return;
+  }
+  if (status === "failed") {
+    section.appendChild(textElement("p", "coaching-error", "The coaching report could not be generated. The host can retry from Controls."));
+    container.appendChild(section);
+    return;
+  }
+  if (status !== "ready" || !report) return;
+  section.appendChild(textElement("p", "coaching-summary", report.summary));
+  if (report.strengths && report.strengths.length) {
+    const block = document.createElement("div");
+    block.className = "coaching-section";
+    block.appendChild(textElement("h4", "coaching-section-title coaching-strength-title", "Strengths"));
+    report.strengths.forEach((item) => {
+      const p = textElement("p", "coaching-item coaching-strength", item.text);
+      p.dataset.turn = String(item.turn + 1);
+      block.appendChild(p);
+    });
+    section.appendChild(block);
+  }
+  if (report.improvements && report.improvements.length) {
+    const block = document.createElement("div");
+    block.className = "coaching-section";
+    block.appendChild(textElement("h4", "coaching-section-title coaching-improve-title", "Areas to Improve"));
+    report.improvements.forEach((item) => {
+      const p = textElement("p", "coaching-item coaching-improve", item.text);
+      p.dataset.turn = String(item.turn + 1);
+      block.appendChild(p);
+    });
+    section.appendChild(block);
+  }
+  if (report.next_step) {
+    const block = document.createElement("div");
+    block.className = "coaching-section";
+    block.appendChild(textElement("h4", "coaching-section-title", "Next Step"));
+    block.appendChild(textElement("p", "coaching-item", report.next_step));
+    section.appendChild(block);
+  }
+  container.appendChild(section);
+}
+
 function renderTranscript(state) {
   const transcript = $("transcript");
   const turns = Array.isArray(state?.turns) ? state.turns : [];
   const answered = turns.filter((turn) => turn.answer).length;
   $("transcript-count").textContent = `${answered} / 4 answered`;
   transcript.replaceChildren();
-  if (!turns.length) {
+  if (!turns.length && (!state?.feedback_status || state.feedback_status === "none")) {
     transcript.className = "transcript-empty";
     transcript.textContent = "Questions and team answers will appear here.";
     return;
   }
   transcript.className = "transcript-list";
+  renderCoachingReport(state, transcript);
   turns.forEach((turn, index) => {
     const card = textElement("article", "turn-card", "");
     card.appendChild(textElement("h3", "", `QUESTION ${index + 1} · ${turn.panelist || "Panelist"}`));
@@ -296,6 +352,7 @@ function renderTranscript(state) {
 function renderQuestionCard(state) {
   const current = findCurrentTurn(state);
   const phase = state?.phase || "none";
+  const feedbackStatus = state?.feedback_status || "none";
   const answered = (state?.turns || []).filter((turn) => turn.answer).length;
   let name = "Your defense begins here";
   let question = "Create or join a room to begin your defense.";
@@ -325,10 +382,22 @@ function renderQuestionCard(state) {
     number = `QUESTION ${Math.min(answered + 1, 4)} OF 4`;
     status = state.error || "The host can retry. Previous answers are saved.";
   } else if (phase === "complete") {
-    name = "Defense complete";
-    question = "All four questions have been answered. Open Transcript to review your team's defense.";
-    number = "4 OF 4";
-    status = "The complete transcript remains in this room until the server restarts.";
+    if (feedbackStatus === "generating") {
+      name = "Preparing coaching report";
+      question = "Your team's coaching report is being prepared. It will appear in the Transcript.";
+      number = "4 OF 4";
+      status = "This may take a few seconds.";
+    } else if (feedbackStatus === "failed") {
+      name = "Defense complete";
+      question = "All four questions have been answered. The coaching report could not be generated.";
+      number = "4 OF 4";
+      status = state.error || (isHost(state) ? "Open Controls to retry the coaching report." : "The host can retry the coaching report.");
+    } else {
+      name = "Defense complete";
+      question = "All four questions have been answered. Open Transcript to review your coaching report.";
+      number = "4 OF 4";
+      status = "The complete transcript and coaching report remain in this room until the server restarts.";
+    }
   }
   const questionChanged = $("question-text").textContent !== question;
   $("panelist-name").textContent = name;
@@ -356,6 +425,7 @@ function render() {
   const current = findCurrentTurn(state);
   const host = isHost(state);
   const phase = state?.phase || "none";
+  const feedbackStatus = state?.feedback_status || "none";
   $("room-pill").textContent = state ? `Room ${state.room_code || roomCode || "—"}` : "No room yet";
   $("round-indicator").textContent = phase === "complete" ? "COMPLETE" : state ? `${answered} / 4 ANSWERED` : "READY";
   if (!state) return;
@@ -365,9 +435,11 @@ function render() {
   $("leave-button").hidden = previewMode;
   $("start-button").hidden = phase !== "lobby";
   $("retry-button").hidden = phase !== "retry";
+  $("retry-coaching-button").hidden = phase !== "complete" || feedbackStatus !== "failed";
   $("restart-button").hidden = phase === "lobby";
   $("start-button").disabled = !connected;
   $("retry-button").disabled = !connected;
+  $("retry-coaching-button").disabled = !connected;
   $("restart-button").disabled = !connected;
   $("answer-form").hidden = previewMode || phase !== "question" || !current;
   $("answer-form").querySelector("button[type=submit]").disabled = !connected || waitingForAnswerAck;
@@ -375,7 +447,9 @@ function render() {
     phase === "lobby" ? (host ? "Start when your team is ready." : "The host will start the defense.") :
     phase === "generating" ? "The panelist is preparing the next question…" :
     phase === "retry" ? (host ? "Question generation failed. Your team's previous answer was saved; retry when ready." : "The host can retry the next question. Previous answers are saved.") :
-    phase === "complete" ? "The four-question defense is complete." : "";
+    phase === "complete" && feedbackStatus === "generating" ? "Preparing your team's coaching report…" :
+    phase === "complete" && feedbackStatus === "failed" ? (host ? "Coaching report failed. Use Retry coaching report to try again." : "Coaching report failed. The host can retry.") :
+    phase === "complete" ? "The four-question defense is complete. Open Transcript for your coaching report." : "";
 }
 
 class DefenseScene extends Phaser.Scene {
@@ -573,6 +647,7 @@ $("join-form").addEventListener("submit", async (event) => {
 $("leave-button").addEventListener("click", leaveRoom);
 $("start-button").addEventListener("click", () => { if (sendEvent({type: "start"})) closeDrawer(); });
 $("retry-button").addEventListener("click", () => { if (sendEvent({type: "retry"})) closeDrawer(); });
+$("retry-coaching-button").addEventListener("click", () => { if (sendEvent({type: "retry_coaching"})) closeDrawer(); });
 $("restart-button").addEventListener("click", () => {
   if (sendEvent({type: "restart"})) {
     $("answer-form").elements.answer.value = "";

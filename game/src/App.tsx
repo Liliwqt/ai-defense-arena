@@ -1,0 +1,183 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ControlsPanel } from "./components/ControlsPanel";
+import { Drawer } from "./components/Drawer";
+import { HUD } from "./components/HUD";
+import { PhaserScene } from "./components/PhaserScene";
+import { QuestionCard } from "./components/QuestionCard";
+import { RotatePrompt } from "./components/RotatePrompt";
+import { TranscriptPanel } from "./components/TranscriptPanel";
+import { useRoomSocket } from "./hooks/useRoomSocket";
+import { previewState } from "./previewState";
+import type { DrawerMode, RoomState } from "./types";
+
+const previewMode =
+  new URLSearchParams(window.location.search).get("preview") === "1";
+
+export function App() {
+  const {
+    roomState: liveRoomState,
+    connected,
+    roomCode,
+    waitingForAnswerAck,
+    sendEvent,
+    useRoom,
+    leaveRoom,
+  } = useRoomSocket(previewMode);
+
+  const [drawerOpen, setDrawerOpen] = useState(previewMode ? false : true);
+  const [drawerMode, setDrawerMode] = useState<DrawerMode>("controls");
+  const [focusAnswer, setFocusAnswer] = useState(false);
+  const [message, setMessage] = useState("");
+
+  // In preview mode, use the static preview state; otherwise live state
+  const roomState: RoomState | null = previewMode ? previewState : liveRoomState;
+
+  // Track previous phase/feedbackStatus for auto-open drawer transitions
+  const prevPhaseRef = useRef<string | undefined>(undefined);
+  const prevFeedbackRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    const phase = roomState?.phase;
+    const feedbackStatus = roomState?.feedback_status;
+    const isHost = roomState?.self_is_host ?? false;
+
+    if (phase === "retry" && prevPhaseRef.current !== "retry" && isHost) {
+      openDrawer("controls");
+    }
+    if (phase === "complete" && prevPhaseRef.current !== "complete") {
+      openDrawer("transcript");
+    }
+    if (
+      feedbackStatus === "ready" &&
+      prevFeedbackRef.current !== "ready"
+    ) {
+      openDrawer("transcript");
+    }
+    if (
+      feedbackStatus === "failed" &&
+      prevFeedbackRef.current !== "failed" &&
+      isHost
+    ) {
+      openDrawer("controls");
+    }
+
+    prevPhaseRef.current = phase;
+    prevFeedbackRef.current = feedbackStatus;
+  }, [roomState]);
+
+  const openDrawer = useCallback((mode: DrawerMode, shouldFocusAnswer = false) => {
+    setDrawerMode(mode);
+    setFocusAnswer(shouldFocusAnswer);
+    setDrawerOpen(true);
+  }, []);
+
+  const closeDrawer = useCallback(() => {
+    setDrawerOpen(false);
+    setFocusAnswer(false);
+  }, []);
+
+  const showMessage = useCallback((msg: string) => {
+    setMessage(msg);
+    if (msg) {
+      setDrawerMode("controls");
+      setDrawerOpen(true);
+    }
+  }, []);
+
+  const handleUseRoom = useCallback(
+    (code: string, token: string, host: boolean) => {
+      useRoom(code, token, host);
+      if (host) openDrawer("controls");
+      else closeDrawer();
+    },
+    [useRoom, openDrawer, closeDrawer],
+  );
+
+  const handleLeaveRoom = useCallback(() => {
+    leaveRoom();
+    openDrawer("controls");
+  }, [leaveRoom, openDrawer]);
+
+  const drawerTitle = drawerMode === "transcript" ? "Transcript" : "Controls";
+
+  return (
+    <div
+      className="relative flex flex-col w-full overflow-hidden bg-[#091322]"
+      style={{ height: "100dvh" }}
+    >
+      {/* Stage — Phaser fills this area */}
+      <div
+        id="stage"
+        className="relative flex-1 min-h-0 overflow-hidden"
+        style={{
+          background:
+            "radial-gradient(circle at 50% -15%, #304d6d 0, #142a43 46%, #091827 100%)",
+        }}
+      >
+        <PhaserScene roomState={roomState} />
+        <HUD
+          roomState={roomState}
+          roomCode={roomCode}
+          previewMode={previewMode}
+          onOpenDrawer={openDrawer}
+        />
+      </div>
+
+      {/* Docked question card */}
+      <QuestionCard
+        roomState={roomState}
+        connected={connected}
+        previewMode={previewMode}
+        onOpenDrawer={openDrawer}
+      />
+
+      {/* Slide-in drawer */}
+      <Drawer
+        open={drawerOpen}
+        mode={drawerMode}
+        title={drawerTitle}
+        focusAnswer={focusAnswer}
+        onClose={closeDrawer}
+      >
+        {drawerMode === "controls" ? (
+          <>
+            <ControlsPanel
+              roomState={previewMode ? roomState : liveRoomState}
+              connected={connected}
+              previewMode={previewMode}
+              waitingForAnswerAck={waitingForAnswerAck}
+              onUseRoom={handleUseRoom}
+              onLeaveRoom={handleLeaveRoom}
+              onSendEvent={sendEvent}
+              onCloseDrawer={closeDrawer}
+              showMessage={showMessage}
+            />
+            {message && (
+              <div
+                role="alert"
+                className="mt-4 p-3 rounded-[9px] bg-[#512934] border border-[#a65b69] text-[#ffe0e5] text-[0.84rem] leading-[1.4]"
+              >
+                {message}
+              </div>
+            )}
+          </>
+        ) : (
+          <TranscriptPanel roomState={roomState} />
+        )}
+      </Drawer>
+
+      {/* Portrait rotation prompt */}
+      <RotatePrompt />
+
+      {/* Preview mode banner */}
+      {previewMode && (
+        <div
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 px-3 py-[6px] border border-[#a47a34] rounded-full bg-[#78521e] text-[#fff3ce] text-[0.68rem] font-black whitespace-nowrap"
+          aria-live="polite"
+        >
+          Mock preview · no AI call
+        </div>
+      )}
+    </div>
+  );
+}
