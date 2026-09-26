@@ -6,17 +6,17 @@ Use this file to track completed updates across agents and session windows. See 
 
 - Project intake, source-line grounded questions, and the four-question defense flow are implemented.
 - The multiplayer Phaser/FastAPI room is implemented locally: four fixed panel seats, four defender seats, upload/create/join, synchronized questions and answers, host retry, and reconnect snapshots. The Streamlit app remains available.
-- The fixed-seat screen and a completed four-answer session have been checked with mocked AI in two browser contexts. The code is pushed to a private GitHub repository. A live OpenAI run, Render deployment, separate-device check, and user review remain pending.
+- The fixed-seat screen and a completed four-answer session have been checked with mocked AI in two browser contexts. The code is pushed to a private GitHub repository and deployed to Render. A hosted live OpenAI four-answer session passed; physical separate-device confirmation and user review remain pending.
 - Feedback and additional panelists have not been implemented.
 
 ## Active work
 
-- None. Awaiting Render access and server-side secrets for hosted verification.
+- Root session, 2026-09-26: recording hosted live verification and awaiting user review. No code edits planned before review.
 
 ## Pending verification and next step
 
-- Configure `OPENAI_API_KEY` and `GAME_HOST_PASSCODE` on the server, then run a live four-answer session with `sample_project/README.md` and `sample_project/queue.py`; verify every source citation and follow-up.
-- Deploy the private repository on Render with `render.yaml` and enter secrets in the dashboard. Test from separate devices over HTTPS/WSS. Then show the hosted screen for user review before feedback or more panelists.
+- Review the completed hosted room at `https://ai-defense-arena.onrender.com` and the local `screenshots/hosted-live-defense.png`. Confirm the transcript is visible on a physical second device if available.
+- Pause before feedback or more panelists until the user reviews this checkpoint.
 
 ## Change entry template
 
@@ -81,3 +81,11 @@ Append new entries to the **end** of this file in date order:
 - Changed: handle a WebSocket peer that disconnects during authentication without an ASGI exception. If a stored room or token is invalid after a server restart, the browser clears it and returns to create/join instead of reconnecting forever.
 - Verification: 37 offline tests passed, JavaScript syntax passed, and a headless browser with a stored expired room returned to the create/join form and cleared its stored code.
 - Remaining: hosted live AI/device verification and user review pending.
+
+### 2026-09-26 — Hosted live four-question walkthrough
+
+- Session: root and the user-hosted browser.
+- Files: `PROJECT_LOG.md`, `screenshots/hosted-live-defense.png` (local review artifact).
+- Changed: Render Blueprint deployment is live at `https://ai-defense-arena.onrender.com`; no application code changed. A host created a room with sample project files and a second browser client joined as a defender over HTTPS/WSS.
+- Verification: `/health`, HTML, CSS, and JavaScript returned HTTP 200; desktop and mobile Phaser previews rendered without page errors or mobile overflow. The guest browser completed four real AI-generated questions and answers. All four citations matched the exact `sample_project/queue.py` source line; the two follow-ups explicitly referred to the corresponding panelist's earlier answer. Both players appeared online in the complete room snapshot. The screenshot captures the completed hosted transcript.
+- Remaining: user visual review and confirmation from a physical second device, if desired. Do not add feedback or panelists before review. The log and live screenshot are kept local for now so a GitHub push does not redeploy and erase the active in-memory room.
