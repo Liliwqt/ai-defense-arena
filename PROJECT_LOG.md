@@ -6,12 +6,12 @@ Use this file to track completed updates across agents and session windows. See 
 
 - Project intake, source-line grounded questions, and the four-question defense flow are implemented.
 - The multiplayer Phaser/FastAPI room is implemented locally: four fixed panel seats, four defender seats, upload/create/join, synchronized questions and answers, host retry, and reconnect snapshots. The Streamlit app remains available.
-- The fixed-seat screen and a completed four-answer session have been reviewed with mocked AI in two browser contexts. A live OpenAI run, Render deployment, separate-device check, and user review remain pending.
+- The fixed-seat screen and a completed four-answer session have been checked with mocked AI in two browser contexts. The code is pushed to a private GitHub repository. A live OpenAI run, Render deployment, separate-device check, and user review remain pending.
 - Feedback and additional panelists have not been implemented.
 
 ## Active work
 
-- Root session, 2026-09-26: preparing private GitHub repository and Render handoff after local implementation.
+- None. Awaiting Render access and server-side secrets for hosted verification.
 
 ## Pending verification and next step
 
@@ -65,3 +65,11 @@ Append new entries to the **end** of this file in date order:
 - Changed: added a FastAPI room server with authenticated host creation, four defender seats, WebSocket snapshots, first-valid-answer-wins turns, retry and reconnect behavior; added the fixed-seat Phaser interface and Render Free service configuration. Streamlit remains available.
 - Verification: 36 offline unit tests passed; JavaScript syntax passed; local HTTP assets and health endpoint returned 200. A headless browser screenshot confirmed the mock scene. Two independent browser contexts completed four answers against a mocked AI server, including AI failure, retry, and reconnect; both showed a complete transcript and no page errors. `screenshots/` contains review images.
 - Remaining: live AI and hosted separate-device walkthrough require runtime secrets and Render setup; user review pending. No feedback feature started.
+
+### 2026-09-26 — Private repository prepared
+
+- Session: root.
+- Files: `PROJECT_LOG.md` and the committed project files.
+- Changed: initialized the repository, committed the complete local checkpoint, and pushed `main` to the private repository `https://github.com/Liliwqt/ai-defense-arena`. The `render.yaml` Blueprint is ready for connection to Render.
+- Verification: GitHub reports `isPrivate: true` and `main` as the default branch; working tree was clean after the initial push. Source files were scanned for common API-key and private-key patterns before publishing, with no matches.
+- Remaining: this environment has no Render authentication or runtime `OPENAI_API_KEY` / `GAME_HOST_PASSCODE`; Render deploy and live AI/device checks await access. Do not mark user review complete.
