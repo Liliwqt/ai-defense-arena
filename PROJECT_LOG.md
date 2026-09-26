@@ -6,17 +6,17 @@ Use this file to track completed updates across agents and session windows. See 
 
 - Project intake, source-line grounded questions, and the four-question defense flow are implemented.
 - The multiplayer Phaser/FastAPI room is implemented locally: four fixed panel seats, four defender seats, upload/create/join, synchronized questions and answers, host retry, and reconnect snapshots. The Streamlit app remains available.
-- The fullscreen room layout and completed four-answer session have been checked locally with mocked AI in two browser contexts. The earlier room is deployed to Render; a hosted live OpenAI four-answer session passed. The user authorized pushing the fullscreen layout before personal visual review. Hosted fullscreen and physical separate-device checks remain pending.
+- The fullscreen room is deployed to Render at commit `18a7d1c`. Hosted layout checks and a fresh live four-answer room walkthrough passed with exact source-line citations. The user’s personal visual review and physical separate-device confirmation remain pending.
 - Feedback and additional panelists have not been implemented.
 
 ## Active work
 
-- Root session, 2026-09-26: deploying the fullscreen layout in `game/`, `README.md`, `AGENTS.md`, `PROJECT_LOG.md`, and new fullscreen screenshots, then checking Render. Preserve unrelated local screenshots.
+- None. Hosted fullscreen verification is complete; user visual review remains pending.
 
 ## Pending verification and next step
 
-- Push the user-authorized fullscreen update to the private repository, let Render redeploy, and smoke-test the hosted layout with a fresh room. A redeploy will erase active in-memory rooms.
-- User visual review and physical separate-device confirmation remain pending. Keep feedback and more panelists out of this checkpoint.
+- Ask the user to review the hosted fullscreen room. Physical separate-device confirmation remains pending; the completed automated walkthrough used separate browser contexts on this machine.
+- Keep feedback and more panelists out of this checkpoint until that review.
 
 ## Change entry template
 
@@ -105,3 +105,19 @@ Append new entries to the **end** of this file in date order:
 - Changed: confirmed the local fullscreen build is ready for visual review; no commit, push, or Render redeploy was performed.
 - Verification: 37 offline tests, JavaScript syntax, and `git diff --check` passed again. Desktop, landscape, portrait, and long-question browser previews passed with no page errors or horizontal overflow. The local server returned HTTP 200 for the preview and JavaScript asset. The private GitHub `main` ref was reachable. A predeployment hosted `/health` request timed out from this environment; hosted status was not inferred from that timeout.
 - Remaining: explicit user visual approval, then push and hosted checks with a fresh room. Existing unrelated screenshot changes remain untouched.
+
+### 2026-09-26 — Fullscreen Render deployment
+
+- Session: root.
+- Files: selected fullscreen UI, docs, log, and new preview screenshots in commit `18a7d1c`; `PROJECT_LOG.md` and two hosted screenshots updated locally after deployment. Existing `screenshots/fixed-seat-preview.png` changes and `screenshots/hosted-live-defense.png` remained untouched.
+- Changed: pushed the fullscreen update to private `main`; Render now serves the same HTML, CSS, and JavaScript bytes as that commit. The user explicitly authorized deployment before personal visual review.
+- Verification: `/health` returned HTTP 200. Hosted headless desktop and phone-landscape previews had no page errors or horizontal overflow; portrait showed the rotation prompt; the long question remained scrollable. The hosted create/join drawer passed keyboard focus, Escape, and focus-restoration checks.
+- Remaining: a fresh hosted room walkthrough with multiple clients and exact citation checks, physical separate-device confirmation, and user visual review. No feedback or additional panelists were added.
+
+### 2026-09-26 — Hosted fullscreen four-answer walkthrough
+
+- Session: root, with the user hosting a fresh room.
+- Files: `PROJECT_LOG.md`; `screenshots/hosted-fullscreen-completed.png` and two hosted layout screenshots kept locally for review.
+- Changed: confirmed the deployed fullscreen room through a complete live session; no application code changed.
+- Verification: the user-hosted room accepted two independent browser clients. All four real AI questions appeared in Technical Architect, Security Reviewer, Technical Architect, Security Reviewer order. Every displayed citation and final transcript citation matched the exact uploaded `sample_project/queue.py` line. Answers from alternating clients reached both clients. The phone-sized browser reconnected during question two and recovered the current snapshot. A fresh fourth-seat browser received all four answers and the visible transcript, then retained them after reload. No page errors were recorded. The completion script's extra click on an already-open transcript drawer timed out; a separate fresh-client check confirmed this was a test-script mistake, not an app failure.
+- Remaining: the user’s personal visual review and physical separate-device confirmation. Hosted screenshots remain local so the completed room is not reset by another deploy. No feedback or additional panelists were added.
