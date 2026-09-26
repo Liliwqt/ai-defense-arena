@@ -3,11 +3,11 @@
 const previewMode = new URLSearchParams(window.location.search).get("preview") === "1";
 const $ = (id) => document.getElementById(id);
 const panelNames = ["Technical Architect", "Security Reviewer"];
-const seatX = [148, 370, 590, 812];
 const previewState = {
   room_code: "PREVIEW",
   phase: "question",
   self_seat: 0,
+  self_is_host: true,
   players: [
     {seat: 0, name: "You", online: true, is_host: true},
     {seat: 1, name: "Teammate A", online: true, is_host: false},
@@ -16,7 +16,7 @@ const previewState = {
   ],
   turns: [{
     panelist: "Technical Architect",
-    question: "Why does reserve() open a new SQLite connection for every reservation?",
+    question: "Why does reserve() open a new SQLite connection for every reservation, and how will that choice behave when several students reserve at once?",
     filename: "sample_project/queue.py",
     evidence_line: 9,
     evidence_text: "    with sqlite3.connect(DATABASE) as connection:",
@@ -36,6 +36,8 @@ let connectionVersion = 0;
 let connected = false;
 let knownHost = false;
 let waitingForAnswerAck = false;
+let drawerMode = "controls";
+let drawerReturnFocus = null;
 let scene = null;
 
 function safeStore(code, token) {
@@ -64,9 +66,34 @@ function readStoredRoom() {
   }
 }
 
+function openDrawer(mode = "controls", focusAnswer = false) {
+  const drawer = $("drawer");
+  if (drawer.hidden) drawerReturnFocus = document.activeElement;
+  drawerMode = mode;
+  $("controls-panel").hidden = mode !== "controls";
+  $("transcript-panel").hidden = mode !== "transcript";
+  $("drawer-title").textContent = mode === "transcript" ? "Transcript" : "Controls";
+  drawer.hidden = false;
+  $("drawer-scrim").hidden = false;
+  $("controls-toggle").setAttribute("aria-expanded", String(mode === "controls"));
+  $("transcript-toggle").setAttribute("aria-expanded", String(mode === "transcript"));
+  if (focusAnswer && !$("answer-form").hidden) $("answer-form").elements.answer.focus();
+  else $("drawer-close").focus();
+}
+
+function closeDrawer() {
+  $("drawer").hidden = true;
+  $("drawer-scrim").hidden = true;
+  $("controls-toggle").setAttribute("aria-expanded", "false");
+  $("transcript-toggle").setAttribute("aria-expanded", "false");
+  if (drawerReturnFocus && document.contains(drawerReturnFocus)) drawerReturnFocus.focus();
+  drawerReturnFocus = null;
+}
+
 function showMessage(message) {
   $("message").textContent = message;
   $("message").hidden = !message;
+  if (message && $("drawer").hidden) openDrawer("controls");
 }
 
 function setButtonBusy(form, busy) {
@@ -109,6 +136,8 @@ function useRoom(code, token, host) {
   $("room-pill").textContent = `Room ${roomCode}`;
   showMessage("");
   render();
+  if (host) openDrawer("controls");
+  else closeDrawer();
   connectSocket();
 }
 
@@ -127,10 +156,10 @@ function leaveRoom() {
   clearStoredRoom();
   $("room-controls").hidden = true;
   $("connect-forms").hidden = false;
-  $("room-pill").textContent = "No room yet";
   $("answer-form").elements.answer.value = "";
   showMessage("");
   render();
+  openDrawer("controls");
 }
 
 function socketUrl(code) {
@@ -162,13 +191,18 @@ function connectSocket() {
     try { message = JSON.parse(event.data); } catch (_) { return; }
     if (message.type === "snapshot" && message.state) {
       const previousCurrent = findCurrentTurn(roomState);
-      const answeredPreviousTurn = previousCurrent &&
-        message.state.turns?.[previousCurrent.index]?.answer;
-      if (answeredPreviousTurn) $("answer-form").elements.answer.value = "";
+      const answeredPreviousTurn = previousCurrent && message.state.turns?.[previousCurrent.index]?.answer;
+      const previousPhase = roomState?.phase;
+      if (answeredPreviousTurn) {
+        $("answer-form").elements.answer.value = "";
+        if (waitingForAnswerAck && drawerMode === "controls") closeDrawer();
+      }
       roomState = message.state;
       waitingForAnswerAck = false;
       showMessage("");
       render();
+      if (roomState.phase === "retry" && previousPhase !== "retry" && isHost(roomState)) openDrawer("controls");
+      if (roomState.phase === "complete" && previousPhase !== "complete") openDrawer("transcript");
     } else if (message.type === "error") {
       waitingForAnswerAck = false;
       const error = String(message.message || "Room action failed.");
@@ -259,21 +293,72 @@ function renderTranscript(state) {
   });
 }
 
+function renderQuestionCard(state) {
+  const current = findCurrentTurn(state);
+  const phase = state?.phase || "none";
+  const answered = (state?.turns || []).filter((turn) => turn.answer).length;
+  let name = "Your defense begins here";
+  let question = "Create or join a room to begin your defense.";
+  let number = "READY";
+  let status = "Create or join a room to begin.";
+  let source = null;
+  let evidence = null;
+  if (phase === "lobby") {
+    name = "Your team is gathering";
+    question = "The host starts the defense when everyone is ready.";
+    status = isHost(state) ? "Open Controls to start the defense." : "Waiting for the host to start.";
+  } else if (phase === "generating") {
+    name = state.active_panelist || "The panel";
+    question = "Preparing the next question…";
+    number = `QUESTION ${Math.min(answered + 1, 4)} OF 4`;
+    status = "Your team will see the same question when it is ready.";
+  } else if (phase === "question" && current) {
+    name = current.turn.panelist;
+    question = current.turn.question;
+    number = `QUESTION ${current.index + 1} OF 4`;
+    source = `${current.turn.filename}:${current.turn.evidence_line}`;
+    evidence = current.turn.evidence_text;
+    status = "Any teammate can answer; the first valid submission counts.";
+  } else if (phase === "retry") {
+    name = state.active_panelist || "The panel";
+    question = "The next question could not be generated.";
+    number = `QUESTION ${Math.min(answered + 1, 4)} OF 4`;
+    status = state.error || "The host can retry. Previous answers are saved.";
+  } else if (phase === "complete") {
+    name = "Defense complete";
+    question = "All four questions have been answered. Open Transcript to review your team's defense.";
+    number = "4 OF 4";
+    status = "The complete transcript remains in this room until the server restarts.";
+  }
+  const questionChanged = $("question-text").textContent !== question;
+  $("panelist-name").textContent = name;
+  $("question-number").textContent = number;
+  $("question-text").textContent = question;
+  $("source-block").hidden = source === null;
+  $("source-ref").textContent = source || "";
+  $("evidence-text").textContent = evidence == null ? "" : String(evidence);
+  $("arena-status").textContent = status;
+  $("answer-open").hidden = previewMode || phase !== "question" || !current;
+  $("answer-open").disabled = !connected;
+  if (questionChanged) {
+    $("question-content").scrollTop = 0;
+    $("source-block").scrollTop = 0;
+  }
+}
+
 function render() {
   const state = roomState;
   if (scene) scene.renderState(state);
   renderTranscript(state);
-  if (!state) {
-    $("arena-status").textContent = previewMode ? "Mock room preview. Create a real room to play." : "Create or join a room to begin.";
-    $("round-indicator").textContent = "Waiting for a room";
-    return;
-  }
-  const turns = Array.isArray(state.turns) ? state.turns : [];
-  const current = findCurrentTurn(state);
+  renderQuestionCard(state);
+  const turns = Array.isArray(state?.turns) ? state.turns : [];
   const answered = turns.filter((turn) => turn.answer).length;
+  const current = findCurrentTurn(state);
   const host = isHost(state);
-  const phase = state.phase || "lobby";
-  $("room-pill").textContent = `Room ${state.room_code || roomCode || "—"}`;
+  const phase = state?.phase || "none";
+  $("room-pill").textContent = state ? `Room ${state.room_code || roomCode || "—"}` : "No room yet";
+  $("round-indicator").textContent = phase === "complete" ? "COMPLETE" : state ? `${answered} / 4 ANSWERED` : "READY";
+  if (!state) return;
   $("room-code").textContent = state.room_code || roomCode || "—";
   $("role-label").textContent = previewMode ? "Visual preview" : (host ? "Host · share the code with your team" : "Defender · waiting with your team");
   $("host-controls").hidden = previewMode || !host;
@@ -291,14 +376,6 @@ function render() {
     phase === "generating" ? "The panelist is preparing the next question…" :
     phase === "retry" ? (host ? "Question generation failed. Your team's previous answer was saved; retry when ready." : "The host can retry the next question. Previous answers are saved.") :
     phase === "complete" ? "The four-question defense is complete." : "";
-  $("arena-status").textContent = phase === "question" && current ?
-    `Question ${current.index + 1} of 4 · ${current.turn.panelist} is asking.` :
-    phase === "generating" ? "Preparing the next panel question…" :
-    phase === "retry" ? "Generation paused. The host can retry without losing the previous answer." :
-    phase === "complete" ? "Defense complete · all four questions answered." :
-    "Waiting for the host to start the defense.";
-  $("round-indicator").textContent = phase === "complete" ? "COMPLETE" : `${answered} / 4 ANSWERED`;
-  if (state.error && phase === "retry") showMessage(String(state.error));
 }
 
 class DefenseScene extends Phaser.Scene {
@@ -307,42 +384,28 @@ class DefenseScene extends Phaser.Scene {
   create() {
     scene = this;
     this.makeTextures();
-    this.add.rectangle(480, 270, 960, 540, 0x12253d);
-    this.add.rectangle(480, 270, 942, 522, 0x152b44).setStrokeStyle(2, 0x365674);
-    this.add.rectangle(480, 270, 904, 478, 0x132840).setStrokeStyle(1, 0x2c4a69);
-    this.add.text(480, 29, "THE PANEL", {fontFamily: "Arial, sans-serif", fontSize: "15px", color: "#fda8a8", fontStyle: "bold", letterSpacing: 4}).setOrigin(.5);
-    this.add.text(480, 507, "YOUR TEAM", {fontFamily: "Arial, sans-serif", fontSize: "15px", color: "#8ccfff", fontStyle: "bold", letterSpacing: 4}).setOrigin(.5);
-    this.add.rectangle(480, 359, 860, 2, 0x315371);
-
-    this.panelSeats = seatX.map((x, index) => {
-      const circle = this.add.circle(x, 110, 52, 0x783340, .24).setStrokeStyle(2, 0xe9747c, .55);
-      const glow = this.add.circle(x, 110, 58).setStrokeStyle(4, 0xffcc69, 1).setVisible(false);
-      const sprite = index === 1 || index === 2 ? this.add.sprite(x, 113, "panelist") : null;
-      if (sprite) sprite.setScale(.9);
-      const label = this.add.text(x, 170, index === 1 ? "Technical Architect" : index === 2 ? "Security Reviewer" : "Empty panel seat", {
-        fontFamily: "Arial, sans-serif", fontSize: "14px", color: index === 1 || index === 2 ? "#ffe0e0" : "#8192a7", fontStyle: "bold", align: "center", wordWrap: {width: 200},
-      }).setOrigin(.5);
-      return {circle, glow, sprite, label};
-    });
-
-    this.defenderSeats = seatX.map((x, index) => {
-      const circle = this.add.circle(x, 423, 52, 0x24547b, .3).setStrokeStyle(2, 0x55a9e6, .55);
-      const sprite = this.add.sprite(x, 426, "defender").setScale(.9).setAlpha(.25);
-      const label = this.add.text(x, 482, `Open seat ${index + 1}`, {
-        fontFamily: "Arial, sans-serif", fontSize: "14px", color: "#9cb7d3", fontStyle: "bold", align: "center", wordWrap: {width: 200},
-      }).setOrigin(.5);
-      return {circle, sprite, label};
-    });
-
-    this.bubble = this.add.graphics();
-    this.questionText = this.add.text(181, 216, "", {
-      fontFamily: "Arial, sans-serif", fontSize: "21px", color: "#14243c", fontStyle: "bold", lineSpacing: 4, wordWrap: {width: 600},
-    });
-    this.questionText.setMaxLines(3);
-    this.citationText = this.add.text(181, 310, "", {
-      fontFamily: "Arial, sans-serif", fontSize: "14px", color: "#345d7b", wordWrap: {width: 600},
-    });
-    this.citationText.setMaxLines(2);
+    this.background = this.add.graphics();
+    this.panelSeats = Array.from({length: 4}, (_, index) => ({
+      ring: this.add.circle(0, 0, 40, 0x5c2737, .62).setStrokeStyle(2, 0xe9747c, .8),
+      glow: this.add.circle(0, 0, 46).setStrokeStyle(4, 0xffd26d, 1).setVisible(false),
+      sprite: index === 1 || index === 2 ? this.add.sprite(0, 0, "panelist") : null,
+      label: this.add.text(0, 0, index === 1 ? "Technical Architect" : index === 2 ? "Security Reviewer" : "Empty panel seat", {
+        fontFamily: "Arial, sans-serif", color: index === 1 || index === 2 ? "#ffe0e0" : "#91a1b3", fontStyle: "bold", align: "center",
+      }).setOrigin(.5),
+    }));
+    this.defenderSeats = Array.from({length: 4}, (_, index) => ({
+      ring: this.add.circle(0, 0, 40, 0x1e527b, .55).setStrokeStyle(2, 0x55a9e6, .8),
+      sprite: this.add.sprite(0, 0, "defender").setAlpha(.22),
+      label: this.add.text(0, 0, `Open seat ${index + 1}`, {
+        fontFamily: "Arial, sans-serif", color: "#9cb7d3", fontStyle: "bold", align: "center",
+      }).setOrigin(.5),
+    }));
+    this.cue = this.add.graphics();
+    this.cueText = this.add.text(0, 0, "", {
+      fontFamily: "Arial, sans-serif", color: "#16324b", fontStyle: "bold", align: "center",
+    }).setOrigin(.5);
+    this.scale.on("resize", this.layout, this);
+    this.layout();
     this.renderState(roomState);
   }
 
@@ -361,6 +424,65 @@ class DefenseScene extends Phaser.Scene {
     }
   }
 
+  layout() {
+    if (!this.panelSeats) return;
+    const width = this.scale.width;
+    const height = this.scale.height;
+    const compact = height < 320;
+    const radius = Phaser.Math.Clamp(height * .095, 24, 63);
+    const panelY = compact ? Math.max(66, height * .31) : Math.max(130, height * .24);
+    const defenderY = compact ? height - 53 : height * .73;
+    const labelSize = compact ? "10px" : "15px";
+    const labelWidth = width * .22;
+    this.background.clear();
+    this.background.fillStyle(0x0d2238, 1).fillRect(0, 0, width, height);
+    this.background.fillStyle(0x183651, 1).fillRoundedRect(12, compact ? 39 : 72, width - 24, height - (compact ? 45 : 82), 15);
+    this.background.lineStyle(2, 0x42688a, .75).strokeRoundedRect(12, compact ? 39 : 72, width - 24, height - (compact ? 45 : 82), 15);
+    this.background.lineStyle(2, 0x3b6382, .8).lineBetween(30, (panelY + defenderY) / 2, width - 30, (panelY + defenderY) / 2);
+    for (let index = 0; index < 4; index++) {
+      const x = width * (.14 + index * .24);
+      const panel = this.panelSeats[index];
+      panel.ring.setPosition(x, panelY).setRadius(radius);
+      panel.glow.setPosition(x, panelY).setRadius(radius + 6);
+      if (panel.sprite) panel.sprite.setPosition(x, panelY + 3).setScale(radius * 1.55 / 86);
+      panel.label.setPosition(x, panelY + radius + (compact ? 9 : 13)).setFontSize(labelSize).setWordWrapWidth(labelWidth);
+      const defender = this.defenderSeats[index];
+      defender.ring.setPosition(x, defenderY).setRadius(radius);
+      defender.sprite.setPosition(x, defenderY + 3).setScale(radius * 1.55 / 86);
+      defender.label.setPosition(x, defenderY + radius + (compact ? 9 : 13)).setFontSize(labelSize).setWordWrapWidth(labelWidth);
+    }
+    this.cueText.setFontSize(compact ? "12px" : "20px");
+    this.renderCue(roomState);
+  }
+
+  renderCue(state) {
+    const height = this.scale.height;
+    const width = this.scale.width;
+    const compact = height < 320;
+    const panelY = compact ? Math.max(66, height * .31) : Math.max(130, height * .24);
+    const defenderY = compact ? height - 53 : height * .73;
+    const cueY = (panelY + defenderY) / 2 + (compact ? 8 : 0);
+    const cueWidth = Math.min(width * .48, compact ? 370 : 530);
+    const cueHeight = compact ? 29 : 68;
+    const activeName = state?.active_panelist || findCurrentTurn(state)?.turn.panelist;
+    const activeIndex = activeName === panelNames[0] ? 1 : activeName === panelNames[1] ? 2 : -1;
+    let cue = "Create or join a room";
+    if (state?.phase === "lobby") cue = "Your team is gathering";
+    else if (state?.phase === "generating") cue = `${activeName || "The panel"} is preparing a question`;
+    else if (state?.phase === "question") cue = `${activeName || "The panel"} is asking`;
+    else if (state?.phase === "retry") cue = "Question paused · host can retry";
+    else if (state?.phase === "complete") cue = "Defense complete";
+    this.cue.clear();
+    this.cue.fillStyle(0xe7f4ff, 1).fillRoundedRect(width / 2 - cueWidth / 2, cueY - cueHeight / 2, cueWidth, cueHeight, compact ? 9 : 15);
+    this.cue.lineStyle(2, 0x8fc8e9, 1).strokeRoundedRect(width / 2 - cueWidth / 2, cueY - cueHeight / 2, cueWidth, cueHeight, compact ? 9 : 15);
+    if (activeIndex >= 0 && !compact && state?.phase !== "complete") {
+      const x = width * (.14 + activeIndex * .24);
+      this.cue.fillStyle(0xe7f4ff, 1).fillTriangle(x - 11, cueY - cueHeight / 2 + 1, x + 11, cueY - cueHeight / 2 + 1, x, cueY - cueHeight / 2 - 12);
+    }
+    this.cueText.setPosition(width / 2, cueY).setWordWrapWidth(cueWidth - 20).setText(cue);
+    this.panelSeats.forEach((seat, index) => seat.glow.setVisible(index === activeIndex && state?.phase !== "complete"));
+  }
+
   renderState(state) {
     if (!this.panelSeats) return;
     const players = Array.isArray(state?.players) ? state.players : [];
@@ -369,42 +491,9 @@ class DefenseScene extends Phaser.Scene {
       const player = players.find((person) => person.seat === index);
       seat.sprite.setAlpha(player ? (player.online ? 1 : .45) : .22);
       seat.label.setText(player ? `${player.name || "Defender"}${player.is_host ? " ★" : ""}${player.online ? "" : " (offline)"}` : `Open seat ${index + 1}`);
-      seat.label.setColor(player ? "#cdeeff" : "#8299b3");
+      seat.label.setColor(player ? "#cdeeff" : "#91a6bd");
     }
-    const current = findCurrentTurn(state);
-    const activeName = state?.active_panelist || current?.turn.panelist;
-    const activeIndex = activeName === panelNames[0] ? 1 : activeName === panelNames[1] ? 2 : -1;
-    this.panelSeats.forEach((seat, index) => seat.glow.setVisible(index === activeIndex && state?.phase !== "complete"));
-    this.bubble.clear();
-    this.bubble.fillStyle(0xe8f4ff, 1);
-    this.bubble.fillRoundedRect(155, 196, 650, 155, 15);
-    this.bubble.lineStyle(3, 0x8fc8e9, 1);
-    this.bubble.strokeRoundedRect(155, 196, 650, 155, 15);
-    if (activeIndex > -1) {
-      const x = seatX[activeIndex];
-      this.bubble.fillStyle(0xe8f4ff, 1);
-      this.bubble.fillTriangle(x - 16, 197, x + 16, 197, x, 178);
-    }
-    let title = "Create or join a room to start your defense.";
-    let citation = "Panelists will ask code-grounded questions here.";
-    if (state?.phase === "question" && current) {
-      title = current.turn.question;
-      citation = `${current.turn.filename}:${current.turn.evidence_line}  ${current.turn.evidence_text || ""}`;
-    } else if (state?.phase === "generating") {
-      title = `${activeName || "The panel"} is preparing a question…`;
-      citation = "Your team will see the same question when it is ready.";
-    } else if (state?.phase === "retry") {
-      title = "The next question could not be generated.";
-      citation = "The host can retry. Your previous answer is saved.";
-    } else if (state?.phase === "complete") {
-      title = "Defense complete. Well played, team.";
-      citation = "Review the four questions and answers below.";
-    } else if (state?.phase === "lobby") {
-      title = "The team is gathering.";
-      citation = "The host starts when everyone is ready.";
-    }
-    this.questionText.setText(String(title));
-    this.citationText.setText(String(citation));
+    this.renderCue(state);
   }
 }
 
@@ -418,12 +507,29 @@ function startGame() {
     parent: "game",
     width: 960,
     height: 540,
-    backgroundColor: "#12253d",
-    scale: {mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH},
+    backgroundColor: "#0d2238",
+    scale: {mode: Phaser.Scale.RESIZE},
     scene: DefenseScene,
   });
 }
 
+$("controls-toggle").addEventListener("click", () => openDrawer("controls"));
+$("transcript-toggle").addEventListener("click", () => openDrawer("transcript"));
+$("drawer-close").addEventListener("click", closeDrawer);
+$("drawer-scrim").addEventListener("click", closeDrawer);
+$("answer-open").addEventListener("click", () => openDrawer("controls", true));
+document.addEventListener("keydown", (event) => {
+  if ($("drawer").hidden) return;
+  if (event.key === "Escape") { event.preventDefault(); closeDrawer(); return; }
+  if (event.key !== "Tab") return;
+  const focusable = [...$("drawer").querySelectorAll("button:not([disabled]), input:not([disabled]), textarea:not([disabled])")]
+    .filter((element) => !element.closest("[hidden]") && element.getClientRects().length);
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+});
 $("create-tab").addEventListener("click", () => selectTab("create"));
 $("join-tab").addEventListener("click", () => selectTab("join"));
 
@@ -465,12 +571,14 @@ $("join-form").addEventListener("submit", async (event) => {
 });
 
 $("leave-button").addEventListener("click", leaveRoom);
-$("start-button").addEventListener("click", () => sendEvent({type: "start"}));
-$("retry-button").addEventListener("click", () => sendEvent({type: "retry"}));
+$("start-button").addEventListener("click", () => { if (sendEvent({type: "start"})) closeDrawer(); });
+$("retry-button").addEventListener("click", () => { if (sendEvent({type: "retry"})) closeDrawer(); });
 $("restart-button").addEventListener("click", () => {
-  if (sendEvent({type: "restart"})) $("answer-form").elements.answer.value = "";
+  if (sendEvent({type: "restart"})) {
+    $("answer-form").elements.answer.value = "";
+    closeDrawer();
+  }
 });
-
 $("answer-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const current = findCurrentTurn(roomState);
@@ -494,6 +602,7 @@ if (previewMode) {
 } else {
   const stored = readStoredRoom();
   if (stored) useRoom(stored.code, stored.token, false);
+  else openDrawer("controls");
 }
 startGame();
 render();

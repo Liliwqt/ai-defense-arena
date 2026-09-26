@@ -6,17 +6,17 @@ Use this file to track completed updates across agents and session windows. See 
 
 - Project intake, source-line grounded questions, and the four-question defense flow are implemented.
 - The multiplayer Phaser/FastAPI room is implemented locally: four fixed panel seats, four defender seats, upload/create/join, synchronized questions and answers, host retry, and reconnect snapshots. The Streamlit app remains available.
-- The fixed-seat screen and a completed four-answer session have been checked with mocked AI in two browser contexts. The code is pushed to a private GitHub repository and deployed to Render. A hosted live OpenAI four-answer session passed; physical separate-device confirmation and user review remain pending.
+- The fullscreen room layout and completed four-answer session have been checked locally with mocked AI in two browser contexts. The earlier room is deployed to Render; a hosted live OpenAI four-answer session passed. The user authorized pushing the fullscreen layout before personal visual review. Hosted fullscreen and physical separate-device checks remain pending.
 - Feedback and additional panelists have not been implemented.
 
 ## Active work
 
-- Root session, 2026-09-26: recording hosted live verification and awaiting user review. No code edits planned before review.
+- Root session, 2026-09-26: deploying the fullscreen layout in `game/`, `README.md`, `AGENTS.md`, `PROJECT_LOG.md`, and new fullscreen screenshots, then checking Render. Preserve unrelated local screenshots.
 
 ## Pending verification and next step
 
-- Review the completed hosted room at `https://ai-defense-arena.onrender.com` and the local `screenshots/hosted-live-defense.png`. Confirm the transcript is visible on a physical second device if available.
-- Pause before feedback or more panelists until the user reviews this checkpoint.
+- Push the user-authorized fullscreen update to the private repository, let Render redeploy, and smoke-test the hosted layout with a fresh room. A redeploy will erase active in-memory rooms.
+- User visual review and physical separate-device confirmation remain pending. Keep feedback and more panelists out of this checkpoint.
 
 ## Change entry template
 
@@ -89,3 +89,19 @@ Append new entries to the **end** of this file in date order:
 - Changed: Render Blueprint deployment is live at `https://ai-defense-arena.onrender.com`; no application code changed. A host created a room with sample project files and a second browser client joined as a defender over HTTPS/WSS.
 - Verification: `/health`, HTML, CSS, and JavaScript returned HTTP 200; desktop and mobile Phaser previews rendered without page errors or mobile overflow. The guest browser completed four real AI-generated questions and answers. All four citations matched the exact `sample_project/queue.py` source line; the two follow-ups explicitly referred to the corresponding panelist's earlier answer. Both players appeared online in the complete room snapshot. The screenshot captures the completed hosted transcript.
 - Remaining: user visual review and confirmation from a physical second device, if desired. Do not add feedback or panelists before review. The log and live screenshot are kept local for now so a GitHub push does not redeploy and erase the active in-memory room.
+
+### 2026-09-26 — Fullscreen defense room local preview
+
+- Session: root.
+- Files: `game/index.html`, `game/style.css`, `game/game.js`, `README.md`, `AGENTS.md`, `PROJECT_LOG.md`, new `screenshots/fullscreen-*.png` review images. Existing local screenshot changes were preserved.
+- Changed: the Phaser room fills the browser viewport, with four panel positions and four defender seats above a docked question card. The active panelist has a speech-bubble cue; the card shows the complete question and exact citation in scrollable areas. Create/join, upload, host actions, answer entry, and transcript are in a keyboard-accessible drawer. Portrait phones show a rotation prompt. The room protocol and Streamlit fallback are unchanged.
+- Verification: 37 offline Python tests, JavaScript syntax, and `git diff --check` passed. Headless desktop and phone-landscape previews showed no page errors or horizontal overflow; a portrait phone showed the rotation prompt. Long question and source text remained readable. Drawer keyboard focus trapping, Escape close, and focus restoration passed. Two browser contexts completed a mocked four-turn defense including first-answer submission, one simulated AI failure and host retry, reconnect, exact citation matching, and completed transcript. No paid calls were made for this layout check.
+- Remaining: user visual review of the local preview. No push or Render redeploy has happened for this change; after approval, deploy and smoke-test the hosted layout. Physical separate-device confirmation remains pending. No feedback or additional panelists were added.
+
+### 2026-09-26 — Fullscreen deployment readiness check
+
+- Session: root.
+- Files: `PROJECT_LOG.md` only.
+- Changed: confirmed the local fullscreen build is ready for visual review; no commit, push, or Render redeploy was performed.
+- Verification: 37 offline tests, JavaScript syntax, and `git diff --check` passed again. Desktop, landscape, portrait, and long-question browser previews passed with no page errors or horizontal overflow. The local server returned HTTP 200 for the preview and JavaScript asset. The private GitHub `main` ref was reachable. A predeployment hosted `/health` request timed out from this environment; hosted status was not inferred from that timeout.
+- Remaining: explicit user visual approval, then push and hosted checks with a fresh room. Existing unrelated screenshot changes remain untouched.

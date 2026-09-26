@@ -17,4 +17,4 @@ After each logical change to project files:
 
 Never put API keys, secrets, full environment values, or uploaded private project text in the log. Keep entries factual; distinguish implemented work from mocked or live verification. Do not mark a checkpoint reviewed until the user has actually reviewed it.
 
-The multiplayer 2D room is the current checkpoint. Keep the Streamlit fallback available. A live API walkthrough, hosted two-device check, and user review are pending. Do not add feedback or more panelists before that review.
+The fullscreen multiplayer room is the current checkpoint. Keep the Streamlit fallback available. A hosted live API walkthrough of the earlier layout passed. The user authorized deploying the fullscreen layout before personal visual review; do not mark that review complete. A Render redeploy erases active in-memory rooms. Hosted fullscreen and physical separate-device checks remain pending. Do not add feedback or more panelists before the user reviews this checkpoint.
