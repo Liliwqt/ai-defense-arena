@@ -106,7 +106,8 @@ class GameServerTests(unittest.TestCase):
             patch("game_server.generate_next_move", side_effect=self.short_moves) as later_calls,
         ):
             host = self.create_room()
-            guest = self.join_room(host["room_code"])
+            # Duplicate display names are allowed; presenter focus must use the seat.
+            guest = self.join_room(host["room_code"], name="Alex")
             host_socket, host_initial = self.connect(host["room_code"], host["player_token"])
             try:
                 self.assertTrue(host_initial["self_is_host"])
@@ -128,7 +129,8 @@ class GameServerTests(unittest.TestCase):
                         state = self.receive_phase(socket, "question")
                         self.assertEqual(len(state["turns"]), 2)
                         self.assertEqual(state["turns"][0]["answer"], "A simple prototype.")
-                        self.assertEqual(state["turns"][0]["answered_by"], "Sam")
+                        self.assertEqual(state["turns"][0]["answered_by"], "Alex")
+                        self.assertEqual(state["turns"][0]["answered_by_seat"], 1)
                     host_socket.send_json({"type": "submit_answer", "turn": 0, "answer": "Too late."})
                     self.assertIn("already been answered", host_socket.receive_json()["message"])
 
@@ -142,6 +144,7 @@ class GameServerTests(unittest.TestCase):
                         for observer in (host_socket, guest_socket):
                             state = self.receive_phase(observer, phase)
                             self.assertEqual(state["turns"][turn]["answer"], answer)
+                            self.assertEqual(state["turns"][turn]["answered_by_seat"], 0 if turn in (1, 3) else 1)
                     self.assertEqual(len(state["turns"]), 4)
                     self.assertEqual(later_calls.call_count, 4)
                     self.assertEqual([turn["panelist"] for turn in state["turns"]], list(game_server.PANELIST_ORDER))
@@ -373,6 +376,7 @@ class GameServerTests(unittest.TestCase):
                         state = self.receive_phase(socket, "generating")
                         self.assertEqual(state["feedback_status"], "none")
                         self.assertIsNone(state["feedback"])
+                        self.assertFalse(game_server.rooms[host["room_code"]].answered_by_seat)
                     # Stale coaching result must not arrive after restart.
                     # Complete a second defense.
                     states2 = self._complete_four_turns(host_socket, guest_socket, mock_report)

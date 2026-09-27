@@ -1,6 +1,6 @@
 # Agent handoff rules
 
-This project is a small FastAPI/Phaser multiplayer hackathon prototype with a Streamlit fallback. `README.md` explains how to run it. `PROJECT_LOG.md` is the shared handoff record for agents and separate session windows.
+This project is a small FastAPI/Three.js multiplayer hackathon prototype with a Streamlit fallback. `README.md` explains how to run it. `PROJECT_LOG.md` is the shared handoff record for agents and separate session windows.
 
 Before working:
 
@@ -17,4 +17,4 @@ After each logical change to project files:
 
 Never put API keys, secrets, full environment values, or uploaded private project text in the log. Keep entries factual; distinguish implemented work from mocked or live verification. Do not mark a checkpoint reviewed until the user has actually reviewed it.
 
-The React coaching room is deployed to Render; see `PROJECT_LOG.md` for the latest hosted verification. The current deployed release adds Product Judge and Critical Judge with optional immediate follow-ups, for four to eight answers. The centered question card and bottom answer composer are the current UI checkpoint; see `PROJECT_LOG.md` for its deployment status. Keep the Streamlit fallback available. The user explicitly requested direct web deployment of this checkpoint on 2026-09-27, superseding the earlier before-push review gate. A Render redeploy erases active in-memory rooms. Do not mark visual review or physical separate-device confirmation complete without evidence.
+The React coaching room is deployed to Render; see `PROJECT_LOG.md` for the latest hosted verification. The deployed release has four panelists with optional immediate follow-ups, for four to eight answers. A local, code-built Three.js room redesign is ready for visual review; the user requested local preview before any push or Render deployment of this redesign. Keep the Streamlit fallback available. A Render redeploy erases active in-memory rooms. Do not mark visual review or physical separate-device confirmation complete without evidence.

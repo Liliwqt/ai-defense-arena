@@ -24,6 +24,7 @@ export interface Turn {
   evidence_text: string;
   answer: string | null;
   answered_by: string | null;
+  answered_by_seat?: number | null;
 }
 
 export interface CoachingPoint {
@@ -53,4 +54,4 @@ export interface RoomState {
   feedback: CoachingFeedback | null;
 }
 
-export type DrawerMode = "controls" | "transcript";
+export type DrawerMode = "controls" | "transcript" | "answer";

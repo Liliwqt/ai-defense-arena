@@ -59,6 +59,7 @@ class Room:
     players: dict[str, Player]
     defense: DefenseSession | None = None
     answered_by: dict[int, str] = field(default_factory=dict)
+    answered_by_seat: dict[int, int] = field(default_factory=dict)
     phase: str = "lobby"
     error: str | None = None
     revision: int = 0
@@ -82,6 +83,7 @@ class Room:
                         "evidence_text": turn.question.evidence_text,
                         "answer": turn.answer,
                         "answered_by": self.answered_by.get(index),
+                        "answered_by_seat": self.answered_by_seat.get(index),
                     }
                 )
         if self.defense and self.defense.awaiting_answer:
@@ -375,6 +377,7 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
         elif action == "restart":
             room.defense = None
             room.answered_by.clear()
+            room.answered_by_seat.clear()
             room.phase = "generating"
             room.error = None
             room.generation_id += 1
@@ -422,6 +425,7 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
                     error = str(validation_error)
                 else:
                     room.answered_by[turn] = player.name
+                    room.answered_by_seat[turn] = player.seat
                     if room.defense.completed:
                         room.phase = "complete"
                         room.feedback_status = "generating"

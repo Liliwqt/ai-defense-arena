@@ -41,6 +41,7 @@ export function AnswerComposer({ roomState, connected, previewMode, waitingForAn
   const [draft, setDraft] = useState("");
   const [localError, setLocalError] = useState("");
   const turnIndex = currentQuestionIndex(roomState);
+  const currentTurn = turnIndex >= 0 ? roomState?.turns[turnIndex] : null;
   const turnKey = `${roomState?.room_code ?? ""}:${turnIndex}:${turnIndex >= 0 ? roomState?.turns[turnIndex]?.question ?? "" : ""}`;
 
   useEffect(() => {
@@ -50,6 +51,7 @@ export function AnswerComposer({ roomState, connected, previewMode, waitingForAn
 
   function submitAnswer(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (previewMode) return;
     if (waitingForAnswerAck) return;
     const answer = draft.trim();
     if (!answer) {
@@ -64,14 +66,20 @@ export function AnswerComposer({ roomState, connected, previewMode, waitingForAn
 
   return (
     <section id="answer-composer" aria-label="Answer area">
-      {turnIndex >= 0 && !previewMode ? (
+      {turnIndex >= 0 ? (
+        <>
+        {currentTurn && <div className="answer-context">
+          <p className="answer-context-kicker">{currentTurn.panelist} · Question {turnIndex + 1}</p>
+          <p className="answer-context-question">{currentTurn.question}</p>
+          <p className="answer-context-source">{currentTurn.filename}:{currentTurn.evidence_line} · <code>{currentTurn.evidence_text}</code></p>
+        </div>}
         <form id="answer-form" onSubmit={submitAnswer}>
           <label htmlFor="answer-textarea">Your answer</label>
           <div className="answer-controls">
             <textarea
               id="answer-textarea"
               name="answer"
-              rows={2}
+              rows={8}
               maxLength={4000}
               value={draft}
               onChange={(event) => { setDraft(event.target.value); setLocalError(""); }}
@@ -84,16 +92,19 @@ export function AnswerComposer({ roomState, connected, previewMode, waitingForAn
               placeholder="Explain your team's decision…"
               aria-describedby="answer-status"
             />
-            <button type="submit" disabled={!connected || waitingForAnswerAck}>
-              {waitingForAnswerAck ? "Sending…" : "Submit answer"}
+            <button type="submit" disabled={previewMode || !connected || waitingForAnswerAck}>
+              {previewMode ? "Preview only" : waitingForAnswerAck ? "Sending…" : "Submit answer"}
             </button>
           </div>
           <p id="answer-status" role={localError || actionError ? "alert" : "status"}>
-            {localError || actionError || (connected
+            {localError || actionError || (previewMode
+              ? "Mock preview · answers are disabled."
+              : connected
               ? "Any teammate may answer. First valid submission wins. Ctrl/⌘ + Enter to submit."
               : "Reconnecting before you can submit…")}
           </p>
         </form>
+        </>
       ) : (
         <p id="answer-status" role="status">
           {previewMode && turnIndex >= 0 ? "Mock preview · answers are disabled." : waitingText(roomState)}

@@ -9,7 +9,7 @@ interface DrawerProps {
   children: React.ReactNode;
 }
 
-export function Drawer({ open, mode: _mode, title, onClose, children }: DrawerProps) {
+export function Drawer({ open, mode, title, onClose, children }: DrawerProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
@@ -22,13 +22,17 @@ export function Drawer({ open, mode: _mode, title, onClose, children }: DrawerPr
         returnFocusRef.current = document.activeElement as HTMLElement | null;
         wasOpenRef.current = true;
       }
-      closeButtonRef.current?.focus();
+      if (mode === "answer") {
+        (drawerRef.current?.querySelector("#answer-textarea") as HTMLTextAreaElement | null)?.focus();
+      } else {
+        closeButtonRef.current?.focus();
+      }
     } else if (wasOpenRef.current) {
       wasOpenRef.current = false;
       if (returnFocusRef.current?.isConnected) returnFocusRef.current.focus();
       returnFocusRef.current = null;
     }
-  }, [open, _mode]);
+  }, [open, mode]);
 
   // Escape key + Tab trap
   useEffect(() => {
@@ -87,7 +91,7 @@ export function Drawer({ open, mode: _mode, title, onClose, children }: DrawerPr
         role="dialog"
         aria-modal="true"
         aria-labelledby="drawer-title"
-        className="fixed inset-y-0 right-0 z-10 flex flex-col bg-[#0c1b2d] border-l border-[#4c7192] shadow-[-18px_0_70px_#020813bb] text-[#eaf2ff]"
+        className="fixed inset-y-0 right-0 z-10 flex flex-col drawer-panel"
         style={{ width: "min(460px, 100vw)", height: "100dvh" }}
       >
         {/* Header */}

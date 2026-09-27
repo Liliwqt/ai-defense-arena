@@ -2,6 +2,8 @@ import type { RoomState } from "../types";
 
 interface QuestionCardProps {
   roomState: RoomState | null;
+  onAnswer?: () => void;
+  canAnswer?: boolean;
 }
 
 function deriveContent(state: RoomState | null) {
@@ -52,7 +54,7 @@ function deriveContent(state: RoomState | null) {
   return { name: "Your defense begins here", question: "Create or join a room to begin your defense.", number: "READY" };
 }
 
-export function QuestionCard({ roomState }: QuestionCardProps) {
+export function QuestionCard({ roomState, onAnswer, canAnswer = false }: QuestionCardProps) {
   const content = deriveContent(roomState);
   return (
     <section id="question-card" aria-labelledby="panelist-name" tabIndex={0}>
@@ -74,6 +76,14 @@ export function QuestionCard({ roomState }: QuestionCardProps) {
             <span className="source-line-number" aria-hidden="true">{content.line}</span>
             <pre><code>{content.evidence}</code></pre>
           </div>
+        </div>
+      )}
+      {roomState?.phase === "question" && onAnswer && (
+        <div className="question-footer">
+          <p>Any teammate can answer; the first valid submission counts.</p>
+          <button type="button" onClick={onAnswer} disabled={!canAnswer}>
+            Answer question <span aria-hidden="true">›</span>
+          </button>
         </div>
       )}
     </section>

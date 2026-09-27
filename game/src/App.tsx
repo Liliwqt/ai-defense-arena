@@ -3,217 +3,161 @@ import { AnswerComposer } from "./components/AnswerComposer";
 import { ControlsPanel } from "./components/ControlsPanel";
 import { Drawer } from "./components/Drawer";
 import { HUD } from "./components/HUD";
-import { JudgePanelOverlay } from "./components/JudgePanelOverlay";
-import { PhaserScene } from "./components/PhaserScene";
 import { QuestionCard } from "./components/QuestionCard";
 import { RotatePrompt } from "./components/RotatePrompt";
+import { ThreeDefenseScene, type PresenterMoment } from "./components/ThreeDefenseScene";
 import { TranscriptPanel } from "./components/TranscriptPanel";
 import { useRoomSocket } from "./hooks/useRoomSocket";
 import { previewState } from "./previewState";
 import type { DrawerMode, RoomState } from "./types";
 
-/** Duration of the post-answer "judges discussing" animation before the next
- *  question arrives.  Kept short so it does not feel like lag. */
-const DISCUSSING_MS = 1800;
-
-const previewMode =
-  new URLSearchParams(window.location.search).get("preview") === "1";
+const PRESENTER_MS = 2600;
+const previewMode = new URLSearchParams(window.location.search).get("preview") === "1";
 
 export function App() {
   const {
-    roomState: liveRoomState,
-    connected,
-    roomCode,
-    waitingForAnswerAck,
-    actionError,
-    sendEvent,
-    useRoom,
-    leaveRoom,
+    roomState: liveRoomState, connected, roomCode, waitingForAnswerAck,
+    actionError, sendEvent, useRoom, leaveRoom,
   } = useRoomSocket(previewMode);
-
-  const [drawerOpen, setDrawerOpen] = useState(previewMode ? false : true);
+  const [drawerOpen, setDrawerOpen] = useState(!previewMode);
   const [drawerMode, setDrawerMode] = useState<DrawerMode>("controls");
   const [message, setMessage] = useState("");
-  /** True for DISCUSSING_MS after an answer is submitted; drives the shared
-   *  "thinking" animation on all judges before the next question appears. */
-  const [discussing, setDiscussing] = useState(false);
-  const discussingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // In preview mode, use the static preview state; otherwise live state
+  const [presenterMoment, setPresenterMoment] = useState<PresenterMoment | null>(null);
+  const presenterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingTranscript = useRef(false);
+  const previousAnswered = useRef(-1);
+  const previousPhase = useRef<string | undefined>();
+  const previousFeedback = useRef<string | undefined>();
+  const sequence = useRef(0);
   const roomState: RoomState | null = previewMode ? previewState : liveRoomState;
-
-  // Track previous phase/feedbackStatus for auto-open drawer transitions
-  const prevPhaseRef = useRef<string | undefined>(undefined);
-  const prevFeedbackRef = useRef<string | undefined>(undefined);
-  // -1 = baseline not yet set; set to actual count on the first snapshot so
-  // a reconnect mid-session does not spuriously trigger the discussing anim.
-  const prevAnsweredRef = useRef<number>(-1);
-
-  useEffect(() => {
-    const phase = roomState?.phase;
-    const feedbackStatus = roomState?.feedback_status;
-    const isHost = roomState?.self_is_host ?? false;
-    const answered = (roomState?.turns ?? []).filter((t) => t.answer).length;
-
-    if (phase === "retry" && prevPhaseRef.current !== "retry" && isHost) {
-      openDrawer("controls");
-    }
-    if (phase === "complete" && prevPhaseRef.current !== "complete") {
-      openDrawer("transcript");
-    }
-    if (
-      feedbackStatus === "ready" &&
-      prevFeedbackRef.current !== "ready"
-    ) {
-      openDrawer("transcript");
-    }
-    if (
-      feedbackStatus === "failed" &&
-      prevFeedbackRef.current !== "failed" &&
-      isHost
-    ) {
-      openDrawer("controls");
-    }
-
-    // Trigger the discussing animation only when a genuinely new answer
-    // arrives in-session — not on the first snapshot (reconnect/join).
-    if (prevAnsweredRef.current === -1) {
-      // First snapshot: record baseline without animating.
-      prevAnsweredRef.current = answered;
-    } else if (answered > prevAnsweredRef.current && phase !== "complete") {
-      setDiscussing(true);
-      if (discussingTimerRef.current) clearTimeout(discussingTimerRef.current);
-      discussingTimerRef.current = setTimeout(() => {
-        setDiscussing(false);
-      }, DISCUSSING_MS);
-      prevAnsweredRef.current = answered;
-    } else {
-      prevAnsweredRef.current = answered;
-    }
-
-    prevPhaseRef.current = phase;
-    prevFeedbackRef.current = feedbackStatus;
-  }, [roomState]);
-
-  // Clean up timer on unmount
-  useEffect(() => {
-    return () => {
-      if (discussingTimerRef.current) clearTimeout(discussingTimerRef.current);
-    };
-  }, []);
 
   const openDrawer = useCallback((mode: DrawerMode) => {
     setDrawerMode(mode);
     setDrawerOpen(true);
   }, []);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const showMessage = useCallback((value: string) => {
+    setMessage(value);
+    if (value) openDrawer("controls");
+  }, [openDrawer]);
 
-  const closeDrawer = useCallback(() => {
-    setDrawerOpen(false);
-  }, []);
-
-  const showMessage = useCallback((msg: string) => {
-    setMessage(msg);
-    if (msg) {
-      setDrawerMode("controls");
-      setDrawerOpen(true);
+  const endPresenter = useCallback(() => {
+    if (presenterTimer.current) clearTimeout(presenterTimer.current);
+    presenterTimer.current = null;
+    setPresenterMoment(null);
+    if (pendingTranscript.current) {
+      pendingTranscript.current = false;
+      openDrawer("transcript");
     }
+  }, [openDrawer]);
+
+  useEffect(() => {
+    if (!roomState) return;
+    const phase = roomState?.phase;
+    const feedback = roomState?.feedback_status;
+    const turns = roomState?.turns ?? [];
+    const answered = turns.filter((turn) => turn.answer).length;
+    const firstSnapshot = previousAnswered.current === -1;
+    const newAnswer = !firstSnapshot && answered > previousAnswered.current;
+
+    if (newAnswer) {
+      if (drawerMode === "answer") closeDrawer();
+      const seat = turns[answered - 1]?.answered_by_seat;
+      if (typeof seat === "number" && seat >= 0 && seat < 4) {
+        const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+        setPresenterMoment({ seat, sequence: ++sequence.current, reducedMotion });
+        if (presenterTimer.current) clearTimeout(presenterTimer.current);
+        presenterTimer.current = setTimeout(endPresenter, PRESENTER_MS);
+      }
+    } else if (!firstSnapshot && answered < previousAnswered.current) {
+      pendingTranscript.current = false;
+      if (presenterTimer.current) clearTimeout(presenterTimer.current);
+      presenterTimer.current = null;
+      setPresenterMoment(null);
+    }
+
+    const justCompleted = phase === "complete" && previousPhase.current !== "complete";
+    const reportReady = feedback === "ready" && previousFeedback.current !== "ready";
+    if (justCompleted || reportReady) {
+      if ((newAnswer && typeof turns[answered - 1]?.answered_by_seat === "number") || presenterTimer.current) {
+        pendingTranscript.current = true;
+      } else {
+        openDrawer("transcript");
+      }
+    }
+    if (phase === "retry" && previousPhase.current !== "retry" && roomState?.self_is_host) openDrawer("controls");
+    if (feedback === "failed" && previousFeedback.current !== "failed" && roomState?.self_is_host) openDrawer("controls");
+    previousAnswered.current = answered;
+    previousPhase.current = phase;
+    previousFeedback.current = feedback;
+  }, [roomState]);
+
+  useEffect(() => () => { if (presenterTimer.current) clearTimeout(presenterTimer.current); }, []);
+
+  // A mock focus moment is available for local visual review without sending an answer.
+  useEffect(() => {
+    if (!previewMode || new URLSearchParams(window.location.search).get("moment") !== "answer") return;
+    const timer = setTimeout(() => {
+      setPresenterMoment({ seat: 0, sequence: ++sequence.current, reducedMotion: false });
+      presenterTimer.current = setTimeout(endPresenter, PRESENTER_MS);
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [endPresenter]);
+
+  const resetMoment = useCallback(() => {
+    previousAnswered.current = -1;
+    previousPhase.current = undefined;
+    previousFeedback.current = undefined;
+    pendingTranscript.current = false;
+    if (presenterTimer.current) clearTimeout(presenterTimer.current);
+    presenterTimer.current = null;
+    setPresenterMoment(null);
   }, []);
 
-  const handleUseRoom = useCallback(
-    (code: string, token: string, host: boolean) => {
-      // Reset the baseline so the first snapshot of the new room doesn't
-      // trigger the discussing animation.
-      prevAnsweredRef.current = -1;
-      if (discussingTimerRef.current) clearTimeout(discussingTimerRef.current);
-      setDiscussing(false);
-      useRoom(code, token, host);
-      if (host) openDrawer("controls");
-      else closeDrawer();
-    },
-    [useRoom, openDrawer, closeDrawer],
-  );
+  const previewPresenter = useCallback(() => {
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    setPresenterMoment({ seat: 0, sequence: ++sequence.current, reducedMotion });
+    if (presenterTimer.current) clearTimeout(presenterTimer.current);
+    presenterTimer.current = setTimeout(endPresenter, PRESENTER_MS);
+  }, [endPresenter]);
+
+  const handleUseRoom = useCallback((code: string, token: string, host: boolean) => {
+    resetMoment();
+    useRoom(code, token, host);
+    if (host) openDrawer("controls"); else closeDrawer();
+  }, [resetMoment, useRoom, openDrawer, closeDrawer]);
 
   const handleLeaveRoom = useCallback(() => {
-    prevAnsweredRef.current = -1;
-    if (discussingTimerRef.current) clearTimeout(discussingTimerRef.current);
-    setDiscussing(false);
+    resetMoment();
     leaveRoom();
     openDrawer("controls");
-  }, [leaveRoom, openDrawer],
-  );
+  }, [resetMoment, leaveRoom, openDrawer]);
 
-  const drawerTitle = drawerMode === "transcript" ? "Transcript" : "Controls";
+  const title = drawerMode === "answer" ? "Answer question" : drawerMode === "transcript" ? "Transcript" : "Controls";
 
   return (
-    <div
-      className="relative flex flex-col w-full overflow-hidden bg-[#091322]"
-      style={{ height: "100dvh" }}
-    >
-      {/* Stage — Phaser fills this area */}
-      <div
-        id="stage"
-        className="relative flex-1 min-h-0 overflow-hidden"
-        style={{
-          background:
-            "radial-gradient(circle at 50% -15%, #304d6d 0, #142a43 46%, #091827 100%)",
-        }}
-      >
-        <PhaserScene roomState={roomState} />
-        <JudgePanelOverlay roomState={roomState} discussing={discussing} />
-        <HUD
-          roomState={roomState}
-          roomCode={roomCode}
-          previewMode={previewMode}
-          onOpenDrawer={openDrawer}
-        />
-        <QuestionCard roomState={roomState} />
+    <div className="arena-shell">
+      <div id="stage" className="arena-stage">
+        <ThreeDefenseScene roomState={roomState} presenterMoment={presenterMoment} />
+        <HUD roomState={roomState} roomCode={roomCode} previewMode={previewMode} onOpenDrawer={openDrawer} onPreviewMoment={previewPresenter} />
+        <QuestionCard roomState={roomState} onAnswer={() => openDrawer("answer")} canAnswer={previewMode || (connected && !waitingForAnswerAck)} />
       </div>
-
-      <AnswerComposer
-        roomState={roomState}
-        connected={connected}
-        previewMode={previewMode}
-        waitingForAnswerAck={waitingForAnswerAck}
-        actionError={actionError}
-        onSendEvent={sendEvent}
-      />
-
-      {/* Slide-in drawer */}
-      <Drawer
-        open={drawerOpen}
-        mode={drawerMode}
-        title={drawerTitle}
-        onClose={closeDrawer}
-      >
+      <Drawer open={drawerOpen} mode={drawerMode} title={title} onClose={closeDrawer}>
         {drawerMode === "controls" ? (
           <>
-            <ControlsPanel
-              roomState={previewMode ? roomState : liveRoomState}
-              connected={connected}
-              previewMode={previewMode}
-              onUseRoom={handleUseRoom}
-              onLeaveRoom={handleLeaveRoom}
-              onSendEvent={sendEvent}
-              onCloseDrawer={closeDrawer}
-              showMessage={showMessage}
-            />
-            {message && (
-              <div
-                role="alert"
-                className="mt-4 p-3 rounded-[9px] bg-[#512934] border border-[#a65b69] text-[#ffe0e5] text-[0.84rem] leading-[1.4]"
-              >
-                {message}
-              </div>
-            )}
+            <ControlsPanel roomState={previewMode ? roomState : liveRoomState} connected={connected} previewMode={previewMode}
+              onUseRoom={handleUseRoom} onLeaveRoom={handleLeaveRoom} onSendEvent={sendEvent}
+              onCloseDrawer={closeDrawer} showMessage={showMessage} />
+            {message && <div role="alert" className="drawer-error">{message}</div>}
           </>
-        ) : (
+        ) : drawerMode === "transcript" ? (
           <TranscriptPanel roomState={roomState} />
+        ) : (
+          <AnswerComposer roomState={roomState} connected={connected} previewMode={previewMode}
+            waitingForAnswerAck={waitingForAnswerAck} actionError={actionError} onSendEvent={sendEvent} />
         )}
       </Drawer>
-
-      {/* Portrait rotation prompt */}
       <RotatePrompt />
-
     </div>
   );
 }

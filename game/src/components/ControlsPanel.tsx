@@ -113,17 +113,17 @@ export function ControlsPanel({
 
   const tabClass = (active: boolean) =>
     `border-0 rounded-[7px] py-[10px] text-[0.84rem] font-[750] transition-colors ${
-      active ? "bg-[#285277] text-white" : "bg-transparent text-[#9bb4ce]"
+      active ? "bg-[#c5e3fc] text-[#173b65]" : "bg-transparent text-[#536b88]"
     }`;
 
   const inputClass =
-    "w-full bg-[#081a2b] border border-[#42617d] rounded-[9px] text-white p-[11px_12px] outline-none focus:border-[#61b7ff] focus:shadow-[0_0_0_3px_#61b7ff25]";
+    "w-full bg-white border border-[#b8cde1] rounded-[9px] text-[#1b2944] p-[11px_12px] outline-none focus:border-[#61b7ff] focus:shadow-[0_0_0_3px_#61b7ff25]";
 
   const primaryBtn =
-    "w-full border-0 rounded-[9px] p-[11px_13px] font-[850] bg-[#50b6ee] text-[#092039] hover:bg-[#83d2f8] disabled:opacity-55 disabled:cursor-wait";
+    "w-full border-0 rounded-[9px] p-[11px_13px] font-[850] bg-[#3b8fe5] text-white hover:bg-[#68adf0] disabled:opacity-55 disabled:cursor-wait";
 
   const secondaryBtn =
-    "w-full border border-[#547595] rounded-[9px] p-[11px_13px] font-[850] bg-[#263f5b] text-[#dcecff] hover:bg-[#345675] disabled:opacity-55 disabled:cursor-wait";
+    "w-full border border-[#b8cde1] rounded-[9px] p-[11px_13px] font-[850] bg-white text-[#2b4d72] hover:bg-[#e7f2fc] disabled:opacity-55 disabled:cursor-wait";
 
   const waitText =
     previewMode
@@ -154,7 +154,7 @@ export function ControlsPanel({
       {!inRoom && !previewMode && (
         <div>
           {/* Tab switcher */}
-          <div className="grid grid-cols-2 gap-[5px] bg-[#071829] rounded-[10px] p-1 mb-5">
+          <div className="grid grid-cols-2 gap-[5px] bg-[#e5eff9] rounded-[10px] p-1 mb-5">
             <button
               type="button"
               className={tabClass(activeTab === "create")}
@@ -217,14 +217,14 @@ export function ControlsPanel({
       {/* In-room controls */}
       {(inRoom || previewMode) && (
         <div className="grid gap-[15px]">
-          <div className="grid gap-1 bg-[#071a2b] border border-[#35546e] rounded-[11px] p-[15px] mb-[14px]">
-            <span className="text-[#85acd4] text-[0.68rem] font-black tracking-[0.16em]">
+            <div className="grid gap-1 bg-white border border-[#d2e0ee] rounded-[11px] p-[15px] mb-[14px]">
+            <span className="text-[#4b7fad] text-[0.68rem] font-black tracking-[0.16em]">
               ROOM CODE
             </span>
-            <strong className="text-[1.45rem] tracking-[0.15em] break-all text-[#eaf2ff]">
+            <strong className="text-[1.45rem] tracking-[0.15em] break-all text-[#1b2944]">
               {roomCode ?? "—"}
             </strong>
-            <span className="text-[0.8rem] text-[#a9c7df]">
+            <span className="text-[0.8rem] text-[#59718b]">
               {previewMode
                 ? "Visual preview"
                 : isHost

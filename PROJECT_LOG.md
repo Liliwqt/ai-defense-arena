@@ -7,7 +7,9 @@ Use this file to track completed updates across agents and session windows. See 
 - The React/Phaser multiplayer room and shared coaching report are deployed to Render from commit `a1bd90c`. A hosted four-answer coaching walkthrough passed; physical separate-device confirmation remains unverified.
 - Locally, Technical Architect, Security Reviewer, Product Judge, and Critical Judge each ask at least one source-grounded question. Each may ask one immediate AI-selected follow-up, for four to eight answers. The Streamlit fallback supports the same adaptive sequence.
 - The adaptive four-panelist release and larger source ZIP limits are deployed from commit `afad667`. Hosted health, assets, and desktop/landscape mock previews pass. A fresh hosted live AI defense has not yet been completed, and the user has not reported a personal visual review.
-- The centered question card, dark source-line panel, and persistent bottom answer composer pass local tests and mocked browser walkthroughs. Direct deployment of this UI update is in progress.
+- The local React room now uses a code-built Three.js isometric scene, a bottom question card, and an answer drawer. Accepted answers trigger a brief presenter focus using the responder's seat; this redesign has not been pushed or deployed.
+- The four judge roles are printed on dark plaques on their desk panels in the local Three.js preview.
+- The four teammate characters now stand without chairs; their live name tags sit near their feet.
 
 ## Active work
 
@@ -17,7 +19,7 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Pending verification and next step
 
-- The user requested direct deployment, superseding the earlier review-before-push step. Push and hosted smoke checks are done; a fresh live AI room check awaits a host-created room code. Visual review remains unconfirmed.
+- The earlier release was deployed directly. The new Three.js redesign is local for visual review first; its live AI room flow has not been run or deployed. A fresh hosted live AI room check of the earlier adaptive release still awaits a host-created room code.
 - Physical separate-device confirmation remains separate from two-browser local verification.
 
 ## Change entry template
@@ -242,4 +244,28 @@ Append new entries to the **end** of this file in date order:
   - **Test coverage:** Added 4 new `JudgePanelOverlay` tests — lobby shows no active judge, non-active judges do not get the asking label, complete phase shows no active judge, retry phase shows no active judge.
 - Verification: 60 frontend tests pass (was 56), TypeScript clean, Vite build passes.
 - Remaining: visual review in browser; push to Render when ready.
+
+### 2026-09-27 — Code-built illustrated room local preview
+
+- Session: root.
+- Files: `game/src/App.tsx`, new `game/src/components/ThreeDefenseScene.tsx`, React room components and CSS, `game_server.py`, `game/src/types.ts`, related tests, package files, `README.md`, `AGENTS.md`, and this log.
+- Changed: replaced the active room canvas with a fully code-built Three.js isometric office, four panelist and four teammate characters, live nameplates, active-judge cue, and a podium. Restyled the HUD, question card, Controls, Transcript, and answer entry. The card now opens a focused answer drawer. An accepted answer broadcasts `answered_by_seat` and briefly focuses on the correct teammate standing and gesturing at the podium; reduced-motion users get a stationary highlight. The final Transcript waits for that moment. Static mock preview includes an answer panel and a repeatable presenter action. No AI-generated image asset was added; Streamlit and defense/AI rules are unchanged.
+- Verification: 60 Python tests, 64 frontend tests, TypeScript/Vite production build, and `git diff --check` passed. Local browser preview rendered the room and answer panel with no console errors. Desktop, 844×390, 667×375, and portrait viewport checks showed no page overflow; the answer panel focused its textarea and the mock presenter action activated the podium moment. No paid AI call was made.
+- Remaining: user visual review and a live multi-client walkthrough of this redesign. The redesign remains local; no GitHub push or Render deployment was performed.
+
+### 2026-09-27 — Judge roles on desk panels
+
+- Session: root.
+- Files: `game/src/components/ThreeDefenseScene.tsx`, `PROJECT_LOG.md`.
+- Changed: replaced the four floating judge role badges with code-drawn, two-line dark plaques fixed to the front of the corresponding desk panels. The active speaking cue remains above the judge.
+- Verification: TypeScript/Vite production build and `git diff --check` passed. The local preview showed all four roles on their desk panels with no browser console errors.
+- Remaining: user visual review of the local redesign; no GitHub push or Render deployment was performed.
+
+### 2026-09-27 — Standing teammates in local room
+
+- Session: root.
+- Files: `game/src/components/ThreeDefenseScene.tsx`, `PROJECT_LOG.md`.
+- Changed: removed teammate chairs and rendered all four teammates in standing poses. Moved their live name tags near their feet and gave them dark backgrounds so they remain visible against the light floor. Updated the scene description.
+- Verification: local preview showed all four teammates standing with no chairs and no browser console errors. TypeScript/Vite production build and `git diff --check` passed. Frontend dependencies were restored with `npm install` after `npm ci` could not remove an esbuild executable held open by the running dev server.
+- Remaining: user visual review of the local redesign; no GitHub push or Render deployment was performed.
 

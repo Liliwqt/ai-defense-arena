@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QuestionCard } from "./QuestionCard";
 import type { RoomState } from "../types";
 
@@ -57,6 +58,14 @@ describe("QuestionCard", () => {
     expect(screen.getByText("queue.py")).toBeTruthy();
     expect(screen.getByText("Line 5")).toBeTruthy();
     expect(screen.getByText("DATABASE = 'queue.db'")).toBeTruthy();
+  });
+
+  it("opens answer entry from the live question card", async () => {
+    const onAnswer = vi.fn();
+    const state: RoomState = { ...base, phase: "question", turns: [{ panelist: "Technical Architect", question: "Why SQLite?", filename: "queue.py", evidence_line: 5, evidence_text: "DATABASE = 'queue.db'", answer: null, answered_by: null }] };
+    render(<QuestionCard roomState={state} onAnswer={onAnswer} canAnswer />);
+    await userEvent.click(screen.getByRole("button", { name: /answer question/i }));
+    expect(onAnswer).toHaveBeenCalledOnce();
   });
 
   it("shows a later adaptive question number without a fixed denominator", () => {
