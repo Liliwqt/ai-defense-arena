@@ -6,6 +6,7 @@ from pathlib import PurePosixPath
 from zipfile import BadZipFile, ZipFile
 
 
+# Keep the complete accepted project within a bounded AI analysis request.
 MAX_FILES = 100
 MAX_FILE_BYTES = 200_000
 MAX_TOTAL_BYTES = 600_000
