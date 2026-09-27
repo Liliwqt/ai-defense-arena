@@ -38,7 +38,7 @@ def generation_error_message(error: Exception, model: str, api_key: str) -> str:
 
 def generate_next_question(session, files, api_key, model):
     try:
-        with st.spinner("Preparing the next panel question..."):
+        with st.spinner("Reviewing your answer and preparing the next question..."):
             advance_defense(session, files, api_key, model=model)
     except (QuestionGenerationError, OpenAIError, ValidationError) as error:
         st.session_state["defense_error"] = generation_error_message(error, model, api_key)
@@ -124,6 +124,8 @@ if uploads:
                 st.markdown(
                     f"**{turn.panelist} · Question {number}{turn_label}**"
                 )
+                if turn.question.lead_in:
+                    st.caption(turn.question.lead_in)
                 st.write(turn.question.question)
                 st.caption(
                     f"Evidence: {turn.question.filename}, line {turn.question.evidence_line}"

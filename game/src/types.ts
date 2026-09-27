@@ -19,6 +19,7 @@ export interface Player {
 
 export interface Turn {
   panelist: string;
+  lead_in?: string;
   question: string;
   filename: string;
   evidence_line: number;

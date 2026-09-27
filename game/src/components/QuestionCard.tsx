@@ -1,14 +1,35 @@
-import type { RoomState } from "../types";
+import type { RoomState, Turn } from "../types";
 
 interface QuestionCardProps {
   roomState: RoomState | null;
 }
 
-function deriveContent(state: RoomState | null) {
+interface CardContent {
+  name: string;
+  question: string;
+  number: string;
+  leadIn?: string;
+  filename?: string;
+  line?: number;
+  evidence?: string;
+  reviewStatus?: string;
+  previousAnswer?: string;
+}
+
+function sourceContent(turn: Turn) {
+  return {
+    leadIn: turn.lead_in,
+    filename: turn.filename,
+    line: turn.evidence_line,
+    evidence: turn.evidence_text,
+  };
+}
+
+function deriveContent(state: RoomState | null): CardContent {
   const phase = state?.phase ?? "none";
-  const resolved = (state?.turns ?? []).filter((turn) => turn.answer || turn.timed_out).length;
   const turns = state?.turns ?? [];
-  let current = null as (typeof turns)[number] | null;
+  const resolved = turns.filter((turn) => turn.answer || turn.timed_out).length;
+  let current: Turn | null = null;
   let currentIndex = -1;
   for (let index = turns.length - 1; index >= 0; index--) {
     if (turns[index].question && !turns[index].answer && !turns[index].timed_out) {
@@ -23,13 +44,24 @@ function deriveContent(state: RoomState | null) {
       name: current.panelist,
       question: current.question,
       number: `QUESTION ${currentIndex + 1}`,
-      filename: current.filename,
-      line: current.evidence_line,
-      evidence: current.evidence_text,
+      ...sourceContent(current),
     };
   }
   if (phase === "generating") {
-    return { name: state?.active_panelist ?? "The panel", question: "Preparing the next question…", number: `QUESTION ${resolved + 1}` };
+    const previous = [...turns].reverse().find((turn) => turn.answer || turn.timed_out);
+    if (previous) {
+      return {
+        name: previous.panelist,
+        question: previous.question,
+        number: "REVIEWING",
+        reviewStatus: previous.timed_out ? "Reviewing the missed turn…" : "Reviewing your answer…",
+        previousAnswer: previous.timed_out
+          ? "Time expired · no answer was submitted."
+          : `Team answer${previous.answered_by ? ` · ${previous.answered_by}` : ""}: ${previous.answer}`,
+        ...sourceContent(previous),
+      };
+    }
+    return { name: state?.active_panelist ?? "The panel", question: "Reviewing the project…", number: `QUESTION ${resolved + 1}` };
   }
   if (phase === "retry") {
     return { name: "Question paused", question: `${state?.error ?? "The next question could not be generated."} The host can retry from Controls.`, number: `QUESTION ${resolved + 1}` };
@@ -63,7 +95,10 @@ export function QuestionCard({ roomState }: QuestionCardProps) {
         </div>
         <span className="question-number">{content.number}</span>
       </div>
-      <p id="question-text" aria-live="polite">{content.question}</p>
+      {content.reviewStatus && <p className="question-review-status" aria-live="polite">{content.reviewStatus}</p>}
+      {content.leadIn && <p id="panelist-lead-in">{content.leadIn}</p>}
+      <p id="question-text">{content.question}</p>
+      {content.previousAnswer && <p className="question-previous-answer">{content.previousAnswer}</p>}
       {content.filename !== undefined && (
         <div id="source-block" role="group" aria-label="Exact cited source line">
           <div className="source-heading">

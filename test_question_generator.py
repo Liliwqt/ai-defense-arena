@@ -49,11 +49,12 @@ class QuestionGeneratorTests(unittest.TestCase):
 
     def test_question_reads_all_files_and_cites_exact_code_line(self):
         client = FakeClient(
-            QuestionDraft(question="  Why use a local database?  ", source_file=2, evidence_line=2)
+            QuestionDraft(lead_in="", question="  Why use a local database?  ", source_file=2, evidence_line=2)
         )
 
         result = generate_first_question(self.files, "test-key", client=client)
 
+        self.assertEqual(result.lead_in, "")
         self.assertEqual(result.question, "Why use a local database?")
         self.assertEqual(result.filename, "src/queue.py")
         self.assertEqual(result.evidence_line, 2)
@@ -67,30 +68,38 @@ class QuestionGeneratorTests(unittest.TestCase):
         self.assertIn("2: DATABASE = 'queue.db'", prompt)
         self.assertIn("Eligible citation file IDs: [2]", prompt)
 
+    def test_panelist_reaction_is_bounded_to_two_short_sentences(self):
+        too_long = QuestionDraft(lead_in="x" * 301, question="Why SQLite?", source_file=2, evidence_line=2)
+        with self.assertRaisesRegex(QuestionGenerationError, "too long"):
+            generate_first_question(self.files, "test-key", client=FakeClient(too_long))
+        too_many = QuestionDraft(lead_in="One. Two. Three.", question="Why SQLite?", source_file=2, evidence_line=2)
+        with self.assertRaisesRegex(QuestionGenerationError, "more than two"):
+            generate_first_question(self.files, "test-key", client=FakeClient(too_many))
+
     def test_document_citation_is_rejected_when_code_exists(self):
-        client = FakeClient(QuestionDraft(question="Why SQLite?", source_file=1, evidence_line=2))
+        client = FakeClient(QuestionDraft(lead_in="", question="Why SQLite?", source_file=1, evidence_line=2))
         with self.assertRaisesRegex(QuestionGenerationError, "invalid project file"):
             generate_first_question(self.files, "test-key", client=client)
 
     def test_unknown_file_id_is_rejected(self):
-        client = FakeClient(QuestionDraft(question="Why SQLite?", source_file=99, evidence_line=2))
+        client = FakeClient(QuestionDraft(lead_in="", question="Why SQLite?", source_file=99, evidence_line=2))
         with self.assertRaisesRegex(QuestionGenerationError, "invalid project file"):
             generate_first_question(self.files, "test-key", client=client)
 
     def test_invalid_line_is_rejected(self):
-        client = FakeClient(QuestionDraft(question="Why SQLite?", source_file=2, evidence_line=99))
+        client = FakeClient(QuestionDraft(lead_in="", question="Why SQLite?", source_file=2, evidence_line=99))
         with self.assertRaisesRegex(QuestionGenerationError, "invalid source line"):
             generate_first_question(self.files, "test-key", client=client)
 
     def test_blank_line_is_rejected(self):
         files = [ProjectFile("src/queue.py", "\nDATABASE = 'queue.db'\n")]
-        client = FakeClient(QuestionDraft(question="Why SQLite?", source_file=1, evidence_line=1))
+        client = FakeClient(QuestionDraft(lead_in="", question="Why SQLite?", source_file=1, evidence_line=1))
         with self.assertRaisesRegex(QuestionGenerationError, "invalid source line"):
             generate_first_question(files, "test-key", client=client)
 
     def test_document_only_project_can_cite_document(self):
         files = [self.files[0]]
-        client = FakeClient(QuestionDraft(question="Why SQLite?", source_file=1, evidence_line=2))
+        client = FakeClient(QuestionDraft(lead_in="", question="Why SQLite?", source_file=1, evidence_line=2))
         result = generate_first_question(files, "test-key", client=client)
         self.assertEqual(result.filename, "README.md")
 
@@ -109,19 +118,19 @@ class QuestionGeneratorTests(unittest.TestCase):
             build_project_source(files)
 
     def test_missing_key_does_not_call_api(self):
-        client = FakeClient(QuestionDraft(question="Why SQLite?", source_file=2, evidence_line=2))
+        client = FakeClient(QuestionDraft(lead_in="", question="Why SQLite?", source_file=2, evidence_line=2))
         with self.assertRaisesRegex(QuestionGenerationError, "OPENAI_API_KEY"):
             generate_first_question(self.files, None, client=client)
         self.assertIsNone(client.request)
 
     def test_surrounding_whitespace_is_removed_from_key(self):
-        client = FakeClient(QuestionDraft(question="Why SQLite?", source_file=2, evidence_line=2))
+        client = FakeClient(QuestionDraft(lead_in="", question="Why SQLite?", source_file=2, evidence_line=2))
         with patch("question_generator.OpenAI", return_value=client) as constructor:
             generate_first_question(self.files, "  test-key\n")
         self.assertEqual(constructor.call_args.kwargs["api_key"], "test-key")
 
     def test_embedded_whitespace_in_key_is_rejected(self):
-        client = FakeClient(QuestionDraft(question="Why SQLite?", source_file=2, evidence_line=2))
+        client = FakeClient(QuestionDraft(lead_in="", question="Why SQLite?", source_file=2, evidence_line=2))
         with self.assertRaisesRegex(QuestionGenerationError, "contains whitespace"):
             generate_first_question(self.files, "test\nkey", client=client)
         self.assertIsNone(client.request)
@@ -136,27 +145,38 @@ class AdaptiveMoveTests(unittest.TestCase):
     def setUp(self):
         self.files = [ProjectFile("README.md", "# Queue\nStudents reserve before walking in.\n"),
                       ProjectFile("queue.py", "def reserve():\n    return 1\n")]
-        self.history = [AnsweredQuestion("Security Reviewer", "Who sees names?", "Staff only.")]
+        self.history = [AnsweredQuestion(
+            "Security Reviewer", "Who sees names?", "Staff only.",
+            lead_in="You said access is limited.",
+        )]
 
     def test_product_can_cite_document_when_code_exists(self):
         draft = NextMoveDraft(action="ask", panelist=PRODUCT_JUDGE,
+                              lead_in="You described staff-only access. Let's connect that to user value.",
                               question="How will you validate the reservation workflow?",
                               source_file=1, evidence_line=2)
         client = FakeClient(draft)
         move = generate_next_move(self.files, "test-key", history=self.history,
                                   allowed_panelists=(PRODUCT_JUDGE,), may_complete=False, client=client)
         self.assertEqual(move.panelist, PRODUCT_JUDGE)
+        self.assertEqual(move.question.lead_in,
+                         "You described staff-only access. Let's connect that to user value.")
         self.assertEqual(move.question.evidence_text, "Students reserve before walking in.")
-        self.assertIn("user value", client.request["input"][0]["content"])
+        system_prompt = client.request["input"][0]["content"]
+        self.assertIn("user value", system_prompt)
+        self.assertIn("Taglish", system_prompt)
+        self.assertIn("Avoid automatic praise", system_prompt)
+        self.assertIn('"lead_in": "You said access is limited."',
+                      client.request["input"][1]["content"])
 
     def test_critical_can_cite_code_and_early_completion_is_rejected(self):
-        draft = NextMoveDraft(action="ask", panelist=CRITICAL_JUDGE,
+        draft = NextMoveDraft(action="ask", panelist=CRITICAL_JUDGE, lead_in="I heard your answer.",
                               question="What supports this assumption?", source_file=2, evidence_line=2)
         move = generate_next_move(self.files, "test-key", history=self.history,
                                   allowed_panelists=(CRITICAL_JUDGE,), may_complete=False,
                                   client=FakeClient(draft))
         self.assertEqual(move.question.filename, "queue.py")
-        done = NextMoveDraft(action="complete", panelist=None, question=None,
+        done = NextMoveDraft(action="complete", panelist=None, lead_in=None, question=None,
                              source_file=None, evidence_line=None)
         with self.assertRaisesRegex(QuestionGenerationError, "too early"):
             generate_next_move(self.files, "test-key", history=self.history,
@@ -164,7 +184,7 @@ class AdaptiveMoveTests(unittest.TestCase):
                                client=FakeClient(done))
 
     def test_security_cannot_cite_document_when_code_exists(self):
-        draft = NextMoveDraft(action="ask", panelist="Security Reviewer",
+        draft = NextMoveDraft(action="ask", panelist="Security Reviewer", lead_in="I heard your answer.",
                               question="How are names protected?", source_file=1, evidence_line=2)
         with self.assertRaisesRegex(QuestionGenerationError, "invalid project file"):
             generate_next_move(self.files, "test-key", history=self.history,
@@ -172,7 +192,7 @@ class AdaptiveMoveTests(unittest.TestCase):
                                client=FakeClient(draft))
 
     def test_complete_requires_no_question_fields(self):
-        draft = NextMoveDraft(action="complete", panelist=None, question="Extra?",
+        draft = NextMoveDraft(action="complete", panelist=None, lead_in=None, question="Extra?",
                               source_file=None, evidence_line=None)
         with self.assertRaisesRegex(QuestionGenerationError, "too early"):
             generate_next_move(self.files, "test-key", history=self.history,
@@ -180,8 +200,17 @@ class AdaptiveMoveTests(unittest.TestCase):
                                client=FakeClient(draft))
 
 
+    def test_completion_rejects_stray_dialogue(self):
+        draft = NextMoveDraft(action="complete", panelist=None, lead_in="One more thought.",
+                              question=None, source_file=None, evidence_line=None)
+        with self.assertRaisesRegex(QuestionGenerationError, "too early"):
+            generate_next_move(self.files, "test-key", history=self.history,
+                               allowed_panelists=(CRITICAL_JUDGE,), may_complete=True,
+                               client=FakeClient(draft))
+
     def test_followup_after_timeout_receives_no_invented_answer(self):
         draft = NextMoveDraft(action="ask", panelist="Security Reviewer",
+                              lead_in="No answer was submitted, so this risk remains open.",
                               question="How would you restrict access?", source_file=2, evidence_line=2)
         client = FakeClient(draft)
         history = [AnsweredQuestion("Security Reviewer", "Who sees names?", None, True)]
@@ -189,6 +218,8 @@ class AdaptiveMoveTests(unittest.TestCase):
                                   allowed_panelists=("Security Reviewer", PRODUCT_JUDGE),
                                   may_complete=False, client=client)
         self.assertEqual(move.panelist, "Security Reviewer")
+        self.assertEqual(move.question.lead_in,
+                         "No answer was submitted, so this risk remains open.")
         prompt = client.request["input"][1]["content"]
         self.assertIn('"answer": null', prompt)
         self.assertIn('"timed_out": true', prompt)
@@ -202,7 +233,10 @@ class CoachingReportTests(unittest.TestCase):
             ProjectFile("src/queue.py", "# Storage\nDATABASE = 'queue.db'\n"),
         ]
         self.history = [
-            AnsweredQuestion("Technical Architect", "Why SQLite?", "Simplicity for a prototype."),
+            AnsweredQuestion(
+                "Technical Architect", "Why SQLite?", "Simplicity for a prototype.",
+                lead_in="Let's examine the storage tradeoff.",
+            ),
             AnsweredQuestion("Security Reviewer", "How do you protect names?", "Parameterised queries."),
             AnsweredQuestion("Technical Architect", "What about concurrency?", "Single-writer SQLite is fine here."),
             AnsweredQuestion("Security Reviewer", "Who can see results?", "Only authenticated users."),
@@ -227,6 +261,7 @@ class CoachingReportTests(unittest.TestCase):
         self.assertIn("FILE 1: README.md", prompt)
         self.assertIn("FILE 2: src/queue.py", prompt)
         self.assertIn("Why SQLite?", prompt)
+        self.assertIn("Let's examine the storage tradeoff.", prompt)
         self.assertIn("Only authenticated users.", prompt)
         self.assertEqual(client.request["reasoning"], {"effort": "low"})
         self.assertIs(client.request["store"], False)

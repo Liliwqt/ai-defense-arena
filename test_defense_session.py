@@ -31,12 +31,12 @@ class FakeClient:
 
 
 def ask(role, line=2):
-    return NextMoveDraft(action="ask", panelist=role, question=f"Why this choice, {role}?",
+    return NextMoveDraft(action="ask", panelist=role, lead_in="I heard your answer.", question=f"Why this choice, {role}?",
                          source_file=2, evidence_line=line)
 
 
 def complete():
-    return NextMoveDraft(action="complete", panelist=None, question=None,
+    return NextMoveDraft(action="complete", panelist=None, lead_in=None, question=None,
                          source_file=None, evidence_line=None)
 
 
@@ -47,7 +47,8 @@ class DefenseSessionTests(unittest.TestCase):
             ProjectFile("queue.py", "def enqueue(item):\n    return str(item)\n"),
         ]
         self.first = GroundedQuestion(
-            "Why convert queue items to strings?", "queue.py", 2, "    return str(item)"
+            "Why convert queue items to strings?", "queue.py", 2, "    return str(item)",
+            "Let's begin with the queue representation."
         )
 
     def test_four_distinct_panelists_can_finish_without_followups(self):
@@ -98,7 +99,7 @@ class DefenseSessionTests(unittest.TestCase):
     def test_failed_request_and_invalid_citation_preserve_answer(self):
         session = DefenseSession.start(self.first)
         session.submit_answer("Keep the answer.")
-        bad = NextMoveDraft(action="ask", panelist="Security Reviewer", question="Risk?",
+        bad = NextMoveDraft(action="ask", panelist="Security Reviewer", lead_in="I heard your answer.", question="Risk?",
                             source_file=99, evidence_line=1)
         client = FakeClient([OpenAIError("temporary"), bad, ask("Security Reviewer")])
         with self.assertRaises(OpenAIError):
@@ -113,9 +114,12 @@ class DefenseSessionTests(unittest.TestCase):
     def test_followup_prompt_includes_earlier_answer(self):
         session = DefenseSession.start(self.first)
         session.submit_answer("We normalize for display.")
+        history = session.answered_history()
+        self.assertEqual(history[0].lead_in, "Let's begin with the queue representation.")
         client = FakeClient([ask("Technical Architect")])
         advance_defense(session, self.files, "test-key", client=client)
         self.assertEqual(session.turns[1].panelist, "Technical Architect")
+        self.assertEqual(session.turns[1].question.lead_in, "I heard your answer.")
         self.assertIn("We normalize for display.", client.requests[0]["input"][1]["content"])
         self.assertIn("follow-up", client.requests[0]["input"][0]["content"])
 

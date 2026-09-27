@@ -77,7 +77,10 @@ class DefenseSession:
 
     def answered_history(self) -> list[AnsweredQuestion]:
         return [
-            AnsweredQuestion(turn.panelist, turn.question.question, turn.answer, turn.timed_out)
+            AnsweredQuestion(
+                turn.panelist, turn.question.question, turn.answer, turn.timed_out,
+                turn.question.lead_in,
+            )
             for turn in self.turns
             if turn.resolved
         ]

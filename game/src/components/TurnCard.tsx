@@ -11,6 +11,11 @@ export function TurnCard({ turn, index }: TurnCardProps) {
       <h3 className="text-[#ff9b9b] text-[0.82rem] m-0 mb-2 font-black">
         QUESTION {index + 1} · {turn.panelist || "Panelist"}
       </h3>
+      {turn.lead_in && (
+        <p className="leading-[1.45] my-[6px] text-[#9fc4e4] italic whitespace-pre-wrap break-words text-[0.8rem]">
+          {turn.lead_in}
+        </p>
+      )}
       <p className="leading-[1.45] my-[6px] text-[#e4effb] whitespace-pre-wrap break-words text-[0.84rem]">
         {turn.question || "Question being prepared…"}
       </p>

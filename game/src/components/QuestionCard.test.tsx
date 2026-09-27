@@ -47,6 +47,7 @@ describe("QuestionCard", () => {
       turns: [
         {
           panelist: "Technical Architect",
+          lead_in: "You chose SQLite for a small prototype. Let's examine that tradeoff.",
           question: "Why use SQLite?",
           filename: "queue.py",
           evidence_line: 5,
@@ -61,11 +62,42 @@ describe("QuestionCard", () => {
     render(
       <QuestionCard roomState={state} />,
     );
+    expect(screen.getByText("You chose SQLite for a small prototype. Let's examine that tradeoff.")).toBeTruthy();
     expect(screen.getByText("Why use SQLite?")).toBeTruthy();
     expect(screen.getByText("QUESTION 1")).toBeTruthy();
     expect(screen.getByText("queue.py")).toBeTruthy();
     expect(screen.getByText("Line 5")).toBeTruthy();
     expect(screen.getByText("DATABASE = 'queue.db'")).toBeTruthy();
+  });
+
+  it("keeps the resolved exchange visible while reviewing the answer", () => {
+    const state: RoomState = {
+      ...base,
+      phase: "generating",
+      turns: [{
+        panelist: "Technical Architect", lead_in: "You chose a local database.",
+        question: "Why SQLite?", filename: "queue.py", evidence_line: 5,
+        evidence_text: "DATABASE = 'queue.db'", answer: "It keeps setup simple.",
+        answered_by: "Alex",
+      }],
+    };
+    render(<QuestionCard roomState={state} />);
+    expect(screen.getByText("Reviewing your answer…")).toBeTruthy();
+    expect(screen.getByText("Why SQLite?")).toBeTruthy();
+    expect(screen.getByText("Team answer · Alex: It keeps setup simple.")).toBeTruthy();
+    expect(screen.getByText("DATABASE = 'queue.db'")).toBeTruthy();
+  });
+
+  it("describes a timeout truthfully while preparing the next turn", () => {
+    const state: RoomState = {
+      ...base, phase: "generating",
+      turns: [{ panelist: "Security Reviewer", question: "Who may read this?",
+        filename: "queue.py", evidence_line: 8, evidence_text: "name = input()",
+        answer: null, timed_out: true, answered_by: null }],
+    };
+    render(<QuestionCard roomState={state} />);
+    expect(screen.getByText("Reviewing the missed turn…")).toBeTruthy();
+    expect(screen.getByText("Time expired · no answer was submitted.")).toBeTruthy();
   });
 
   it("shows the cited question during speaker voting", () => {

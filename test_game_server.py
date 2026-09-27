@@ -27,14 +27,18 @@ class GameServerTests(unittest.TestCase):
             ("files", ("queue.py", Path("sample_project/queue.py").read_bytes(), "text/x-python")),
         ]
         code_lines = Path("sample_project/queue.py").read_text().splitlines()
+        question_specs = [
+            ("Why use SQLite?", 5),
+            ("How would you protect reservation names?", 8),
+            ("How would concurrent requests affect that choice?", 9),
+            ("How would you restrict access to this result?", 33),
+        ]
         self.questions = [
-            GroundedQuestion(text, "queue.py", line, code_lines[line - 1])
-            for text, line in [
-                ("Why use SQLite?", 5),
-                ("How would you protect reservation names?", 8),
-                ("How would concurrent requests affect that choice?", 9),
-                ("How would you restrict access to this result?", 33),
-            ]
+            GroundedQuestion(
+                text, "queue.py", line, code_lines[line - 1],
+                "" if index == 0 else f"Your previous answer raised the next {text.lower()}",
+            )
+            for index, (text, line) in enumerate(question_specs)
         ]
         self.short_moves = [
             PanelMove(role, question)
@@ -133,6 +137,7 @@ class GameServerTests(unittest.TestCase):
                     for socket in (host_socket, guest_socket):
                         state = self.receive_phase(socket, "question")
                         self.assertEqual(state["turns"][0]["evidence_text"], self.questions[0].evidence_text)
+                        self.assertEqual(state["turns"][0]["lead_in"], "")
                     self.assertEqual(first_call.call_count, 1)
 
                     guest_socket.send_json({"type": "submit_answer", "turn": 0, "answer": "A simple prototype."})
@@ -239,6 +244,7 @@ class GameServerTests(unittest.TestCase):
                         state = self.receive_phase(socket, "question")
                         self.assertEqual(len(state["turns"]), 2)
                         self.assertEqual(state["turns"][0]["answer"], "Keep the answer.")
+                        self.assertEqual(state["turns"][1]["lead_in"], self.questions[1].lead_in)
                 finally:
                     guest_socket.__exit__(None, None, None)
             finally:

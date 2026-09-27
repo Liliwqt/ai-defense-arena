@@ -459,7 +459,10 @@ body { background: #dbe8f5; }
 .question-kicker { margin: 0 0 3px; color: #2878ca; font-size: .72rem; letter-spacing: .07em; }
 #panelist-name { color: #182744; font-size: clamp(1.06rem, 1.4vw, 1.3rem); }
 .question-number { border-radius: 8px; background: #f8e7f0; color: #72345b; font-size: .72rem; letter-spacing: .05em; }
-#question-text { margin: 10px 0 12px; color: #15223d; font-family: Georgia, 'Times New Roman', serif; font-size: clamp(1rem, 1.44vw, 1.45rem); font-weight: 500; line-height: 1.26; }
+.question-review-status { margin: 8px 0 0; color: #2878ca; font-size: .76rem; font-weight: 850; letter-spacing: .04em; }
+#panelist-lead-in { margin: 8px 0 3px; color: #526a86; font-size: clamp(.82rem, 1vw, .98rem); font-style: italic; line-height: 1.4; }
+#question-text { margin: 7px 0 12px; color: #15223d; font-family: Georgia, 'Times New Roman', serif; font-size: clamp(1rem, 1.44vw, 1.45rem); font-weight: 500; line-height: 1.26; }
+.question-previous-answer { margin: 0 0 10px; padding: 8px 10px; border-left: 3px solid #67a9e6; border-radius: 4px; background: #eaf3fc; color: #38516f; font-size: .78rem; line-height: 1.4; }
 #source-block { border: 1px solid #c5d4e6; border-radius: 8px; background: #eaf1fa; color: #172946; }
 .source-heading { border-bottom: 1px solid #d5e0ed; background: #e5edf7; color: #425a79; }
 .source-filename { color: #355579; }
@@ -511,7 +514,10 @@ body { background: #dbe8f5; }
 @media (max-height: 640px) and (orientation: landscape) {
   #question-card { top: auto; bottom: 7px; left: 12px; right: 12px; max-height: 43dvh; padding: 7px 12px; border-radius: 11px; }
   .question-kicker { display: none; }
-  #question-text { margin: 3px 0 6px; font-size: .85rem; line-height: 1.2; }
+  .question-review-status { margin-top: 3px; font-size: .61rem; }
+  #panelist-lead-in { margin: 3px 0 1px; font-size: .68rem; line-height: 1.2; }
+  #question-text { margin: 2px 0 4px; font-size: .85rem; line-height: 1.2; }
+  .question-previous-answer { margin-bottom: 4px; padding: 3px 6px; font-size: .62rem; line-height: 1.2; }
   #panelist-name { font-size: .88rem; }
   .question-number { padding: 3px 6px; font-size: .61rem; }
   .source-heading { padding: 3px 7px; font-size: .65rem; }

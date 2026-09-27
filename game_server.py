@@ -90,6 +90,7 @@ class Room:
                 turns.append(
                     {
                         "panelist": turn.panelist,
+                        "lead_in": turn.question.lead_in,
                         "question": turn.question.question,
                         "filename": turn.question.filename,
                         "evidence_line": turn.question.evidence_line,

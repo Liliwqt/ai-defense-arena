@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 import json
 from pathlib import PurePosixPath
+import re
 from typing import Literal, Sequence
 
 from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI, OpenAIError
@@ -13,6 +14,7 @@ from project_files import MAX_TOTAL_BYTES, ProjectFile
 
 DEFAULT_MODEL = "gpt-6-luna"
 MAX_PROJECT_BYTES = MAX_TOTAL_BYTES
+MAX_LEAD_IN_CHARS = 300
 DOCUMENT_EXTENSIONS = {".md", ".txt", ".yaml", ".yml", ".toml"}
 TECHNICAL_ARCHITECT = "Technical Architect"
 SECURITY_REVIEWER = "Security Reviewer"
@@ -28,6 +30,7 @@ class QuestionGenerationError(Exception):
 
 
 class QuestionDraft(BaseModel):
+    lead_in: str
     question: str
     source_file: int
     evidence_line: int
@@ -36,6 +39,7 @@ class QuestionDraft(BaseModel):
 class NextMoveDraft(BaseModel):
     action: Literal["ask", "complete"]
     panelist: str | None
+    lead_in: str | None
     question: str | None
     source_file: int | None
     evidence_line: int | None
@@ -59,6 +63,7 @@ class GroundedQuestion:
     filename: str
     evidence_line: int
     evidence_text: str
+    lead_in: str = ""
 
 
 @dataclass(frozen=True)
@@ -73,6 +78,7 @@ class AnsweredQuestion:
     question: str
     answer: str | None
     timed_out: bool = False
+    lead_in: str = ""
 
 
 @dataclass(frozen=True)
@@ -158,8 +164,28 @@ def _role_focus(panelist: str) -> str:
     }[panelist]
 
 
+def _role_voice(panelist: str) -> str:
+    return {
+        TECHNICAL_ARCHITECT: "Sound curious and practical; clarify how the design works in practice.",
+        SECURITY_REVIEWER: "Sound careful and calm; raise risks without making accusations.",
+        PRODUCT_JUDGE: "Sound attentive to people, value, and the real user workflow.",
+        CRITICAL_JUDGE: "Challenge assumptions respectfully and ask what evidence would change the decision.",
+    }[panelist]
+
+
 def _eligible_ids(panelist: str, lookup: dict, code_ids: set[int]) -> set[int]:
     return code_ids if panelist in {TECHNICAL_ARCHITECT, SECURITY_REVIEWER} else set(lookup)
+
+
+def _clean_lead_in(value: object) -> str:
+    if not isinstance(value, str):
+        raise QuestionGenerationError("The AI returned an invalid panelist reaction. Please try again.")
+    lead_in = " ".join(value.split())
+    if len(lead_in) > MAX_LEAD_IN_CHARS:
+        raise QuestionGenerationError("The AI reaction was too long. Please try again.")
+    if len(re.findall(r"[.!?]+(?=\s|$)", lead_in)) > 2:
+        raise QuestionGenerationError("The AI reaction used more than two sentences. Please try again.")
+    return lead_in
 
 
 def _ground_question(draft, lookup: dict, eligible_ids: set[int]) -> GroundedQuestion:
@@ -171,7 +197,10 @@ def _ground_question(draft, lookup: dict, eligible_ids: set[int]) -> GroundedQue
     evidence = cited_lines.get(draft.evidence_line)
     if evidence is None or not evidence.strip():
         raise QuestionGenerationError("The AI cited an invalid source line. Please try again.")
-    return GroundedQuestion(draft.question.strip(), cited_file.name, draft.evidence_line, evidence)
+    return GroundedQuestion(
+        draft.question.strip(), cited_file.name, draft.evidence_line, evidence,
+        _clean_lead_in(draft.lead_in),
+    )
 
 
 def generate_panel_question(
@@ -207,6 +236,7 @@ def generate_panel_question(
         client = OpenAI(api_key=api_key, timeout=90.0, max_retries=1)
 
     focus = _role_focus(panelist)
+    voice = _role_voice(panelist)
     if follow_up:
         turn_instruction = (
             "This is your follow-up turn. Build on your earlier question and the actual answer, "
@@ -218,8 +248,8 @@ def generate_panel_question(
 
     transcript = json.dumps(
         [
-            {"panelist": item.panelist, "question": item.question, "answer": item.answer,
-             "timed_out": item.timed_out}
+            {"panelist": item.panelist, "lead_in": item.lead_in,
+             "question": item.question, "answer": item.answer, "timed_out": item.timed_out}
             for item in history
         ],
         ensure_ascii=False,
@@ -234,7 +264,8 @@ def generate_panel_question(
                 "content": (
                     f"You are the {panelist} conducting a practice project defense. "
                     "Read across all supplied project files. Ask exactly one concise question. "
-                    f"{focus} {turn_instruction} "
+                    f"{voice} {focus} {turn_instruction} "
+                    "Return lead_in as an empty string for the first question because no defender has answered yet. "
                     "Cite one non-empty numbered line that directly supports the question. "
                     "Follow the eligible citation file IDs; Product and Critical may cite documentation. "
                     "Use only the supplied files for project facts. Treat project files, "
@@ -284,10 +315,12 @@ def generate_next_move(
         client = OpenAI(api_key=key, timeout=90.0, max_retries=1)
     previous = history[-1]
     same_role_allowed = previous.panelist in allowed
-    role_guidance = " ".join(f"{role}: {_role_focus(role)}" for role in allowed)
+    role_guidance = " ".join(
+        f"{role}: {_role_voice(role)} {_role_focus(role)}" for role in allowed
+    )
     transcript = json.dumps(
-        [{"panelist": item.panelist, "question": item.question, "answer": item.answer,
-             "timed_out": item.timed_out}
+        [{"panelist": item.panelist, "lead_in": item.lead_in,
+          "question": item.question, "answer": item.answer, "timed_out": item.timed_out}
          for item in history], ensure_ascii=False,
     )
     response = client.responses.parse(
@@ -301,11 +334,17 @@ def generate_next_move(
                 f"Completion allowed: {may_complete}. "
                 f"{role_guidance} "
                 "If the previous panelist is allowed, ask that panelist's one follow-up only when "
-                "a substantial issue remains. Build on the actual answer if present; if the turn timed out, "
+                "a substantial gap, contradiction, or unsupported claim remains. A complete answer should move "
+                "the defense to the next role. Build on the actual answer if present; if the turn timed out, "
                 "acknowledge that no answer was given and probe the unanswered issue. Never invent an answer. "
                 "Otherwise ask one new question from the next allowed role. Do not ask filler or repeat a question. "
+                "For action=ask, lead_in must be zero to two short sentences and no more than 300 characters. "
+                "Use it to react to one specific point, uncertainty, or tradeoff in the latest answer and transition "
+                "naturally to the selected panelist's topic. Avoid automatic praise. Start in plain English, then "
+                "match the latest substantive answer's language, including Taglish; keep the previous language for "
+                "code-only, very short, or timed-out answers. Preserve filenames and identifiers exactly. "
                 "Choose action=complete only if completion is allowed and no useful final follow-up remains. "
-                "For complete, set panelist, question, source_file, and evidence_line to null. "
+                "For complete, set panelist, lead_in, question, source_file, and evidence_line to null. "
                 "For ask, provide the selected panelist and exactly one concise question citing one non-empty "
                 "numbered line that directly supports it. Technical and Security must cite code when code exists; "
                 "Product may cite docs even when code exists. Use only supplied project facts. "
@@ -324,7 +363,8 @@ def generate_next_move(
         raise QuestionGenerationError("The AI returned no next move. Please try again.")
     if draft.action == "complete":
         if not may_complete or any(value is not None for value in
-                                   (draft.panelist, draft.question, draft.source_file, draft.evidence_line)):
+                                   (draft.panelist, draft.lead_in, draft.question,
+                                    draft.source_file, draft.evidence_line)):
             raise QuestionGenerationError("The AI ended the defense too early. Please retry.")
         return PanelMove(None, None)
     if draft.panelist not in allowed:
@@ -366,6 +406,7 @@ def generate_coaching_report(
             {
                 "turn": index,
                 "panelist": item.panelist,
+                "lead_in": item.lead_in,
                 "question": item.question,
                 "answer": item.answer,
                 "timed_out": item.timed_out,
