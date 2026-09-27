@@ -146,7 +146,8 @@ class AdaptiveMoveTests(unittest.TestCase):
         self.files = [ProjectFile("README.md", "# Queue\nStudents reserve before walking in.\n"),
                       ProjectFile("queue.py", "def reserve():\n    return 1\n")]
         self.history = [AnsweredQuestion(
-            "Security Reviewer", "Who sees names?", "Staff only.",
+            "Security Reviewer", "Who sees names?",
+            "Only authenticated staff members can view reservation names.",
             lead_in="You said access is limited.",
         )]
 
@@ -164,10 +165,29 @@ class AdaptiveMoveTests(unittest.TestCase):
         self.assertEqual(move.question.evidence_text, "Students reserve before walking in.")
         system_prompt = client.request["input"][0]["content"]
         self.assertIn("user value", system_prompt)
-        self.assertIn("Taglish", system_prompt)
+        self.assertIn("Match the latest substantive answer's language", system_prompt)
         self.assertIn("Avoid automatic praise", system_prompt)
         self.assertIn('"lead_in": "You said access is limited."',
                       client.request["input"][1]["content"])
+
+    def test_filipino_answer_gets_explicit_taglish_guidance(self):
+        history = [AnsweredQuestion(
+            "Technical Architect", "Why SQLite?",
+            "Pinili namin ito dahil maliit lang ang demo at mabilis ang setup.",
+        )]
+        draft = NextMoveDraft(
+            action="ask", panelist="Security Reviewer",
+            lead_in="Dahil maliit ang demo, malinaw ang tradeoff sa ngayon.",
+            question="Paano ninyo poprotektahan ang data?", source_file=2, evidence_line=2,
+        )
+        client = FakeClient(draft)
+        generate_next_move(
+            self.files, "test-key", history=history,
+            allowed_panelists=("Security Reviewer",), may_complete=False, client=client,
+        )
+        prompt = client.request["input"][0]["content"]
+        self.assertIn("latest answer is Filipino/Taglish", prompt)
+        self.assertIn("not Spanish", prompt)
 
     def test_critical_can_cite_code_and_early_completion_is_rejected(self):
         draft = NextMoveDraft(action="ask", panelist=CRITICAL_JUDGE, lead_in="I heard your answer.",

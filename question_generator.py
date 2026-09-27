@@ -173,6 +173,33 @@ def _role_voice(panelist: str) -> str:
     }[panelist]
 
 
+FILIPINO_MARKERS = {
+    "ako", "aming", "ang", "dahil", "ginagamit", "ito", "kapag", "kasi",
+    "lang", "maliit", "mas", "namin", "ng", "ngayon", "para", "pinili",
+    "sa", "susukatin", "tayo", "yung",
+}
+
+
+def _language_guidance(history: Sequence[AnsweredQuestion]) -> str:
+    previous = history[-1]
+    answer = (previous.answer or "").strip()
+    if previous.timed_out or len(answer) < 40:
+        return (
+            "Keep the prior conversational language; use plain English if no prior language is clear. "
+            "Do not infer a new language from a timeout, code-only answer, or very short answer."
+        )
+    words = set(re.findall(r"[A-Za-zÀ-ÿ]+", answer.lower()))
+    if len(words & FILIPINO_MARKERS) >= 2:
+        return (
+            "The latest answer is Filipino/Taglish. Write the lead_in and question in natural Taglish, "
+            "not Spanish or another language; keep technical identifiers in their original form."
+        )
+    return (
+        "Match the latest substantive answer's language. Use plain English when it is English, and only "
+        "switch languages when the answer clearly uses that language."
+    )
+
+
 def _eligible_ids(panelist: str, lookup: dict, code_ids: set[int]) -> set[int]:
     return code_ids if panelist in {TECHNICAL_ARCHITECT, SECURITY_REVIEWER} else set(lookup)
 
@@ -314,7 +341,7 @@ def generate_next_move(
     if client is None:
         client = OpenAI(api_key=key, timeout=90.0, max_retries=1)
     previous = history[-1]
-    same_role_allowed = previous.panelist in allowed
+    language_guidance = _language_guidance(history)
     role_guidance = " ".join(
         f"{role}: {_role_voice(role)} {_role_focus(role)}" for role in allowed
     )
@@ -340,9 +367,8 @@ def generate_next_move(
                 "Otherwise ask one new question from the next allowed role. Do not ask filler or repeat a question. "
                 "For action=ask, lead_in must be zero to two short sentences and no more than 300 characters. "
                 "Use it to react to one specific point, uncertainty, or tradeoff in the latest answer and transition "
-                "naturally to the selected panelist's topic. Avoid automatic praise. Start in plain English, then "
-                "match the latest substantive answer's language, including Taglish; keep the previous language for "
-                "code-only, very short, or timed-out answers. Preserve filenames and identifiers exactly. "
+                "naturally to the selected panelist's topic. Avoid automatic praise. "
+                f"{language_guidance} Preserve filenames and identifiers exactly. "
                 "Choose action=complete only if completion is allowed and no useful final follow-up remains. "
                 "For complete, set panelist, lead_in, question, source_file, and evidence_line to null. "
                 "For ask, provide the selected panelist and exactly one concise question citing one non-empty "
