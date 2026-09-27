@@ -3,6 +3,7 @@ import { AnswerComposer } from "./components/AnswerComposer";
 import { ControlsPanel } from "./components/ControlsPanel";
 import { Drawer } from "./components/Drawer";
 import { HUD } from "./components/HUD";
+import { JudgePanelOverlay } from "./components/JudgePanelOverlay";
 import { PhaserScene } from "./components/PhaserScene";
 import { QuestionCard } from "./components/QuestionCard";
 import { RotatePrompt } from "./components/RotatePrompt";
@@ -10,6 +11,10 @@ import { TranscriptPanel } from "./components/TranscriptPanel";
 import { useRoomSocket } from "./hooks/useRoomSocket";
 import { previewState } from "./previewState";
 import type { DrawerMode, RoomState } from "./types";
+
+/** Duration of the post-answer "judges discussing" animation before the next
+ *  question arrives.  Kept short so it does not feel like lag. */
+const DISCUSSING_MS = 1800;
 
 const previewMode =
   new URLSearchParams(window.location.search).get("preview") === "1";
@@ -29,6 +34,10 @@ export function App() {
   const [drawerOpen, setDrawerOpen] = useState(previewMode ? false : true);
   const [drawerMode, setDrawerMode] = useState<DrawerMode>("controls");
   const [message, setMessage] = useState("");
+  /** True for DISCUSSING_MS after an answer is submitted; drives the shared
+   *  "thinking" animation on all judges before the next question appears. */
+  const [discussing, setDiscussing] = useState(false);
+  const discussingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // In preview mode, use the static preview state; otherwise live state
   const roomState: RoomState | null = previewMode ? previewState : liveRoomState;
@@ -36,11 +45,15 @@ export function App() {
   // Track previous phase/feedbackStatus for auto-open drawer transitions
   const prevPhaseRef = useRef<string | undefined>(undefined);
   const prevFeedbackRef = useRef<string | undefined>(undefined);
+  // -1 = baseline not yet set; set to actual count on the first snapshot so
+  // a reconnect mid-session does not spuriously trigger the discussing anim.
+  const prevAnsweredRef = useRef<number>(-1);
 
   useEffect(() => {
     const phase = roomState?.phase;
     const feedbackStatus = roomState?.feedback_status;
     const isHost = roomState?.self_is_host ?? false;
+    const answered = (roomState?.turns ?? []).filter((t) => t.answer).length;
 
     if (phase === "retry" && prevPhaseRef.current !== "retry" && isHost) {
       openDrawer("controls");
@@ -62,9 +75,32 @@ export function App() {
       openDrawer("controls");
     }
 
+    // Trigger the discussing animation only when a genuinely new answer
+    // arrives in-session — not on the first snapshot (reconnect/join).
+    if (prevAnsweredRef.current === -1) {
+      // First snapshot: record baseline without animating.
+      prevAnsweredRef.current = answered;
+    } else if (answered > prevAnsweredRef.current && phase !== "complete") {
+      setDiscussing(true);
+      if (discussingTimerRef.current) clearTimeout(discussingTimerRef.current);
+      discussingTimerRef.current = setTimeout(() => {
+        setDiscussing(false);
+      }, DISCUSSING_MS);
+      prevAnsweredRef.current = answered;
+    } else {
+      prevAnsweredRef.current = answered;
+    }
+
     prevPhaseRef.current = phase;
     prevFeedbackRef.current = feedbackStatus;
   }, [roomState]);
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (discussingTimerRef.current) clearTimeout(discussingTimerRef.current);
+    };
+  }, []);
 
   const openDrawer = useCallback((mode: DrawerMode) => {
     setDrawerMode(mode);
@@ -85,6 +121,11 @@ export function App() {
 
   const handleUseRoom = useCallback(
     (code: string, token: string, host: boolean) => {
+      // Reset the baseline so the first snapshot of the new room doesn't
+      // trigger the discussing animation.
+      prevAnsweredRef.current = -1;
+      if (discussingTimerRef.current) clearTimeout(discussingTimerRef.current);
+      setDiscussing(false);
       useRoom(code, token, host);
       if (host) openDrawer("controls");
       else closeDrawer();
@@ -93,9 +134,13 @@ export function App() {
   );
 
   const handleLeaveRoom = useCallback(() => {
+    prevAnsweredRef.current = -1;
+    if (discussingTimerRef.current) clearTimeout(discussingTimerRef.current);
+    setDiscussing(false);
     leaveRoom();
     openDrawer("controls");
-  }, [leaveRoom, openDrawer]);
+  }, [leaveRoom, openDrawer],
+  );
 
   const drawerTitle = drawerMode === "transcript" ? "Transcript" : "Controls";
 
@@ -114,6 +159,7 @@ export function App() {
         }}
       >
         <PhaserScene roomState={roomState} />
+        <JudgePanelOverlay roomState={roomState} discussing={discussing} />
         <HUD
           roomState={roomState}
           roomCode={roomCode}

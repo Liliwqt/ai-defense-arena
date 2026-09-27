@@ -1,8 +1,6 @@
 import Phaser from "phaser";
 import type { RoomState } from "../types";
 
-const PANEL_NAMES = ["Product Judge", "Technical Architect", "Security Reviewer", "Critical Judge"] as const;
-
 interface Seat {
   ring: Phaser.GameObjects.Arc;
   glow: Phaser.GameObjects.Arc;
@@ -14,15 +12,6 @@ interface DefenderSeat {
   ring: Phaser.GameObjects.Arc;
   sprite: Phaser.GameObjects.Sprite;
   label: Phaser.GameObjects.Text;
-}
-
-function findCurrentTurn(state: RoomState | null) {
-  const turns = state?.turns ?? [];
-  for (let i = turns.length - 1; i >= 0; i--) {
-    if (turns[i].question && !turns[i].answer)
-      return { turn: turns[i], index: i };
-  }
-  return null;
 }
 
 export class DefenseScene extends Phaser.Scene {
@@ -39,20 +28,20 @@ export class DefenseScene extends Phaser.Scene {
   create() {
     this.makeTextures();
     this.background = this.add.graphics();
-    this.panelSeats = Array.from({ length: 4 }, (_, index) => ({
+    this.panelSeats = Array.from({ length: 4 }, (_u, _i) => ({
       ring: this.add
-        .circle(0, 0, 40, 0x5c2737, 0.62)
-        .setStrokeStyle(2, 0xe9747c, 0.8),
+        .circle(0, 0, 40, 0x0d1f35, 0.0)   // hidden — React overlay covers panel row
+        .setStrokeStyle(0, 0xe9747c, 0),
       glow: this.add
         .circle(0, 0, 46)
-        .setStrokeStyle(4, 0xffd26d, 1)
+        .setStrokeStyle(0, 0xffd26d, 0)
         .setVisible(false),
-      sprite: this.add.sprite(0, 0, "panelist"),
+      sprite: null as unknown as Phaser.GameObjects.Sprite, // not created; overlay renders avatars
       label: this.add
         .text(
           0,
           0,
-          PANEL_NAMES[index],
+          "",  // hidden — React JudgePanelOverlay renders panelist labels
           {
             fontFamily: "Arial, sans-serif",
             color: "#ffe0e0",
@@ -60,7 +49,8 @@ export class DefenseScene extends Phaser.Scene {
             align: "center",
           },
         )
-        .setOrigin(0.5),
+        .setOrigin(0.5)
+        .setVisible(false),
     }));
     this.defenderSeats = Array.from({ length: 4 }, (_, index) => ({
       ring: this.add
@@ -83,8 +73,9 @@ export class DefenseScene extends Phaser.Scene {
   }
 
   private makeTextures() {
+    // Only the "defender" texture is used; panelist avatars are rendered by
+    // the React JudgePanelOverlay, so their Phaser sprite is null.
     for (const [name, jacket, trim] of [
-      ["panelist", 0xe66572, 0xffced0],
       ["defender", 0x4baef2, 0xc3ebff],
     ] as [string, number, number][]) {
       const g = this.make.graphics({ x: 0, y: 0 }, false);
@@ -174,16 +165,12 @@ export class DefenseScene extends Phaser.Scene {
   }
 
   private renderSpeaker(state: RoomState | null) {
-    const activeName = state?.active_panelist ?? findCurrentTurn(state)?.turn.panelist;
-    const activeIndex = PANEL_NAMES.findIndex((name) => name === activeName);
-    const show = activeIndex >= 0 && state?.phase !== "complete";
-    this.panelSeats.forEach((seat, index) => seat.glow.setVisible(show && index === activeIndex));
-    this.speakerDot.setVisible(show);
-    if (show) {
-      const seat = this.panelSeats[activeIndex];
-      const radius = seat.ring.radius;
-      this.speakerDot.setPosition(seat.ring.x + radius * 0.72, seat.ring.y - radius * 0.72);
-    }
+    // The React JudgePanelOverlay now handles the active-judge glow and
+    // speaking cue.  Hide the Phaser glow rings and speaker dot to avoid
+    // double-rendering on top of the React overlay.
+    this.panelSeats.forEach((seat) => seat.glow.setVisible(false));
+    this.speakerDot.setVisible(false);
+    void state; // consumed by JudgePanelOverlay
   }
 
   renderState(state: RoomState | null) {

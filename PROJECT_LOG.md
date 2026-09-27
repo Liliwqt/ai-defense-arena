@@ -219,3 +219,27 @@ Append new entries to the **end** of this file in date order:
 - Changed: moved the complete question and exact citation into a scrollable card between the seat rows; the cited line uses a dark code panel with a filename header, gutter, preserved indentation, and horizontal scrolling. Replaced the large Phaser speech bubble with a small active-speaker cue. Moved answer entry from the drawer into a persistent bottom composer with pending, send-error, retry, and completion states; the drawer retains Controls and Transcript.
 - Verification: 60 Python tests, 51 frontend tests, Vite build, and `git diff --check` passed. Two browser clients completed mocked four- and eight-answer defenses with exact citation matches, synchronized answers, transcript, coaching, reconnect, and a forced question-generation failure with host retry in the four-answer run. Desktop and 844×390 / 667×375 landscape screenshots show fixed seats and bottom bar with no browser errors or page overflow. A long question scrolls within the middle card; a long source line scrolls horizontally with the keyboard. Portrait shows the rotation prompt. These were mocked AI checks, with no paid calls.
 - Remaining: push the selected UI/docs/tests/screenshots to private `main`, verify Render health/assets and a fresh live AI room. Personal visual review and physical separate-device confirmation remain unverified.
+
+### 2026-09-27 — Judge character animation system
+
+- Session: root.
+- Files: `game/src/components/judgeConfig.ts` (new), `game/src/components/JudgePanelOverlay.tsx` (new), `game/src/components/JudgePanelOverlay.test.tsx` (new), `game/src/App.tsx`, `game/src/index.css`, `game/src/phaser/DefenseScene.ts`, `PROJECT_LOG.md`.
+- Changed: added a CSS-only character animation system for the four judges — Product Judge, Technical Architect, Security Reviewer, and Critical Judge. A new `JudgePanelOverlay` React component renders animated HTML/CSS avatar figures over the Phaser panelist row. Animations are driven by real session state: the active judge pulses with a glow ring and bouncing speaking animation while their question is shown; while the user is composing, all non-active judges play distinct personality-specific idle animations (composed micro-breathe, analytical head-tilt, watchful lean-in, skeptical sway) including CSS eye blinks; after an answer is submitted a shared 1.8-second "discussing" state plays staggered thinking-dot cues and a panel-wide discussion animation; in lobby/complete/generating phases all judges show a calm waiting breathe. Judge personality config is centralized in `judgeConfig.ts`. The Phaser panelist circles, labels, and speaker dot are hidden (replaced by the React overlay). All existing functionality — upload, AI questions, multi-judge turns, answer submission, transcript, coaching — is preserved.
+- Verification: 56 frontend tests pass (5 new JudgePanelOverlay tests), Vite TypeScript build passes with no errors. Pre-existing `test_app` Streamlit file-uploader API error is unrelated and was present before this change.
+- Remaining: visual review in browser. Push to private main and verify Render.
+
+
+### 2026-09-27 — Judge animation bug fixes and test coverage
+
+- Session: root.
+- Files: `game/src/App.tsx`, `game/src/components/judgeConfig.ts`, `game/src/components/JudgePanelOverlay.test.tsx`, `game/src/index.css`, `game/src/phaser/DefenseScene.ts`, `PROJECT_LOG.md`.
+- Changed:
+  - **Bug fix (reconnect):** `prevAnsweredRef` now initialises from the first snapshot's answered count (sentinel -1 → N on first arrival) so reconnecting mid-session no longer spuriously triggers the discussing animation. `handleUseRoom` and `handleLeaveRoom` also reset the baseline and cancel any in-flight discussing timer when entering or leaving a room.
+  - **Dead code removed:** Unused `initials` field removed from `JudgeConfig`; exported `getJudgeConfig` helper (never imported) removed from `judgeConfig.ts`.
+  - **CSS bug fix (eye blink stagger):** `judge-discussing` state now separately targets `.judge-eye-left` and `.judge-eye-right` with a 0.06 s offset so both eyes don't blink simultaneously during the discussion sequence, matching the idle-state approach.
+  - **CSS bug fix (animation-delay shorthand conflict):** `.judge-waiting` previously used both an `animation:` shorthand (which implicitly sets delay to 0) and a separate `animation-delay:` override. Merged into a single shorthand with the delay embedded.
+  - **Perf fix:** `DefenseScene.makeTextures()` no longer generates the unused "panelist" texture (panelist avatars are fully replaced by the React overlay).
+  - **Test coverage:** Added 4 new `JudgePanelOverlay` tests — lobby shows no active judge, non-active judges do not get the asking label, complete phase shows no active judge, retry phase shows no active judge.
+- Verification: 60 frontend tests pass (was 56), TypeScript clean, Vite build passes.
+- Remaining: visual review in browser; push to Render when ready.
+
