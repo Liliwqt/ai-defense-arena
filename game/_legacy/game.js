@@ -619,7 +619,6 @@ $("create-form").addEventListener("submit", async (event) => {
   } catch (error) {
     showMessage(error.message || "Could not create the room.");
   } finally {
-    form.elements.host_passcode.value = "";
     setButtonBusy(form, false);
   }
 });

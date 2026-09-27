@@ -16,13 +16,8 @@ if [[ -z "${OPENAI_API_KEY:-}" ]]; then
   printf '\n'
   export OPENAI_API_KEY
 fi
-if [[ -z "${GAME_HOST_PASSCODE:-}" ]]; then
-  read -r -s -p 'Choose a local room host passcode (input hidden): ' GAME_HOST_PASSCODE
-  printf '\n'
-  export GAME_HOST_PASSCODE
-fi
-if [[ -z "$OPENAI_API_KEY" || -z "$GAME_HOST_PASSCODE" ]]; then
-  printf 'Both the API key and local host passcode are required.\n' >&2
+if [[ -z "$OPENAI_API_KEY" ]]; then
+  printf 'An OpenAI API key is required.\n' >&2
   exit 1
 fi
 

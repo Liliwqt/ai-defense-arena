@@ -40,6 +40,7 @@ describe("ControlsPanel", () => {
     render(<ControlsPanel {...defaultProps} roomState={null} connected={false} />);
     expect(screen.getByRole("button", { name: /create room/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /join room/i })).toBeTruthy();
+    expect(screen.queryByLabelText(/host passcode/i)).toBeNull();
   });
 
   it("host sees Start defense button in lobby phase", () => {

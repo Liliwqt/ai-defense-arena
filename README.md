@@ -6,7 +6,7 @@ For work across agents or session windows, read [AGENTS.md](AGENTS.md) and [PROJ
 
 ## Run the multiplayer game locally
 
-For real AI questions, run `./run_local.sh` in a terminal after installing the Python dependencies below. It builds the current React app, prompts privately for your API key and a **local** room host passcode, and starts FastAPI at <http://127.0.0.1:8000/>. The key and passcode stay in that terminal process and are not saved in the repository. The temporary test server at port `8770`, when running, uses prewritten mock questions and does not analyze uploaded files with AI.
+For real AI questions, run `./run_local.sh` in a terminal after installing the Python dependencies below. It builds the current React app, prompts privately for your API key, and starts FastAPI at <http://127.0.0.1:8000/>. The key stays in that terminal process and is not saved in the repository. The temporary test server at port `8770`, when running, uses prewritten mock questions and does not analyze uploaded files with AI.
 
 Questions arrive one at a time: the Technical Architect starts, and an answer or timeout triggers the next question or a follow-up. All four judges speak at least once, so a defense has four to eight resolved turns. The room shows “Preparing the next question…” while a real API request is pending.
 
@@ -16,19 +16,21 @@ python3 -m venv .venv
 ./run_local.sh
 ```
 
-Open <http://127.0.0.1:8000>. The setup drawer opens automatically: the host enters a local passcode, a display name, and source files or a ZIP, then shares the room code. Teammates join from the same service URL. The host starts the defense from **Controls**.
+Open <http://127.0.0.1:8000>. The setup drawer opens automatically: the host enters a display name and source files or a ZIP, then shares the room code. Teammates join from the same service URL. The host starts the defense from **Controls**.
 
 Each new question is visible during a **15-second speaker vote**. Every online defender, including the host, can vote for an online teammate or change their vote. The server randomly resolves ties or no votes among online defenders. Then the selected teammate has a fresh **two minutes** to answer in the bottom **Vote/Answer** bar; only that teammate can submit. The clock and winner come from the server, so a late vote or answer is rejected even if a browser timer lags. If the selected teammate disconnects, another online teammate is chosen without resetting the deadline. An expired question is recorded as unanswered and the defense continues. If AI question generation fails, the saved answer or timeout remains and the host can retry from **Controls**.
 
 The complete question and exact cited line stay in a scrollable card above the bottom bar. The citation includes a filename, line number, preserved indentation, and horizontal scrolling for long lines. **Team Chat** in the bottom bar is private to the room's defenders, holds the latest 100 messages of up to 500 characters each, and is excluded from AI prompts, the transcript, and coaching. The Transcript drawer shows answered and missed turns plus the shared coaching report; coaching never treats a timeout as an answer. Reconnecting with the same browser restores the room, vote, deadline, chat, transcript, and coaching while this server process is running. On portrait phones, rotate to landscape. Use <http://127.0.0.1:8000/?preview=1> for a static mock question, add `&vote=1` for a mock voting phase, or `&long=1` to inspect card and citation scrolling. Preview mode makes no AI call and does not accept answers or chat messages.
 
-For a quick project upload, select `sample_project/README.md` and `sample_project/queue.py`. If your account cannot use the default `gpt-6-luna` model, set `OPENAI_MODEL` to one your account can access. The key and host passcode are read only by the Python server, never put in the browser bundle or repository. The launcher does not echo or save either value in shell history. Restart the service after changing them.
+For a quick project upload, select `sample_project/README.md` and `sample_project/queue.py`. If your account cannot use the default `gpt-6-luna` model, set `OPENAI_MODEL` to one your account can access. The API key is read only by the Python server, never put in the browser bundle or repository. The launcher does not echo or save it in shell history. Restart the service after changing it.
 
 For teammates on other devices, use the deployed HTTPS URL. The browser selects `wss://` automatically for its room connection. Local `127.0.0.1` is reachable only on the host computer.
 
 ## Deploy to Render
 
-`render.yaml` describes one Free Python web service with one worker, a health check, a frontend build (`npm ci && npm run build`), and prompts for `OPENAI_API_KEY` and `GAME_HOST_PASSCODE`. From a **private** GitHub repository, create a Render Blueprint or configure one Web Service with the same build and start commands. Set both secrets in Render's dashboard; never commit them. If needed, add `OPENAI_MODEL` in the dashboard. Check `/health`, open the service URL on two devices, and create a fresh room shortly before the demo. The service serves the game, HTTP API, and WebSocket from one origin.
+`render.yaml` describes one Free Python web service with one worker, a health check, a frontend build (`npm ci && npm run build`), and prompts for `OPENAI_API_KEY`. From a **private** GitHub repository, create a Render Blueprint or configure one Web Service with the same build and start commands. Set the API key in Render's dashboard; never commit it. If needed, add `OPENAI_MODEL` in the dashboard. Check `/health`, open the service URL on two devices, and create a fresh room shortly before the demo. The service serves the game, HTTP API, and WebSocket from one origin.
+
+Anyone with the public service URL can now create a room without a passcode. Starting a defense uses the server's OpenAI API key, so monitor API usage during the demo.
 
 Rooms are in memory. A Render restart, redeploy, or Free-instance idle spin-down erases active rooms; connected browsers will need a new room code after that. Keep only one worker and one instance for this prototype.
 

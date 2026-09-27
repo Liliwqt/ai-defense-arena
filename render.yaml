@@ -9,5 +9,3 @@ services:
     envVars:
       - key: OPENAI_API_KEY
         sync: false
-      - key: GAME_HOST_PASSCODE
-        sync: false

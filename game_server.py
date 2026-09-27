@@ -442,14 +442,8 @@ async def health() -> dict[str, str]:
 @app.post("/api/rooms", status_code=201)
 async def create_room(
     host_name: str = Form(...),
-    host_passcode: str = Form(...),
     files: list[UploadFile] = File(...),
 ) -> dict[str, str]:
-    expected = os.getenv("GAME_HOST_PASSCODE") or ""
-    if not expected:
-        raise HTTPException(503, "Room creation is not configured on this server.")
-    if not secrets.compare_digest(host_passcode, expected):
-        raise HTTPException(403, "Invalid host passcode.")
     name = _player_name(host_name)
     uploads = []
     for upload in files:

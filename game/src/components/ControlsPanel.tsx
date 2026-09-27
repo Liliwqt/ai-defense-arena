@@ -63,8 +63,6 @@ export function ControlsPanel({
       });
       const body = await responseJson(resp);
       onUseRoom(body.room_code as string, body.player_token as string, true);
-      // clear passcode
-      (form.elements.namedItem("host_passcode") as HTMLInputElement).value = "";
     } catch (err) {
       showMessage((err as Error).message ?? "Could not create the room.");
     } finally {
@@ -180,15 +178,11 @@ export function ControlsPanel({
                 <input name="host_name" maxLength={24} autoComplete="name" required placeholder="Your name" className={inputClass} />
               </label>
               <label className="grid gap-[7px] text-[#d5e4f3] text-[0.84rem] font-bold">
-                Host passcode
-                <input name="host_passcode" type="password" autoComplete="off" required placeholder="Server passcode" className={inputClass} />
-              </label>
-              <label className="grid gap-[7px] text-[#d5e4f3] text-[0.84rem] font-bold">
                 Project files or ZIP
                 <input name="files" type="file" multiple required className={`${inputClass} text-[0.77rem] leading-tight`} />
               </label>
               <p className="text-[0.78rem] leading-[1.45] text-[#9eb5ca] m-0">
-                Select source files together, or one ZIP. The host passcode is sent only to the server.
+                Select source files together, or one ZIP.
               </p>
               <button type="submit" disabled={createBusy} className={primaryBtn}>
                 {createBusy ? "Creating…" : "Create defense room"}

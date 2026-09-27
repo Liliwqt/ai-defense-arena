@@ -44,7 +44,7 @@ class GameServerTests(unittest.TestCase):
     def create_room(self):
         response = self.client.post(
             "/api/rooms",
-            data={"host_name": "Alex", "host_passcode": "offline-passcode"},
+            data={"host_name": "Alex"},
             files=self.files,
         )
         self.assertEqual(response.status_code, 201, response.text)
@@ -85,42 +85,34 @@ class GameServerTests(unittest.TestCase):
         self.assertEqual(first["type"], "snapshot")
         return socket, first["state"]
 
-    def test_creation_requires_host_passcode_and_upload_validation(self):
-        with patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode"}):
-            denied = self.client.post(
-                "/api/rooms",
-                data={"host_name": "Alex", "host_passcode": "wrong"},
-                files=self.files,
-            )
-            self.assertEqual(denied.status_code, 403)
-            self.assertFalse(game_server.rooms)
-            invalid = self.client.post(
-                "/api/rooms",
-                data={"host_name": "Alex", "host_passcode": "offline-passcode"},
-                files=[("files", ("secret.env", b"PRIVATE=1", "text/plain"))],
-            )
-            self.assertEqual(invalid.status_code, 422)
-            self.assertFalse(game_server.rooms)
+    def test_creation_without_passcode_still_validates_uploads(self):
+        invalid = self.client.post(
+            "/api/rooms",
+            data={"host_name": "Alex"},
+            files=[("files", ("secret.env", b"PRIVATE=1", "text/plain"))],
+        )
+        self.assertEqual(invalid.status_code, 422)
+        self.assertFalse(game_server.rooms)
+        with patch.dict(os.environ, {"GAME_HOST_PASSCODE": "obsolete-value"}):
             host = self.create_room()
-            self.assertEqual(len(game_server.rooms[host["room_code"]].files), 2)
-            for name in ("Sam", "Lee", "Kai"):
-                self.join_room(host["room_code"], name)
-            full = self.client.post(f"/api/rooms/{host['room_code']}/join", json={"name": "Fifth"})
-            self.assertEqual(full.status_code, 409)
+        self.assertEqual(len(game_server.rooms[host["room_code"]].files), 2)
+        for name in ("Sam", "Lee", "Kai"):
+            self.join_room(host["room_code"], name)
+        full = self.client.post(f"/api/rooms/{host['room_code']}/join", json={"name": "Fifth"})
+        self.assertEqual(full.status_code, 409)
 
     def test_websocket_requires_a_valid_room_token(self):
         with self.client.websocket_connect("/ws/UNKNOWN") as socket:
             socket.send_json({"type": "hello", "token": "invalid"})
             self.assertIn("Room not found", socket.receive_json()["message"])
-        with patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode"}):
-            host = self.create_room()
+        host = self.create_room()
         with self.client.websocket_connect(f"/ws/{host['room_code']}") as socket:
             socket.send_json({"type": "hello", "token": "invalid"})
             self.assertIn("no longer valid", socket.receive_json()["message"])
 
     def test_two_clients_share_four_turns_and_first_answer_wins(self):
         with (
-            patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode", "OPENAI_API_KEY": "test-key"}),
+            patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}),
             patch("game_server.generate_first_question", return_value=self.questions[0]) as first_call,
             patch("game_server.generate_next_move", side_effect=self.short_moves) as later_calls,
         ):
@@ -183,7 +175,7 @@ class GameServerTests(unittest.TestCase):
                                 [{"turn": 0, "text": "Clarify the first answer."}],
                                 "Review both tradeoffs.")
         with (
-            patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode", "OPENAI_API_KEY": "test-key"}),
+            patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}),
             patch("game_server.generate_first_question", return_value=questions[0]),
             patch("game_server.generate_next_move", side_effect=moves) as next_call,
             patch("game_server.generate_coaching_report", return_value=report) as coaching_call,
@@ -218,7 +210,7 @@ class GameServerTests(unittest.TestCase):
 
     def test_failure_retains_answer_then_host_retries_and_guest_reconnects(self):
         with (
-            patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode", "OPENAI_API_KEY": "test-key"}),
+            patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}),
             patch("game_server.generate_first_question", return_value=self.questions[0]),
             patch("game_server.generate_next_move", side_effect=[OpenAIError("temporary outage"), self.short_moves[0]]),
         ):
@@ -285,7 +277,7 @@ class GameServerTests(unittest.TestCase):
             next_step="Practice edge cases.",
         )
         with (
-            patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode", "OPENAI_API_KEY": "test-key"}),
+            patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}),
             patch("game_server.generate_first_question", return_value=self.questions[0]),
             patch("game_server.generate_next_move", side_effect=self.short_moves),
             patch("game_server.generate_coaching_report", return_value=mock_report) as coaching_call,
@@ -318,7 +310,7 @@ class GameServerTests(unittest.TestCase):
             next_step="Run load tests.",
         )
         with (
-            patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode", "OPENAI_API_KEY": "test-key"}),
+            patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}),
             patch("game_server.generate_first_question", return_value=self.questions[0]),
             patch("game_server.generate_next_move", side_effect=self.short_moves),
             patch("game_server.generate_coaching_report",
@@ -378,7 +370,7 @@ class GameServerTests(unittest.TestCase):
             next_step="Rehearse once more.",
         )
         with (
-            patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode", "OPENAI_API_KEY": "test-key"}),
+            patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}),
             patch("game_server.generate_first_question", return_value=self.questions[0]),
             patch("game_server.generate_next_move", side_effect=self.short_moves * 2),
             patch("game_server.generate_coaching_report", return_value=mock_report) as coaching_call,
@@ -418,7 +410,7 @@ class GameServerTests(unittest.TestCase):
             next_step="Review sources.",
         )
         with (
-            patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode", "OPENAI_API_KEY": "test-key"}),
+            patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}),
             patch("game_server.generate_first_question", return_value=self.questions[0]),
             patch("game_server.generate_next_move", side_effect=self.short_moves),
             patch("game_server.generate_coaching_report", return_value=mock_report),
