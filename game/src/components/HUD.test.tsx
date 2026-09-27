@@ -17,6 +17,13 @@ const baseState: RoomState = {
   files: [],
   feedback_status: "none",
   feedback: null,
+  server_now_ms: 1_000_000,
+  vote_deadline_ms: null,
+  answer_deadline_ms: null,
+  selected_seat: null,
+  vote_counts: {},
+  my_vote: null,
+  chat: [],
 };
 
 describe("HUD", () => {
@@ -62,7 +69,7 @@ describe("HUD", () => {
       ],
     };
     render(<HUD roomState={state} roomCode="ABCD12" previewMode={false} onOpenDrawer={vi.fn()} />);
-    expect(screen.getByText("2 ANSWERED")).toBeTruthy();
+    expect(screen.getByText("2 RESOLVED")).toBeTruthy();
   });
 
   it("shows COMPLETE when phase is complete", () => {

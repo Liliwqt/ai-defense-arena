@@ -24,7 +24,7 @@ const room = (turns: Turn[], phase: RoomState["phase"] = "question"): RoomState 
     { seat: 1, name: "Alex", online: true, is_host: false },
   ],
   turns, active_panelist: "Technical Architect", error: null, revision: 1,
-  files: ["queue.py"], feedback_status: "none", feedback: null,
+  files: ["queue.py"], feedback_status: "none", feedback: null, selected_seat: 0,
 });
 const socket = (state: RoomState | null): RoomSocketState => ({
   roomState: state, connected: true, roomCode: "ROOM1", knownHost: true,
@@ -47,14 +47,13 @@ describe("illustrated room flow", () => {
     expect(screen.getByTestId("scene").getAttribute("data-presenter-seat")).toBe("1");
   });
 
-  it("opens a focused answer panel from the question card", async () => {
+  it("keeps the selected speaker's answer input in the bottom dock", async () => {
     setSocket(room([turn(null, null)]));
     render(<App />);
     await userEvent.click(screen.getByRole("button", { name: /close panel/i }));
-    await userEvent.click(screen.getByRole("button", { name: /answer question/i }));
-    const textbox = screen.getByRole("textbox", { name: /your answer/i });
-    expect(textbox).toBe(document.activeElement);
-    expect(screen.getAllByText("DATABASE = 'queue.db'")).toHaveLength(2);
+    const textbox = screen.getByRole("textbox", { name: /chosen to answer/i });
+    expect(textbox.closest("#room-dock")).toBeTruthy();
+    expect(screen.getByText("DATABASE = 'queue.db'")).toBeTruthy();
   });
 
   it("waits for the final presenter moment before opening Transcript", () => {

@@ -25,6 +25,12 @@ class DefenseTurn:
     panelist: str
     question: GroundedQuestion
     answer: str | None = None
+    timed_out: bool = False
+    assigned_seat: int | None = None
+
+    @property
+    def resolved(self) -> bool:
+        return self.answer is not None or self.timed_out
 
 
 @dataclass
@@ -38,15 +44,15 @@ class DefenseSession:
 
     @property
     def completed(self) -> bool:
-        return self.finished and bool(self.turns) and self.turns[-1].answer is not None
+        return self.finished and bool(self.turns) and self.turns[-1].resolved
 
     @property
     def needs_question(self) -> bool:
-        return bool(self.turns) and self.turns[-1].answer is not None and not self.finished
+        return bool(self.turns) and self.turns[-1].resolved and not self.finished
 
     @property
     def awaiting_answer(self) -> bool:
-        return bool(self.turns) and self.turns[-1].answer is None
+        return bool(self.turns) and not self.turns[-1].resolved
 
     @property
     def allowed_next_panelists(self) -> tuple[str, ...]:
@@ -71,9 +77,9 @@ class DefenseSession:
 
     def answered_history(self) -> list[AnsweredQuestion]:
         return [
-            AnsweredQuestion(turn.panelist, turn.question.question, turn.answer)
+            AnsweredQuestion(turn.panelist, turn.question.question, turn.answer, turn.timed_out)
             for turn in self.turns
-            if turn.answer is not None
+            if turn.resolved
         ]
 
     def submit_answer(self, answer: str) -> None:
@@ -85,6 +91,15 @@ class DefenseSession:
         if len(answer) > MAX_ANSWER_CHARS:
             raise ValueError(f"Keep your answer under {MAX_ANSWER_CHARS:,} characters.")
         self.turns[-1].answer = answer
+        self._finish_if_last()
+
+    def time_out_current(self) -> None:
+        if not self.awaiting_answer:
+            raise ValueError("There is no question awaiting an answer.")
+        self.turns[-1].timed_out = True
+        self._finish_if_last()
+
+    def _finish_if_last(self) -> None:
         last = PANELIST_ORDER[-1]
         if self.turns[-1].panelist == last and sum(t.panelist == last for t in self.turns) == 2:
             self.finished = True

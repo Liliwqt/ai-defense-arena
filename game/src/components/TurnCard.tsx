@@ -19,6 +19,7 @@ export function TurnCard({ turn, index }: TurnCardProps) {
           {turn.filename}:{turn.evidence_line} — {turn.evidence_text ?? ""}
         </p>
       )}
+      {turn.timed_out && <p className="turn-timeout">Time expired · no answer was submitted.</p>}
       {turn.answer && (
         <p className="border-t border-[#304c65] pt-[10px] mt-3 text-[#bcdcf6] leading-[1.45] text-[0.84rem] whitespace-pre-wrap break-words">
           Team answer{turn.answered_by ? ` · ${turn.answered_by}` : ""}: {turn.answer}

@@ -180,6 +180,21 @@ class AdaptiveMoveTests(unittest.TestCase):
                                client=FakeClient(draft))
 
 
+    def test_followup_after_timeout_receives_no_invented_answer(self):
+        draft = NextMoveDraft(action="ask", panelist="Security Reviewer",
+                              question="How would you restrict access?", source_file=2, evidence_line=2)
+        client = FakeClient(draft)
+        history = [AnsweredQuestion("Security Reviewer", "Who sees names?", None, True)]
+        move = generate_next_move(self.files, "test-key", history=history,
+                                  allowed_panelists=("Security Reviewer", PRODUCT_JUDGE),
+                                  may_complete=False, client=client)
+        self.assertEqual(move.panelist, "Security Reviewer")
+        prompt = client.request["input"][1]["content"]
+        self.assertIn('"answer": null', prompt)
+        self.assertIn('"timed_out": true', prompt)
+        self.assertIn("Never invent an answer", client.request["input"][0]["content"])
+
+
 class CoachingReportTests(unittest.TestCase):
     def setUp(self):
         self.files = [
@@ -262,7 +277,7 @@ class CoachingReportTests(unittest.TestCase):
     def test_wrong_turn_count_is_rejected(self):
         short_history = self.history[:3]
         client = FakeClient(self._draft())
-        with self.assertRaisesRegex(QuestionGenerationError, "4 to 8 answered turns"):
+        with self.assertRaisesRegex(QuestionGenerationError, "4 to 8 resolved turns"):
             generate_coaching_report(self.files, short_history, "test-key", client=client)
         self.assertIsNone(client.request)
 
@@ -287,6 +302,21 @@ class CoachingReportTests(unittest.TestCase):
         result = generate_coaching_report(self.files, self.history, "test-key", client=client)
         self.assertEqual(len(result.strengths), 4)
         self.assertEqual(len(result.improvements), 4)
+
+
+    def test_all_timeouts_allow_empty_strengths_and_reject_invented_strength(self):
+        history = [AnsweredQuestion(item.panelist, item.question, None, True) for item in self.history]
+        draft = CoachingDraft(summary="Questions went unanswered.", strengths=[],
+                              improvements=[CoachingPoint(turn=3, text="Practice this missed turn.")],
+                              next_step="Practice together.")
+        client = FakeClient(draft)
+        result = generate_coaching_report(self.files, history, "test-key", client=client)
+        self.assertEqual(result.strengths, [])
+        self.assertEqual(result.improvements[0]["turn"], 3)
+        self.assertIn('"timed_out": true', client.request["input"][1]["content"])
+        draft.strengths = [CoachingPoint(turn=0, text="Imagined answer.")]
+        with self.assertRaisesRegex(QuestionGenerationError, "unanswered turn"):
+            generate_coaching_report(self.files, history, "test-key", client=FakeClient(draft))
 
 
 class ErrorMessageTests(unittest.TestCase):

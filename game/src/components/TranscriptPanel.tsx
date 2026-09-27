@@ -9,6 +9,7 @@ interface TranscriptPanelProps {
 export function TranscriptPanel({ roomState }: TranscriptPanelProps) {
   const turns = roomState?.turns ?? [];
   const answered = turns.filter((t) => t.answer).length;
+  const timedOut = turns.filter((t) => t.timed_out).length;
   const feedbackStatus = roomState?.feedback_status ?? "none";
   const hasSomething = turns.length > 0 || feedbackStatus !== "none";
 
@@ -27,7 +28,7 @@ export function TranscriptPanel({ roomState }: TranscriptPanelProps) {
           id="transcript-count"
           className="text-[#96bad8] text-[0.78rem] font-[750] whitespace-nowrap"
         >
-          {answered} answered
+          {answered} answered{timedOut ? ` · ${timedOut} timed out` : ""}
         </span>
       </div>
 

@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import time
 from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
@@ -28,6 +29,10 @@ from question_generator import (
 
 
 MAX_PLAYERS = 4
+VOTE_MS = 15_000
+ANSWER_MS = 120_000
+MAX_CHAT_MESSAGES = 100
+MAX_CHAT_CHARS = 500
 MAX_ROOMS = 20
 MAX_REQUEST_BYTES = MAX_ARCHIVE_BYTES + 2_000_000
 ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -67,6 +72,14 @@ class Room:
     feedback_status: str = "none"   # none | generating | ready | failed
     feedback: CoachingReport | None = None
     feedback_generation_id: int = 0
+    vote_deadline_ms: int | None = None
+    answer_deadline_ms: int | None = None
+    selected_seat: int | None = None
+    votes: dict[str, int] = field(default_factory=dict)
+    chat: list[dict[str, Any]] = field(default_factory=list)
+    chat_seq: int = 0
+    clock_id: int = 0
+    clock_task: asyncio.Task | None = field(default=None, repr=False)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     broadcast_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
@@ -82,6 +95,8 @@ class Room:
                         "evidence_line": turn.question.evidence_line,
                         "evidence_text": turn.question.evidence_text,
                         "answer": turn.answer,
+                        "timed_out": turn.timed_out,
+                        "assigned_seat": turn.assigned_seat,
                         "answered_by": self.answered_by.get(index),
                         "answered_by_seat": self.answered_by_seat.get(index),
                     }
@@ -123,7 +138,22 @@ class Room:
             "files": [file.name for file in self.files],
             "feedback_status": self.feedback_status,
             "feedback": feedback_dict,
+            "server_now_ms": _now_ms(),
+            "vote_deadline_ms": self.vote_deadline_ms,
+            "answer_deadline_ms": self.answer_deadline_ms,
+            "selected_seat": self.selected_seat,
+            "vote_counts": {
+                str(seat): sum(1 for token, choice in self.votes.items()
+                               if choice == seat and bool(self.players[token].sockets))
+                for seat in sorted({player.seat for player in self.players.values() if player.sockets})
+            },
+            "my_vote": self.votes.get(recipient.token) if recipient is not None else None,
+            "chat": list(self.chat),
         }
+
+
+def _now_ms() -> int:
+    return int(time.time() * 1000)
 
 
 rooms: dict[str, Room] = {}
@@ -183,6 +213,115 @@ async def publish(room: Room) -> None:
                         player.sockets.discard(socket)
 
 
+def _online_seats(room: Room) -> list[int]:
+    return sorted(player.seat for player in room.players.values() if player.sockets)
+
+
+def _set_selected_locked(room: Room, seat: int | None) -> None:
+    room.selected_seat = seat
+    if room.defense and room.defense.awaiting_answer:
+        room.defense.turns[-1].assigned_seat = seat
+
+
+def _reassign_if_offline_locked(room: Room) -> bool:
+    if room.phase != "question":
+        return False
+    online = _online_seats(room)
+    if room.selected_seat in online:
+        return False
+    replacement = secrets.choice(online) if online else None
+    if replacement == room.selected_seat:
+        return False
+    _set_selected_locked(room, replacement)
+    room.revision += 1
+    return True
+
+
+def _clear_clock_locked(room: Room) -> None:
+    room.clock_id += 1
+    room.vote_deadline_ms = None
+    room.answer_deadline_ms = None
+    room.selected_seat = None
+    room.votes.clear()
+    if room.clock_task and room.clock_task is not asyncio.current_task():
+        room.clock_task.cancel()
+    room.clock_task = None
+
+
+def _resolve_turn_locked(room: Room) -> tuple[int | None, int | None]:
+    """Finish a resolved turn and return the next question/coaching generation id."""
+    _clear_clock_locked(room)
+    assert room.defense is not None
+    if room.defense.completed:
+        room.phase = "complete"
+        room.feedback_status = "generating"
+        room.feedback_generation_id += 1
+        return None, room.feedback_generation_id
+    room.phase = "generating"
+    room.generation_id += 1
+    return room.generation_id, None
+
+
+def _choose_vote_winner_locked(room: Room) -> int | None:
+    online = _online_seats(room)
+    if not online:
+        return None
+    counts = {seat: 0 for seat in online}
+    for token, seat in room.votes.items():
+        if seat in counts and room.players[token].sockets:
+            counts[seat] += 1
+    highest = max(counts.values())
+    return secrets.choice([seat for seat, count in counts.items() if count == highest])
+
+
+def _schedule_clock(room: Room, clock_id: int, deadline_ms: int) -> None:
+    async def wait_then_advance() -> None:
+        try:
+            await asyncio.sleep(max(0, (deadline_ms - _now_ms()) / 1000))
+            await _expire_deadline(room, clock_id)
+        except asyncio.CancelledError:
+            pass
+    room.clock_task = asyncio.create_task(wait_then_advance())
+
+
+async def _expire_deadline(room: Room, expected_id: int | None = None) -> None:
+    """Apply a deadline under the room lock; action handlers also call this before validation."""
+    changed = False
+    next_clock = None
+    generation_id = None
+    feedback_id = None
+    async with room.lock:
+        if expected_id is not None and room.clock_id != expected_id:
+            return
+        now = _now_ms()
+        if room.phase == "voting" and room.vote_deadline_ms is not None and now >= room.vote_deadline_ms:
+            winner = _choose_vote_winner_locked(room)
+            _set_selected_locked(room, winner)
+            room.votes.clear()
+            room.vote_deadline_ms = None
+            room.phase = "question"
+            room.answer_deadline_ms = now + ANSWER_MS
+            room.clock_id += 1
+            room.revision += 1
+            changed = True
+            next_clock = (room.clock_id, room.answer_deadline_ms)
+        elif room.phase == "question" and room.answer_deadline_ms is not None and now >= room.answer_deadline_ms:
+            assert room.defense is not None
+            room.defense.time_out_current()
+            generation_id, feedback_id = _resolve_turn_locked(room)
+            room.revision += 1
+            changed = True
+    if not changed:
+        return
+    await publish(room)
+    if next_clock:
+        _schedule_clock(room, *next_clock)
+    if generation_id is not None:
+        _schedule_generation(room, generation_id, False)
+    if feedback_id is not None:
+        _schedule_coaching(room, feedback_id)
+
+
 async def _generate_question(room: Room, generation_id: int, first: bool) -> None:
     api_key = os.getenv("OPENAI_API_KEY")
     model = os.getenv("OPENAI_MODEL") or DEFAULT_MODEL
@@ -219,12 +358,13 @@ async def _generate_question(room: Room, generation_id: int, first: bool) -> Non
 
     start_coaching = False
     feedback_generation_id = None
+    next_clock = None
     async with room.lock:
         if room.generation_id != generation_id:
             return
         if first:
             room.defense = DefenseSession.start(question)
-            room.phase = "question"
+            room.phase = "voting"
         elif room.defense is not None and room.defense.needs_question:
             room.defense.apply_move(move)
             if room.defense.completed:
@@ -234,12 +374,21 @@ async def _generate_question(room: Room, generation_id: int, first: bool) -> Non
                 feedback_generation_id = room.feedback_generation_id
                 start_coaching = True
             else:
-                room.phase = "question"
+                room.phase = "voting"
         else:
             return
+        if room.phase == "voting":
+            room.votes.clear()
+            room.selected_seat = None
+            room.answer_deadline_ms = None
+            room.vote_deadline_ms = _now_ms() + VOTE_MS
+            room.clock_id += 1
+            next_clock = (room.clock_id, room.vote_deadline_ms)
         room.error = None
         room.revision += 1
     await publish(room)
+    if next_clock:
+        _schedule_clock(room, *next_clock)
     if start_coaching and feedback_generation_id is not None:
         _schedule_coaching(room, feedback_generation_id)
 
@@ -355,11 +504,12 @@ async def _send_error(socket: WebSocket, message: str) -> None:
 
 
 async def _handle_action(room: Room, player: Player, socket: WebSocket, message: dict) -> None:
+    await _expire_deadline(room)
     action = message.get("type")
     error = None
+    expired_action = False
     generate_first = None
     generation_id = None
-    start_coaching = False
     feedback_generation_id = None
     async with room.lock:
         if action in {"start", "restart", "retry", "retry_coaching"} and not player.is_host:
@@ -375,9 +525,12 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
                 room.revision += 1
                 generate_first = True
         elif action == "restart":
+            _clear_clock_locked(room)
             room.defense = None
             room.answered_by.clear()
             room.answered_by_seat.clear()
+            room.chat.clear()
+            room.chat_seq = 0
             room.phase = "generating"
             room.error = None
             room.generation_id += 1
@@ -405,13 +558,41 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
                 room.error = None
                 room.feedback_generation_id += 1
                 feedback_generation_id = room.feedback_generation_id
-                start_coaching = True
+                room.revision += 1
+        elif action == "cast_vote":
+            seat = message.get("seat")
+            if room.phase != "voting" or room.vote_deadline_ms is None:
+                error = "Voting is not open."
+            elif _now_ms() >= room.vote_deadline_ms:
+                error = "Voting time is over."
+                expired_action = True
+            elif isinstance(seat, bool) or not isinstance(seat, int) or seat not in _online_seats(room):
+                error = "Choose an online defender."
+            else:
+                room.votes[player.token] = seat
+                room.revision += 1
+        elif action == "send_chat":
+            content = message.get("text")
+            if not isinstance(content, str) or not content.strip():
+                error = "Write a team message before sending."
+            elif len(content) > MAX_CHAT_CHARS:
+                error = f"Keep team messages under {MAX_CHAT_CHARS} characters."
+            else:
+                room.chat_seq += 1
+                room.chat.append({"id": room.chat_seq, "seat": player.seat, "name": player.name,
+                                  "text": content.strip(), "sent_at_ms": _now_ms()})
+                room.chat = room.chat[-MAX_CHAT_MESSAGES:]
                 room.revision += 1
         elif action == "submit_answer":
             turn = message.get("turn")
             answer = message.get("answer")
             if room.phase != "question" or room.defense is None:
                 error = "There is no question awaiting an answer."
+            elif room.answer_deadline_ms is None or _now_ms() >= room.answer_deadline_ms:
+                error = "Answer time is over."
+                expired_action = True
+            elif room.selected_seat != player.seat:
+                error = "Only the chosen defender can answer this question."
             elif isinstance(turn, bool) or not isinstance(turn, int) or turn != len(room.defense.turns) - 1:
                 error = "That question has already been answered."
             elif not isinstance(answer, str):
@@ -426,27 +607,21 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
                 else:
                     room.answered_by[turn] = player.name
                     room.answered_by_seat[turn] = player.seat
-                    if room.defense.completed:
-                        room.phase = "complete"
-                        room.feedback_status = "generating"
-                        room.feedback_generation_id += 1
-                        feedback_generation_id = room.feedback_generation_id
-                        start_coaching = True
-                    else:
-                        room.phase = "generating"
+                    generation_id, feedback_generation_id = _resolve_turn_locked(room)
+                    if generation_id is not None:
                         generate_first = False
-                        room.generation_id += 1
-                        generation_id = room.generation_id
                     room.revision += 1
         else:
             error = "Unknown room action."
+    if expired_action:
+        await _expire_deadline(room)
     if error:
         await _send_error(socket, error)
         return
     await publish(room)
     if generate_first is not None and generation_id is not None:
         _schedule_generation(room, generation_id, generate_first)
-    if start_coaching and feedback_generation_id is not None:
+    if feedback_generation_id is not None:
         _schedule_coaching(room, feedback_generation_id)
 
 
@@ -473,6 +648,7 @@ async def room_socket(socket: WebSocket, code: str) -> None:
         player = room.players.get(token) if isinstance(token, str) else None
         if player is not None:
             player.sockets.add(socket)
+            _reassign_if_offline_locked(room)
             room.revision += 1
     if player is None:
         await _send_error(socket, "This room link is no longer valid. Join again.")
@@ -481,6 +657,7 @@ async def room_socket(socket: WebSocket, code: str) -> None:
         except (RuntimeError, OSError, WebSocketDisconnect):
             pass
         return
+    await _expire_deadline(room)
     await publish(room)
     try:
         while True:
@@ -502,6 +679,7 @@ async def room_socket(socket: WebSocket, code: str) -> None:
     finally:
         async with room.lock:
             player.sockets.discard(socket)
+            _reassign_if_offline_locked(room)
             room.revision += 1
         await publish(room)
 

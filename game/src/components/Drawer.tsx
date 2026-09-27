@@ -22,11 +22,7 @@ export function Drawer({ open, mode, title, onClose, children }: DrawerProps) {
         returnFocusRef.current = document.activeElement as HTMLElement | null;
         wasOpenRef.current = true;
       }
-      if (mode === "answer") {
-        (drawerRef.current?.querySelector("#answer-textarea") as HTMLTextAreaElement | null)?.focus();
-      } else {
-        closeButtonRef.current?.focus();
-      }
+      closeButtonRef.current?.focus();
     } else if (wasOpenRef.current) {
       wasOpenRef.current = false;
       if (returnFocusRef.current?.isConnected) returnFocusRef.current.focus();

@@ -1,4 +1,5 @@
 import type { DrawerMode, RoomState } from "../types";
+import { formatCountdown, useRoomCountdown } from "../hooks/useRoomCountdown";
 
 interface HUDProps {
   roomState: RoomState | null;
@@ -10,7 +11,8 @@ interface HUDProps {
 
 export function HUD({ roomState, roomCode, previewMode, onOpenDrawer, onPreviewMoment }: HUDProps) {
   const phase = roomState?.phase;
-  const answered = (roomState?.turns ?? []).filter((t) => t.answer).length;
+  const resolved = (roomState?.turns ?? []).filter((t) => t.answer || t.timed_out).length;
+  const seconds = useRoomCountdown(roomState);
 
   const pillCode = roomState
     ? `Room ${roomState.room_code || roomCode || "—"}`
@@ -20,7 +22,7 @@ export function HUD({ roomState, roomCode, previewMode, onOpenDrawer, onPreviewM
     phase === "complete"
       ? "COMPLETE"
       : roomState
-        ? `${answered} ANSWERED`
+        ? `${resolved} RESOLVED`
         : "READY";
 
   return (
@@ -53,6 +55,11 @@ export function HUD({ roomState, roomCode, previewMode, onOpenDrawer, onPreviewM
         >
           <span aria-hidden="true">▥</span> {pillProgress}
         </span>
+        {(phase === "voting" || phase === "question") && (
+          <span id="room-countdown" className="hud-pill hud-timer" role="timer" aria-label={`${phase === "voting" ? "Vote" : "Answer"} time remaining`}>
+            {phase === "voting" ? "VOTE" : "ANSWER"} {formatCountdown(seconds)}
+          </span>
+        )}
         <button
           type="button"
           onClick={() => onOpenDrawer("controls")}

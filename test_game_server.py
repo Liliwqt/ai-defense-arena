@@ -15,6 +15,10 @@ from question_generator import CoachingReport, GroundedQuestion, PanelMove
 class GameServerTests(unittest.TestCase):
     def setUp(self):
         game_server.rooms.clear()
+        self.clock_ms = 1_000_000
+        clock_patch = patch.object(game_server, "_now_ms", side_effect=lambda: self.clock_ms)
+        clock_patch.start()
+        self.addCleanup(clock_patch.stop)
         self.client = TestClient(game_server.app)
         self.client.__enter__()
         self.addCleanup(lambda: self.client.__exit__(None, None, None))
@@ -52,10 +56,25 @@ class GameServerTests(unittest.TestCase):
         return response.json()
 
     def receive_phase(self, socket, phase):
-        for _ in range(8):
+        for _ in range(20):
             event = socket.receive_json()
-            if event["type"] == "snapshot" and event["state"]["phase"] == phase:
-                return event["state"]
+            if event["type"] != "snapshot":
+                continue
+            state = event["state"]
+            if state["phase"] == phase:
+                return state
+            # Existing defense tests exercise progression; focused vote tests use voting snapshots directly.
+            if phase == "question" and state["phase"] == "voting":
+                room = game_server.rooms[state["room_code"]]
+                if room.phase == "voting":
+                    seat = 1 if (len(state["turns"]) - 1) % 2 == 0 else 0
+                    async def choose():
+                        async with room.lock:
+                            voter = next(player for player in room.players.values() if player.sockets)
+                            room.votes[voter.token] = seat
+                    self.client.portal.call(choose)
+                    self.clock_ms = max(self.clock_ms, state["vote_deadline_ms"] + 1)
+                    self.client.portal.call(game_server._expire_deadline, room)
         self.fail(f"Never received phase {phase}")
 
     def connect(self, code, token):
@@ -188,6 +207,9 @@ class GameServerTests(unittest.TestCase):
                     self.assertEqual([turn["panelist"] for turn in state["turns"]], role_sequence)
                     self.assertEqual(len(state["turns"]), 8)
                     self.assertEqual(next_call.call_count, 7)
+                    while state["feedback_status"] == "generating":
+                        state = self.receive_phase(guest_socket, "complete")
+                    self.assertEqual(state["feedback_status"], "ready")
                     self.assertEqual(coaching_call.call_count, 1)
                 finally:
                     guest_socket.__exit__(None, None, None)

@@ -525,3 +525,55 @@ body { background: #dbe8f5; }
   .question-footer button, #arena-hud .hud-button { transition: none; }
 }
 
+
+/* Timed room: vote, answer, and private chat share a fixed bottom dock. */
+.arena-shell { display: flex; flex-direction: column; }
+.arena-stage { flex: 1 1 auto; min-height: 0; height: auto; }
+#room-dock { z-index: 8; flex: 0 0 clamp(166px, 22dvh, 220px); display: flex; flex-direction: column; min-height: 0; padding: 7px clamp(14px, 2.2vw, 28px) 10px; border-top: 2px solid #b9d0e8; background: #f5f9ff; box-shadow: 0 -10px 28px #355c8652; color: #203350; }
+.dock-tabs { display: flex; gap: 6px; flex: none; margin-bottom: 6px; }
+.dock-tabs button { border: 1px solid #afc7e1; border-radius: 8px; padding: 5px 12px; background: #e8f1fb; color: #294865; font-size: .77rem; font-weight: 800; }
+.dock-tabs button[aria-selected="true"] { background: #286fbe; border-color: #286fbe; color: #fff; }
+.dock-content { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.dock-content[hidden] { display: none; }
+#room-dock #answer-composer { height: 100%; display: flex; flex-direction: column; padding: 0; border: 0; box-shadow: none; background: transparent; }
+#room-dock #answer-composer form { display: flex; flex-direction: column; gap: 4px; height: 100%; min-height: 0; }
+#room-dock #answer-composer label { color: #2b4c70; font-size: .76rem; font-weight: 800; }
+#room-dock #answer-composer .answer-controls { display: flex; flex: 1; min-height: 0; gap: 9px; }
+#room-dock #answer-composer textarea { min-height: 0; height: 100%; flex: 1; padding: 8px 10px; resize: none; border: 1px solid #a8c5df; color: #1c2e49; background: #fff; font-size: .83rem; line-height: 1.3; }
+#room-dock #answer-composer button { width: 150px; padding: 7px; border: 0; background: #3b8fe5; color: #fff; }
+#room-dock #answer-status { margin: 0; color: #526b84; font-size: .71rem; }
+#room-dock #answer-status[role="alert"], .dock-error { color: #a04450; }
+#room-dock #answer-composer > #answer-status { display: grid; height: 100%; place-items: center; text-align: center; font-size: .88rem; }
+.vote-panel { height: 100%; display: flex; flex-direction: column; gap: 5px; }
+.vote-instruction { margin: 0; color: #405d7d; font-size: .76rem; }
+.vote-choices { display: flex; flex: 1; min-height: 0; gap: 8px; }
+.vote-choices button { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 5px; padding: 8px 12px; border: 1px solid #a6c4e0; border-radius: 9px; background: #fff; color: #1c3f65; font-weight: 750; text-align: left; }
+.vote-choices button.selected { border-color: #2779cb; background: #d7edff; box-shadow: inset 0 0 0 1px #2779cb; }
+.vote-choices button strong { flex: none; display: grid; place-items: center; min-width: 24px; min-height: 24px; border-radius: 99px; background: #dceaf8; color: #174d82; }
+.dock-error { margin: 0; font-size: .69rem; }
+.team-chat { height: 100%; display: flex; flex-direction: column; gap: 5px; min-height: 0; }
+.chat-messages { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 5px 8px; border: 1px solid #d2e1ef; border-radius: 8px; background: #fff; }
+.chat-message, .chat-empty { margin: 2px 0; color: #2b4562; font-size: .77rem; line-height: 1.3; overflow-wrap: anywhere; }
+.chat-message strong { color: #225e9c; }
+.chat-form { display: flex; flex: none; gap: 6px; }
+.chat-form input { flex: 1; min-width: 0; padding: 7px 9px; border: 1px solid #acc5dd; border-radius: 7px; background: #fff; color: #1b2944; font-size: .78rem; }
+.chat-form button { flex: none; padding: 6px 15px; border: 0; border-radius: 7px; background: #3b8fe5; color: #fff; font-weight: 800; }
+.turn-timeout { padding: 9px; border-top: 1px solid #debeaa; color: #98572d; font-weight: 750; }
+#arena-hud .hud-timer { background: #1d6c8b; font-variant-numeric: tabular-nums; }
+@media (max-height: 640px) and (orientation: landscape) {
+  #room-dock { flex-basis: 112px; padding: 4px 10px 6px; }
+  .dock-tabs { margin-bottom: 3px; }
+  .dock-tabs button { padding: 2px 8px; font-size: .66rem; }
+  .vote-instruction { font-size: .65rem; line-height: 1.15; }
+  .vote-choices { gap: 4px; }
+  .vote-choices button { padding: 3px 6px; font-size: .64rem; }
+  .vote-choices button strong { min-width: 18px; min-height: 18px; }
+  #room-dock #answer-composer label { font-size: .66rem; }
+  #room-dock #answer-composer textarea { padding: 5px 7px; font-size: .7rem; }
+  #room-dock #answer-composer button { width: 110px; font-size: .68rem; }
+  #room-dock #answer-status { font-size: .62rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chat-messages { padding: 2px 5px; }
+  .chat-message, .chat-empty { font-size: .65rem; line-height: 1.15; }
+  .chat-form input, .chat-form button { padding: 3px 6px; font-size: .66rem; }
+  #question-card { max-height: min(34dvh, 50%); }
+}

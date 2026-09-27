@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AnswerComposer } from "./components/AnswerComposer";
+import { RoomDock } from "./components/RoomDock";
 import { ControlsPanel } from "./components/ControlsPanel";
 import { Drawer } from "./components/Drawer";
 import { HUD } from "./components/HUD";
@@ -61,8 +61,7 @@ export function App() {
     const newAnswer = !firstSnapshot && answered > previousAnswered.current;
 
     if (newAnswer) {
-      if (drawerMode === "answer") closeDrawer();
-      const seat = turns[answered - 1]?.answered_by_seat;
+      const seat = turns.filter((turn) => turn.answer).at(-1)?.answered_by_seat;
       if (typeof seat === "number" && seat >= 0 && seat < 4) {
         const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
         setPresenterMoment({ seat, sequence: ++sequence.current, reducedMotion });
@@ -79,7 +78,7 @@ export function App() {
     const justCompleted = phase === "complete" && previousPhase.current !== "complete";
     const reportReady = feedback === "ready" && previousFeedback.current !== "ready";
     if (justCompleted || reportReady) {
-      if ((newAnswer && typeof turns[answered - 1]?.answered_by_seat === "number") || presenterTimer.current) {
+      if ((newAnswer && typeof turns.filter((turn) => turn.answer).at(-1)?.answered_by_seat === "number") || presenterTimer.current) {
         pendingTranscript.current = true;
       } else {
         openDrawer("transcript");
@@ -133,15 +132,17 @@ export function App() {
     openDrawer("controls");
   }, [resetMoment, leaveRoom, openDrawer]);
 
-  const title = drawerMode === "answer" ? "Answer question" : drawerMode === "transcript" ? "Transcript" : "Controls";
+  const title = drawerMode === "transcript" ? "Transcript" : "Controls";
 
   return (
     <div className="arena-shell">
       <div id="stage" className="arena-stage">
         <ThreeDefenseScene roomState={roomState} presenterMoment={presenterMoment} />
         <HUD roomState={roomState} roomCode={roomCode} previewMode={previewMode} onOpenDrawer={openDrawer} onPreviewMoment={previewPresenter} />
-        <QuestionCard roomState={roomState} onAnswer={() => openDrawer("answer")} canAnswer={previewMode || (connected && !waitingForAnswerAck)} />
+        <QuestionCard roomState={roomState} />
       </div>
+      <RoomDock roomState={roomState} connected={connected} previewMode={previewMode}
+        waitingForAnswerAck={waitingForAnswerAck} actionError={actionError} onSendEvent={sendEvent} />
       <Drawer open={drawerOpen} mode={drawerMode} title={title} onClose={closeDrawer}>
         {drawerMode === "controls" ? (
           <>
@@ -150,11 +151,8 @@ export function App() {
               onCloseDrawer={closeDrawer} showMessage={showMessage} />
             {message && <div role="alert" className="drawer-error">{message}</div>}
           </>
-        ) : drawerMode === "transcript" ? (
-          <TranscriptPanel roomState={roomState} />
         ) : (
-          <AnswerComposer roomState={roomState} connected={connected} previewMode={previewMode}
-            waitingForAnswerAck={waitingForAnswerAck} actionError={actionError} onSendEvent={sendEvent} />
+          <TranscriptPanel roomState={roomState} />
         )}
       </Drawer>
       <RotatePrompt />

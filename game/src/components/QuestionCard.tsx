@@ -2,25 +2,23 @@ import type { RoomState } from "../types";
 
 interface QuestionCardProps {
   roomState: RoomState | null;
-  onAnswer?: () => void;
-  canAnswer?: boolean;
 }
 
 function deriveContent(state: RoomState | null) {
   const phase = state?.phase ?? "none";
-  const answered = (state?.turns ?? []).filter((turn) => turn.answer).length;
+  const resolved = (state?.turns ?? []).filter((turn) => turn.answer || turn.timed_out).length;
   const turns = state?.turns ?? [];
   let current = null as (typeof turns)[number] | null;
   let currentIndex = -1;
   for (let index = turns.length - 1; index >= 0; index--) {
-    if (turns[index].question && !turns[index].answer) {
+    if (turns[index].question && !turns[index].answer && !turns[index].timed_out) {
       current = turns[index];
       currentIndex = index;
       break;
     }
   }
 
-  if (phase === "question" && current) {
+  if ((phase === "voting" || phase === "question") && current) {
     return {
       name: current.panelist,
       question: current.question,
@@ -31,21 +29,21 @@ function deriveContent(state: RoomState | null) {
     };
   }
   if (phase === "generating") {
-    return { name: state?.active_panelist ?? "The panel", question: "Preparing the next question…", number: `QUESTION ${answered + 1}` };
+    return { name: state?.active_panelist ?? "The panel", question: "Preparing the next question…", number: `QUESTION ${resolved + 1}` };
   }
   if (phase === "retry") {
-    return { name: "Question paused", question: `${state?.error ?? "The next question could not be generated."} The host can retry from Controls.`, number: `QUESTION ${answered + 1}` };
+    return { name: "Question paused", question: `${state?.error ?? "The next question could not be generated."} The host can retry from Controls.`, number: `QUESTION ${resolved + 1}` };
   }
   if (phase === "complete") {
     const feedback = state?.feedback_status;
     return {
       name: feedback === "generating" ? "Preparing coaching report" : "Defense complete",
       question: feedback === "generating"
-        ? "The team has answered the panel. Your coaching report is being prepared."
+        ? "The panel has finished. Your coaching report is being prepared."
         : feedback === "failed"
           ? `${state?.error ?? "The coaching report could not be generated."} The host can retry from Controls.`
           : "Open Transcript to review your answers and coaching report.",
-      number: `${answered} ANSWERED`,
+      number: `${resolved} RESOLVED`,
     };
   }
   if (phase === "lobby") {
@@ -54,7 +52,7 @@ function deriveContent(state: RoomState | null) {
   return { name: "Your defense begins here", question: "Create or join a room to begin your defense.", number: "READY" };
 }
 
-export function QuestionCard({ roomState, onAnswer, canAnswer = false }: QuestionCardProps) {
+export function QuestionCard({ roomState }: QuestionCardProps) {
   const content = deriveContent(roomState);
   return (
     <section id="question-card" aria-labelledby="panelist-name" tabIndex={0}>
@@ -76,14 +74,6 @@ export function QuestionCard({ roomState, onAnswer, canAnswer = false }: Questio
             <span className="source-line-number" aria-hidden="true">{content.line}</span>
             <pre><code>{content.evidence}</code></pre>
           </div>
-        </div>
-      )}
-      {roomState?.phase === "question" && onAnswer && (
-        <div className="question-footer">
-          <p>Any teammate can answer; the first valid submission counts.</p>
-          <button type="button" onClick={onAnswer} disabled={!canAnswer}>
-            Answer question <span aria-hidden="true">›</span>
-          </button>
         </div>
       )}
     </section>

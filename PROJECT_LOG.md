@@ -7,19 +7,22 @@ Use this file to track completed updates across agents and session windows. See 
 - The React/Phaser multiplayer room and shared coaching report are deployed to Render from commit `a1bd90c`. A hosted four-answer coaching walkthrough passed; physical separate-device confirmation remains unverified.
 - Locally, Technical Architect, Security Reviewer, Product Judge, and Critical Judge each ask at least one source-grounded question. Each may ask one immediate AI-selected follow-up, for four to eight answers. The Streamlit fallback supports the same adaptive sequence.
 - The adaptive four-panelist release and larger source ZIP limits are deployed from commit `afad667`. Hosted health, assets, and desktop/landscape mock previews pass. A fresh hosted live AI defense has not yet been completed, and the user has not reported a personal visual review.
-- The local React room now uses a code-built Three.js isometric scene, a bottom question card, and an answer drawer. Accepted answers trigger a brief presenter focus using the responder's seat; this redesign has not been pushed or deployed.
+- The centered question card, dark source-line panel, and persistent bottom answer composer were deployed from commit `d9759ff`; hosted health and responsive mock-preview checks passed. A fresh hosted live AI defense is pending.
+- The code-built Three.js isometric room, answer drawer, and presenter focus are now on private `main` at `c7c77aa`; hosted behavior has not been verified.
 - The four judge roles are printed on dark plaques on their desk panels in the local Three.js preview.
 - The four teammate characters now stand without chairs; their live name tags sit near their feet.
+- Locally, every question now has a server-owned 15-second speaker vote and a full 120-second answer window, with selected-defender submission, timeout progression, private team chat, and reconnect snapshots. The user explicitly requested deployment of this timed-room checkpoint; push and hosted verification are in progress. Personal visual review has not been confirmed.
 
 ## Active work
 
+- Root session, 2026-09-27: committing and deploying the approved timed-room feature, selected tests/docs and review screenshots; then checking Render health/assets and a fresh room if available. Preserve unrelated screenshots and draft plan.
 - Root session, 2026-09-27: redesigning the React room question/citation and bottom answer composer, then testing and deploying directly as requested. Files: React App, QuestionCard, ControlsPanel, Phaser scene, socket hook, CSS, tests, README, AGENTS, PROJECT_LOG, and new review screenshots. Preserve unrelated local screenshots and draft plan.
 - Root session, 2026-09-27: deploying the adaptive four-panelist release and larger ZIP limits to Render from private `main`, then verifying hosted health, assets, and room flow. Files: selected feature code, tests, docs, new review screenshots, and this log. Preserve unrelated local screenshots and draft plan.
 - Root session, 2026-09-27: preparing the adaptive four-panelist checkpoint for user review, then deployment after approval. Files: Python defense/generation/server/fallback and tests, React scene/components and tests, README, AGENTS, PROJECT_LOG, and new four-panel review screenshots. Preserve unrelated screenshots and `react-migration-plan.md`.
 
 ## Pending verification and next step
 
-- The earlier release was deployed directly. The new Three.js redesign is local for visual review first; its live AI room flow has not been run or deployed. A fresh hosted live AI room check of the earlier adaptive release still awaits a host-created room code.
+- The user requested direct deployment of the local timed-room checkpoint. Push the selected change, check Render health/assets and a fresh room, then record hosted results. Live AI, personal visual review, and physical separate-device checks remain unverified until demonstrated.
 - Physical separate-device confirmation remains separate from two-browser local verification.
 
 ## Change entry template
@@ -222,6 +225,14 @@ Append new entries to the **end** of this file in date order:
 - Verification: 60 Python tests, 51 frontend tests, Vite build, and `git diff --check` passed. Two browser clients completed mocked four- and eight-answer defenses with exact citation matches, synchronized answers, transcript, coaching, reconnect, and a forced question-generation failure with host retry in the four-answer run. Desktop and 844×390 / 667×375 landscape screenshots show fixed seats and bottom bar with no browser errors or page overflow. A long question scrolls within the middle card; a long source line scrolls horizontally with the keyboard. Portrait shows the rotation prompt. These were mocked AI checks, with no paid calls.
 - Remaining: push the selected UI/docs/tests/screenshots to private `main`, verify Render health/assets and a fresh live AI room. Personal visual review and physical separate-device confirmation remain unverified.
 
+### 2026-09-27 — Centered room deployed and hosted smoke check
+
+- Session: root.
+- Files: selected UI, tests, docs, and four screenshots in commit `d9759ff`; this post-deployment `PROJECT_LOG.md` entry is local only to avoid clearing in-memory rooms with a second deploy.
+- Changed: pushed the centered question/citation card and persistent bottom answer composer to private `main`; Render rebuilt and serves the new React assets.
+- Verification: hosted `/health` returned 200; JavaScript and CSS assets matched the local production build byte for byte. Headless hosted desktop, 844×390, and 667×375 previews displayed the centered card, exact mock citation, seats, and bottom bar with no page errors or page overflow. The create/join drawer passed Escape, Tab, and focus restoration; portrait showed the rotation prompt. These are hosted layout checks using marked mock preview data, not a live AI defense.
+- Remaining: complete a fresh real-AI room with a host-created code, verify question/answer/citation progression and coaching, and record the result. Physical separate-device confirmation and the user's personal visual review remain unverified.
+
 ### 2026-09-27 — Judge character animation system
 
 - Session: root.
@@ -269,3 +280,19 @@ Append new entries to the **end** of this file in date order:
 - Verification: local preview showed all four teammates standing with no chairs and no browser console errors. TypeScript/Vite production build and `git diff --check` passed. Frontend dependencies were restored with `npm install` after `npm ci` could not remove an esbuild executable held open by the running dev server.
 - Remaining: user visual review of the local redesign; no GitHub push or Render deployment was performed.
 
+
+### 2026-09-27 — Timed speaker vote and private team chat, local checkpoint
+
+- Session: root.
+- Files: `defense_session.py`, `question_generator.py`, `game_server.py`, `test_game_server.py`, `test_question_generator.py`, new `test_timed_room.py`, React App/room components/hooks/types/CSS and tests under `game/src/`, `README.md`, `AGENTS.md`, `PROJECT_LOG.md`, and new `screenshots/timed-room-*.png` local review captures. Unrelated local screenshots and draft plan were preserved.
+- Changed: after each source-grounded AI question, the multiplayer room enters a 15-second server-owned vote. Connected defenders may change votes; highest count wins, and ties or no votes use a random online defender. The selected teammate alone can answer during a fresh two-minute server-owned window. Disconnects reassign the speaker without resetting time; a late unanswered turn is marked timed out and still advances the adaptive defense. AI follow-ups and coaching receive explicit timeout markers and cannot claim a missing answer. Authenticated room chat holds the latest 100 messages of up to 500 characters and is excluded from AI context, transcript, and coaching. Reconnect snapshots include deadlines, votes, selected seat, and chat; restart clears timers, votes, and chat. React shows the countdown, speaker highlight, Vote/Answer and Team Chat tabs, unread messages, timeout transcript rows, and selected-only answer entry. The Three.js camera was reframed to keep both seat rows visible above the dock. Preview variants provide mock voting and long exact-source-line layouts. Streamlit remains unchanged.
+- Verification: 69 offline Python tests, 69 React tests, Vite build, and `git diff --check` passed. Fake-clock checks cover deadline races, changed votes, random tie/no-vote outcomes, rejected unauthorized/late actions, disconnect/reconnect assignment, timeout progression, retry, chat isolation/bounds, and restart. Two browser contexts completed a mocked four-answer defense and a mocked eight-turn defense with seven answers and one timeout; the latter included a forced question-generation failure and host retry. Both clients received the same coaching; a reloaded client recovered transcript and chat. Every mocked displayed citation matched the uploaded sample files. Desktop and 844×390 phone-landscape vote/answer previews showed both seat rows and no page errors or body overflow; a long exact CSS citation scrolled horizontally and its question card scrolled vertically. Keyboard activation of Team Chat and portrait rotation prompt passed. No paid API calls were made.
+- Remaining: user review of the local preview and screenshots before pushing. No commit, push, Render redeploy, live AI walkthrough, or physical second-device check occurred in this checkpoint.
+
+### 2026-09-27 — Timed room deployment authorized
+
+- Session: root, with user direction.
+- Files: `AGENTS.md`, `PROJECT_LOG.md`.
+- Changed: the user explicitly requested deployment of the locally verified timed vote and team chat checkpoint, superseding its prior before-push review gate. Personal visual approval is not inferred from the deployment request.
+- Verification: private `origin/main` still matched local `HEAD` at `c7c77aa` before the release commit; the 69 Python and 69 React tests and Vite build passed in the local checkpoint.
+- Remaining: commit and push only selected feature files and review screenshots, verify the Render rebuild and hosted behavior, and keep unrelated local artifacts untouched.

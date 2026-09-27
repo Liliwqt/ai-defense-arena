@@ -16,6 +16,13 @@ const baseState: RoomState = {
   files: [],
   feedback_status: "none",
   feedback: null,
+  server_now_ms: 1_000_000,
+  vote_deadline_ms: null,
+  answer_deadline_ms: null,
+  selected_seat: null,
+  vote_counts: {},
+  my_vote: null,
+  chat: [],
 };
 
 const defaultProps = {

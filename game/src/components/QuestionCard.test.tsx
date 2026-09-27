@@ -1,6 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { QuestionCard } from "./QuestionCard";
 import type { RoomState } from "../types";
 
@@ -17,6 +16,13 @@ const base: RoomState = {
   files: [],
   feedback_status: "none",
   feedback: null,
+  server_now_ms: 1_000_000,
+  vote_deadline_ms: null,
+  answer_deadline_ms: null,
+  selected_seat: null,
+  vote_counts: {},
+  my_vote: null,
+  chat: [],
 };
 
 describe("QuestionCard", () => {
@@ -46,6 +52,8 @@ describe("QuestionCard", () => {
           evidence_line: 5,
           evidence_text: "DATABASE = 'queue.db'",
           answer: null,
+          timed_out: false,
+          assigned_seat: null,
           answered_by: null,
         },
       ],
@@ -60,12 +68,11 @@ describe("QuestionCard", () => {
     expect(screen.getByText("DATABASE = 'queue.db'")).toBeTruthy();
   });
 
-  it("opens answer entry from the live question card", async () => {
-    const onAnswer = vi.fn();
-    const state: RoomState = { ...base, phase: "question", turns: [{ panelist: "Technical Architect", question: "Why SQLite?", filename: "queue.py", evidence_line: 5, evidence_text: "DATABASE = 'queue.db'", answer: null, answered_by: null }] };
-    render(<QuestionCard roomState={state} onAnswer={onAnswer} canAnswer />);
-    await userEvent.click(screen.getByRole("button", { name: /answer question/i }));
-    expect(onAnswer).toHaveBeenCalledOnce();
+  it("shows the cited question during speaker voting", () => {
+    const state: RoomState = { ...base, phase: "voting", turns: [{ panelist: "Technical Architect", question: "Why SQLite?", filename: "queue.py", evidence_line: 5, evidence_text: "DATABASE = 'queue.db'", answer: null, answered_by: null }] };
+    render(<QuestionCard roomState={state} />);
+    expect(screen.getByText("Why SQLite?")).toBeTruthy();
+    expect(screen.getByText("queue.py")).toBeTruthy();
   });
 
   it("shows a later adaptive question number without a fixed denominator", () => {

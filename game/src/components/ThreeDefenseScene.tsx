@@ -203,8 +203,8 @@ class DefenseWorld {
   private readonly speakerBubble: THREE.Sprite;
   private readonly presenterLabel: THREE.Sprite;
   private readonly standing: Person;
-  private readonly baseCamera = new THREE.Vector3(13, 11, 17);
-  private readonly baseTarget = new THREE.Vector3(0, 0, 0);
+  private readonly baseCamera = new THREE.Vector3(13, 11, 18.8);
+  private readonly baseTarget = new THREE.Vector3(0, 0, 1.8);
   private readonly clock = new THREE.Clock();
   private readonly reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
   private moment: { seat: number; started: number; reduced: boolean } | null = null;
@@ -327,8 +327,8 @@ class DefenseWorld {
     this.width = Math.max(1, this.host.clientWidth);
     this.height = Math.max(1, this.host.clientHeight);
     const aspect = this.width / this.height;
-    const viewWidth = aspect > 2 ? 21.5 : 20;
-    const viewHeight = viewWidth / aspect;
+    const viewHeight = aspect > 2.8 ? 15 : 13;
+    const viewWidth = viewHeight * aspect;
     this.camera.left = -viewWidth / 2;
     this.camera.right = viewWidth / 2;
     this.camera.top = viewHeight / 2;
@@ -339,10 +339,10 @@ class DefenseWorld {
 
   renderState(state: RoomState | null) {
     this.state = state;
-    const active = state?.phase === "question" || state?.phase === "generating" ? state.active_panelist : null;
+    const active = state?.phase === "question" || state?.phase === "voting" || state?.phase === "generating" ? state.active_panelist : null;
     this.judges.forEach((judge, index) => { judge.halo.visible = judgeNames[index] === active; });
     const activeIndex = judgeNames.indexOf(active ?? "");
-    this.speakerBubble.visible = activeIndex >= 0 && state?.phase === "question";
+    this.speakerBubble.visible = activeIndex >= 0 && (state?.phase === "question" || state?.phase === "voting");
     if (activeIndex >= 0) {
       this.speakerBubble.position.set(judgeXs[activeIndex], 3.38, -3.55);
       setLabelText(this.speakerBubble, `${judgeNames[activeIndex]} is asking…`, "#e9aa39");
@@ -351,7 +351,10 @@ class DefenseWorld {
     this.defenders.forEach((defender, index) => {
       const player = state?.players.find((item) => item.seat === index);
       defender.group.visible = Boolean(player) && this.moment?.seat !== index;
-      setLabelText(this.defenderLabels[index], player ? `${player.name}${player.is_host ? " ★" : ""}${player.online ? "" : " (offline)"}` : `Open seat ${index + 1}`, player?.online ? "#347ac2" : "#8194ad", true);
+      const chosen = state?.phase === "question" && state.selected_seat === index;
+      defender.halo.visible = Boolean(chosen) && this.moment?.seat !== index;
+      if (defender.halo.material instanceof THREE.MeshBasicMaterial) defender.halo.material.color.setHex(chosen ? 0xf5b942 : 0x5ba8eb);
+      setLabelText(this.defenderLabels[index], player ? `${player.name}${player.is_host ? " ★" : ""}${chosen ? " • Speaker" : ""}${player.online ? "" : " (offline)"}` : `Open seat ${index + 1}`, chosen ? "#b97812" : player?.online ? "#347ac2" : "#8194ad", true);
     });
   }
 
@@ -377,7 +380,7 @@ class DefenseWorld {
     this.frame = requestAnimationFrame(this.loop);
     const t = this.clock.getElapsedTime();
     this.judges.forEach((judge, i) => {
-      const active = judgeNames[i] === this.state?.active_panelist && this.state?.phase === "question";
+      const active = judgeNames[i] === this.state?.active_panelist && (this.state?.phase === "question" || this.state?.phase === "voting");
       judge.torso.position.y = this.reducedMotion ? 0.95 : 0.95 + Math.sin(t * (active ? 3.8 : 1.5) + i) * (active ? 0.035 : 0.012);
       judge.torso.rotation.z = this.reducedMotion ? 0 : Math.sin(t * 1.1 + i) * (active ? 0.025 : 0.009);
       judge.rightArm.rotation.x = !this.reducedMotion && active ? Math.sin(t * 4 + i) * 0.17 : 0;
