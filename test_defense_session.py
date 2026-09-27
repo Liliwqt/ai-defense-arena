@@ -1,4 +1,4 @@
-"""Offline checks for the guided defense and retryable question generation."""
+"""Offline checks for adaptive panelist order, completion, and retry."""
 
 import unittest
 from types import SimpleNamespace
@@ -13,12 +13,7 @@ from defense_session import (
     sync_project_session,
 )
 from project_files import ProjectFile
-from question_generator import (
-    GroundedQuestion,
-    QuestionDraft,
-    QuestionGenerationError,
-    generate_panel_question,
-)
+from question_generator import GroundedQuestion, NextMoveDraft, QuestionGenerationError
 
 
 class FakeClient:
@@ -35,6 +30,16 @@ class FakeClient:
         return SimpleNamespace(output_parsed=outcome)
 
 
+def ask(role, line=2):
+    return NextMoveDraft(action="ask", panelist=role, question=f"Why this choice, {role}?",
+                         source_file=2, evidence_line=line)
+
+
+def complete():
+    return NextMoveDraft(action="complete", panelist=None, question=None,
+                         source_file=None, evidence_line=None)
+
+
 class DefenseSessionTests(unittest.TestCase):
     def setUp(self):
         self.files = [
@@ -45,79 +50,74 @@ class DefenseSessionTests(unittest.TestCase):
             "Why convert queue items to strings?", "queue.py", 2, "    return str(item)"
         )
 
-    def test_four_alternating_turns_use_answers_and_exact_evidence(self):
+    def test_four_distinct_panelists_can_finish_without_followups(self):
         session = DefenseSession.start(self.first)
-        client = FakeClient(
-            [
-                QuestionDraft(question="How is input checked?", source_file=2, evidence_line=1),
-                QuestionDraft(question="What about non-string items?", source_file=2, evidence_line=2),
-                QuestionDraft(question="What if item is untrusted?", source_file=2, evidence_line=1),
-            ]
-        )
-        answers = [
-            "We normalize for display.",
-            "Input is currently trusted by the caller.",
-            "We would add a type check.",
-            "We would validate at the boundary.",
-        ]
-        for index, answer in enumerate(answers):
-            self.assertTrue(session.awaiting_answer)
-            session.submit_answer(answer)
-            if index < 3:
+        client = FakeClient([ask(role) for role in PANELIST_ORDER[1:]] + [complete()])
+        for index in range(4):
+            session.submit_answer(f"Answer {index}")
+            if session.needs_question:
                 advance_defense(session, self.files, "test-key", client=client)
         self.assertTrue(session.completed)
-        self.assertFalse(session.needs_question)
         self.assertEqual([turn.panelist for turn in session.turns], list(PANELIST_ORDER))
-        self.assertEqual([turn.answer for turn in session.turns], answers)
-        self.assertEqual(session.turns[1].question.evidence_text, "def enqueue(item):")
-        self.assertEqual(session.turns[2].question.evidence_text, "    return str(item)")
-        self.assertEqual(len(client.requests), 3)
-        self.assertIn("Security Reviewer", client.requests[0]["input"][0]["content"])
-        self.assertIn("security implication", client.requests[0]["input"][0]["content"])
-        self.assertIn("follow-up turn", client.requests[1]["input"][0]["content"])
-        self.assertIn("We normalize for display.", client.requests[1]["input"][1]["content"])
-        self.assertIn("Input is currently trusted", client.requests[2]["input"][1]["content"])
-        self.assertIn("follow-up turn", client.requests[2]["input"][0]["content"])
+        self.assertEqual(len(client.requests), 4)
+        self.assertIn("Product Judge", client.requests[1]["input"][0]["content"])
+        self.assertIn("Completion allowed: True", client.requests[-1]["input"][0]["content"])
 
-    def test_failed_request_keeps_answer_and_retry_adds_one_question(self):
+    def test_each_role_can_follow_up_once_for_eight_answers(self):
+        session = DefenseSession.start(self.first)
+        moves = []
+        for role in PANELIST_ORDER:
+            moves.append(ask(role))
+            if role != PANELIST_ORDER[-1]:
+                moves.append(ask(PANELIST_ORDER[PANELIST_ORDER.index(role) + 1]))
+        client = FakeClient(moves)
+        for index in range(8):
+            session.submit_answer(f"Answer {index}")
+            if session.needs_question:
+                advance_defense(session, self.files, "test-key", client=client)
+        self.assertTrue(session.completed)
+        self.assertEqual([turn.panelist for turn in session.turns],
+                         [role for role in PANELIST_ORDER for _ in range(2)])
+        self.assertEqual(len(client.requests), 7)
+        with self.assertRaisesRegex(ValueError, "no question"):
+            session.submit_answer("ninth")
+
+    def test_premature_complete_and_skipped_role_are_retryable(self):
         session = DefenseSession.start(self.first)
         session.submit_answer("We normalize for display.")
-        client = FakeClient(
-            [
-                OpenAIError("temporary failure"),
-                QuestionDraft(question="How is input checked?", source_file=2, evidence_line=1),
-            ]
-        )
-        with self.assertRaises(OpenAIError):
+        client = FakeClient([complete(), ask("Critical Judge"), ask("Security Reviewer")])
+        with self.assertRaisesRegex(QuestionGenerationError, "too early"):
             advance_defense(session, self.files, "test-key", client=client)
-        self.assertTrue(session.needs_question)
+        with self.assertRaisesRegex(QuestionGenerationError, "invalid panelist"):
+            advance_defense(session, self.files, "test-key", client=client)
         self.assertEqual(len(session.turns), 1)
         self.assertEqual(session.turns[0].answer, "We normalize for display.")
         advance_defense(session, self.files, "test-key", client=client)
-        self.assertEqual(len(session.turns), 2)
-        self.assertEqual(session.turns[0].answer, "We normalize for display.")
         self.assertEqual(session.turns[1].panelist, "Security Reviewer")
-        self.assertEqual(client.requests[0]["input"], client.requests[1]["input"])
 
-    def test_invalid_citation_keeps_pending_turn_retryable(self):
+    def test_failed_request_and_invalid_citation_preserve_answer(self):
         session = DefenseSession.start(self.first)
-        session.submit_answer("We normalize for display.")
-        client = FakeClient([QuestionDraft(question="Risk?", source_file=1, evidence_line=2)])
+        session.submit_answer("Keep the answer.")
+        bad = NextMoveDraft(action="ask", panelist="Security Reviewer", question="Risk?",
+                            source_file=99, evidence_line=1)
+        client = FakeClient([OpenAIError("temporary"), bad, ask("Security Reviewer")])
+        with self.assertRaises(OpenAIError):
+            advance_defense(session, self.files, "test-key", client=client)
         with self.assertRaisesRegex(QuestionGenerationError, "invalid project file"):
             advance_defense(session, self.files, "test-key", client=client)
         self.assertTrue(session.needs_question)
-        self.assertEqual(len(session.turns), 1)
+        self.assertEqual(session.turns[0].answer, "Keep the answer.")
+        advance_defense(session, self.files, "test-key", client=client)
+        self.assertEqual(len(session.turns), 2)
 
-    def test_follow_up_requires_earlier_answer_from_same_panelist(self):
-        with self.assertRaisesRegex(ValueError, "earlier answer"):
-            generate_panel_question(
-                self.files,
-                "test-key",
-                panelist="Technical Architect",
-                history=(),
-                follow_up=True,
-                client=FakeClient([]),
-            )
+    def test_followup_prompt_includes_earlier_answer(self):
+        session = DefenseSession.start(self.first)
+        session.submit_answer("We normalize for display.")
+        client = FakeClient([ask("Technical Architect")])
+        advance_defense(session, self.files, "test-key", client=client)
+        self.assertEqual(session.turns[1].panelist, "Technical Architect")
+        self.assertIn("We normalize for display.", client.requests[0]["input"][1]["content"])
+        self.assertIn("follow-up", client.requests[0]["input"][0]["content"])
 
     def test_answers_are_bounded_and_cannot_be_submitted_twice(self):
         session = DefenseSession.start(self.first)
@@ -136,7 +136,6 @@ class DefenseSessionTests(unittest.TestCase):
         self.assertIs(state["defense_session"], session)
         sync_project_session(state, "changed")
         self.assertNotIn("defense_session", state)
-        self.assertEqual(state["defense_project_fingerprint"], "changed")
         state["defense_session"] = DefenseSession.start(self.first)
         sync_project_session(state, None)
         self.assertNotIn("defense_session", state)

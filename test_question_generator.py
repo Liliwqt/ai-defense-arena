@@ -13,6 +13,11 @@ from question_generator import (
     CoachingDraft,
     CoachingPoint,
     QuestionDraft,
+    NextMoveDraft,
+    PRODUCT_JUDGE,
+    CRITICAL_JUDGE,
+    generate_next_move,
+    generate_panel_question,
     QuestionGenerationError,
     build_project_source,
     describe_openai_error,
@@ -99,8 +104,8 @@ class QuestionGeneratorTests(unittest.TestCase):
         self.assertEqual(eligible, {1})
 
     def test_oversized_project_is_rejected(self):
-        files = [ProjectFile("src/large.py", "a" * 300_001)]
-        with self.assertRaisesRegex(QuestionGenerationError, "300 KB"):
+        files = [ProjectFile("src/large.py", "a" * 600_001)]
+        with self.assertRaisesRegex(QuestionGenerationError, "600 KB"):
             build_project_source(files)
 
     def test_missing_key_does_not_call_api(self):
@@ -125,6 +130,54 @@ class QuestionGeneratorTests(unittest.TestCase):
         client = FakeClient(error=OpenAIError("Service unavailable"))
         with self.assertRaises(OpenAIError):
             generate_first_question(self.files, "test-key", client=client)
+
+
+class AdaptiveMoveTests(unittest.TestCase):
+    def setUp(self):
+        self.files = [ProjectFile("README.md", "# Queue\nStudents reserve before walking in.\n"),
+                      ProjectFile("queue.py", "def reserve():\n    return 1\n")]
+        self.history = [AnsweredQuestion("Security Reviewer", "Who sees names?", "Staff only.")]
+
+    def test_product_can_cite_document_when_code_exists(self):
+        draft = NextMoveDraft(action="ask", panelist=PRODUCT_JUDGE,
+                              question="How will you validate the reservation workflow?",
+                              source_file=1, evidence_line=2)
+        client = FakeClient(draft)
+        move = generate_next_move(self.files, "test-key", history=self.history,
+                                  allowed_panelists=(PRODUCT_JUDGE,), may_complete=False, client=client)
+        self.assertEqual(move.panelist, PRODUCT_JUDGE)
+        self.assertEqual(move.question.evidence_text, "Students reserve before walking in.")
+        self.assertIn("user value", client.request["input"][0]["content"])
+
+    def test_critical_can_cite_code_and_early_completion_is_rejected(self):
+        draft = NextMoveDraft(action="ask", panelist=CRITICAL_JUDGE,
+                              question="What supports this assumption?", source_file=2, evidence_line=2)
+        move = generate_next_move(self.files, "test-key", history=self.history,
+                                  allowed_panelists=(CRITICAL_JUDGE,), may_complete=False,
+                                  client=FakeClient(draft))
+        self.assertEqual(move.question.filename, "queue.py")
+        done = NextMoveDraft(action="complete", panelist=None, question=None,
+                             source_file=None, evidence_line=None)
+        with self.assertRaisesRegex(QuestionGenerationError, "too early"):
+            generate_next_move(self.files, "test-key", history=self.history,
+                               allowed_panelists=(CRITICAL_JUDGE,), may_complete=False,
+                               client=FakeClient(done))
+
+    def test_security_cannot_cite_document_when_code_exists(self):
+        draft = NextMoveDraft(action="ask", panelist="Security Reviewer",
+                              question="How are names protected?", source_file=1, evidence_line=2)
+        with self.assertRaisesRegex(QuestionGenerationError, "invalid project file"):
+            generate_next_move(self.files, "test-key", history=self.history,
+                               allowed_panelists=("Security Reviewer",), may_complete=False,
+                               client=FakeClient(draft))
+
+    def test_complete_requires_no_question_fields(self):
+        draft = NextMoveDraft(action="complete", panelist=None, question="Extra?",
+                              source_file=None, evidence_line=None)
+        with self.assertRaisesRegex(QuestionGenerationError, "too early"):
+            generate_next_move(self.files, "test-key", history=self.history,
+                               allowed_panelists=(CRITICAL_JUDGE,), may_complete=True,
+                               client=FakeClient(draft))
 
 
 class CoachingReportTests(unittest.TestCase):
@@ -192,10 +245,24 @@ class CoachingReportTests(unittest.TestCase):
         with self.assertRaisesRegex(QuestionGenerationError, "no coaching report"):
             generate_coaching_report(self.files, self.history, "test-key", client=client)
 
+    def test_eight_turn_report_accepts_last_turn_reference(self):
+        history = self.history + self.history
+        draft = self._draft(strengths=[CoachingPoint(turn=7, text="Strong final answer.")])
+        client = FakeClient(draft)
+        result = generate_coaching_report(self.files, history, "test-key", client=client)
+        self.assertEqual(result.strengths[0]["turn"], 7)
+        self.assertIn("0 to 7", client.request["input"][0]["content"])
+
+    def test_eight_turn_report_rejects_out_of_range_reference(self):
+        history = self.history + self.history
+        draft = self._draft(strengths=[CoachingPoint(turn=8, text="Invalid.")])
+        with self.assertRaisesRegex(QuestionGenerationError, "invalid turn"):
+            generate_coaching_report(self.files, history, "test-key", client=FakeClient(draft))
+
     def test_wrong_turn_count_is_rejected(self):
         short_history = self.history[:3]
         client = FakeClient(self._draft())
-        with self.assertRaisesRegex(QuestionGenerationError, "4 answered turns"):
+        with self.assertRaisesRegex(QuestionGenerationError, "4 to 8 answered turns"):
             generate_coaching_report(self.files, short_history, "test-key", client=client)
         self.assertIsNone(client.request)
 

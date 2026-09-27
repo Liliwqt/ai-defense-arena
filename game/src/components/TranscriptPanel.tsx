@@ -27,7 +27,7 @@ export function TranscriptPanel({ roomState }: TranscriptPanelProps) {
           id="transcript-count"
           className="text-[#96bad8] text-[0.78rem] font-[750] whitespace-nowrap"
         >
-          {answered} / 4 answered
+          {answered} answered
         </span>
       </div>
 

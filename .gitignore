@@ -12,3 +12,6 @@ __pycache__/
 game/node_modules/
 game/dist/
 game/*.tsbuildinfo
+
+# Local demo upload archive
+/ai-defense-arena-source.zip

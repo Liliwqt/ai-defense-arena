@@ -6,10 +6,10 @@ from pathlib import PurePosixPath
 from zipfile import BadZipFile, ZipFile
 
 
-MAX_FILES = 60
-MAX_FILE_BYTES = 100_000
-MAX_TOTAL_BYTES = 300_000
-MAX_ARCHIVE_BYTES = 10_000_000
+MAX_FILES = 100
+MAX_FILE_BYTES = 200_000
+MAX_TOTAL_BYTES = 600_000
+MAX_ARCHIVE_BYTES = 25_000_000
 MAX_ZIP_ENTRIES = 2_000
 ALLOWED_EXTENSIONS = {
     ".md", ".txt", ".py", ".js", ".jsx", ".ts", ".tsx", ".json", ".html",
@@ -56,7 +56,7 @@ def _source_path(raw_name: str) -> str | None:
 
 def _read_archive(data: bytes) -> list[ProjectFile]:
     if len(data) > MAX_ARCHIVE_BYTES:
-        raise ProjectInputError("The ZIP exceeds the 10 MB compressed size limit.")
+        raise ProjectInputError(f"The ZIP exceeds the {MAX_ARCHIVE_BYTES // 1_000_000} MB compressed size limit.")
 
     files: list[ProjectFile] = []
     total_bytes = 0
@@ -72,15 +72,15 @@ def _read_archive(data: bytes) -> list[ProjectFile]:
                 if name is None:
                     continue
                 if entry.file_size > MAX_FILE_BYTES:
-                    raise ProjectInputError(f"{name} exceeds the 100 KB per-file limit.")
+                    raise ProjectInputError(f"{name} exceeds the {MAX_FILE_BYTES // 1_000} KB per-file limit.")
                 if len(files) >= MAX_FILES:
                     raise ProjectInputError(f"Include at most {MAX_FILES} source files.")
                 if total_bytes + entry.file_size > MAX_TOTAL_BYTES:
-                    raise ProjectInputError("Project text exceeds the 300 KB total limit.")
+                    raise ProjectInputError(f"Project text exceeds the {MAX_TOTAL_BYTES // 1_000} KB total limit.")
                 with archive.open(entry) as member:
                     content_bytes = member.read(MAX_FILE_BYTES + 1)
                 if len(content_bytes) > MAX_FILE_BYTES:
-                    raise ProjectInputError(f"{name} exceeds the 100 KB per-file limit.")
+                    raise ProjectInputError(f"{name} exceeds the {MAX_FILE_BYTES // 1_000} KB per-file limit.")
                 try:
                     content = content_bytes.decode("utf-8")
                 except UnicodeDecodeError as error:
@@ -110,7 +110,7 @@ def read_project_files(uploads: list) -> tuple[list[ProjectFile], list[str]]:
             if name is None:
                 return [], [f"Unsupported or unsafe source file: {upload.name}"]
             if len(raw) > MAX_FILE_BYTES:
-                return [], [f"{name} exceeds the 100 KB per-file limit."]
+                return [], [f"{name} exceeds the {MAX_FILE_BYTES // 1_000} KB per-file limit."]
             try:
                 content = raw.decode("utf-8")
             except UnicodeDecodeError:
@@ -124,7 +124,7 @@ def read_project_files(uploads: list) -> tuple[list[ProjectFile], list[str]]:
                 return [], [f"Include at most {MAX_FILES} source files."]
             file_bytes = len(file.content.encode("utf-8"))
             if total_bytes + file_bytes > MAX_TOTAL_BYTES:
-                return [], ["Project text exceeds the 300 KB total limit."]
+                return [], [f"Project text exceeds the {MAX_TOTAL_BYTES // 1_000} KB total limit."]
             seen_names.add(file.name)
             total_bytes += file_bytes
             files.append(file)

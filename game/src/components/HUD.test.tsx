@@ -52,6 +52,19 @@ describe("HUD", () => {
     expect(spy).toHaveBeenCalledWith("transcript");
   });
 
+  it("shows answered count without a fixed total during an adaptive defense", () => {
+    const state: RoomState = {
+      ...baseState,
+      phase: "question",
+      turns: [
+        { panelist: "Technical Architect", question: "Q1", filename: "f.py", evidence_line: 1, evidence_text: "x", answer: "a", answered_by: "Alex" },
+        { panelist: "Technical Architect", question: "Q2", filename: "f.py", evidence_line: 2, evidence_text: "y", answer: "b", answered_by: "Sam" },
+      ],
+    };
+    render(<HUD roomState={state} roomCode="ABCD12" previewMode={false} onOpenDrawer={vi.fn()} />);
+    expect(screen.getByText("2 ANSWERED")).toBeTruthy();
+  });
+
   it("shows COMPLETE when phase is complete", () => {
     const state: RoomState = {
       ...baseState,

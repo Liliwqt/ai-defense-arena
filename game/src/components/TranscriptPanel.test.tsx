@@ -57,7 +57,7 @@ describe("TranscriptPanel", () => {
     render(<TranscriptPanel roomState={state} />);
     expect(screen.getByText("Why SQLite?")).toBeTruthy();
     expect(screen.getByText("Input validation?")).toBeTruthy();
-    expect(screen.getByText("4 / 4 answered")).toBeTruthy();
+    expect(screen.getByText("4 answered")).toBeTruthy();
     expect(screen.getByText("Well done.")).toBeTruthy();
   });
 });

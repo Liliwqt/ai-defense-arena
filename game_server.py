@@ -23,13 +23,13 @@ from question_generator import (
     describe_openai_error,
     generate_coaching_report,
     generate_first_question,
-    generate_panel_question,
+    generate_next_move,
 )
 
 
 MAX_PLAYERS = 4
 MAX_ROOMS = 20
-MAX_REQUEST_BYTES = 11_000_000
+MAX_REQUEST_BYTES = MAX_ARCHIVE_BYTES + 2_000_000
 ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 GAME_DIR = Path(__file__).resolve().parent / "game" / "dist"
 
@@ -193,18 +193,16 @@ async def _generate_question(room: Room, generation_id: int, first: bool) -> Non
             async with room.lock:
                 if room.generation_id != generation_id or room.defense is None:
                     return
-                panelist = room.defense.pending_panelist
+                allowed = room.defense.allowed_next_panelists
+                may_complete = room.defense.may_complete
                 history = room.defense.answered_history()
-                follow_up = len(room.defense.turns) >= 2
-            if panelist is None:
-                return
-            question = await asyncio.to_thread(
-                generate_panel_question,
+            move = await asyncio.to_thread(
+                generate_next_move,
                 room.files,
                 api_key,
-                panelist=panelist,
                 history=history,
-                follow_up=follow_up,
+                allowed_panelists=allowed,
+                may_complete=may_complete,
                 model=model,
             )
     except Exception as error:
@@ -217,19 +215,31 @@ async def _generate_question(room: Room, generation_id: int, first: bool) -> Non
         await publish(room)
         return
 
+    start_coaching = False
+    feedback_generation_id = None
     async with room.lock:
         if room.generation_id != generation_id:
             return
         if first:
             room.defense = DefenseSession.start(question)
+            room.phase = "question"
         elif room.defense is not None and room.defense.needs_question:
-            room.defense.add_question(question)
+            room.defense.apply_move(move)
+            if room.defense.completed:
+                room.phase = "complete"
+                room.feedback_status = "generating"
+                room.feedback_generation_id += 1
+                feedback_generation_id = room.feedback_generation_id
+                start_coaching = True
+            else:
+                room.phase = "question"
         else:
             return
-        room.phase = "question"
         room.error = None
         room.revision += 1
     await publish(room)
+    if start_coaching and feedback_generation_id is not None:
+        _schedule_coaching(room, feedback_generation_id)
 
 
 def _schedule_generation(room: Room, generation_id: int, first: bool) -> None:

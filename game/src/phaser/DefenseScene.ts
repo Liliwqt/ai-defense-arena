@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import type { RoomState } from "../types";
 
-const PANEL_NAMES = ["Technical Architect", "Security Reviewer"] as const;
+const PANEL_NAMES = ["Product Judge", "Technical Architect", "Security Reviewer", "Critical Judge"] as const;
 
 interface Seat {
   ring: Phaser.GameObjects.Arc;
@@ -48,22 +48,15 @@ export class DefenseScene extends Phaser.Scene {
         .circle(0, 0, 46)
         .setStrokeStyle(4, 0xffd26d, 1)
         .setVisible(false),
-      sprite:
-        index === 1 || index === 2
-          ? this.add.sprite(0, 0, "panelist")
-          : null,
+      sprite: this.add.sprite(0, 0, "panelist"),
       label: this.add
         .text(
           0,
           0,
-          index === 1
-            ? "Technical Architect"
-            : index === 2
-              ? "Security Reviewer"
-              : "Empty panel seat",
+          PANEL_NAMES[index],
           {
             fontFamily: "Arial, sans-serif",
-            color: index === 1 || index === 2 ? "#ffe0e0" : "#91a1b3",
+            color: "#ffe0e0",
             fontStyle: "bold",
             align: "center",
           },
@@ -203,12 +196,7 @@ export class DefenseScene extends Phaser.Scene {
     const cueHeight = compact ? 28 : 68;
     const activeName =
       state?.active_panelist ?? findCurrentTurn(state)?.turn.panelist;
-    const activeIndex =
-      activeName === PANEL_NAMES[0]
-        ? 1
-        : activeName === PANEL_NAMES[1]
-          ? 2
-          : -1;
+    const activeIndex = PANEL_NAMES.findIndex((name) => name === activeName);
     let cue = "Create or join a room";
     if (state?.phase === "lobby") cue = "Your team is gathering";
     else if (state?.phase === "generating")

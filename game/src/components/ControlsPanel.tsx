@@ -158,7 +158,7 @@ export function ControlsPanel({
                   ? "Coaching report failed. Use Retry coaching report to try again."
                   : "Coaching report failed. The host can retry."
                 : phase === "complete"
-                  ? "The four-question defense is complete. Open Transcript for your coaching report."
+                  ? "The defense is complete. Open Transcript for your coaching report."
                   : "";
 
   return (

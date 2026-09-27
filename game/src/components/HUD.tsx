@@ -19,7 +19,7 @@ export function HUD({ roomState, roomCode, previewMode, onOpenDrawer }: HUDProps
     phase === "complete"
       ? "COMPLETE"
       : roomState
-        ? `${answered} / 4 ANSWERED`
+        ? `${answered} ANSWERED`
         : "READY";
 
   return (

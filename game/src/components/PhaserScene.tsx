@@ -9,11 +9,15 @@ interface PhaserSceneProps {
 
 export function PhaserScene({ roomState }: PhaserSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const gameRef = useRef<Phaser.Game | null>(null);
+  const sceneRef = useRef<DefenseScene | null>(null);
+  const latestStateRef = useRef(roomState);
+  latestStateRef.current = roomState;
 
   // Mount Phaser once
   useEffect(() => {
     if (!containerRef.current) return;
+    const scene = new DefenseScene();
+    scene.renderState(latestStateRef.current);
     const game = new Phaser.Game({
       type: Phaser.AUTO,
       parent: containerRef.current,
@@ -21,21 +25,18 @@ export function PhaserScene({ roomState }: PhaserSceneProps) {
       height: 540,
       backgroundColor: "#0d2238",
       scale: { mode: Phaser.Scale.RESIZE },
-      scene: DefenseScene,
+      scene,
     });
-    gameRef.current = game;
+    sceneRef.current = scene;
     return () => {
       game.destroy(true);
-      gameRef.current = null;
+      sceneRef.current = null;
     };
   }, []);
 
   // Forward roomState updates to the scene without re-mounting
   useEffect(() => {
-    const game = gameRef.current;
-    if (!game) return;
-    const scene = game.scene.getScene("DefenseScene") as DefenseScene | null;
-    scene?.renderState(roomState);
+    sceneRef.current?.renderState(roomState);
   }, [roomState]);
 
   return (
@@ -43,7 +44,7 @@ export function PhaserScene({ roomState }: PhaserSceneProps) {
       id="phaser-container"
       ref={containerRef}
       className="absolute inset-0 w-full h-full"
-      aria-label="Four panelist seats face four defender seats"
+      aria-label="Four active panelists face four defender seats"
     />
   );
 }

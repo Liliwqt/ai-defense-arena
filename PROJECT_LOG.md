@@ -4,19 +4,19 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Current status
 
-- Project intake, source-line grounded questions, and the four-question defense flow are implemented.
-- The multiplayer Phaser/FastAPI room is implemented locally: four fixed panel seats, four defender seats, upload/create/join, synchronized questions and answers, host retry, and reconnect snapshots. The Streamlit app remains available.
-- The earlier fullscreen room is deployed to Render at commit `18a7d1c`; its hosted four-answer walkthrough passed with exact source-line citations. The React frontend and shared coaching report are implemented locally but have not been pushed or deployed.
-- The user reviewed the combined React/coaching screen and approved deployment on 2026-09-27. Physical separate-device confirmation and hosted live coaching verification remain pending. Additional panelists have not been implemented.
+- The React/Phaser multiplayer room and shared coaching report are deployed to Render from commit `a1bd90c`. A hosted four-answer coaching walkthrough passed; physical separate-device confirmation remains unverified.
+- Locally, Technical Architect, Security Reviewer, Product Judge, and Critical Judge each ask at least one source-grounded question. Each may ask one immediate AI-selected follow-up, for four to eight answers. The Streamlit fallback supports the same adaptive sequence.
+- The adaptive panelist checkpoint is implemented and verified locally with mocked AI. Local upload limits accept a source-only ZIP of this repository. The user requested direct web deployment on 2026-09-27 without visual review; push and hosted verification are now underway.
 
 ## Active work
 
-- Root session, started 2026-09-26: local React/coaching verification is complete and the user approved deployment; committing selected files and checking Render. Preserve unrelated screenshots and `react-migration-plan.md`.
+- Root session, 2026-09-27: deploying the adaptive four-panelist release and larger ZIP limits to Render from private `main`, then verifying hosted health, assets, and room flow. Files: selected feature code, tests, docs, new review screenshots, and this log. Preserve unrelated local screenshots and draft plan.
+- Root session, 2026-09-27: preparing the adaptive four-panelist checkpoint for user review, then deployment after approval. Files: Python defense/generation/server/fallback and tests, React scene/components and tests, README, AGENTS, PROJECT_LOG, and new four-panel review screenshots. Preserve unrelated screenshots and `react-migration-plan.md`.
 
 ## Pending verification and next step
 
-- The built React app passed a mocked two-browser walkthrough through FastAPI, and the user approved the combined screen for deployment.
-- After approval, deploy to Render and run a live coaching walkthrough. Physical separate-device confirmation remains pending. Keep more panelists out of this checkpoint.
+- The user requested direct deployment, superseding the earlier review-before-push step. Push the selected changes, verify Render and a fresh room, and report visual review as unconfirmed. Deployment clears in-memory rooms.
+- Physical separate-device confirmation remains separate from two-browser local verification.
 
 ## Change entry template
 
@@ -153,3 +153,51 @@ Append new entries to the **end** of this file in date order:
 - Changed: the user reviewed the local preview/screenshots and approved committing and deploying the React/coaching room.
 - Verification: approval was explicitly received in the review prompt; hosted verification has not yet happened.
 - Remaining: push the selected code and docs, verify the Render deployment, then run a fresh live coaching defense.
+
+### 2026-09-27 — React coaching deployment smoke check
+
+- Session: root.
+- Files: commit `a1bd90c` (selected React/coaching code, tests, lockfile, and docs); `PROJECT_LOG.md` updated locally after deployment. Older screenshots and draft migration plan remain local and were not included in the commit.
+- Changed: pushed the approved build to private `main`; Render now serves its new React JavaScript and CSS asset hashes.
+- Verification: hosted `/health`, React HTML, and both new assets returned HTTP 200. Headless desktop and phone-landscape browsers rendered the Phaser canvas and cited mock preview with no page errors or horizontal overflow; portrait showed the rotate prompt. The landscape question area stayed readable and drawer keyboard focus, Tab, Escape, and focus restoration passed. The React asset hashes matched the local build. This was a mock preview, not a live AI walkthrough.
+- Remaining: run one fresh live four-answer defense and confirm both clients receive coaching grounded in the actual answers. Physical separate-device confirmation remains separate. Keep this post-deploy log local until it can be recorded without an unnecessary Render redeploy.
+
+### 2026-09-27 — Hosted live React coaching walkthrough
+
+- Session: root, with the user hosting a fresh Render room.
+- Files: `PROJECT_LOG.md` and new `screenshots/hosted-react-*.png` review captures, kept local to avoid another redeploy. No application code changed.
+- Changed: completed the four-question defense on the deployed React release and confirmed the shared coaching report after the fourth answer.
+- Verification: two browser clients joined the user-hosted room and saw all four real AI questions and synchronized answers. The Technical Architect and Security Reviewer follow-ups referred to their earlier answers; each question citation matched the exact uploaded `sample_project/queue.py` line. Answers covered `BEGIN IMMEDIATE`, staff role checks, bounded lock retries, and an opaque reservation code. One walkthrough harness assertion incorrectly expected `4 / 4 answered` after the last answer, but the app correctly switched directly to `COMPLETE`. Rejoining through the remaining seat in two browser windows confirmed the four saved answers, identical ready coaching text, and report recovery after reload. The report cited Q1, Q2, Q3, and Q4 and specifically discussed those answers, including the distinction between proposed protections and the current prototype. No page errors were recorded. The two report-check windows shared the same authenticated seat; this was a browser-client check, not a physical second-device check.
+- Remaining: physical separate-device confirmation, if desired. User visual approval was received before deployment. No further feature work is in this checkpoint. Keep this post-deploy log local to avoid an unnecessary Render redeploy.
+
+### 2026-09-27 — Adaptive four-panelist local checkpoint
+
+- Session: root.
+- Files: `question_generator.py`, `defense_session.py`, `game_server.py`, `app.py`, related Python tests, React room components/scene/preview and related tests, `README.md`, `AGENTS.md`, `PROJECT_LOG.md`, and new `screenshots/four-panel-*.png` review images. Unrelated local screenshots and `react-migration-plan.md` were preserved.
+- Changed: filled the outer panel seats with Product Judge and Critical Judge. Technical Architect, Security Reviewer, Product Judge, and Critical Judge each ask an opening question in order. After each first answer, structured AI output may choose one immediate source-grounded follow-up or advance. The server rejects skipped roles, early completion, invalid citations, and extra follow-ups while retaining the saved answer for host retry. The shared coaching report validates references against the actual four-to-eight-answer transcript. React and Streamlit display variable-turn progress; Streamlit remains a fallback.
+- Verification: 59 Python tests, 42 frontend tests, and a Vite build passed. Two mocked two-browser FastAPI defenses completed four and eight answers, including exact source-line checks, synchronized questions and answers, reconnect, transcript, shared coaching, and a forced generation failure with host retry. Headless desktop and phone-landscape previews rendered four occupied panel seats; portrait showed the rotation prompt. No browser page errors or paid API calls. New local screenshots capture the screen and both completion lengths.
+- Remaining: user visual review of the local checkpoint before any push. After approval, deploy and run a fresh live hosted room with real AI, checking both new judges and citations. Physical second-device confirmation remains separate.
+
+### 2026-09-27 — Larger local source ZIP upload
+
+- Session: root.
+- Files: `project_files.py`, `game_server.py`, `question_generator.py`, `test_project_files.py`, `test_question_generator.py`, `README.md`, `.gitignore`, and `PROJECT_LOG.md`. Local ignored artifact: `ai-defense-arena-source.zip`.
+- Changed: raised upload limits to 100 UTF-8 source files, 200 KB per file, 600 KB total text, and 25 MB compressed ZIP; raised the room request limit accordingly and kept the question generator's analysis limit aligned. Prepared a source-only ZIP from tracked project files, excluding dependencies, build outputs, hidden files, and binary assets.
+- Verification: the local ZIP contains 53 accepted files and 415,285 text bytes, compresses to 120,274 bytes, and passes upload validation. All 60 Python tests pass. After restarting the local mock server, an HTTP room creation using that exact ZIP returned 201, and a browser upload reached the room controls with no page errors. No API calls or Render deployment were made.
+- Remaining: user can try the local ZIP. The adaptive panelist screen still awaits user review before pushing; live AI handling of this larger project is untested.
+
+### 2026-09-27 — Real local defense launch clarified
+
+- Session: root.
+- Files: `run_local.sh`, `README.md`, `game/src/components/QuestionCard.tsx`, `PROJECT_LOG.md`. Temporary mock servers on ports 8770 and 8771 were stopped; no production question prompts were replaced with canned text.
+- Changed: added a local launcher that builds the current React app, securely prompts for the user's own API key and a local host passcode when absent, and starts the normal FastAPI server on port 8000. The question card now says that submitting an answer triggers the next question. Documented that the prior port-8770 test harness used prewritten questions and never analyzed uploads with AI. The normal server continues to use OpenAI for the first question and adaptive next moves.
+- Verification: shell syntax passed, 42 frontend tests and React build passed. The launcher started the normal service with temporary placeholder credentials for a startup-only check; `/health` returned 200, then that process was stopped. No live API call was made, because no local key is configured in this environment. The ignored source-only ZIP was refreshed with the current launcher: 54 accepted files, 419,121 text bytes, and 121,888 compressed bytes.
+- Remaining: user must run `./run_local.sh` in their terminal and enter their key privately to see real AI questions. The adaptive four-panelist checkpoint still awaits visual review before deployment.
+
+### 2026-09-27 — Direct deployment requested
+
+- Session: root, with user direction.
+- Files: `AGENTS.md`, `PROJECT_LOG.md`.
+- Changed: the user asked to deploy the adaptive four-panelist build directly to the web, overriding the earlier plan to wait for visual review before pushing. The user also clarified that actual defense questions must be generated by AI, not prewritten; the temporary local mock servers were stopped. Static preview fixtures remain marked as mock and are outside live defenses.
+- Verification: the direct deployment request was explicit. Push and hosted verification follow this entry; visual approval and live AI validation are not inferred.
+- Remaining: commit and push selected files, check Render, then test a fresh live room.

@@ -53,8 +53,27 @@ describe("QuestionCard", () => {
       <QuestionCard roomState={state} connected={true} previewMode={false} onOpenDrawer={vi.fn()} />,
     );
     expect(screen.getByText("Why use SQLite?")).toBeTruthy();
+    expect(screen.getByText("QUESTION 1")).toBeTruthy();
     expect(screen.getByText(/queue\.py:5/)).toBeTruthy();
     expect(screen.getByText("DATABASE = 'queue.db'")).toBeTruthy();
+  });
+
+  it("shows a later adaptive question number without a fixed denominator", () => {
+    const answered = Array.from({ length: 6 }, (_, i) => ({
+      panelist: "Product Judge", question: `Q${i + 1}`,
+      filename: "README.md", evidence_line: 2, evidence_text: "users", answer: `A${i + 1}`,
+      answered_by: "Alex",
+    }));
+    const state: RoomState = {
+      ...base,
+      phase: "question",
+      turns: [...answered, { panelist: "Critical Judge", question: "What supports that claim?",
+        filename: "README.md", evidence_line: 2, evidence_text: "users", answer: null,
+        answered_by: null }],
+    };
+    render(<QuestionCard roomState={state} connected={true} previewMode={false} onOpenDrawer={vi.fn()} />);
+    expect(screen.getByText("QUESTION 7")).toBeTruthy();
+    expect(screen.getByText("Critical Judge")).toBeTruthy();
   });
 
   it("hides source block when phase is lobby", () => {

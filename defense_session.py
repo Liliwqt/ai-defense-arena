@@ -1,4 +1,4 @@
-"""State transitions for a four-answer practice defense."""
+"""State transitions for a four-panel adaptive practice defense."""
 
 from dataclasses import dataclass, field
 from typing import MutableMapping
@@ -6,20 +6,17 @@ from typing import MutableMapping
 from project_files import ProjectFile
 from question_generator import (
     AnsweredQuestion,
+    CRITICAL_JUDGE,
     DEFAULT_MODEL,
     GroundedQuestion,
+    PanelMove,
+    PRODUCT_JUDGE,
     SECURITY_REVIEWER,
     TECHNICAL_ARCHITECT,
-    generate_panel_question,
+    generate_next_move,
 )
 
-
-PANELIST_ORDER = (
-    TECHNICAL_ARCHITECT,
-    SECURITY_REVIEWER,
-    TECHNICAL_ARCHITECT,
-    SECURITY_REVIEWER,
-)
+PANELIST_ORDER = (TECHNICAL_ARCHITECT, SECURITY_REVIEWER, PRODUCT_JUDGE, CRITICAL_JUDGE)
 MAX_ANSWER_CHARS = 4_000
 
 
@@ -33,6 +30,7 @@ class DefenseTurn:
 @dataclass
 class DefenseSession:
     turns: list[DefenseTurn] = field(default_factory=list)
+    finished: bool = False
 
     @classmethod
     def start(cls, first_question: GroundedQuestion) -> "DefenseSession":
@@ -40,25 +38,36 @@ class DefenseSession:
 
     @property
     def completed(self) -> bool:
-        return len(self.turns) == len(PANELIST_ORDER) and self.turns[-1].answer is not None
+        return self.finished and bool(self.turns) and self.turns[-1].answer is not None
 
     @property
     def needs_question(self) -> bool:
-        return (
-            bool(self.turns)
-            and len(self.turns) < len(PANELIST_ORDER)
-            and self.turns[-1].answer is not None
-        )
+        return bool(self.turns) and self.turns[-1].answer is not None and not self.finished
 
     @property
     def awaiting_answer(self) -> bool:
         return bool(self.turns) and self.turns[-1].answer is None
 
     @property
+    def allowed_next_panelists(self) -> tuple[str, ...]:
+        if not self.needs_question:
+            return ()
+        current = self.turns[-1].panelist
+        index = PANELIST_ORDER.index(current)
+        count = sum(turn.panelist == current for turn in self.turns)
+        allowed = (current,) if count == 1 else ()
+        if index + 1 < len(PANELIST_ORDER):
+            allowed += (PANELIST_ORDER[index + 1],)
+        return allowed
+
+    @property
     def pending_panelist(self) -> str | None:
-        if self.needs_question:
-            return PANELIST_ORDER[len(self.turns)]
-        return None
+        allowed = self.allowed_next_panelists
+        return allowed[0] if len(allowed) == 1 else None
+
+    @property
+    def may_complete(self) -> bool:
+        return self.needs_question and self.turns[-1].panelist == PANELIST_ORDER[-1]
 
     def answered_history(self) -> list[AnsweredQuestion]:
         return [
@@ -76,12 +85,21 @@ class DefenseSession:
         if len(answer) > MAX_ANSWER_CHARS:
             raise ValueError(f"Keep your answer under {MAX_ANSWER_CHARS:,} characters.")
         self.turns[-1].answer = answer
+        last = PANELIST_ORDER[-1]
+        if self.turns[-1].panelist == last and sum(t.panelist == last for t in self.turns) == 2:
+            self.finished = True
 
-    def add_question(self, question: GroundedQuestion) -> None:
-        panelist = self.pending_panelist
-        if panelist is None:
-            raise ValueError("There is no pending panel question.")
-        self.turns.append(DefenseTurn(panelist, question))
+    def apply_move(self, move: PanelMove) -> None:
+        if not self.needs_question:
+            raise ValueError("There is no pending panel move.")
+        if move.panelist is None and move.question is None:
+            if not self.may_complete:
+                raise ValueError("All four panelists must speak before completion.")
+            self.finished = True
+            return
+        if move.panelist not in self.allowed_next_panelists or move.question is None:
+            raise ValueError("The next panelist is not allowed.")
+        self.turns.append(DefenseTurn(move.panelist, move.question))
 
 
 def advance_defense(
@@ -90,22 +108,21 @@ def advance_defense(
     api_key: str | None,
     model: str = DEFAULT_MODEL,
     client=None,
-) -> GroundedQuestion:
-    """Generate exactly the pending turn; leave state untouched if the API fails."""
-    panelist = session.pending_panelist
-    if panelist is None:
-        raise ValueError("There is no pending panel question.")
-    question = generate_panel_question(
+) -> PanelMove:
+    """Generate one allowed move; leave the saved answer untouched on failure."""
+    if not session.needs_question:
+        raise ValueError("There is no pending panel move.")
+    move = generate_next_move(
         project_files,
         api_key,
-        panelist=panelist,
         history=session.answered_history(),
-        follow_up=len(session.turns) >= 2,
+        allowed_panelists=session.allowed_next_panelists,
+        may_complete=session.may_complete,
         model=model,
         client=client,
     )
-    session.add_question(question)
-    return question
+    session.apply_move(move)
+    return move
 
 
 def sync_project_session(state: MutableMapping, fingerprint: str | None) -> None:

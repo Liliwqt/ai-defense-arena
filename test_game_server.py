@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from openai import OpenAIError
 
 import game_server
-from question_generator import CoachingReport, GroundedQuestion
+from question_generator import CoachingReport, GroundedQuestion, PanelMove
 
 
 class GameServerTests(unittest.TestCase):
@@ -32,6 +32,10 @@ class GameServerTests(unittest.TestCase):
                 ("How would you restrict access to this result?", 33),
             ]
         ]
+        self.short_moves = [
+            PanelMove(role, question)
+            for role, question in zip(game_server.PANELIST_ORDER[1:], self.questions[1:])
+        ] + [PanelMove(None, None)]
 
     def create_room(self):
         response = self.client.post(
@@ -99,7 +103,7 @@ class GameServerTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode", "OPENAI_API_KEY": "test-key"}),
             patch("game_server.generate_first_question", return_value=self.questions[0]) as first_call,
-            patch("game_server.generate_panel_question", side_effect=self.questions[1:]) as later_calls,
+            patch("game_server.generate_next_move", side_effect=self.short_moves) as later_calls,
         ):
             host = self.create_room()
             guest = self.join_room(host["room_code"])
@@ -139,8 +143,49 @@ class GameServerTests(unittest.TestCase):
                             state = self.receive_phase(observer, phase)
                             self.assertEqual(state["turns"][turn]["answer"], answer)
                     self.assertEqual(len(state["turns"]), 4)
-                    self.assertEqual(later_calls.call_count, 3)
+                    self.assertEqual(later_calls.call_count, 4)
                     self.assertEqual([turn["panelist"] for turn in state["turns"]], list(game_server.PANELIST_ORDER))
+                finally:
+                    guest_socket.__exit__(None, None, None)
+            finally:
+                host_socket.__exit__(None, None, None)
+
+    def test_eight_turn_defense_allows_one_followup_per_role_then_coaches(self):
+        lines = Path("sample_project/queue.py").read_text().splitlines()
+        role_sequence = [role for role in game_server.PANELIST_ORDER for _ in range(2)]
+        questions = [GroundedQuestion(f"Question {i + 1}?", "queue.py", line, lines[line - 1])
+                     for i, line in enumerate((5, 8, 9, 33, 5, 8, 9, 33))]
+        moves = [PanelMove(role, question) for role, question in zip(role_sequence[1:], questions[1:])]
+        report = CoachingReport("Eight answers reviewed.",
+                                [{"turn": 7, "text": "Strong final answer."}],
+                                [{"turn": 0, "text": "Clarify the first answer."}],
+                                "Review both tradeoffs.")
+        with (
+            patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode", "OPENAI_API_KEY": "test-key"}),
+            patch("game_server.generate_first_question", return_value=questions[0]),
+            patch("game_server.generate_next_move", side_effect=moves) as next_call,
+            patch("game_server.generate_coaching_report", return_value=report) as coaching_call,
+        ):
+            host = self.create_room()
+            guest = self.join_room(host["room_code"])
+            host_socket, _ = self.connect(host["room_code"], host["player_token"])
+            try:
+                guest_socket, _ = self.connect(guest["room_code"], guest["player_token"])
+                try:
+                    host_socket.send_json({"type": "start"})
+                    for socket in (host_socket, guest_socket):
+                        self.receive_phase(socket, "question")
+                    for index in range(8):
+                        sender = guest_socket if index % 2 == 0 else host_socket
+                        sender.send_json({"type": "submit_answer", "turn": index,
+                                          "answer": f"Answer {index + 1}"})
+                        for socket in (host_socket, guest_socket):
+                            state = self.receive_phase(socket, "complete" if index == 7 else "question")
+                            self.assertEqual(state["turns"][index]["answer"], f"Answer {index + 1}")
+                    self.assertEqual([turn["panelist"] for turn in state["turns"]], role_sequence)
+                    self.assertEqual(len(state["turns"]), 8)
+                    self.assertEqual(next_call.call_count, 7)
+                    self.assertEqual(coaching_call.call_count, 1)
                 finally:
                     guest_socket.__exit__(None, None, None)
             finally:
@@ -150,7 +195,7 @@ class GameServerTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode", "OPENAI_API_KEY": "test-key"}),
             patch("game_server.generate_first_question", return_value=self.questions[0]),
-            patch("game_server.generate_panel_question", side_effect=[OpenAIError("temporary outage"), self.questions[1]]),
+            patch("game_server.generate_next_move", side_effect=[OpenAIError("temporary outage"), self.short_moves[0]]),
         ):
             host = self.create_room()
             guest = self.join_room(host["room_code"])
@@ -217,7 +262,7 @@ class GameServerTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode", "OPENAI_API_KEY": "test-key"}),
             patch("game_server.generate_first_question", return_value=self.questions[0]),
-            patch("game_server.generate_panel_question", side_effect=self.questions[1:]),
+            patch("game_server.generate_next_move", side_effect=self.short_moves),
             patch("game_server.generate_coaching_report", return_value=mock_report) as coaching_call,
         ):
             host = self.create_room()
@@ -250,7 +295,7 @@ class GameServerTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode", "OPENAI_API_KEY": "test-key"}),
             patch("game_server.generate_first_question", return_value=self.questions[0]),
-            patch("game_server.generate_panel_question", side_effect=self.questions[1:]),
+            patch("game_server.generate_next_move", side_effect=self.short_moves),
             patch("game_server.generate_coaching_report",
                   side_effect=[OpenAIError("coaching timeout"), mock_report]) as coaching_call,
         ):
@@ -310,7 +355,7 @@ class GameServerTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode", "OPENAI_API_KEY": "test-key"}),
             patch("game_server.generate_first_question", return_value=self.questions[0]),
-            patch("game_server.generate_panel_question", side_effect=self.questions[1:] + self.questions[1:]),
+            patch("game_server.generate_next_move", side_effect=self.short_moves * 2),
             patch("game_server.generate_coaching_report", return_value=mock_report) as coaching_call,
         ):
             host = self.create_room()
@@ -349,7 +394,7 @@ class GameServerTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode", "OPENAI_API_KEY": "test-key"}),
             patch("game_server.generate_first_question", return_value=self.questions[0]),
-            patch("game_server.generate_panel_question", side_effect=self.questions[1:]),
+            patch("game_server.generate_next_move", side_effect=self.short_moves),
             patch("game_server.generate_coaching_report", return_value=mock_report),
         ):
             host = self.create_room()

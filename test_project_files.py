@@ -58,29 +58,39 @@ class ProjectFileTests(unittest.TestCase):
     def test_oversized_source_rejects_whole_zip(self):
         archive = project_zip({
             "README.md": b"# Queue\n",
-            "src/large.py": b"x" * 100_001,
+            "src/large.py": b"x" * 200_001,
         })
         files, errors = read_project_files([Upload("project.zip", archive)])
         self.assertEqual(files, [])
-        self.assertIn("100 KB", errors[0])
+        self.assertIn("200 KB", errors[0])
 
     def test_total_text_limit_rejects_whole_zip(self):
         archive = project_zip({
-            f"src/module_{number}.py": b"x" * 80_000
+            f"src/module_{number}.py": b"x" * 160_000
             for number in range(4)
         })
         files, errors = read_project_files([Upload("project.zip", archive)])
         self.assertEqual(files, [])
-        self.assertIn("300 KB", errors[0])
+        self.assertIn("600 KB", errors[0])
+
+    def test_larger_source_zip_is_accepted(self):
+        archive = project_zip({
+            "project/game/package-lock.json": b"{" + b"x" * 140_000 + b"}",
+            **{f"project/src/module_{number}.py": b"x" * 95_000 for number in range(4)},
+        })
+        files, errors = read_project_files([Upload("project.zip", archive)])
+        self.assertEqual(errors, [])
+        self.assertEqual(len(files), 5)
+        self.assertGreater(sum(len(file.content) for file in files), 300_000)
 
     def test_too_many_source_files_rejects_whole_zip(self):
         archive = project_zip({
             f"src/module_{number}.py": b"pass\n"
-            for number in range(61)
+            for number in range(101)
         })
         files, errors = read_project_files([Upload("project.zip", archive)])
         self.assertEqual(files, [])
-        self.assertIn("60", errors[0])
+        self.assertIn("100", errors[0])
 
     def test_unsafe_paths_are_ignored(self):
         archive = project_zip({

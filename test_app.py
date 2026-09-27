@@ -8,7 +8,7 @@ from unittest.mock import patch
 from openai import OpenAIError
 from streamlit.testing.v1 import AppTest
 
-from question_generator import GroundedQuestion
+from question_generator import GroundedQuestion, PanelMove
 
 
 class DefenseAppTests(unittest.TestCase):
@@ -23,15 +23,19 @@ class DefenseAppTests(unittest.TestCase):
         questions = [
             question("Why use a local SQLite database?", 5),
             question("How are reservations protected?", 8),
-            question("What happens with concurrent requests?", 9),
-            question("How would you protect the student name returned here?", 33),
+            question("How does this help students?", 9),
+            question("What assumption needs proof?", 33),
         ]
         with (
             patch.dict(os.environ, {"OPENAI_API_KEY": "offline-test-key"}),
             patch("question_generator.generate_first_question", return_value=questions[0]),
             patch(
-                "defense_session.generate_panel_question",
-                side_effect=[OpenAIError("temporary failure"), *questions[1:]],
+                "defense_session.generate_next_move",
+                side_effect=[OpenAIError("temporary failure"),
+                             PanelMove("Security Reviewer", questions[1]),
+                             PanelMove("Product Judge", questions[2]),
+                             PanelMove("Critical Judge", questions[3]),
+                             PanelMove(None, None)],
             ),
         ):
             app = AppTest.from_file("app.py").run()
@@ -67,12 +71,13 @@ class DefenseAppTests(unittest.TestCase):
                 [question.evidence_text for question in questions],
             )
             self.assertTrue(any("Defense complete" in item.value for item in app.success))
-            self.assertTrue(any("follow-up" in item.value for item in app.markdown))
+            self.assertTrue(any("Product Judge" in item.value for item in app.markdown))
+            self.assertTrue(any("Critical Judge" in item.value for item in app.markdown))
 
             next(button for button in app.button if button.label == "Start new defense").click().run()
             self.assertEqual(len(app.session_state["defense_session"].turns), 1)
             self.assertIsNone(app.session_state["defense_session"].turns[0].answer)
-            self.assertTrue(any("Progress: 0 of 4" in item.value for item in app.caption))
+            self.assertTrue(any("Progress: 0 answered" in item.value for item in app.caption))
 
             app.file_uploader[0].set_value(
                 [("queue.py", b"def changed():\n    pass\n", "text/x-python")]

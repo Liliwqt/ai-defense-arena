@@ -13,17 +13,17 @@ export const previewState: RoomState = {
   ],
   turns: [
     {
-      panelist: "Technical Architect",
+      panelist: "Product Judge",
       question:
-        "Why does reserve() open a new SQLite connection for every reservation, and how will that choice behave when several students reserve at once?",
-      filename: "sample_project/queue.py",
-      evidence_line: 9,
-      evidence_text: "    with sqlite3.connect(DATABASE) as connection:",
+        "How will you learn whether reserving before walking to the counter saves students time?",
+      filename: "sample_project/README.md",
+      evidence_line: 2,
+      evidence_text: "Campus Queue lets students reserve a place in a registrar office queue before",
       answer: null,
       answered_by: null,
     },
   ],
-  active_panelist: "Technical Architect",
+  active_panelist: "Product Judge",
   error: null,
   revision: 1,
   files: ["sample_project/README.md", "sample_project/queue.py"],

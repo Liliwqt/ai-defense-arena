@@ -39,20 +39,20 @@ function deriveContent(state: RoomState | null, isHost: boolean) {
   } else if (phase === "generating") {
     name = state?.active_panelist ?? "The panel";
     question = "Preparing the next question…";
-    number = `QUESTION ${Math.min(answered + 1, 4)} OF 4`;
+    number = `QUESTION ${answered + 1}`;
     status = "Your team will see the same question when it is ready.";
   } else if (phase === "question" && current) {
     name = current.turn.panelist;
     question = current.turn.question;
-    number = `QUESTION ${current.index + 1} OF 4`;
+    number = `QUESTION ${current.index + 1}`;
     source = `${current.turn.filename}:${current.turn.evidence_line}`;
     evidence = current.turn.evidence_text;
-    status = "Any teammate can answer; the first valid submission counts.";
+    status = "Submit an answer to hear the next question. Any teammate can answer; the first valid submission counts.";
     showAnswerBtn = true;
   } else if (phase === "retry") {
     name = state?.active_panelist ?? "The panel";
     question = "The next question could not be generated.";
-    number = `QUESTION ${Math.min(answered + 1, 4)} OF 4`;
+    number = `QUESTION ${answered + 1}`;
     status =
       state?.error ??
       (isHost ? "Open Controls to retry." : "The host can retry.");
@@ -61,13 +61,13 @@ function deriveContent(state: RoomState | null, isHost: boolean) {
       name = "Preparing coaching report";
       question =
         "Your team's coaching report is being prepared. It will appear in the Transcript.";
-      number = "4 OF 4";
+      number = `${answered} ANSWERED`;
       status = "This may take a few seconds.";
     } else if (feedbackStatus === "failed") {
       name = "Defense complete";
       question =
-        "All four questions have been answered. The coaching report could not be generated.";
-      number = "4 OF 4";
+        "All panel questions have been answered. The coaching report could not be generated.";
+      number = `${answered} ANSWERED`;
       status =
         state?.error ??
         (isHost
@@ -76,8 +76,8 @@ function deriveContent(state: RoomState | null, isHost: boolean) {
     } else {
       name = "Defense complete";
       question =
-        "All four questions have been answered. Open Transcript to review your coaching report.";
-      number = "4 OF 4";
+        "All panel questions have been answered. Open Transcript to review your coaching report.";
+      number = `${answered} ANSWERED`;
       status =
         "The complete transcript and coaching report remain in this room until the server restarts.";
     }

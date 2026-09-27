@@ -9,7 +9,6 @@ from pydantic import ValidationError
 
 from defense_session import (
     MAX_ANSWER_CHARS,
-    PANELIST_ORDER,
     DefenseSession,
     advance_defense,
     sync_project_session,
@@ -119,11 +118,11 @@ if uploads:
 
         if session:
             answered_count = sum(turn.answer is not None for turn in session.turns)
-            st.caption(f"Progress: {answered_count} of {len(PANELIST_ORDER)} answers")
+            st.caption(f"Progress: {answered_count} answered · four panelists · up to eight questions")
             for number, turn in enumerate(session.turns, start=1):
-                turn_label = " (follow-up)" if number > 2 else ""
+                turn_label = " (follow-up)" if number > 1 and session.turns[number - 2].panelist == turn.panelist else ""
                 st.markdown(
-                    f"**{turn.panelist} · Question {number} of {len(PANELIST_ORDER)}{turn_label}**"
+                    f"**{turn.panelist} · Question {number}{turn_label}**"
                 )
                 st.write(turn.question.question)
                 st.caption(
@@ -135,7 +134,7 @@ if uploads:
                     st.write(turn.answer)
 
             if session.completed:
-                st.success("Defense complete. Review your four answers above.")
+                st.success(f"Defense complete. Review your {answered_count} answers above.")
             elif session.needs_question:
                 st.info("Your answer is saved. Retry generating the next question.")
                 if st.button("Retry next question", disabled=not bool(api_key)):
