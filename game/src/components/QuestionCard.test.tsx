@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { QuestionCard } from "./QuestionCard";
 import type { RoomState } from "../types";
@@ -21,14 +21,14 @@ const base: RoomState = {
 describe("QuestionCard", () => {
   it("shows default state when roomState is null", () => {
     render(
-      <QuestionCard roomState={null} connected={false} previewMode={false} onOpenDrawer={vi.fn()} />,
+      <QuestionCard roomState={null} />,
     );
     expect(screen.getByText("Your defense begins here")).toBeTruthy();
   });
 
   it("shows lobby text for lobby phase", () => {
     render(
-      <QuestionCard roomState={base} connected={true} previewMode={false} onOpenDrawer={vi.fn()} />,
+      <QuestionCard roomState={base} />,
     );
     expect(screen.getByText("Your team is gathering")).toBeTruthy();
   });
@@ -50,11 +50,12 @@ describe("QuestionCard", () => {
       ],
     };
     render(
-      <QuestionCard roomState={state} connected={true} previewMode={false} onOpenDrawer={vi.fn()} />,
+      <QuestionCard roomState={state} />,
     );
     expect(screen.getByText("Why use SQLite?")).toBeTruthy();
     expect(screen.getByText("QUESTION 1")).toBeTruthy();
-    expect(screen.getByText(/queue\.py:5/)).toBeTruthy();
+    expect(screen.getByText("queue.py")).toBeTruthy();
+    expect(screen.getByText("Line 5")).toBeTruthy();
     expect(screen.getByText("DATABASE = 'queue.db'")).toBeTruthy();
   });
 
@@ -71,14 +72,23 @@ describe("QuestionCard", () => {
         filename: "README.md", evidence_line: 2, evidence_text: "users", answer: null,
         answered_by: null }],
     };
-    render(<QuestionCard roomState={state} connected={true} previewMode={false} onOpenDrawer={vi.fn()} />);
+    render(<QuestionCard roomState={state} />);
     expect(screen.getByText("QUESTION 7")).toBeTruthy();
     expect(screen.getByText("Critical Judge")).toBeTruthy();
   });
 
+  it("preserves the exact cited line in a code element", () => {
+    const line = "    rooms: dict[str, Room] = {}  ";
+    const state: RoomState = { ...base, phase: "question", turns: [{ panelist: "Technical Architect", question: "What is the tradeoff?", filename: "game_server.py", evidence_line: 127, evidence_text: line, answer: null, answered_by: null }] };
+    const { container } = render(<QuestionCard roomState={state} />);
+    expect(screen.getByText("game_server.py")).toBeTruthy();
+    expect(screen.getByText("Line 127")).toBeTruthy();
+    expect(container.querySelector("#source-block pre code")?.textContent).toBe(line);
+  });
+
   it("hides source block when phase is lobby", () => {
     render(
-      <QuestionCard roomState={base} connected={true} previewMode={false} onOpenDrawer={vi.fn()} />,
+      <QuestionCard roomState={base} />,
     );
     expect(screen.queryByLabelText("Exact cited source line")).toBeNull();
   });
@@ -90,7 +100,7 @@ describe("QuestionCard", () => {
       feedback_status: "generating",
     };
     render(
-      <QuestionCard roomState={state} connected={true} previewMode={false} onOpenDrawer={vi.fn()} />,
+      <QuestionCard roomState={state} />,
     );
     expect(screen.getByText("Preparing coaching report")).toBeTruthy();
   });
@@ -103,10 +113,10 @@ describe("QuestionCard", () => {
       error: "OpenAI timed out.",
     };
     render(
-      <QuestionCard roomState={state} connected={true} previewMode={false} onOpenDrawer={vi.fn()} />,
+      <QuestionCard roomState={state} />,
     );
     expect(screen.getByText("Defense complete")).toBeTruthy();
-    expect(screen.getByText("OpenAI timed out.")).toBeTruthy();
+    expect(screen.getByText(/OpenAI timed out/)).toBeTruthy();
   });
 
   it("shows ready coaching text when feedback_status is ready", () => {
@@ -116,7 +126,7 @@ describe("QuestionCard", () => {
       feedback_status: "ready",
     };
     render(
-      <QuestionCard roomState={state} connected={true} previewMode={false} onOpenDrawer={vi.fn()} />,
+      <QuestionCard roomState={state} />,
     );
     expect(screen.getAllByText(/coaching report/i).length).toBeGreaterThanOrEqual(1);
   });

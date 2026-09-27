@@ -5,12 +5,11 @@ interface DrawerProps {
   open: boolean;
   mode: DrawerMode;
   title: string;
-  focusAnswer?: boolean;
   onClose: () => void;
   children: React.ReactNode;
 }
 
-export function Drawer({ open, mode: _mode, title, focusAnswer = false, onClose, children }: DrawerProps) {
+export function Drawer({ open, mode: _mode, title, onClose, children }: DrawerProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
@@ -23,17 +22,13 @@ export function Drawer({ open, mode: _mode, title, focusAnswer = false, onClose,
         returnFocusRef.current = document.activeElement as HTMLElement | null;
         wasOpenRef.current = true;
       }
-      if (focusAnswer) {
-        drawerRef.current?.querySelector<HTMLTextAreaElement>('textarea[name="answer"]')?.focus();
-      } else {
-        closeButtonRef.current?.focus();
-      }
+      closeButtonRef.current?.focus();
     } else if (wasOpenRef.current) {
       wasOpenRef.current = false;
       if (returnFocusRef.current?.isConnected) returnFocusRef.current.focus();
       returnFocusRef.current = null;
     }
-  }, [open, focusAnswer, _mode]);
+  }, [open, _mode]);
 
   // Escape key + Tab trap
   useEffect(() => {

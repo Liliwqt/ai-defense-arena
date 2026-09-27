@@ -24,6 +24,7 @@ export function HUD({ roomState, roomCode, previewMode, onOpenDrawer }: HUDProps
 
   return (
     <header
+      id="arena-hud"
       className="absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-4 min-h-[74px] px-[clamp(14px,2.3vw,30px)] py-3"
       style={{
         background: "linear-gradient(#081729ed, #0817299c 72%, transparent)",
@@ -31,7 +32,7 @@ export function HUD({ roomState, roomCode, previewMode, onOpenDrawer }: HUDProps
     >
       <div className="min-w-0">
         <p
-          className="text-[#85acd4] text-[0.68rem] font-black tracking-[0.16em] mb-1"
+          className="hud-kicker text-[#85acd4] text-[0.68rem] font-black tracking-[0.16em] mb-1"
           aria-hidden="true"
         >
           PROJECT DEFENSE SIMULATOR

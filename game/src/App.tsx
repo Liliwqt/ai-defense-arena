@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AnswerComposer } from "./components/AnswerComposer";
 import { ControlsPanel } from "./components/ControlsPanel";
 import { Drawer } from "./components/Drawer";
 import { HUD } from "./components/HUD";
@@ -19,6 +20,7 @@ export function App() {
     connected,
     roomCode,
     waitingForAnswerAck,
+    actionError,
     sendEvent,
     useRoom,
     leaveRoom,
@@ -26,7 +28,6 @@ export function App() {
 
   const [drawerOpen, setDrawerOpen] = useState(previewMode ? false : true);
   const [drawerMode, setDrawerMode] = useState<DrawerMode>("controls");
-  const [focusAnswer, setFocusAnswer] = useState(false);
   const [message, setMessage] = useState("");
 
   // In preview mode, use the static preview state; otherwise live state
@@ -65,15 +66,13 @@ export function App() {
     prevFeedbackRef.current = feedbackStatus;
   }, [roomState]);
 
-  const openDrawer = useCallback((mode: DrawerMode, shouldFocusAnswer = false) => {
+  const openDrawer = useCallback((mode: DrawerMode) => {
     setDrawerMode(mode);
-    setFocusAnswer(shouldFocusAnswer);
     setDrawerOpen(true);
   }, []);
 
   const closeDrawer = useCallback(() => {
     setDrawerOpen(false);
-    setFocusAnswer(false);
   }, []);
 
   const showMessage = useCallback((msg: string) => {
@@ -121,14 +120,16 @@ export function App() {
           previewMode={previewMode}
           onOpenDrawer={openDrawer}
         />
+        <QuestionCard roomState={roomState} />
       </div>
 
-      {/* Docked question card */}
-      <QuestionCard
+      <AnswerComposer
         roomState={roomState}
         connected={connected}
         previewMode={previewMode}
-        onOpenDrawer={openDrawer}
+        waitingForAnswerAck={waitingForAnswerAck}
+        actionError={actionError}
+        onSendEvent={sendEvent}
       />
 
       {/* Slide-in drawer */}
@@ -136,7 +137,6 @@ export function App() {
         open={drawerOpen}
         mode={drawerMode}
         title={drawerTitle}
-        focusAnswer={focusAnswer}
         onClose={closeDrawer}
       >
         {drawerMode === "controls" ? (
@@ -145,7 +145,6 @@ export function App() {
               roomState={previewMode ? roomState : liveRoomState}
               connected={connected}
               previewMode={previewMode}
-              waitingForAnswerAck={waitingForAnswerAck}
               onUseRoom={handleUseRoom}
               onLeaveRoom={handleLeaveRoom}
               onSendEvent={sendEvent}
@@ -169,15 +168,6 @@ export function App() {
       {/* Portrait rotation prompt */}
       <RotatePrompt />
 
-      {/* Preview mode banner */}
-      {previewMode && (
-        <div
-          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 px-3 py-[6px] border border-[#a47a34] rounded-full bg-[#78521e] text-[#fff3ce] text-[0.68rem] font-black whitespace-nowrap"
-          aria-live="polite"
-        >
-          Mock preview · no AI call
-        </div>
-      )}
     </div>
   );
 }

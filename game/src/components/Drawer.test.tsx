@@ -44,19 +44,19 @@ describe("Drawer", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("focuses the answer field and returns focus to the opener on close", () => {
+  it("focuses Close and returns focus to the opener when dismissed", () => {
     const opener = document.createElement("button");
     document.body.append(opener);
     opener.focus();
     const { rerender } = render(
-      <Drawer open={true} mode="controls" title="Controls" focusAnswer onClose={vi.fn()}>
-        <textarea name="answer" />
+      <Drawer open={true} mode="controls" title="Controls" onClose={vi.fn()}>
+        <p>controls</p>
       </Drawer>,
     );
-    expect(document.activeElement).toBe(screen.getByRole("textbox"));
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: /close panel/i }));
     rerender(
       <Drawer open={false} mode="controls" title="Controls" onClose={vi.fn()}>
-        <textarea name="answer" />
+        <p>controls</p>
       </Drawer>,
     );
     expect(document.activeElement).toBe(opener);

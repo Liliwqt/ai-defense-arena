@@ -29,8 +29,7 @@ export class DefenseScene extends Phaser.Scene {
   private background!: Phaser.GameObjects.Graphics;
   private panelSeats!: Seat[];
   private defenderSeats!: DefenderSeat[];
-  private cue!: Phaser.GameObjects.Graphics;
-  private cueText!: Phaser.GameObjects.Text;
+  private speakerDot!: Phaser.GameObjects.Arc;
   private currentState: RoomState | null = null;
 
   constructor() {
@@ -77,15 +76,7 @@ export class DefenseScene extends Phaser.Scene {
         })
         .setOrigin(0.5),
     }));
-    this.cue = this.add.graphics();
-    this.cueText = this.add
-      .text(0, 0, "", {
-        fontFamily: "Arial, sans-serif",
-        color: "#16324b",
-        fontStyle: "bold",
-        align: "center",
-      })
-      .setOrigin(0.5);
+    this.speakerDot = this.add.circle(0, 0, 6, 0xffd26d).setVisible(false);
     this.scale.on("resize", this.layout, this);
     this.layout();
     this.renderState(this.currentState);
@@ -120,14 +111,14 @@ export class DefenseScene extends Phaser.Scene {
     if (!this.panelSeats) return;
     const width = this.scale.width;
     const height = this.scale.height;
-    const compact = height < 320;
+    const compact = height < 480;
     const radius = compact
-      ? Phaser.Math.Clamp(height * 0.085, 17, 28)
-      : Phaser.Math.Clamp(height * 0.095, 24, 63);
+      ? Phaser.Math.Clamp(height * 0.08, 17, 26)
+      : Phaser.Math.Clamp(height * 0.075, 24, 58);
     const panelY = compact
-      ? Math.max(66, height * 0.31)
-      : Math.max(130, height * 0.24);
-    const defenderY = compact ? height - 53 : height * 0.73;
+      ? Math.max(62, height * 0.25)
+      : Math.max(105, height * 0.18);
+    const defenderY = compact ? height - 52 : Math.min(height - 78, height * 0.84);
     const labelSize = compact ? "10px" : "15px";
     const labelWidth = width * 0.22;
     this.background.clear();
@@ -179,83 +170,20 @@ export class DefenseScene extends Phaser.Scene {
         .setFontSize(labelSize)
         .setWordWrapWidth(labelWidth);
     }
-    this.cueText.setFontSize(compact ? "12px" : "20px");
-    this.renderCue(this.currentState);
+    this.renderSpeaker(this.currentState);
   }
 
-  private renderCue(state: RoomState | null) {
-    const height = this.scale.height;
-    const width = this.scale.width;
-    const compact = height < 320;
-    const panelY = compact
-      ? Math.max(66, height * 0.31)
-      : Math.max(130, height * 0.24);
-    const defenderY = compact ? height - 53 : height * 0.73;
-    const cueY = compact ? panelY : (panelY + defenderY) / 2;
-    const cueWidth = compact ? Math.min(width * 0.18, 160) : Math.min(width * 0.48, 530);
-    const cueHeight = compact ? 28 : 68;
-    const activeName =
-      state?.active_panelist ?? findCurrentTurn(state)?.turn.panelist;
+  private renderSpeaker(state: RoomState | null) {
+    const activeName = state?.active_panelist ?? findCurrentTurn(state)?.turn.panelist;
     const activeIndex = PANEL_NAMES.findIndex((name) => name === activeName);
-    let cue = "Create or join a room";
-    if (state?.phase === "lobby") cue = "Your team is gathering";
-    else if (state?.phase === "generating")
-      cue = `${activeName ?? "The panel"} is preparing a question`;
-    else if (state?.phase === "question")
-      cue = `${activeName ?? "The panel"} is asking`;
-    else if (state?.phase === "retry") cue = "Question paused · host can retry";
-    else if (state?.phase === "complete") {
-      const fs = state.feedback_status;
-      if (fs === "generating") cue = "Preparing coaching report";
-      else if (fs === "failed") cue = "Coaching report failed";
-      else cue = "Defense complete";
+    const show = activeIndex >= 0 && state?.phase !== "complete";
+    this.panelSeats.forEach((seat, index) => seat.glow.setVisible(show && index === activeIndex));
+    this.speakerDot.setVisible(show);
+    if (show) {
+      const seat = this.panelSeats[activeIndex];
+      const radius = seat.ring.radius;
+      this.speakerDot.setPosition(seat.ring.x + radius * 0.72, seat.ring.y - radius * 0.72);
     }
-    this.cue.clear();
-    this.cue
-      .fillStyle(0xe7f4ff, 1)
-      .fillRoundedRect(
-        width / 2 - cueWidth / 2,
-        cueY - cueHeight / 2,
-        cueWidth,
-        cueHeight,
-        compact ? 9 : 15,
-      );
-    this.cue
-      .lineStyle(2, 0x8fc8e9, 1)
-      .strokeRoundedRect(
-        width / 2 - cueWidth / 2,
-        cueY - cueHeight / 2,
-        cueWidth,
-        cueHeight,
-        compact ? 9 : 15,
-      );
-    if (activeIndex >= 0 && !compact && state?.phase !== "complete") {
-      const x = width * (0.14 + activeIndex * 0.24);
-      this.cue
-        .fillStyle(0xe7f4ff, 1)
-        .fillTriangle(
-          x - 11,
-          cueY - cueHeight / 2 + 1,
-          x + 11,
-          cueY - cueHeight / 2 + 1,
-          x,
-          cueY - cueHeight / 2 - 12,
-        );
-    }
-    const compactCue = state?.phase === "question" ? "Asking" :
-      state?.phase === "generating" ? "Preparing" :
-      state?.phase === "retry" ? "Retry" :
-      state?.phase === "complete" ? "Complete" :
-      state?.phase === "lobby" ? "Waiting" : "Join a room";
-    this.cueText
-      .setPosition(width / 2, cueY)
-      .setWordWrapWidth(cueWidth - 20)
-      .setText(compact ? compactCue : cue);
-    this.panelSeats.forEach((seat, index) =>
-      seat.glow.setVisible(
-        index === activeIndex && state?.phase !== "complete",
-      ),
-    );
   }
 
   renderState(state: RoomState | null) {
@@ -273,6 +201,6 @@ export class DefenseScene extends Phaser.Scene {
       );
       seat.label.setColor(player ? "#cdeeff" : "#91a6bd");
     }
-    this.renderCue(state);
+    this.renderSpeaker(state);
   }
 }

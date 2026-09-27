@@ -5,7 +5,6 @@ interface ControlsPanelProps {
   roomState: RoomState | null;
   connected: boolean;
   previewMode: boolean;
-  waitingForAnswerAck: boolean;
   onUseRoom: (code: string, token: string, host: boolean) => void;
   onLeaveRoom: () => void;
   onSendEvent: (payload: Record<string, unknown>) => boolean;
@@ -36,7 +35,6 @@ export function ControlsPanel({
   roomState,
   connected,
   previewMode,
-  waitingForAnswerAck,
   onUseRoom,
   onLeaveRoom,
   onSendEvent,
@@ -52,17 +50,6 @@ export function ControlsPanel({
   const feedbackStatus = roomState?.feedback_status ?? "none";
   const isHost = roomState?.self_is_host ?? false;
   const roomCode = roomState?.room_code ?? null;
-
-  // find current unanswered turn
-  const turns = roomState?.turns ?? [];
-  let currentTurnIndex = -1;
-  for (let i = turns.length - 1; i >= 0; i--) {
-    if (turns[i].question && !turns[i].answer) {
-      currentTurnIndex = i;
-      break;
-    }
-  }
-  const hasCurrent = currentTurnIndex >= 0;
 
   async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -294,45 +281,6 @@ export function ControlsPanel({
                 </button>
               )}
             </div>
-          )}
-
-          {/* Answer form */}
-          {!previewMode && phase === "question" && hasCurrent && (
-            <form
-              id="answer-form"
-              className="grid gap-[15px]"
-              onSubmit={(e) => {
-                e.preventDefault();
-                const textarea = e.currentTarget.elements.namedItem("answer") as HTMLTextAreaElement;
-                const answer = textarea.value.trim();
-                if (!answer) { showMessage("Write an answer before submitting."); return; }
-                if (onSendEvent({ type: "submit_answer", turn: currentTurnIndex, answer })) {
-                  // waitingForAnswerAck will be set by the hook; clear field on ack
-                }
-              }}
-            >
-              <label className="grid gap-[7px] text-[#d5e4f3] text-[0.84rem] font-bold">
-                Your answer
-                <textarea
-                  name="answer"
-                  rows={5}
-                  maxLength={4000}
-                  required
-                  placeholder="Explain your team's design choice…"
-                  className={`${inputClass} resize-y min-h-[115px]`}
-                />
-              </label>
-              <button
-                type="submit"
-                disabled={!connected || waitingForAnswerAck}
-                className={primaryBtn}
-              >
-                Submit answer
-              </button>
-              <p className="text-[0.78rem] leading-[1.45] text-[#9eb5ca] m-0">
-                Any teammate can answer. The first valid answer received by the server counts.
-              </p>
-            </form>
           )}
 
           {waitText && (

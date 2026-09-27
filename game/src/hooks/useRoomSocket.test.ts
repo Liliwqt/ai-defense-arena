@@ -122,6 +122,38 @@ describe("useRoomSocket", () => {
     expect(allSockets.length).toBe(2);
   });
 
+  it("keeps an answer pending until its turn changes and surfaces server errors", async () => {
+    const { result } = renderHook(() => useRoomSocket(false));
+    act(() => result.current.useRoom("ABCD12", "tok", false));
+    await vi.waitFor(() => allSockets.length > 0);
+    act(() => allSockets[0].emit("open", {}));
+    act(() => { expect(result.current.sendEvent({ type: "submit_answer", turn: 0, answer: "Plan" })).toBe(true); });
+    expect(result.current.waitingForAnswerAck).toBe(true);
+    const question = { room_code: "ABCD12", phase: "question", turns: [{ question: "Why?", answer: null }] };
+    act(() => allSockets[0].emit("message", { data: JSON.stringify({ type: "snapshot", state: question }) }));
+    expect(result.current.waitingForAnswerAck).toBe(true);
+    act(() => allSockets[0].emit("message", { data: JSON.stringify({ type: "error", message: "That question has already been answered." }) }));
+    expect(result.current.waitingForAnswerAck).toBe(false);
+    expect(result.current.actionError).toMatch(/already been answered/);
+    act(() => { expect(result.current.sendEvent({ type: "submit_answer", turn: 0, answer: "Plan" })).toBe(true); });
+    act(() => allSockets[0].emit("message", { data: JSON.stringify({ type: "snapshot", state: { ...question, phase: "generating", turns: [{ question: "Why?", answer: "Plan" }] } }) }));
+    expect(result.current.waitingForAnswerAck).toBe(false);
+    expect(result.current.actionError).toBeNull();
+  });
+
+  it("allows retry with the same draft when WebSocket send throws", async () => {
+    const { result } = renderHook(() => useRoomSocket(false));
+    act(() => result.current.useRoom("ABCD12", "tok", false));
+    await vi.waitFor(() => allSockets.length > 0);
+    act(() => allSockets[0].emit("open", {}));
+    const send = vi.spyOn(allSockets[0], "send");
+    send.mockImplementationOnce(() => { throw new Error("socket write failed"); });
+    act(() => { expect(result.current.sendEvent({ type: "submit_answer", turn: 0, answer: "Plan" })).toBe(false); });
+    expect(result.current.waitingForAnswerAck).toBe(false);
+    act(() => { expect(result.current.sendEvent({ type: "submit_answer", turn: 0, answer: "Plan" })).toBe(true); });
+    expect(result.current.waitingForAnswerAck).toBe(true);
+  });
+
   it("sendEvent returns false when socket is not open", () => {
     const { result } = renderHook(() => useRoomSocket(false));
     const sent = result.current.sendEvent({ type: "start" });

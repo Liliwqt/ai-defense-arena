@@ -21,7 +21,6 @@ const baseState: RoomState = {
 const defaultProps = {
   connected: true,
   previewMode: false,
-  waitingForAnswerAck: false,
   onUseRoom: vi.fn(),
   onLeaveRoom: vi.fn(),
   onSendEvent: vi.fn(() => true),
@@ -45,6 +44,16 @@ describe("ControlsPanel", () => {
     const state: RoomState = { ...baseState, self_is_host: false };
     render(<ControlsPanel {...defaultProps} roomState={state} />);
     expect(screen.queryByRole("button", { name: /start defense/i })).toBeNull();
+  });
+
+  it("keeps answer entry out of the Controls drawer", () => {
+    const state: RoomState = {
+      ...baseState,
+      phase: "question",
+      turns: [{ panelist: "Technical Architect", question: "Why?", filename: "app.py", evidence_line: 1, evidence_text: "x", answer: null, answered_by: null }],
+    };
+    render(<ControlsPanel {...defaultProps} roomState={state} />);
+    expect(screen.queryByRole("textbox", { name: /your answer/i })).toBeNull();
   });
 
   it("host sees Retry question button in retry phase", () => {
