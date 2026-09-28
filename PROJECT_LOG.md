@@ -4,6 +4,7 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Current status
 
+- A host passcode gate for room creation only is pushed to `origin/feature/question-first-room` in commit `61b4c15`. The configured local value remains in Git-ignored `.env`, absent from source and room snapshots. Render still requires `GAME_HOST_PASSCODE` to be set separately; hosted deployment and verification are pending. `main` is unchanged.
 - Scenario-based panelist prompt guidance is pushed to `origin/feature/question-first-room` in commit `37f9a11`; no hosted or live-AI verification has been completed for this update. Opening and later questions can test a source-grounded rule, workflow, design choice, or research plan through one clearly hypothetical condition; the model must not claim the imagined outcome happened. Offline tests passed; live question quality remains unverified.
 - The flat grayscale React room redesign is pushed to `origin/feature/question-first-room` and verified offline; it replaces the active 3D canvas with panelist/question/defender rows and a fixed Vote/Answer and Team Chat dock. Preview: `http://127.0.0.1:8771/?preview=1` while the local server runs. Desktop, landscape, long-question, vote, chat, setup, transcript, coaching, and portrait review screenshots are in `screenshots/flat-*.png`. User visual review is pending; no production deployment was made.
 - Same-turn clarification requests are included in `origin/feature/question-first-room`; the selected defender can ask for a repeat, simpler wording, or an example up to twice per question. The original cited turn stays open, the answer clock pauses for AI interpretation, and failed interpretations retain the submission for retry or explicit use as an answer. Local review preview: `http://127.0.0.1:8771/?preview=1&research=1&clarify=1` while that server runs. This has not been deployed.
@@ -441,3 +442,19 @@ Append new entries to the **end** of this file in date order:
 - Changed: pushed the source-grounded hypothetical question guidance to `origin/feature/question-first-room`. No change was pushed to `main`.
 - Verification: `37f9a11` is on the remote feature branch. The prior local checks passed 88 Python tests, then 45 focused tests after a wording refinement, plus Python compilation and `git diff --check`. No live OpenAI response or hosted room has been checked for this prompt change.
 - Remaining: assess question quality in a live defense. If a Render preview service tracks the feature branch, its deployment status still needs checking; the production main service was not targeted. Unrelated local changes and deletions remain untouched.
+
+### 2026-09-28 — Host-only room creation passcode, local checkpoint
+
+- Session: root.
+- Files: `game_server.py`, `game/src/components/ControlsPanel.tsx` and its test, `test_game_server.py`, `test_research_defense.py`, `run_local.sh`, `render.yaml`, `README.md`, Git-ignored local `.env`, and this log.
+- Changed: room creation now requires a server-configured `GAME_HOST_PASSCODE` and matching host input. A missing server value fails closed; wrong or missing input is rejected. The host field is password-masked and not persisted in browser room state. Joining remains room-code-only per user choice. The local launcher reads the ignored local setting without executing `.env` and otherwise prompts privately; Render config declares an unset secret variable. No passcode value was committed or logged.
+- Verification: 88 offline Python tests and 84 React tests passed; the production frontend build, shell and Python syntax, and `git diff --check` passed. A local API check with the configured value returned 403 for incorrect input and 201 for correct input; the value did not appear in the room snapshot. The local `.env` is Git-ignored with owner-only permissions. No paid AI calls or hosted verification were made.
+- Remaining: set `GAME_HOST_PASSCODE` in the relevant Render service environment and deploy this branch before hosted room creation is protected. Main currently retains its prior behavior. The user-selected six-digit value is a basic access barrier; a longer random passphrase would resist guessing better. Preserve unrelated local files and deletions.
+
+### 2026-09-28 — Host passcode branch push
+
+- Session: root.
+- Files: commit `61b4c15` contains `game_server.py`, `game/src/components/ControlsPanel.tsx` and its test, `test_game_server.py`, `test_research_defense.py`, `run_local.sh`, `render.yaml`, and `README.md`; this log update follows separately.
+- Changed: pushed the host-only room creation passcode gate to `origin/feature/question-first-room`. The actual passcode remains only in the ignored local `.env`; `main` was not changed.
+- Verification: an isolated archive of `61b4c15` passed 88 Python tests, 84 React tests, and the Vite production build. `git diff --cached --check` passed and the configured value was absent from the staged patch. No hosted or live AI check was made.
+- Remaining: set `GAME_HOST_PASSCODE` in the relevant Render service environment and verify that branch's deployment with a fresh room. Production `main` remains on its existing behavior. Unrelated local files and deletions were preserved.
