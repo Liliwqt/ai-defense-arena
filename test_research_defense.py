@@ -107,6 +107,8 @@ class ResearchFilesTests(unittest.TestCase):
         self.assertEqual(question.evidence_location, 'Page 1 · extracted line 1')
         self.assertEqual(question.evidence_text, 'Planned student interviews')
         self.assertIn('planned methods', first_client.request['input'][0]['content'])
+        self.assertIn('research plan has a meaningful edge case', first_client.request['input'][0]['content'])
+        self.assertIn('never assert that the event occurred', first_client.request['input'][0]['content'])
         self.assertIn('app.py', first_client.request['input'][1]['content'])
         self.assertIn('paper.pdf', first_client.request['input'][1]['content'])
         with self.assertRaisesRegex(QuestionGenerationError, 'invalid project file'):

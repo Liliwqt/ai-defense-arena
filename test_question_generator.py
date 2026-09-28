@@ -67,6 +67,10 @@ class QuestionGeneratorTests(unittest.TestCase):
         self.assertIn("FILE 2: src/queue.py", prompt)
         self.assertIn("2: DATABASE = 'queue.db'", prompt)
         self.assertIn("Eligible citation file IDs: [2]", prompt)
+        instructions = client.request["input"][0]["content"]
+        self.assertIn("what-if scene", instructions)
+        self.assertIn("cited line must support the project's premise, not the imagined outcome", instructions)
+        self.assertIn("If no grounded scenario fits, ask directly instead", instructions)
 
     def test_panelist_reaction_is_bounded_to_two_short_sentences(self):
         too_long = QuestionDraft(lead_in="x" * 301, question="Why SQLite?", source_file=2, evidence_line=2)
@@ -167,6 +171,9 @@ class AdaptiveMoveTests(unittest.TestCase):
         self.assertIn("user value", system_prompt)
         self.assertIn("Match the latest substantive answer's language", system_prompt)
         self.assertIn("Avoid automatic praise", system_prompt)
+        self.assertIn("what-if scene", system_prompt)
+        self.assertIn("When an actual answer exists", system_prompt)
+        self.assertIn("Use one main question", system_prompt)
         self.assertIn('"lead_in": "You said access is limited."',
                       client.request["input"][1]["content"])
 

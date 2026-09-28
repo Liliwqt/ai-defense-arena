@@ -280,6 +280,20 @@ FILIPINO_MARKERS = {
 }
 
 
+SCENARIO_GUIDANCE = (
+    "When a cited project rule, workflow, design choice, or research plan has a meaningful edge case, "
+    "prefer a short, realistic what-if scene over an abstract question. Show one person or system "
+    "taking an action or one condition changing, then ask what would happen next, why, or how the team "
+    "would respond. The cited line must support the project's premise, not the imagined outcome. "
+    "Make the changed condition clearly hypothetical; never assert that the event occurred or that "
+    "a particular consequence is proven. Do not invent actual features, vulnerabilities, "
+    "participant groups, study results, metrics, or policies. If no grounded scenario fits, "
+    "ask directly instead. "
+    "Use one main question and vary the form across turns. When an actual answer exists, a scenario "
+    "may test one assumption in that answer without attributing the hypothetical to the defender."
+)
+
+
 def _language_guidance(history: Sequence[AnsweredQuestion]) -> str:
     previous = history[-1]
     answer = (previous.answer or "").strip()
@@ -413,6 +427,7 @@ def generate_panel_question(
                     f"You are the {panelist} conducting a practice project defense. "
                     "Read across all supplied project files. Ask exactly one concise question. "
                     f"{voice} {focus} {turn_instruction} {research_guidance} "
+                    f"{SCENARIO_GUIDANCE} "
                     "Return lead_in as an empty string for the first question because no defender has answered yet. "
                     "Cite one non-empty numbered line that directly supports the question. "
                     "Follow the eligible citation file IDs; Product and Critical may cite documentation. "
@@ -483,6 +498,7 @@ def generate_next_move(
                 f"Allowed question panelists: {list(allowed)}. "
                 f"Completion allowed: {may_complete}. "
                 f"{role_guidance} {_research_guidance(defense_type, research_stage)} "
+                f"{SCENARIO_GUIDANCE} "
                 "If the previous panelist is allowed, ask that panelist's one follow-up only when "
                 "a substantial gap, contradiction, or unsupported claim remains. A complete answer should move "
                 "the defense to the next role. Clarification requests and panelist explanations are context, not answers; "
