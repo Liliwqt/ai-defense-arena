@@ -20,6 +20,24 @@ if [[ -z "$OPENAI_API_KEY" ]]; then
   printf 'An OpenAI API key is required.\n' >&2
   exit 1
 fi
+if [[ -z "${GAME_HOST_PASSCODE:-}" && -f .env ]]; then
+  while IFS= read -r env_line; do
+    if [[ "$env_line" == GAME_HOST_PASSCODE=* ]]; then
+      GAME_HOST_PASSCODE="${env_line#GAME_HOST_PASSCODE=}"
+      export GAME_HOST_PASSCODE
+      break
+    fi
+  done < .env
+fi
+if [[ -z "${GAME_HOST_PASSCODE:-}" ]]; then
+  read -r -s -p 'Room host passcode (input hidden): ' GAME_HOST_PASSCODE
+  printf '\n'
+  export GAME_HOST_PASSCODE
+fi
+if [[ -z "$GAME_HOST_PASSCODE" ]]; then
+  printf 'A room host passcode is required.\n' >&2
+  exit 1
+fi
 
 printf 'Real AI room ready at http://127.0.0.1:8000/\n'
 exec .venv/bin/uvicorn game_server:app --host 127.0.0.1 --port 8000

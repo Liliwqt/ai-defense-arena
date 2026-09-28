@@ -183,6 +183,10 @@ export function ControlsPanel({
                 <input name="host_name" maxLength={24} autoComplete="name" required placeholder="Your name" className={inputClass} />
               </label>
               <label className="setup-label">
+                Host passcode
+                <input name="host_passcode" type="password" autoComplete="off" required placeholder="Enter the host passcode" className={inputClass} />
+              </label>
+              <label className="setup-label">
                 Defense type
                 <select name="defense_type" value={defenseType} onChange={(event) => setDefenseType(event.target.value as typeof defenseType)} className={inputClass}>
                   <option value="code">Code project</option>

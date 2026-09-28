@@ -553,11 +553,17 @@ async def health() -> dict[str, str]:
 @app.post("/api/rooms", status_code=201)
 async def create_room(
     host_name: str = Form(...),
+    host_passcode: str = Form(""),
     files: list[UploadFile] | None = File(None),
     research_files: list[UploadFile] | None = File(None),
     defense_type: str = Form("code"),
     research_stage: str = Form("infer"),
 ) -> dict[str, str]:
+    expected_passcode = os.getenv("GAME_HOST_PASSCODE") or ""
+    if not expected_passcode:
+        raise HTTPException(503, "Room access is not configured on this server.")
+    if not secrets.compare_digest(host_passcode, expected_passcode):
+        raise HTTPException(403, "Invalid host passcode.")
     name = _player_name(host_name)
     if defense_type not in {"code", "research", "mixed"} or research_stage not in {"infer", "proposal", "completed"}:
         raise HTTPException(422, "Choose a valid defense type and research stage.")

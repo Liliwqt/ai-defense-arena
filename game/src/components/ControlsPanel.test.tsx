@@ -40,7 +40,9 @@ describe("ControlsPanel", () => {
     render(<ControlsPanel {...defaultProps} roomState={null} connected={false} />);
     expect(screen.getByRole("tab", { name: /create room/i })).toBeTruthy();
     expect(screen.getByRole("tab", { name: /join room/i })).toBeTruthy();
-    expect(screen.queryByLabelText(/host passcode/i)).toBeNull();
+    const passcode = screen.getByLabelText("Host passcode") as HTMLInputElement;
+    expect(passcode.type).toBe("password");
+    expect(passcode.required).toBe(true);
   });
 
   it("moves between setup tabs with the arrow keys", () => {

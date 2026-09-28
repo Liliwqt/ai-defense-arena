@@ -8,7 +8,7 @@ For work across agents or session windows, read [AGENTS.md](AGENTS.md) and [PROJ
 
 ## Run the multiplayer game locally
 
-For real AI questions, run `./run_local.sh` in a terminal after installing the Python dependencies below. It builds the current React app, prompts privately for your API key, and starts FastAPI at <http://127.0.0.1:8000/>. The key stays in that terminal process and is not saved in the repository. The `?preview=1` pages use mock room state for layout review and make no AI call. Ordinary rooms use the configured API key.
+For real AI questions, run `./run_local.sh` in a terminal after installing the Python dependencies below. It builds the current React app, prompts privately for your API key and host passcode, and starts FastAPI at <http://127.0.0.1:8000/>. The key stays in that terminal process and is not saved in the repository. The launcher reads `GAME_HOST_PASSCODE` from the environment or the Git-ignored local `.env` file and prompts privately if neither is set. The `?preview=1` pages use mock room state for layout review and make no AI call. Ordinary rooms use the configured API key.
 
 Questions arrive one at a time: the first panelist for the selected defense type starts, and an answer or timeout triggers the next question or a follow-up. All four judges speak at least once, so a defense has four to eight resolved turns. After the first question, each panelist can briefly react to a specific point in the latest answer before asking one focused question. The four roles use distinct professional, friendly voices and can match the language of a substantive answer, including Taglish. When a source claim has a meaningful edge case, panelists can pose a short, source-grounded what-if situation and ask what would happen; the imagined outcome is not presented as a project fact.
 
@@ -20,7 +20,7 @@ python3 -m venv .venv
 ./run_local.sh
 ```
 
-Open <http://127.0.0.1:8000>. The setup drawer opens automatically: the host enters a display name, selects **Code project**, **Research paper**, or **Research + code**, and uploads the required materials. Project sources accept individual text files or a ZIP; research documents accept text-based PDF, DOCX, TXT, and Markdown files directly. The host shares the room code. Teammates join from the same service URL. The host starts the defense from **Controls**.
+Open <http://127.0.0.1:8000>. The setup drawer opens automatically: the host enters a display name and host passcode, selects **Code project**, **Research paper**, or **Research + code**, and uploads the required materials. Project sources accept individual text files or a ZIP; research documents accept text-based PDF, DOCX, TXT, and Markdown files directly. The host shares the room code. Teammates join from the same service URL. The host starts the defense from **Controls**.
 
 Research and mixed defenses use Methodology Reviewer, Ethics Reviewer, Impact Reviewer, and Critical Reviewer. The host can mark a paper as a proposal or completed study, or let the AI infer its stage. Methodology questions cover the study design and feasibility; ethics questions address participants and research integrity; impact questions concern practical value; critical questions challenge assumptions and evidence. Mixed defenses can connect claims in the paper to the implementation. The panel cites extracted document text with its PDF page and extracted line or DOCX paragraph/table location. The excerpt is exact extracted text, not a claim that its interpretation is proven. The 4–8-question structure and one optional follow-up per reviewer also apply to research defenses. Use <http://127.0.0.1:8000/?preview=1&research=1> to inspect the local research room without an AI call.
 
@@ -34,9 +34,9 @@ For teammates on other devices, use the deployed HTTPS URL. The browser selects 
 
 ## Deploy to Render
 
-`render.yaml` describes one Free Python web service with one worker, a health check, a frontend build (`npm ci && npm run build`), and prompts for `OPENAI_API_KEY`. From a **private** GitHub repository, create a Render Blueprint or configure one Web Service with the same build and start commands. Set the API key in Render's dashboard; never commit it. If needed, add `OPENAI_MODEL` in the dashboard. Check `/health`, open the service URL on two devices, and create a fresh room shortly before the demo. The service serves the game, HTTP API, and WebSocket from one origin.
+`render.yaml` describes one Free Python web service with one worker, a health check, a frontend build (`npm ci && npm run build`), and prompts for `OPENAI_API_KEY` and `GAME_HOST_PASSCODE`. From a **private** GitHub repository, create a Render Blueprint or configure one Web Service with the same build and start commands. Set both values in Render's dashboard; never commit either one. A manually created preview service needs its own environment variables. If needed, add `OPENAI_MODEL` in the dashboard. Check `/health`, open the service URL on two devices, and create a fresh room shortly before the demo. The service serves the game, HTTP API, and WebSocket from one origin.
 
-Anyone with the public service URL can now create a room without a passcode. Starting a defense uses the server's OpenAI API key, so monitor API usage during the demo.
+Creating a room requires the server-side `GAME_HOST_PASSCODE`; when it is unset, room creation fails closed. The passcode is entered only by the host and is not stored in the browser or repository. Teammates can join using the room code without the host passcode. The page itself remains public, so keep room codes private and monitor API usage during the demo.
 
 Rooms are in memory. A Render restart, redeploy, or Free-instance idle spin-down erases active rooms; connected browsers will need a new room code after that. Keep only one worker and one instance for this prototype.
 

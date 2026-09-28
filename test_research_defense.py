@@ -1,6 +1,7 @@
 """Offline research extraction, grounded questions, and room protocol checks."""
 
 from io import BytesIO
+import os
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -12,6 +13,9 @@ from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
 import game_server
 from defense_session import DefenseSession
+
+
+TEST_HOST_PASSCODE = "test-room-passcode"
 from project_files import ProjectFile
 from question_generator import (
     AnsweredQuestion, CRITICAL_JUDGE, ETHICS_REVIEWER, IMPACT_REVIEWER,
@@ -163,13 +167,16 @@ class ResearchFilesTests(unittest.TestCase):
 class ResearchRoomTests(unittest.TestCase):
     def setUp(self):
         game_server.rooms.clear()
+        passcode_patch = patch.dict(os.environ, {"GAME_HOST_PASSCODE": TEST_HOST_PASSCODE})
+        passcode_patch.start()
+        self.addCleanup(passcode_patch.stop)
         self.client = TestClient(game_server.app)
         self.client.__enter__()
         self.addCleanup(lambda: self.client.__exit__(None, None, None))
 
     def test_research_room_creation_snapshot_and_mixed_requirements(self):
         response = self.client.post('/api/rooms', data={
-            'host_name': 'Alex', 'defense_type': 'research', 'research_stage': 'proposal',
+            'host_name': 'Alex', 'host_passcode': TEST_HOST_PASSCODE, 'defense_type': 'research', 'research_stage': 'proposal',
         }, files=[('research_files', ('paper.pdf', pdf_bytes('Planned pilot'), 'application/pdf'))])
         self.assertEqual(response.status_code, 201, response.text)
         host = response.json()
@@ -186,13 +193,16 @@ class ResearchRoomTests(unittest.TestCase):
             self.assertEqual(joined['defense_type'], 'research')
             self.assertEqual(joined['accepted_files'], snapshot['accepted_files'])
             self.assertEqual(joined['players'][0]['name'], 'Alex')
-        invalid = self.client.post('/api/rooms', data={'host_name': 'Alex', 'defense_type': 'mixed'},
+        invalid = self.client.post('/api/rooms', data={'host_name': 'Alex', 'host_passcode': TEST_HOST_PASSCODE, 'defense_type': 'mixed'},
             files=[('research_files', ('paper.md', b'Proposal', 'text/markdown'))])
         self.assertEqual(invalid.status_code, 422)
 
 class ResearchTwoClientTests(unittest.TestCase):
     def setUp(self):
         game_server.rooms.clear()
+        passcode_patch = patch.dict(os.environ, {"GAME_HOST_PASSCODE": TEST_HOST_PASSCODE})
+        passcode_patch.start()
+        self.addCleanup(passcode_patch.stop)
         self.now = 1_000_000
         clock = patch.object(game_server, '_now_ms', side_effect=lambda: self.now)
         clock.start()
@@ -223,7 +233,7 @@ class ResearchTwoClientTests(unittest.TestCase):
             with self.subTest(followups=followups):
                 game_server.rooms.clear()
                 response = self.client.post('/api/rooms', data={
-                    'host_name': 'Alex', 'defense_type': 'research', 'research_stage': 'proposal',
+                    'host_name': 'Alex', 'host_passcode': TEST_HOST_PASSCODE, 'defense_type': 'research', 'research_stage': 'proposal',
                 }, files=[('research_files', ('paper.pdf', pdf_bytes('Planned student interviews'), 'application/pdf'))])
                 self.assertEqual(response.status_code, 201, response.text)
                 host = response.json()
@@ -283,7 +293,7 @@ class ResearchTwoClientTests(unittest.TestCase):
     def test_research_generation_retry_keeps_answer_and_reconnect(self):
         from question_generator import GroundedQuestion
         response = self.client.post('/api/rooms', data={
-            'host_name': 'Alex', 'defense_type': 'mixed', 'research_stage': 'infer',
+            'host_name': 'Alex', 'host_passcode': TEST_HOST_PASSCODE, 'defense_type': 'mixed', 'research_stage': 'infer',
         }, files=[
             ('files', ('app.py', b'USE_PILOT = True\n', 'text/x-python')),
             ('research_files', ('study.md', b'Pilot interviews are planned.\n', 'text/markdown')),
