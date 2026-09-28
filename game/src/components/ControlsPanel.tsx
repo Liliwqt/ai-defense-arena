@@ -44,6 +44,7 @@ export function ControlsPanel({
   const [activeTab, setActiveTab] = useState<"create" | "join">("create");
   const [createBusy, setCreateBusy] = useState(false);
   const [joinBusy, setJoinBusy] = useState(false);
+  const [defenseType, setDefenseType] = useState<"code" | "research" | "mixed">("code");
 
   const inRoom = roomState !== null || !!connected;
   const phase = roomState?.phase ?? "none";
@@ -178,11 +179,31 @@ export function ControlsPanel({
                 <input name="host_name" maxLength={24} autoComplete="name" required placeholder="Your name" className={inputClass} />
               </label>
               <label className="grid gap-[7px] text-[#d5e4f3] text-[0.84rem] font-bold">
-                Project files or ZIP
-                <input name="files" type="file" multiple required className={`${inputClass} text-[0.77rem] leading-tight`} />
+                Defense type
+                <select name="defense_type" value={defenseType} onChange={(event) => setDefenseType(event.target.value as typeof defenseType)} className={inputClass}>
+                  <option value="code">Code project</option>
+                  <option value="research">Research paper</option>
+                  <option value="mixed">Research + code</option>
+                </select>
               </label>
+              {defenseType !== "code" && <label className="grid gap-[7px] text-[#d5e4f3] text-[0.84rem] font-bold">
+                Research stage
+                <select name="research_stage" defaultValue="infer" className={inputClass}>
+                  <option value="infer">Let AI infer</option>
+                  <option value="proposal">Proposal</option>
+                  <option value="completed">Completed study</option>
+                </select>
+              </label>}
+              {defenseType !== "research" && <label className="grid gap-[7px] text-[#d5e4f3] text-[0.84rem] font-bold">
+                Project source files or ZIP
+                <input name="files" type="file" multiple required accept=".zip,.md,.txt,.py,.js,.jsx,.ts,.tsx,.json,.html,.css,.java,.go,.rs,.sql,.yaml,.yml,.toml,.sh,.c,.cpp,.h,.hpp,.kt,.swift,.rb,.php,.vue,.svelte" className={`${inputClass} text-[0.77rem] leading-tight`} />
+              </label>}
+              {defenseType !== "code" && <label className="grid gap-[7px] text-[#d5e4f3] text-[0.84rem] font-bold">
+                Research documents
+                <input name="research_files" type="file" multiple required accept=".pdf,.docx,.txt,.md" className={`${inputClass} text-[0.77rem] leading-tight`} />
+              </label>}
               <p className="text-[0.78rem] leading-[1.45] text-[#9eb5ca] m-0">
-                Select source files together, or one ZIP.
+                Research papers: text-based PDF, DOCX, TXT, or Markdown. PDF pages must contain readable text.
               </p>
               <button type="submit" disabled={createBusy} className={primaryBtn}>
                 {createBusy ? "Creating…" : "Create defense room"}
@@ -227,6 +248,12 @@ export function ControlsPanel({
             </span>
           </div>
 
+          {roomState?.phase === "lobby" && roomState.accepted_files && (
+            <div className="text-[0.78rem] text-[#d5e4f3]" aria-label="Accepted files">
+              <strong>Accepted files · {roomState.defense_type === "code" ? "Code project" : roomState.defense_type === "mixed" ? "Research + code" : "Research paper"}</strong>
+              <ul className="mt-2 pl-5">{roomState.accepted_files.map((file) => <li key={file.name}>{file.name}{file.detail ? ` · ${file.detail}` : ""}</li>)}</ul>
+            </div>
+          )}
           <p className="text-[0.8rem] text-[#8ed4f3] m-0">
             {connected ? "Connected · team state is live" : "Disconnected · reconnecting…"}
           </p>

@@ -12,6 +12,8 @@ interface CardContent {
   filename?: string;
   line?: number;
   evidence?: string;
+  location?: string;
+  kind?: string;
   reviewStatus?: string;
   previousAnswer?: string;
 }
@@ -22,6 +24,8 @@ function sourceContent(turn: Turn) {
     filename: turn.filename,
     line: turn.evidence_line,
     evidence: turn.evidence_text,
+    location: turn.evidence_location,
+    kind: turn.evidence_kind,
   };
 }
 
@@ -100,13 +104,13 @@ export function QuestionCard({ roomState }: QuestionCardProps) {
       <p id="question-text">{content.question}</p>
       {content.previousAnswer && <p className="question-previous-answer">{content.previousAnswer}</p>}
       {content.filename !== undefined && (
-        <div id="source-block" role="group" aria-label="Exact cited source line">
+        <div id="source-block" role="group" aria-label={content.kind?.startsWith("research") ? "Exact extracted document text" : "Exact cited source line"}>
           <div className="source-heading">
             <span className="source-filename" title={content.filename}>{content.filename}</span>
-            <span className="source-line-label">Line {content.line}</span>
+            <span className="source-line-label">{content.location ?? `Line ${content.line}`}</span>
           </div>
-          <div className="source-code-scroll" tabIndex={0} aria-label={`Source code at ${content.filename}, line ${content.line}`}>
-            <span className="source-line-number" aria-hidden="true">{content.line}</span>
+          <div className="source-code-scroll" tabIndex={0} aria-label={`${content.kind?.startsWith("research") ? "Extracted document text" : "Source code"} at ${content.filename}, ${content.location ?? `line ${content.line}`}`}>
+            <span className="source-line-number" aria-hidden="true">{content.location?.match(/extracted line (\d+)/)?.[1] ?? content.line}</span>
             <pre><code>{content.evidence}</code></pre>
           </div>
         </div>

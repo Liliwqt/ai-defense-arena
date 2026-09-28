@@ -24,6 +24,8 @@ export interface Turn {
   filename: string;
   evidence_line: number;
   evidence_text: string;
+  evidence_location?: string;
+  evidence_kind?: string;
   answer: string | null;
   timed_out?: boolean;
   assigned_seat?: number | null;
@@ -62,6 +64,9 @@ export interface RoomState {
   error: string | null;
   revision: number;
   files: string[];
+  accepted_files?: { name: string; kind: string; detail: string }[];
+  defense_type?: "code" | "research" | "mixed";
+  research_stage?: "infer" | "proposal" | "completed";
   feedback_status: FeedbackStatus;
   feedback: CoachingFeedback | null;
   server_now_ms?: number;

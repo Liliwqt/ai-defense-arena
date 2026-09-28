@@ -172,13 +172,19 @@ export function JudgePanelOverlay({
   roomState,
   discussing,
 }: JudgePanelOverlayProps) {
+  const judges = roomState?.defense_type && roomState.defense_type !== "code"
+    ? JUDGES.map((judge, index) => ({ ...judge,
+        name: ["Impact Reviewer", "Methodology Reviewer", "Ethics Reviewer", "Critical Reviewer"][index],
+        shortLabel: ["Impact", "Methodology", "Ethics", "Critical"][index],
+      }))
+    : JUDGES;
   return (
     <div
       className="judge-panel-overlay"
       aria-label="Judge panel"
       role="group"
     >
-      {JUDGES.map((judge, index) => {
+      {judges.map((judge, index) => {
         const state = resolveJudgeState(judge, roomState, discussing);
         return (
           <JudgeAvatar

@@ -30,6 +30,12 @@ IGNORED_SECRET_FILES = {
 class ProjectFile:
     name: str
     content: str
+    kind: str = "source"
+    locations: tuple[str, ...] = ()
+    detail: str = ""
+
+    def location_for(self, line: int) -> str:
+        return self.locations[line - 1] if self.locations else f"Line {line}"
 
 
 class ProjectInputError(Exception):

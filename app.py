@@ -20,6 +20,7 @@ from project_files import (
     MAX_TOTAL_BYTES,
     read_project_files,
 )
+from research_files import RESEARCH_EXTENSIONS, combine_sources, read_research_files
 from question_generator import (
     DEFAULT_MODEL,
     QuestionGenerationError,
@@ -48,36 +49,47 @@ def generate_next_question(session, files, api_key, model):
 
 st.set_page_config(page_title="AI Defense Arena", page_icon="🎓")
 st.title("AI Defense Arena")
-st.caption("Upload a small project to prepare a practice defense.")
+st.caption("Upload a code project, a research paper, or both for a practice defense.")
 
-st.subheader("1. Add project files")
-st.write("Upload a project ZIP or select multiple UTF-8 source and documentation files.")
+st.subheader("1. Add defense materials")
+defense_type = st.selectbox("Defense type", ["Code project", "Research paper", "Research + code"])
+mode = {"Code project": "code", "Research paper": "research", "Research + code": "mixed"}[defense_type]
+research_stage = "infer"
+if mode != "code":
+    research_stage = st.selectbox("Research stage", ["Let AI infer", "Proposal", "Completed study"])
+    research_stage = {"Let AI infer": "infer", "Proposal": "proposal", "Completed study": "completed"}[research_stage]
 uploads = st.file_uploader(
-    "Choose a project ZIP or source files",
+    "Project source files or ZIP",
     type=sorted(extension.lstrip(".") for extension in ALLOWED_EXTENSIONS) + ["zip"],
     accept_multiple_files=True,
-    help=(
-        f"Up to {MAX_FILES} text files, {MAX_TOTAL_BYTES // 1_000} KB total text, "
-        f"and {MAX_ARCHIVE_BYTES // 1_000_000} MB per ZIP."
-    ),
-)
+    help=f"Up to {MAX_FILES} files, {MAX_TOTAL_BYTES // 1_000} KB extracted text combined.",
+) if mode != "research" else []
+papers = st.file_uploader(
+    "Research documents (text-based PDF, DOCX, TXT, Markdown)",
+    type=sorted(extension.lstrip(".") for extension in RESEARCH_EXTENSIONS),
+    accept_multiple_files=True, disabled=mode == "code",
+) if mode != "code" else []
 
-if uploads:
-    files, errors = read_project_files(uploads)
+if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "mixed" and uploads and papers):
+    source_files, errors = read_project_files(uploads) if uploads else ([], [])
+    research_files, research_errors = read_research_files(papers) if papers else ([], [])
+    errors.extend(research_errors)
+    files, combined_errors = combine_sources(source_files, research_files) if not errors else ([], [])
+    errors.extend(combined_errors)
     for error in errors:
         st.warning(error)
 
     if files:
-        st.success(f"Ready: {len(files)} project file(s).")
+        st.success(f"Ready: {len(files)} accepted file(s).")
         st.caption("The panel receives all files listed below for every question.")
-        st.subheader("Project files")
+        st.subheader("Accepted files")
         for file in files:
-            with st.expander(file.name):
+            with st.expander(f"{file.name} · {file.detail}" if file.detail else file.name):
                 st.code(file.content[:2_000], language="text")
                 if len(file.content) > 2_000:
                     st.caption("Preview shows the first 2,000 characters; the full file is included.")
 
-        fingerprint = hashlib.sha256()
+        fingerprint = hashlib.sha256(f"{mode}:{research_stage}".encode("utf-8"))
         for file in files:
             fingerprint.update(file.name.encode("utf-8"))
             fingerprint.update(b"\0")
@@ -102,12 +114,12 @@ if uploads:
         button_label = "Start new defense" if session else "Start defense"
         if st.button(button_label, disabled=not bool(api_key)):
             try:
-                with st.spinner("Reviewing project files..."):
-                    first_question = generate_first_question(files, api_key, model=model)
+                with st.spinner("Reviewing defense materials..."):
+                    first_question = generate_first_question(files, api_key, model=model, defense_type=mode, research_stage=research_stage)
             except (QuestionGenerationError, OpenAIError, ValidationError) as error:
                 st.session_state["defense_error"] = generation_error_message(error, model, api_key)
             else:
-                session = DefenseSession.start(first_question)
+                session = DefenseSession.start(first_question, mode, research_stage)
                 st.session_state["defense_session"] = session
                 st.session_state["defense_run_id"] = st.session_state.get("defense_run_id", 0) + 1
                 st.session_state.pop("defense_error", None)
@@ -128,7 +140,7 @@ if uploads:
                     st.caption(turn.question.lead_in)
                 st.write(turn.question.question)
                 st.caption(
-                    f"Evidence: {turn.question.filename}, line {turn.question.evidence_line}"
+                    f"Evidence: {turn.question.filename}, {turn.question.evidence_location or f'Line {turn.question.evidence_line}'}"
                 )
                 st.code(turn.question.evidence_text, language="text")
                 if turn.answer is not None:
@@ -164,7 +176,7 @@ if uploads:
     else:
         sync_project_session(st.session_state, None)
         st.session_state.pop("defense_error", None)
-        st.info("Add a ZIP or supported UTF-8 source files to continue.")
+        st.info("Add the required project files and/or research documents to continue.")
 else:
     sync_project_session(st.session_state, None)
     st.session_state.pop("defense_error", None)

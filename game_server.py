@@ -17,6 +17,7 @@ from pydantic import BaseModel, ValidationError
 
 from defense_session import DefenseSession, MAX_ANSWER_CHARS, PANELIST_ORDER
 from project_files import MAX_ARCHIVE_BYTES, MAX_FILE_BYTES, ProjectFile, read_project_files
+from research_files import MAX_RESEARCH_BYTES, read_research_files, combine_sources
 from question_generator import (
     DEFAULT_MODEL,
     CoachingReport,
@@ -34,7 +35,7 @@ ANSWER_MS = 120_000
 MAX_CHAT_MESSAGES = 100
 MAX_CHAT_CHARS = 500
 MAX_ROOMS = 20
-MAX_REQUEST_BYTES = MAX_ARCHIVE_BYTES + 2_000_000
+MAX_REQUEST_BYTES = 110_000_000
 ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 GAME_DIR = Path(__file__).resolve().parent / "game" / "dist"
 
@@ -62,6 +63,8 @@ class Room:
     code: str
     files: list[ProjectFile]
     players: dict[str, Player]
+    defense_type: str = "code"
+    research_stage: str = "infer"
     defense: DefenseSession | None = None
     answered_by: dict[int, str] = field(default_factory=dict)
     answered_by_seat: dict[int, int] = field(default_factory=dict)
@@ -95,6 +98,8 @@ class Room:
                         "filename": turn.question.filename,
                         "evidence_line": turn.question.evidence_line,
                         "evidence_text": turn.question.evidence_text,
+                        "evidence_location": turn.question.evidence_location or f"Line {turn.question.evidence_line}",
+                        "evidence_kind": turn.question.evidence_kind,
                         "answer": turn.answer,
                         "timed_out": turn.timed_out,
                         "assigned_seat": turn.assigned_seat,
@@ -107,7 +112,7 @@ class Room:
         elif self.defense and self.defense.needs_question:
             active_panelist = self.defense.pending_panelist
         elif self.phase == "generating":
-            active_panelist = PANELIST_ORDER[0]
+            active_panelist = "Methodology Reviewer" if self.defense_type != "code" else PANELIST_ORDER[0]
         else:
             active_panelist = None
         feedback_dict = None
@@ -137,6 +142,9 @@ class Room:
             "error": self.error,
             "revision": self.revision,
             "files": [file.name for file in self.files],
+            "accepted_files": [{"name": file.name, "kind": file.kind, "detail": file.detail} for file in self.files],
+            "defense_type": self.defense_type,
+            "research_stage": self.research_stage,
             "feedback_status": self.feedback_status,
             "feedback": feedback_dict,
             "server_now_ms": _now_ms(),
@@ -329,7 +337,8 @@ async def _generate_question(room: Room, generation_id: int, first: bool) -> Non
     try:
         if first:
             question = await asyncio.to_thread(
-                generate_first_question, room.files, api_key, model
+                generate_first_question, room.files, api_key, model,
+                defense_type=room.defense_type, research_stage=room.research_stage,
             )
         else:
             async with room.lock:
@@ -346,6 +355,7 @@ async def _generate_question(room: Room, generation_id: int, first: bool) -> Non
                 allowed_panelists=allowed,
                 may_complete=may_complete,
                 model=model,
+                defense_type=room.defense_type, research_stage=room.research_stage,
             )
     except Exception as error:
         async with room.lock:
@@ -364,7 +374,7 @@ async def _generate_question(room: Room, generation_id: int, first: bool) -> Non
         if room.generation_id != generation_id:
             return
         if first:
-            room.defense = DefenseSession.start(question)
+            room.defense = DefenseSession.start(question, room.defense_type, room.research_stage)
             room.phase = "voting"
         elif room.defense is not None and room.defense.needs_question:
             room.defense.apply_move(move)
@@ -408,7 +418,8 @@ async def _generate_coaching(room: Room, feedback_generation_id: int) -> None:
         history = room.defense.answered_history()
     try:
         report = await asyncio.to_thread(
-            generate_coaching_report, room.files, history, api_key, model
+            generate_coaching_report, room.files, history, api_key, model,
+            defense_type=room.defense_type, research_stage=room.research_stage,
         )
     except Exception as error:
         async with room.lock:
@@ -443,18 +454,44 @@ async def health() -> dict[str, str]:
 @app.post("/api/rooms", status_code=201)
 async def create_room(
     host_name: str = Form(...),
-    files: list[UploadFile] = File(...),
+    files: list[UploadFile] | None = File(None),
+    research_files: list[UploadFile] | None = File(None),
+    defense_type: str = Form("code"),
+    research_stage: str = Form("infer"),
 ) -> dict[str, str]:
     name = _player_name(host_name)
+    if defense_type not in {"code", "research", "mixed"} or research_stage not in {"infer", "proposal", "completed"}:
+        raise HTTPException(422, "Choose a valid defense type and research stage.")
+    source_uploads = files or []
+    paper_uploads = research_files or []
+    if defense_type == "code" and (not source_uploads or paper_uploads):
+        raise HTTPException(422, "Code defense requires project source files only.")
+    if defense_type == "research" and (not paper_uploads or source_uploads):
+        raise HTTPException(422, "Research defense requires research documents only.")
+    if defense_type == "mixed" and (not source_uploads or not paper_uploads):
+        raise HTTPException(422, "Research + code requires both research documents and project files.")
     uploads = []
-    for upload in files:
+    for upload in source_uploads:
         filename = upload.filename or ""
         limit = MAX_ARCHIVE_BYTES if filename.lower().endswith(".zip") else MAX_FILE_BYTES
         data = await upload.read(limit + 1)
         if len(data) > limit:
             raise HTTPException(413, f"{filename or 'File'} exceeds the upload size limit.")
         uploads.append(UploadedBytes(filename, data))
-    project_files, errors = read_project_files(uploads)
+    project_files, errors = read_project_files(uploads) if uploads else ([], [])
+    if errors:
+        raise HTTPException(422, errors[0])
+    research_uploads = []
+    for upload in paper_uploads:
+        name = upload.filename or ""
+        data = await upload.read(MAX_RESEARCH_BYTES + 1)
+        if len(data) > MAX_RESEARCH_BYTES:
+            raise HTTPException(413, f"{name or 'Research document'} exceeds the 10 MB limit.")
+        research_uploads.append(UploadedBytes(name, data))
+    papers, errors = await asyncio.to_thread(read_research_files, research_uploads) if research_uploads else ([], [])
+    if errors:
+        raise HTTPException(422, errors[0])
+    project_files, errors = combine_sources(project_files, papers)
     if errors:
         raise HTTPException(422, errors[0])
     async with registry_lock:
@@ -464,7 +501,7 @@ async def create_room(
         while code in rooms:
             code = _room_code()
         token = _new_token()
-        rooms[code] = Room(code, project_files, {token: Player(token, name, 0, True)})
+        rooms[code] = Room(code, project_files, {token: Player(token, name, 0, True)}, defense_type, research_stage)
     return {"room_code": code, "player_token": token}
 
 

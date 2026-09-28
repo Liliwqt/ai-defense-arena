@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { ControlsPanel } from "./ControlsPanel";
 import type { RoomState } from "../types";
 
@@ -41,6 +41,24 @@ describe("ControlsPanel", () => {
     expect(screen.getByRole("button", { name: /create room/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /join room/i })).toBeTruthy();
     expect(screen.queryByLabelText(/host passcode/i)).toBeNull();
+  });
+
+  it("offers separate research documents and stage for paper defenses", () => {
+    render(<ControlsPanel {...defaultProps} roomState={null} connected={false} />);
+    expect(screen.getByLabelText("Project source files or ZIP")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Defense type"), { target: { value: "mixed" } });
+    expect(screen.getByLabelText("Research documents")).toBeTruthy();
+    expect(screen.getByLabelText("Research stage")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Defense type"), { target: { value: "research" } });
+    expect(screen.queryByLabelText("Project source files or ZIP")).toBeNull();
+  });
+
+  it("lists extracted documents and page counts in the lobby", () => {
+    const state: RoomState = { ...baseState, defense_type: "research", accepted_files: [
+      { name: "paper.pdf", kind: "research_pdf", detail: "2 pages" },
+    ] };
+    render(<ControlsPanel {...defaultProps} roomState={state} />);
+    expect(screen.getByText(/paper.pdf · 2 pages/)).toBeTruthy();
   });
 
   it("host sees Start defense button in lobby phase", () => {

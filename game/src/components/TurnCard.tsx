@@ -21,7 +21,7 @@ export function TurnCard({ turn, index }: TurnCardProps) {
       </p>
       {turn.filename && Number.isInteger(turn.evidence_line) && (
         <p className="text-[0.75rem] text-[#9bcbe8] whitespace-pre-wrap break-words">
-          {turn.filename}:{turn.evidence_line} — {turn.evidence_text ?? ""}
+          {turn.filename}, {turn.evidence_location ?? `Line ${turn.evidence_line}`} — {turn.evidence_text ?? ""}
         </p>
       )}
       {turn.timed_out && <p className="turn-timeout">Time expired · no answer was submitted.</p>}

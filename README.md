@@ -1,6 +1,6 @@
 # AI Defense Arena
 
-A browser-based project defense for up to four teammates. A React, TypeScript, and code-built Three.js room shows four AI panelists facing the team: Technical Architect, Security Reviewer, Product Judge, and Critical Judge. Each asks at least one question and may ask one immediate follow-up, for four to eight resolved turns in total. Every question cites an exact line in the uploaded project. At the end, the team receives a shared coaching report with strengths, areas to improve, and a next step.
+A browser-based code and research defense for up to four teammates. A React, TypeScript, and code-built Three.js room shows four AI panelists facing the team. Code projects use Technical Architect, Security Reviewer, Product Judge, and Critical Judge; research defenses use a research-focused panel. Each asks at least one question and may ask one immediate follow-up, for four to eight resolved turns in total. Every question cites exact uploaded source or extracted document text. At the end, the team receives a shared coaching report with strengths, areas to improve, and a next step.
 
 For work across agents or session windows, read [AGENTS.md](AGENTS.md) and [PROJECT_LOG.md](PROJECT_LOG.md) before making changes.
 
@@ -18,7 +18,9 @@ python3 -m venv .venv
 ./run_local.sh
 ```
 
-Open <http://127.0.0.1:8000>. The setup drawer opens automatically: the host enters a display name and source files or a ZIP, then shares the room code. Teammates join from the same service URL. The host starts the defense from **Controls**.
+Open <http://127.0.0.1:8000>. The setup drawer opens automatically: the host enters a display name, selects **Code project**, **Research paper**, or **Research + code**, and uploads the required materials. Project sources accept individual text files or a ZIP; research documents accept text-based PDF, DOCX, TXT, and Markdown files directly. The host shares the room code. Teammates join from the same service URL. The host starts the defense from **Controls**.
+
+Research and mixed defenses use Methodology Reviewer, Ethics Reviewer, Impact Reviewer, and Critical Reviewer. The host can mark a paper as a proposal or completed study, or let the AI infer its stage. Methodology questions cover the study design and feasibility; ethics questions address participants and research integrity; impact questions concern practical value; critical questions challenge assumptions and evidence. Mixed defenses can connect claims in the paper to the implementation. The panel cites extracted document text with its PDF page and extracted line or DOCX paragraph/table location. The excerpt is exact extracted text, not a claim that its interpretation is proven. The 4–8-question structure and one optional follow-up per reviewer also apply to research defenses. Use <http://127.0.0.1:8000/?preview=1&research=1> to inspect the local research room without an AI call.
 
 Each new question is visible during a **15-second speaker vote**. Every online defender, including the host, can vote for an online teammate or change their vote. The server randomly resolves ties or no votes among online defenders. Then the selected teammate has a fresh **two minutes** to answer in the bottom **Vote/Answer** bar; only that teammate can submit. The clock and winner come from the server, so a late vote or answer is rejected even if a browser timer lags. If the selected teammate disconnects, another online teammate is chosen without resetting the deadline. An expired question is recorded as unanswered and the defense continues. If AI question generation fails, the saved answer or timeout remains and the host can retry from **Controls**.
 
@@ -44,9 +46,11 @@ The earlier single-browser app is still available:
 .venv/bin/streamlit run app.py
 ```
 
-It supports the same four panelists, adaptive follow-ups, and validated source lines. Voting, timers, and team chat are multiplayer web-room features only.
+It supports all three defense types, the corresponding panelists, adaptive follow-ups, and validated source or extracted-document citations. Voting, timers, and team chat are multiplayer web-room features only.
 
 ## Limits and troubleshooting
+
+Combined code and extracted research text is limited to 100 files and 600 KB. Source uploads allow 200 KB per text file and a 25 MB compressed ZIP. Direct research documents allow 10 MB each; PDFs allow up to 100 pages. Every PDF page must contain extractable text. Encrypted, unreadable, image-only, and partially unreadable PDFs receive a clear error; provide a text-based copy. DOCX paragraphs and table cells are extracted in document order. OCR, figures, and equations are not interpreted reliably.
 
 Uploads accept up to 100 supported UTF-8 text files, 200 KB per file, and 600 KB total text. A ZIP can be up to 25 MB compressed. For this repository, upload a source-only ZIP; the full checkout contains large dependency and build folders. Generated folders, hidden files, and unsupported ZIP entries are skipped; files are read in memory and not extracted. The game server displays the accepted filenames in room state. Each question sends the accepted project text and earlier answers to OpenAI.
 

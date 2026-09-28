@@ -34,6 +34,15 @@ describe("JudgePanelOverlay", () => {
     expect(screen.getByLabelText(/Critical Judge/)).toBeTruthy();
   });
 
+  it("uses four research reviewer labels and highlights the active methodologist", () => {
+    const state: RoomState = { ...base, defense_type: "research", phase: "question", active_panelist: "Methodology Reviewer" };
+    render(<JudgePanelOverlay roomState={state} discussing={false} />);
+    expect(screen.getByLabelText(/Methodology Reviewer.*asking a question/)).toBeTruthy();
+    expect(screen.getByLabelText(/Ethics Reviewer/)).toBeTruthy();
+    expect(screen.getByLabelText(/Impact Reviewer/)).toBeTruthy();
+    expect(screen.getByLabelText(/Critical Reviewer/)).toBeTruthy();
+  });
+
   it("marks active judge when phase is question", () => {
     const state: RoomState = {
       ...base,

@@ -134,6 +134,19 @@ describe("QuestionCard", () => {
     expect(container.querySelector("#source-block pre code")?.textContent).toBe(line);
   });
 
+  it("labels extracted PDF text with its page and exact excerpt", () => {
+    const state: RoomState = { ...base, defense_type: "research", phase: "voting", turns: [{
+      panelist: "Methodology Reviewer", question: "How will you recruit students?",
+      filename: "paper.pdf", evidence_line: 2, evidence_location: "Page 2 · extracted line 1",
+      evidence_kind: "research_pdf", evidence_text: "  Planned student interviews  ",
+      answer: null, answered_by: null,
+    }] };
+    const { container } = render(<QuestionCard roomState={state} />);
+    expect(screen.getByText("Page 2 · extracted line 1")).toBeTruthy();
+    expect(screen.getByLabelText("Exact extracted document text")).toBeTruthy();
+    expect(container.querySelector("#source-block pre code")?.textContent).toBe("  Planned student interviews  ");
+  });
+
   it("hides source block when phase is lobby", () => {
     render(
       <QuestionCard roomState={base} />,

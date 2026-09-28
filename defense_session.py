@@ -11,6 +11,7 @@ from question_generator import (
     GroundedQuestion,
     PanelMove,
     PRODUCT_JUDGE,
+    RESEARCH_PANELISTS,
     SECURITY_REVIEWER,
     TECHNICAL_ARCHITECT,
     generate_next_move,
@@ -37,10 +38,17 @@ class DefenseTurn:
 class DefenseSession:
     turns: list[DefenseTurn] = field(default_factory=list)
     finished: bool = False
+    defense_type: str = "code"
+    research_stage: str = "infer"
 
     @classmethod
-    def start(cls, first_question: GroundedQuestion) -> "DefenseSession":
-        return cls([DefenseTurn(PANELIST_ORDER[0], first_question)])
+    def start(cls, first_question: GroundedQuestion, defense_type: str = "code", research_stage: str = "infer") -> "DefenseSession":
+        order = RESEARCH_PANELISTS if defense_type != "code" else PANELIST_ORDER
+        return cls([DefenseTurn(order[0], first_question)], defense_type=defense_type, research_stage=research_stage)
+
+    @property
+    def panelist_order(self) -> tuple[str, ...]:
+        return RESEARCH_PANELISTS if self.defense_type != "code" else PANELIST_ORDER
 
     @property
     def completed(self) -> bool:
@@ -59,11 +67,11 @@ class DefenseSession:
         if not self.needs_question:
             return ()
         current = self.turns[-1].panelist
-        index = PANELIST_ORDER.index(current)
+        index = self.panelist_order.index(current)
         count = sum(turn.panelist == current for turn in self.turns)
         allowed = (current,) if count == 1 else ()
-        if index + 1 < len(PANELIST_ORDER):
-            allowed += (PANELIST_ORDER[index + 1],)
+        if index + 1 < len(self.panelist_order):
+            allowed += (self.panelist_order[index + 1],)
         return allowed
 
     @property
@@ -73,7 +81,7 @@ class DefenseSession:
 
     @property
     def may_complete(self) -> bool:
-        return self.needs_question and self.turns[-1].panelist == PANELIST_ORDER[-1]
+        return self.needs_question and self.turns[-1].panelist == self.panelist_order[-1]
 
     def answered_history(self) -> list[AnsweredQuestion]:
         return [
@@ -103,7 +111,7 @@ class DefenseSession:
         self._finish_if_last()
 
     def _finish_if_last(self) -> None:
-        last = PANELIST_ORDER[-1]
+        last = self.panelist_order[-1]
         if self.turns[-1].panelist == last and sum(t.panelist == last for t in self.turns) == 2:
             self.finished = True
 
@@ -138,6 +146,7 @@ def advance_defense(
         may_complete=session.may_complete,
         model=model,
         client=client,
+        defense_type=session.defense_type, research_stage=session.research_stage,
     )
     session.apply_move(move)
     return move

@@ -9,7 +9,8 @@ interface ThreeDefenseSceneProps {
   presenterMoment: PresenterMoment | null;
 }
 
-const judgeNames = ["Technical Architect", "Security Reviewer", "Product Judge", "Critical Judge"];
+const codeJudgeNames = ["Technical Architect", "Security Reviewer", "Product Judge", "Critical Judge"];
+const researchJudgeNames = ["Impact Reviewer", "Methodology Reviewer", "Ethics Reviewer", "Critical Reviewer"];
 const judgeColors = [0x346eae, 0xdda33f, 0x8167af, 0xb66378];
 const defenderColors = [0x4a8ac5, 0x6896a2, 0x727db7, 0x9a78a3];
 const judgeXs = [-5.25, -1.75, 1.75, 5.25];
@@ -252,6 +253,9 @@ class DefenseWorld {
     this.loop();
   }
 
+  private judgeNames = [...codeJudgeNames];
+  private judgePlaques: THREE.Mesh[] = [];
+
   private buildRoom() {
     const room = this.content;
     const wall = new THREE.MeshStandardMaterial({ color: 0xecf3fb, roughness: 0.86 });
@@ -291,9 +295,10 @@ class DefenseWorld {
     box(room, [15.1, 1.16, 0.42], [0, 0.64, -1.65], softWhite);
     judgeXs.forEach((x, i) => {
       box(room, [2.9, 0.7, 0.04], [x, 0.68, -1.42], paleBlue, false);
-      const plaque = deskRolePlaque(judgeNames[i], `#${judgeColors[i].toString(16).padStart(6, "0")}`);
+      const plaque = deskRolePlaque(this.judgeNames[i], `#${judgeColors[i].toString(16).padStart(6, "0")}`);
       plaque.position.set(x, 0.68, -1.39);
       room.add(plaque);
+      this.judgePlaques.push(plaque);
     });
     // Teammates stand in front of the panel.
     for (let i = 0; i < 4; i++) {
@@ -339,13 +344,23 @@ class DefenseWorld {
 
   renderState(state: RoomState | null) {
     this.state = state;
+    const nextNames = state?.defense_type && state.defense_type !== "code" ? researchJudgeNames : codeJudgeNames;
+    if (nextNames[0] !== this.judgeNames[0]) {
+      this.judgeNames = [...nextNames];
+      this.judgePlaques.forEach((plaque, index) => {
+        const replacement = deskRolePlaque(this.judgeNames[index], `#${judgeColors[index].toString(16).padStart(6, "0")}`);
+        (plaque.material as THREE.MeshBasicMaterial).map?.dispose();
+        (plaque.material as THREE.MeshBasicMaterial).dispose();
+        plaque.material = replacement.material;
+      });
+    }
     const active = state?.phase === "question" || state?.phase === "voting" || state?.phase === "generating" ? state.active_panelist : null;
-    this.judges.forEach((judge, index) => { judge.halo.visible = judgeNames[index] === active; });
-    const activeIndex = judgeNames.indexOf(active ?? "");
+    this.judges.forEach((judge, index) => { judge.halo.visible = this.judgeNames[index] === active; });
+    const activeIndex = this.judgeNames.indexOf(active ?? "");
     this.speakerBubble.visible = activeIndex >= 0 && (state?.phase === "question" || state?.phase === "voting");
     if (activeIndex >= 0) {
       this.speakerBubble.position.set(judgeXs[activeIndex], 3.38, -3.55);
-      setLabelText(this.speakerBubble, `${judgeNames[activeIndex]} is asking…`, "#e9aa39");
+      setLabelText(this.speakerBubble, `${this.judgeNames[activeIndex]} is asking…`, "#e9aa39");
       this.speakerBubble.scale.set(4.25, 0.55, 1);
     }
     this.defenders.forEach((defender, index) => {
@@ -380,7 +395,7 @@ class DefenseWorld {
     this.frame = requestAnimationFrame(this.loop);
     const t = this.clock.getElapsedTime();
     this.judges.forEach((judge, i) => {
-      const active = judgeNames[i] === this.state?.active_panelist && (this.state?.phase === "question" || this.state?.phase === "voting");
+      const active = this.judgeNames[i] === this.state?.active_panelist && (this.state?.phase === "question" || this.state?.phase === "voting");
       judge.torso.position.y = this.reducedMotion ? 0.95 : 0.95 + Math.sin(t * (active ? 3.8 : 1.5) + i) * (active ? 0.035 : 0.012);
       judge.torso.rotation.z = this.reducedMotion ? 0 : Math.sin(t * 1.1 + i) * (active ? 0.025 : 0.009);
       judge.rightArm.rotation.x = !this.reducedMotion && active ? Math.sin(t * 4 + i) * 0.17 : 0;
