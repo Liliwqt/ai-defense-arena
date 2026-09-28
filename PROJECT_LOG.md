@@ -4,6 +4,11 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Current status
 
+- The flat grayscale React room redesign is pushed to `origin/feature/question-first-room` and verified offline; it replaces the active 3D canvas with panelist/question/defender rows and a fixed Vote/Answer and Team Chat dock. Preview: `http://127.0.0.1:8771/?preview=1` while the local server runs. Desktop, landscape, long-question, vote, chat, setup, transcript, coaching, and portrait review screenshots are in `screenshots/flat-*.png`. User visual review is pending; no production deployment was made.
+- Same-turn clarification requests are included in `origin/feature/question-first-room`; the selected defender can ask for a repeat, simpler wording, or an example up to twice per question. The original cited turn stays open, the answer clock pauses for AI interpretation, and failed interpretations retain the submission for retry or explicit use as an answer. Local review preview: `http://127.0.0.1:8771/?preview=1&research=1&clarify=1` while that server runs. This has not been deployed.
+- The research-paper defense checkpoint is committed on `feature/research-defense` and included in `origin/feature/question-first-room`; it has not been deployed. The local preview is available at `http://127.0.0.1:8765/?preview=1&research=1` while the development server runs.
+- IBM Bob task/session screenshot published on `origin/main` in commit `866e923`; no application code changed.
+- Natural panelist conversations are deployed from commit `b92710e`. Questions carry a separate validated lead-in with answer-specific reactions, distinct panelist voices, timeout handling, and explicit Taglish detection. A hosted five-turn, two-client defense and a focused Taglish turn passed; personal visual review and a physical separate-device check remain unverified.
 - The React/Phaser multiplayer room and shared coaching report are deployed to Render from commit `a1bd90c`. A hosted four-answer coaching walkthrough passed; physical separate-device confirmation remains unverified.
 - Locally, Technical Architect, Security Reviewer, Product Judge, and Critical Judge each ask at least one source-grounded question. Each may ask one immediate AI-selected follow-up, for four to eight answers. The Streamlit fallback supports the same adaptive sequence.
 - The adaptive four-panelist release and larger source ZIP limits are deployed from commit `afad667`. Hosted health, assets, and desktop/landscape mock previews pass. A fresh hosted live AI defense has not yet been completed, and the user has not reported a personal visual review.
@@ -11,7 +16,10 @@ Use this file to track completed updates across agents and session windows. See 
 - The code-built Three.js isometric room, answer drawer, and presenter focus are now on private `main` at `c7c77aa`; hosted behavior has not been verified.
 - The four judge roles are printed on dark plaques on their desk panels in the local Three.js preview.
 - The four teammate characters now stand without chairs; their live name tags sit near their feet.
-- Locally, every question now has a server-owned 15-second speaker vote and a full 120-second answer window, with selected-defender submission, timeout progression, private team chat, and reconnect snapshots. The user explicitly requested deployment of this timed-room checkpoint; push and hosted verification are in progress. Personal visual review has not been confirmed.
+- Locally, every question now has a server-owned 15-second speaker vote and a full 120-second answer window, with selected-defender submission, timeout progression, private team chat, and reconnect snapshots. The timed-room checkpoint was pushed in commit `52fa641`; Render serves the matching React assets and hosted mock layouts passed. A fresh live AI room walkthrough and personal visual review remain unverified.
+
+- Room creation no longer requires a host passcode. Commit `2878fb8` is deployed; hosted API creation/join, health, and matching frontend assets passed. Public room creation is available, while player-token and host-only action checks remain.
+- Generated questions carry a validated conversational `lead_in`: distinct panelist voices briefly react to the latest answer, match a substantive answer's language, and stay separate from the grounded question and citation. The previous exchange remains visible while the next response is generated.
 
 ## Active work
 
@@ -22,7 +30,7 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Pending verification and next step
 
-- The user requested direct deployment of the local timed-room checkpoint. Push the selected change, check Render health/assets and a fresh room, then record hosted results. Live AI, personal visual review, and physical separate-device checks remain unverified until demonstrated.
+- Render health and the conversational panelist release are live. A hosted two-client AI walkthrough covered questions, voting, answers, citations, reconnect, completion, and coaching; chat was not exercised in that walkthrough. Personal visual review and physical separate-device checks remain separate.
 - Physical separate-device confirmation remains separate from two-browser local verification.
 
 ## Change entry template
@@ -296,3 +304,123 @@ Append new entries to the **end** of this file in date order:
 - Changed: the user explicitly requested deployment of the locally verified timed vote and team chat checkpoint, superseding its prior before-push review gate. Personal visual approval is not inferred from the deployment request.
 - Verification: private `origin/main` still matched local `HEAD` at `c7c77aa` before the release commit; the 69 Python and 69 React tests and Vite build passed in the local checkpoint.
 - Remaining: commit and push only selected feature files and review screenshots, verify the Render rebuild and hosted behavior, and keep unrelated local artifacts untouched.
+
+### 2026-09-27 — Timed room deployed and hosted layout smoke check
+
+- Session: root.
+- Files: commit `52fa641` contains the selected timer/vote/chat code, tests, docs, and eight timed-room review screenshots. This post-deploy `PROJECT_LOG.md` entry remains local to avoid a second Render redeploy.
+- Changed: pushed private `main`; Render rebuilt and now serves the timed-room frontend. The deployed Python service and React bundle include server-owned vote/answer deadlines and private team chat.
+- Verification: hosted `/health` returned HTTP 200. The hosted JavaScript and CSS assets matched the local production build byte for byte. Headless desktop and 844×390 landscape mock previews showed the Vote and Team Chat tabs, a 15-second vote countdown, exact sample README line 3 citation, no browser errors or page overflow, and keyboard activation of Team Chat. A long-question preview scrolled vertically inside its card and a real CSS source line scrolled horizontally. Portrait showed the rotate prompt. These are hosted mock-preview checks, not a live AI defense.
+- Remaining: a fresh hosted room walkthrough with real AI and two clients, plus personal visual review and physical separate-device confirmation. Unrelated local screenshot and sample-project paths appeared deleted after the push; those deletions were not staged or pushed and have been left untouched pending clarification.
+
+### 2026-09-27 — Local handoff status corrected after deployment
+
+- Session: root.
+- Files: `AGENTS.md`, `PROJECT_LOG.md` (local-only post-deploy updates).
+- Changed: corrected the handoff summary to reflect that commit `52fa641` is live. No application code changed and no second push was made.
+- Verification: the preceding hosted smoke check remains the latest deployed verification.
+- Remaining: fresh live AI room check; personal visual review and physical separate-device confirmation remain unverified.
+
+### 2026-09-27 — Hackathon presentation deck
+
+- Session: root.
+- Files: new `presentation/AI_Defense_Arena_Hackathon.pptx`, new `presentation/presenter_notes.md`, and this local-only `PROJECT_LOG.md` entry.
+- Changed: created an eight-slide, editable 16:9 PowerPoint deck covering the problem, team defense flow, four AI panelist roles, UI, actual FastAPI/React/Three.js/OpenAI architecture, the user's product and review contribution, and the live demo. Included two UI screenshots recovered directly from the committed release and a first-person presentation script with demo preparation and judge Q&A. The deck describes the shipped numbered-source approach; it does not claim an unimplemented vector database or independent AI models.
+- Verification: the PPTX reopens with eight slides, its ZIP package is intact, both screenshots are embedded, no shapes extend beyond slide bounds, and the live demo URL returned HTTP 200. No application code, deployment, or unrelated local files were changed.
+- Remaining: the user may personalize the first-person contribution wording and rehearse a fresh live timed-room defense before presenting. The deck and notes remain local; no push or Render redeploy was made.
+
+### 2026-09-27 — Sink or Ship presentation cover image
+
+- Session: root.
+- Files: new `presentation/Sink_or_Ship_Cover.png`, `PROJECT_LOG.md`.
+- Changed: generated a standalone widescreen presentation cover image with the exact title “SINK OR SHIP,” a ship navigating a storm, and four AI-judge figures. Per user clarification, the existing PowerPoint and web app were not edited.
+- Verification: inspected the generated image; the title is spelled correctly and the saved PNG is 1672 × 941 pixels (approximately 16:9).
+- Remaining: the cover is ready to insert into the presentation; it has not been added to the existing deck or deployed.
+
+### 2026-09-27 — Simplified Sink or Ship cover
+
+- Session: root.
+- Files: new `presentation/Sink_or_Ship_Cover_Simple.png`, `PROJECT_LOG.md`.
+- Changed: created a simpler presentation cover centered on four warm-colored panelists facing four blue defenders, with a question cue and the exact title “SINK OR SHIP.” Kept the original image for comparison.
+- Verification: inspected the generated composition and title; saved PNG is 1672 × 941 pixels (approximately 16:9).
+- Remaining: the revised image is ready for the user's selection; the existing PowerPoint and web app were not changed.
+
+### 2026-09-27 — Host passcode removed locally
+
+- Session: root.
+- Files: `game_server.py`, `game/src/components/ControlsPanel.tsx`, `game/src/components/ControlsPanel.test.tsx`, `game/_legacy/index.html`, `game/_legacy/game.js`, `run_local.sh`, `render.yaml`, `test_game_server.py`, `README.md`, local `presentation/presenter_notes.md`, and `PROJECT_LOG.md`.
+- Changed: removed the room-creation passcode requirement and form field. The room code, per-player token, host-only actions, upload validation, and room capacity limit remain. The local launcher now asks only for the OpenAI API key; Render config no longer asks for a host passcode.
+- Verification: 69 offline Python tests passed using isolated copies of the locally deleted sample-project fixtures; 69 React tests and Vite build passed. Shell and legacy JavaScript syntax plus `git diff --check` passed. No paid AI calls were made.
+- Remaining: push only selected application/tests/docs changes and verify Render rebuild and hosted create-room flow. Public room creation can consume API usage when someone starts a defense.
+
+### 2026-09-27 — Passcode-free room deployed and hosted smoke check
+
+- Session: root.
+- Files: commit `2878fb8` contains the selected API, React/legacy UI, launcher, Render config, tests, and README changes. `AGENTS.md` and this post-deploy `PROJECT_LOG.md` update remain local to avoid a second Render redeploy; unrelated local deletions, presentation files, and draft plan were preserved.
+- Changed: pushed the passcode-free room creation release to private `main`; Render rebuilt. The deployed create-room endpoint now requires only a host name and project files. Per-player tokens and host-only room actions are unchanged.
+- Verification: hosted `/health` returned 200; the hosted OpenAPI schema omitted `host_passcode`; a fresh room was created without a passcode (HTTP 201) and a guest joined it (HTTP 200), both receiving player tokens. Hosted JavaScript matched the tested local production bundle byte for byte and contained no old passcode field. No live AI calls or paid requests were made.
+- Remaining: personal visual review and a live AI/timer/chat/coaching walkthrough from separate devices remain unverified. The public service can now accept room creation from anyone with its URL, so monitor API usage during the demo.
+
+### 2026-09-28 — Natural panelist conversation, local checkpoint
+
+- Session: root.
+- Files: `question_generator.py`, `defense_session.py`, `game_server.py`, `app.py`, React question/transcript components, types, styles, preview state and tests under `game/src/`, Python tests, `README.md`, and `PROJECT_LOG.md`.
+- Changed: added a structured `lead_in` to every grounded question. The first question uses an empty lead-in; later panelists can react in up to two short sentences and 300 characters, with distinct professional voices, answer-specific transitions, Taglish/language matching guidance, respectful follow-up rules, and explicit timeout behavior. Lead-ins persist in defense history and reconnect snapshots, appear above questions and in transcripts, and are shown in Streamlit. During generation, the React card retains the resolved question, answer or timeout, and exact citation with a truthful review status. Added `?preview=1&review=1` for this state. The 15-second vote still occurs before every generated question.
+- Verification: 72 offline Python tests and 71 React tests passed; TypeScript/Vite production build, Python compilation, shell/legacy JavaScript syntax, and `git diff --check` passed. Tests cover lead-in bounds, completion without stray dialogue, role/language prompt guidance, explicit Taglish detection, timeout wording, history and snapshot persistence, retry/reconnect, four- and eight-turn flows, and transcript rendering. Headless desktop and 844×390 landscape question/review previews showed the reaction, prior answer, question, and exact citation with no page errors or body overflow; the card alone scrolls where needed. No paid AI call was made during offline verification.
+- Remaining: hosted verification is recorded separately below.
+
+### 2026-09-28 — Natural panelist conversation deployed and live checked
+
+- Session: root.
+- Files: commits `764a8c3` and `b92710e` contain the conversational generation/state/UI work, tests, README updates, and the explicit Taglish-language correction. `AGENTS.md` and this post-deploy log entry remain local to avoid an unnecessary second Render redeploy; unrelated local files and deletions were preserved.
+- Changed: deployed separate answer-aware lead-ins for all four panelists, distinct professional voices, useful follow-up guidance, timeout-aware transitions, language matching, transcript/reconnect persistence, and the generation review state. A live check exposed Spanish being selected for a Taglish answer, so the prompt now detects common Filipino markers and explicitly requests natural Taglish while excluding Spanish.
+- Verification: hosted `/health` returned 200 and the old room disappeared after the latest Render restart. A fresh two-client live AI defense completed in five turns: all four panelists asked an opening question and Critical Judge asked one follow-up. Reactions referenced concrete points in the preceding answers, every displayed citation matched the uploaded sample files exactly, reconnect preserved the dialogue, voting preceded each question, and shared coaching completed. A separate hosted turn used a substantive Taglish answer; Security Reviewer replied in natural Taglish, cited an exact source line, and retained the submitted answer through the earlier retry case.
+- Remaining: the user has not yet completed a personal visual review or a physical separate-device check. Team chat was covered offline but was not exercised in this live conversational walkthrough.
+
+### 2026-09-28 — IBM Bob session screenshot published
+
+- Session: root.
+- Files: `screenshot/aaa78765-a695-457a-b9fc-df1b3c087fd7.png`; this local `PROJECT_LOG.md` update.
+- Changed: committed only the requested screenshot as `866e923` (`docs: add IBM Bob task session screenshot`) and pushed to `origin/main`. Preserved unrelated local changes, deletions, presentation files, and draft plan.
+- Verification: GitHub remote main resolves to `866e923c40c3cf431e66984861dd7dbefb223f8b`; that commit contains the screenshot blob. No code tests needed for an image-only commit.
+- Remaining: None for screenshot publication. This log update remains local to preserve earlier uncommitted handoff entries and avoid another push. Research support remains a separate planned checkpoint.
+
+### 2026-09-28 — Research-paper defense, local feature branch
+
+- Session: root.
+- Files: `research_files.py`, upload and room flow, question/session logic, React room UI and tests, Streamlit fallback, `requirements.txt`, `README.md`, and this log. Feature commit `398be01` is on local `feature/research-defense`; unrelated local deletions and presentation files are preserved.
+- Changed: added text-based PDF, DOCX, TXT, and Markdown research uploads with exact extracted citation locations and accepted-file summaries. Code-only, research-only, and mixed room modes select appropriate four-person panels and study-stage prompts. Mixed questions receive paper and code context; research reviewers cite the paper. Existing voting, timed answers, reconnect, retry, transcript, and coaching state carry the new mode. The Streamlit fallback supports the same document modes without multiplayer controls.
+- Verification: focused extraction tests cover PDF pages, encrypted/blank/invalid files, DOCX body/table order, size and combined limits; mocked research defenses cover four and eight turns, two clients, timeout, retry, reconnect, citations, and coaching. The full suite passed with 79 Python tests and 75 React tests; Vite production build, Python compilation, and `git diff --check` passed. Desktop (1440×900) and landscape (844×390) browser previews showed the research question and PDF page citation, a rendered Three.js canvas, no body overflow, and no page errors. No live OpenAI call or hosted deployment was made.
+- Remaining: user review of the local branch and preview. Render stays on the existing main release until deployment is requested.
+
+### 2026-09-28 — Research host display name fix
+
+- Session: root.
+- Files: commit `2d4bbae` contains `game_server.py` and `test_research_defense.py`; this handoff log remains local.
+- Changed: kept the validated host display name separate from each research upload filename. Room snapshots and voting seats now use the configured host name for newly created research and mixed rooms.
+- Verification: 7 focused research tests passed, including host-name assertions in the initial and reconnect snapshots; Python compilation and `git diff --check` passed. The local key-enabled server on port 8000 was left running to preserve its active room; it must be restarted before it loads the fix.
+- Remaining: restart the local app and create a fresh room. The existing room already stored the wrong name and cannot recover the original input. The research feature branch remains local and is not deployed.
+
+### 2026-09-28 — Same-turn panelist clarifications, local feature branch
+
+- Session: root.
+- Files: `question_generator.py`, `defense_session.py`, `game_server.py`, `app.py`, React room components/types/styles/previews and tests in `game/src/`, `test_clarification.py`, existing Python walkthrough tests, `README.md`, `screenshots/clarification-desktop-preview.png`, `screenshots/clarification-landscape-preview.png`, and this log.
+- Changed: the selected defender can submit a request to repeat, simplify, translate, explain, or exemplify the current question through the answer box. One structured AI call classifies each submission and supplies an explanation when needed. Up to two explanations remain attached to the same panelist, question, citation, and speaker; they do not count as answers or trigger a vote. The server pauses the answer timer during interpretation, resumes the remaining time, preserves failed submissions for retry or explicit use as an answer, and includes exchanges in reconnect snapshots, transcript, and Streamlit fallback. Chat remains excluded from AI context; coaching treats requests as context rather than answers.
+- Verification: 88 offline Python tests and 79 React tests passed; Python compilation, Vite production build, and `git diff --check` passed. Mocked tests cover structured responses, two-client synchronization, reconnect, deadline races, the two-request limit, timeout, retry, restart, draft handling, and Streamlit. Headless desktop (1440×900) and phone-landscape (844×390) local previews showed the same question, explanation, and exact mock PDF citation; the card scrolls internally, there was no body overflow or page error, and a Three.js canvas rendered. Local `/health` on port 8771 returned 200. No paid AI call or hosted deployment was made.
+- Remaining: user review of the local branch and screen; a real AI walkthrough is still needed to assess classification and wording quality. The port 8771 preview server has no API key; run `./run_local.sh` for a key-enabled local test. Preserve unrelated local deletions and presentation files. Render remains on the current main release.
+
+### 2026-09-28 — Flat question-first room, local visual checkpoint
+
+- Session: root.
+- Files: `game/src/App.tsx`, `game/src/components/FlatRoom.tsx`, active React room components and tests, `game/src/index.css`, `game/src/previewState.ts`, `README.md`, new `screenshots/flat-*.png`, and this log.
+- Changed: replaced the active 3D canvas with four text-labeled panelist cards, a prominent scrollable question and near-black exact-source panel, and four defender cards. The active panelist, chosen speaker, online status, vote counts, and presenter moment are conveyed in text and shape. Shared grayscale tokens cover the header, setup, chat, transcript, and coaching; amber is reserved for urgent timer/error states. Kept the Vote/Answer and Team Chat dock visible below the seats, the portrait rotate prompt, and the existing room protocol. Aligned document order with visual order and added arrow-key navigation for setup and dock tabs. Legacy scene files remain in the repository but are not mounted by the React app.
+- Verification: 88 Python tests and 84 React tests passed; TypeScript/Vite production build and `git diff --check` passed. The Python suite includes mocked two-client four- and eight-turn defenses with votes, answers, timeouts, retry, reconnect, transcript, and coaching. Headless 1440×900 desktop, 844×390 and 667×375 landscape previews covered short/long questions, horizontal citation scrolling, clarification, vote, chat, setup, transcript, and coaching. The header, both seat rows, and dock remained visible with no body overflow or page errors; the middle card scrolled independently. A 390×844 portrait preview showed the rotation prompt. Drawer initial focus, tab arrow navigation, and Escape close passed. Local `/health` on port 8771 returned 200. No paid AI or hosted check was made for this UI change.
+- Remaining: user visual review of the local screen and screenshots. The feature branch remains local; production Render still serves the prior main release. Preserve unrelated local files and deletions.
+
+### 2026-09-28 — Question-first room published to feature branch
+
+- Session: root.
+- Files: commit `b69fdb3` contains selected research/clarification-compatible React and Python changes, tests, `README.md`, and new review screenshots; this log update follows separately. Unrelated local `AGENTS.md`, legacy scene edits, presentation files, draft plan, deleted samples, and older screenshot deletions were left unstaged.
+- Changed: created `feature/question-first-room` from the local research branch and pushed the question-first grayscale room with its uncommitted clarification dependencies to `origin/feature/question-first-room`. The branch is for review only; Render/main were not changed.
+- Verification: an isolated archive of commit `b69fdb3` passed 84 React tests, 88 Python tests, and a TypeScript/Vite production build. The push created the remote branch. No live AI call or hosted deployment was made.
+- Remaining: visual review of the new room and, if selected later, an explicit deployment request. Existing local unrelated changes and deletions remain untouched.
