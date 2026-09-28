@@ -44,7 +44,7 @@ describe("TranscriptPanel", () => {
 
   it("renders four turn cards with question text", () => {
     const turns = [
-      { panelist: "Technical Architect", lead_in: "You emphasized simplicity.", question: "Why SQLite?", filename: "f.py", evidence_line: 1, evidence_text: "x", answer: "Simple.", answered_by: "Alex" },
+      { panelist: "Technical Architect", lead_in: "You emphasized simplicity.", question: "Why SQLite?", filename: "f.py", evidence_line: 1, evidence_text: "x", answer: "Simple.", answered_by: "Alex", clarifications: [{ request: "Can you say that simply?", reply: "What made SQLite a good fit?" }] },
       { panelist: "Security Reviewer", question: "Input validation?", filename: "f.py", evidence_line: 2, evidence_text: "y", answer: "Sanitise.", answered_by: "Sam" },
       { panelist: "Technical Architect", question: "Concurrency?", filename: "f.py", evidence_line: 3, evidence_text: "z", answer: "Queue.", answered_by: "Alex" },
       { panelist: "Security Reviewer", question: "Access control?", filename: "f.py", evidence_line: 4, evidence_text: "w", answer: "Auth check.", answered_by: "Sam" },
@@ -64,6 +64,8 @@ describe("TranscriptPanel", () => {
     render(<TranscriptPanel roomState={state} />);
     expect(screen.getByText("You emphasized simplicity.")).toBeTruthy();
     expect(screen.getByText("Why SQLite?")).toBeTruthy();
+    expect(screen.getByText(/Can you say that simply/)).toBeTruthy();
+    expect(screen.getByText(/What made SQLite a good fit/)).toBeTruthy();
     expect(screen.getByText("Input validation?")).toBeTruthy();
     expect(screen.getByText("4 answered")).toBeTruthy();
     expect(screen.getByText("Well done.")).toBeTruthy();

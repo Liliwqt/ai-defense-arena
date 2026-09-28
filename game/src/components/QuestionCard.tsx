@@ -16,6 +16,7 @@ interface CardContent {
   kind?: string;
   reviewStatus?: string;
   previousAnswer?: string;
+  clarifications?: Turn["clarifications"];
 }
 
 function sourceContent(turn: Turn) {
@@ -43,12 +44,14 @@ function deriveContent(state: RoomState | null): CardContent {
     }
   }
 
-  if ((phase === "voting" || phase === "question") && current) {
+  if ((phase === "voting" || phase === "question" || phase === "interpreting" || phase === "interpretation_retry") && current) {
     return {
       name: current.panelist,
       question: current.question,
       number: `QUESTION ${currentIndex + 1}`,
       ...sourceContent(current),
+      clarifications: current.clarifications,
+      reviewStatus: phase === "interpreting" ? "Reading your submission… Answer clock paused." : phase === "interpretation_retry" ? "Could not interpret the submission. Answer clock paused." : undefined,
     };
   }
   if (phase === "generating") {
@@ -63,6 +66,7 @@ function deriveContent(state: RoomState | null): CardContent {
           ? "Time expired · no answer was submitted."
           : `Team answer${previous.answered_by ? ` · ${previous.answered_by}` : ""}: ${previous.answer}`,
         ...sourceContent(previous),
+        clarifications: previous.clarifications,
       };
     }
     return { name: state?.active_panelist ?? "The panel", question: "Reviewing the project…", number: `QUESTION ${resolved + 1}` };
@@ -102,6 +106,10 @@ export function QuestionCard({ roomState }: QuestionCardProps) {
       {content.reviewStatus && <p className="question-review-status" aria-live="polite">{content.reviewStatus}</p>}
       {content.leadIn && <p id="panelist-lead-in">{content.leadIn}</p>}
       <p id="question-text">{content.question}</p>
+      {content.clarifications?.map((exchange, index) => <div className="question-clarification" key={index}>
+        <p><strong>Defender asks:</strong> {exchange.request}</p>
+        <p><strong>{content.name} explains:</strong> {exchange.reply}</p>
+      </div>)}
       {content.previousAnswer && <p className="question-previous-answer">{content.previousAnswer}</p>}
       {content.filename !== undefined && (
         <div id="source-block" role="group" aria-label={content.kind?.startsWith("research") ? "Exact extracted document text" : "Exact cited source line"}>

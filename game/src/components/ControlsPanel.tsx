@@ -110,19 +110,19 @@ export function ControlsPanel({
     if (onSendEvent({ type: "restart" })) onCloseDrawer();
   }
 
-  const tabClass = (active: boolean) =>
-    `border-0 rounded-[7px] py-[10px] text-[0.84rem] font-[750] transition-colors ${
-      active ? "bg-[#c5e3fc] text-[#173b65]" : "bg-transparent text-[#536b88]"
-    }`;
+  function handleSetupTabKey(event: React.KeyboardEvent<HTMLButtonElement>) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const next = activeTab === "create" ? "join" : "create";
+    setActiveTab(next);
+    const tabs = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("[role=tab]");
+    tabs?.[next === "create" ? 0 : 1]?.focus();
+  }
 
-  const inputClass =
-    "w-full bg-white border border-[#b8cde1] rounded-[9px] text-[#1b2944] p-[11px_12px] outline-none focus:border-[#61b7ff] focus:shadow-[0_0_0_3px_#61b7ff25]";
-
-  const primaryBtn =
-    "w-full border-0 rounded-[9px] p-[11px_13px] font-[850] bg-[#3b8fe5] text-white hover:bg-[#68adf0] disabled:opacity-55 disabled:cursor-wait";
-
-  const secondaryBtn =
-    "w-full border border-[#b8cde1] rounded-[9px] p-[11px_13px] font-[850] bg-white text-[#2b4d72] hover:bg-[#e7f2fc] disabled:opacity-55 disabled:cursor-wait";
+  const tabClass = (active: boolean) => `setup-tab${active ? " is-selected" : ""}`;
+  const inputClass = "setup-input";
+  const primaryBtn = "button-primary";
+  const secondaryBtn = "button-secondary";
 
   const waitText =
     previewMode
@@ -153,10 +153,12 @@ export function ControlsPanel({
       {!inRoom && !previewMode && (
         <div>
           {/* Tab switcher */}
-          <div className="grid grid-cols-2 gap-[5px] bg-[#e5eff9] rounded-[10px] p-1 mb-5">
+          <div className="setup-tabs" role="tablist" aria-label="Room setup">
             <button
               type="button"
               className={tabClass(activeTab === "create")}
+              role="tab" aria-controls="create-form" tabIndex={activeTab === "create" ? 0 : -1}
+              onKeyDown={handleSetupTabKey}
               aria-selected={activeTab === "create"}
               onClick={() => setActiveTab("create")}
             >
@@ -165,6 +167,8 @@ export function ControlsPanel({
             <button
               type="button"
               className={tabClass(activeTab === "join")}
+              role="tab" aria-controls="join-form" tabIndex={activeTab === "join" ? 0 : -1}
+              onKeyDown={handleSetupTabKey}
               aria-selected={activeTab === "join"}
               onClick={() => setActiveTab("join")}
             >
@@ -173,12 +177,12 @@ export function ControlsPanel({
           </div>
 
           {activeTab === "create" && (
-            <form id="create-form" onSubmit={handleCreate} className="grid gap-[15px]">
-              <label className="grid gap-[7px] text-[#d5e4f3] text-[0.84rem] font-bold">
+            <form id="create-form" role="tabpanel" onSubmit={handleCreate} className="grid gap-[15px]">
+              <label className="setup-label">
                 Your name
                 <input name="host_name" maxLength={24} autoComplete="name" required placeholder="Your name" className={inputClass} />
               </label>
-              <label className="grid gap-[7px] text-[#d5e4f3] text-[0.84rem] font-bold">
+              <label className="setup-label">
                 Defense type
                 <select name="defense_type" value={defenseType} onChange={(event) => setDefenseType(event.target.value as typeof defenseType)} className={inputClass}>
                   <option value="code">Code project</option>
@@ -186,7 +190,7 @@ export function ControlsPanel({
                   <option value="mixed">Research + code</option>
                 </select>
               </label>
-              {defenseType !== "code" && <label className="grid gap-[7px] text-[#d5e4f3] text-[0.84rem] font-bold">
+              {defenseType !== "code" && <label className="setup-label">
                 Research stage
                 <select name="research_stage" defaultValue="infer" className={inputClass}>
                   <option value="infer">Let AI infer</option>
@@ -194,15 +198,15 @@ export function ControlsPanel({
                   <option value="completed">Completed study</option>
                 </select>
               </label>}
-              {defenseType !== "research" && <label className="grid gap-[7px] text-[#d5e4f3] text-[0.84rem] font-bold">
+              {defenseType !== "research" && <label className="setup-label">
                 Project source files or ZIP
                 <input name="files" type="file" multiple required accept=".zip,.md,.txt,.py,.js,.jsx,.ts,.tsx,.json,.html,.css,.java,.go,.rs,.sql,.yaml,.yml,.toml,.sh,.c,.cpp,.h,.hpp,.kt,.swift,.rb,.php,.vue,.svelte" className={`${inputClass} text-[0.77rem] leading-tight`} />
               </label>}
-              {defenseType !== "code" && <label className="grid gap-[7px] text-[#d5e4f3] text-[0.84rem] font-bold">
+              {defenseType !== "code" && <label className="setup-label">
                 Research documents
                 <input name="research_files" type="file" multiple required accept=".pdf,.docx,.txt,.md" className={`${inputClass} text-[0.77rem] leading-tight`} />
               </label>}
-              <p className="text-[0.78rem] leading-[1.45] text-[#9eb5ca] m-0">
+              <p className="control-help">
                 Research papers: text-based PDF, DOCX, TXT, or Markdown. PDF pages must contain readable text.
               </p>
               <button type="submit" disabled={createBusy} className={primaryBtn}>
@@ -212,12 +216,12 @@ export function ControlsPanel({
           )}
 
           {activeTab === "join" && (
-            <form id="join-form" onSubmit={handleJoin} className="grid gap-[15px]">
-              <label className="grid gap-[7px] text-[#d5e4f3] text-[0.84rem] font-bold">
+            <form id="join-form" role="tabpanel" onSubmit={handleJoin} className="grid gap-[15px]">
+              <label className="setup-label">
                 Room code
                 <input name="room_code" maxLength={12} autoComplete="off" required placeholder="Enter room code" className={inputClass} />
               </label>
-              <label className="grid gap-[7px] text-[#d5e4f3] text-[0.84rem] font-bold">
+              <label className="setup-label">
                 Your name
                 <input name="name" maxLength={24} autoComplete="name" required placeholder="Your name" className={inputClass} />
               </label>
@@ -232,14 +236,14 @@ export function ControlsPanel({
       {/* In-room controls */}
       {(inRoom || previewMode) && (
         <div className="grid gap-[15px]">
-            <div className="grid gap-1 bg-white border border-[#d2e0ee] rounded-[11px] p-[15px] mb-[14px]">
-            <span className="text-[#4b7fad] text-[0.68rem] font-black tracking-[0.16em]">
+            <div className="room-code-card">
+            <span className="room-code-kicker">
               ROOM CODE
             </span>
-            <strong className="text-[1.45rem] tracking-[0.15em] break-all text-[#1b2944]">
+            <strong className="room-code-value">
               {roomCode ?? "—"}
             </strong>
-            <span className="text-[0.8rem] text-[#59718b]">
+            <span className="room-code-hint">
               {previewMode
                 ? "Visual preview"
                 : isHost
@@ -249,12 +253,12 @@ export function ControlsPanel({
           </div>
 
           {roomState?.phase === "lobby" && roomState.accepted_files && (
-            <div className="text-[0.78rem] text-[#d5e4f3]" aria-label="Accepted files">
+            <div className="accepted-files" aria-label="Accepted files">
               <strong>Accepted files · {roomState.defense_type === "code" ? "Code project" : roomState.defense_type === "mixed" ? "Research + code" : "Research paper"}</strong>
               <ul className="mt-2 pl-5">{roomState.accepted_files.map((file) => <li key={file.name}>{file.name}{file.detail ? ` · ${file.detail}` : ""}</li>)}</ul>
             </div>
           )}
-          <p className="text-[0.8rem] text-[#8ed4f3] m-0">
+          <p className="connection-status">
             {connected ? "Connected · team state is live" : "Disconnected · reconnecting…"}
           </p>
 
@@ -305,7 +309,7 @@ export function ControlsPanel({
           )}
 
           {waitText && (
-            <p className="text-[0.78rem] leading-[1.45] text-[#9eb5ca] m-0">
+            <p className="control-help">
               {waitText}
             </p>
           )}
@@ -314,7 +318,7 @@ export function ControlsPanel({
             <button
               type="button"
               onClick={onLeaveRoom}
-              className={`${secondaryBtn} mt-[17px]`}
+              className={`${secondaryBtn} leave-room`}
             >
               Leave room
             </button>

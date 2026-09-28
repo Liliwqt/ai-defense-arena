@@ -5,6 +5,8 @@ export type Phase =
   | "generating"
   | "voting"
   | "question"
+  | "interpreting"
+  | "interpretation_retry"
   | "retry"
   | "complete";
 
@@ -17,6 +19,11 @@ export interface Player {
   is_host: boolean;
 }
 
+export interface ClarificationExchange {
+  request: string;
+  reply: string;
+}
+
 export interface Turn {
   panelist: string;
   lead_in?: string;
@@ -27,6 +34,7 @@ export interface Turn {
   evidence_location?: string;
   evidence_kind?: string;
   answer: string | null;
+  clarifications?: ClarificationExchange[];
   timed_out?: boolean;
   assigned_seat?: number | null;
   answered_by: string | null;
@@ -72,6 +80,8 @@ export interface RoomState {
   server_now_ms?: number;
   vote_deadline_ms?: number | null;
   answer_deadline_ms?: number | null;
+  remaining_answer_ms?: number | null;
+  my_pending_submission?: string | null;
   selected_seat?: number | null;
   vote_counts?: Record<string, number>;
   my_vote?: number | null;

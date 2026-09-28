@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from openai import OpenAIError
 
 import game_server
-from question_generator import CoachingReport, GroundedQuestion, PanelMove
+from question_generator import CoachingReport, GroundedQuestion, PanelMove, SubmissionDecision
 
 
 class GameServerTests(unittest.TestCase):
@@ -19,6 +19,9 @@ class GameServerTests(unittest.TestCase):
         clock_patch = patch.object(game_server, "_now_ms", side_effect=lambda: self.clock_ms)
         clock_patch.start()
         self.addCleanup(clock_patch.stop)
+        interpretation_patch = patch.object(game_server, "interpret_submission", return_value=SubmissionDecision("answer"))
+        interpretation_patch.start()
+        self.addCleanup(interpretation_patch.stop)
         self.client = TestClient(game_server.app)
         self.client.__enter__()
         self.addCleanup(lambda: self.client.__exit__(None, None, None))
@@ -164,6 +167,59 @@ class GameServerTests(unittest.TestCase):
                     self.assertEqual(len(state["turns"]), 4)
                     self.assertEqual(later_calls.call_count, 4)
                     self.assertEqual([turn["panelist"] for turn in state["turns"]], list(game_server.PANELIST_ORDER))
+                finally:
+                    guest_socket.__exit__(None, None, None)
+            finally:
+                host_socket.__exit__(None, None, None)
+
+    def test_two_clients_share_clarification_without_advancing_or_revote(self):
+        with (
+            patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}),
+            patch("game_server.generate_first_question", return_value=self.questions[0]),
+            patch("game_server.interpret_submission", side_effect=[
+                SubmissionDecision("clarify", "I mean why SQLite fits this prototype."),
+                SubmissionDecision("answer"),
+            ]),
+            patch("game_server.generate_next_move", return_value=self.short_moves[0]),
+        ):
+            host = self.create_room()
+            guest = self.join_room(host["room_code"])
+            host_socket, _ = self.connect(host["room_code"], host["player_token"])
+            try:
+                guest_socket, _ = self.connect(host["room_code"], guest["player_token"])
+                try:
+                    host_socket.send_json({"type": "start"})
+                    self.receive_phase(host_socket, "question")
+                    self.receive_phase(guest_socket, "question")
+                    guest_socket.send_json({"type": "submit_answer", "turn": 0,
+                                            "answer": "Can you say that simply?"})
+                    for socket in (host_socket, guest_socket):
+                        state = self.receive_phase(socket, "question")
+                        # The first question-state event may precede interpretation.
+                        while not state["turns"][0]["clarifications"]:
+                            state = self.receive_phase(socket, "question")
+                        self.assertEqual(len(state["turns"]), 1)
+                        self.assertEqual(state["selected_seat"], 1)
+                        self.assertEqual(state["turns"][0]["question"], self.questions[0].question)
+                        self.assertEqual(state["turns"][0]["evidence_text"], self.questions[0].evidence_text)
+                        self.assertIsNone(state["turns"][0]["answer"])
+                        self.assertEqual(state["turns"][0]["clarifications"][0]["reply"],
+                                         "I mean why SQLite fits this prototype.")
+                    guest_socket.__exit__(None, None, None)
+                    guest_socket, reconnected = self.connect(host["room_code"], guest["player_token"])
+                    self.assertEqual(reconnected["turns"][0]["clarifications"][0]["request"],
+                                     "Can you say that simply?")
+                    # Disconnecting the chosen speaker transfers the seat to the online host.
+                    self.assertEqual(reconnected["selected_seat"], 0)
+                    host_socket.send_json({"type": "submit_answer", "turn": 0,
+                                           "answer": "It is easy to set up for a small prototype."})
+                    for socket in (host_socket, guest_socket):
+                        state = self.receive_phase(socket, "question")
+                        while len(state["turns"]) == 1:
+                            state = self.receive_phase(socket, "question")
+                        self.assertEqual(state["turns"][0]["answer"],
+                                         "It is easy to set up for a small prototype.")
+                        self.assertEqual(len(state["turns"][0]["clarifications"]), 1)
                 finally:
                     guest_socket.__exit__(None, None, None)
             finally:

@@ -195,6 +195,10 @@ class ResearchTwoClientTests(unittest.TestCase):
         clock = patch.object(game_server, '_now_ms', side_effect=lambda: self.now)
         clock.start()
         self.addCleanup(clock.stop)
+        from question_generator import SubmissionDecision
+        interpretation_patch = patch.object(game_server, 'interpret_submission', return_value=SubmissionDecision('answer'))
+        interpretation_patch.start()
+        self.addCleanup(interpretation_patch.stop)
         self.client = TestClient(game_server.app)
         self.client.__enter__()
         self.addCleanup(lambda: self.client.__exit__(None, None, None))

@@ -45,7 +45,7 @@ export function Drawer({ open, mode, title, onClose, children }: DrawerProps) {
       if (!drawer) return;
       const focusable = Array.from(
         drawer.querySelectorAll<HTMLElement>(
-          "button:not([disabled]), input:not([disabled]), textarea:not([disabled])",
+          "button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])",
         ),
       ).filter(
         (el) =>
@@ -76,7 +76,7 @@ export function Drawer({ open, mode, title, onClose, children }: DrawerProps) {
       {/* Scrim */}
       <div
         id="drawer-scrim"
-        className="fixed inset-0 z-[9] bg-[#020913a8]"
+        className="drawer-scrim"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -87,16 +87,16 @@ export function Drawer({ open, mode, title, onClose, children }: DrawerProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="drawer-title"
-        className="fixed inset-y-0 right-0 z-10 flex flex-col drawer-panel"
+        className="drawer-panel"
         style={{ width: "min(460px, 100vw)", height: "100dvh" }}
       >
         {/* Header */}
-        <div className="flex-none flex items-center justify-between gap-3 p-[19px_20px] border-b border-[#304e6b] bg-[#122943]">
+        <div className="drawer-header">
           <div>
-            <p className="text-[#85acd4] text-[0.68rem] font-black tracking-[0.16em] m-0 mb-1">
+            <p className="drawer-kicker">
               DEFENSE ROOM
             </p>
-            <h2 id="drawer-title" className="text-[1.35rem] m-0 text-[#eaf2ff]">
+            <h2 id="drawer-title" className="drawer-title">
               {title}
             </h2>
           </div>
@@ -106,14 +106,14 @@ export function Drawer({ open, mode, title, onClose, children }: DrawerProps) {
             id="drawer-close"
             aria-label="Close panel"
             onClick={onClose}
-            className="border border-[#56799b] rounded-[9px] bg-[#294b69] text-[#f1f8ff] p-[8px_10px] text-[0.81rem] font-black"
+            className="drawer-close"
           >
             Close <span aria-hidden="true" className="text-[1.15rem] align-[-1px] ml-1">×</span>
           </button>
         </div>
         {/* Body */}
         <div
-          className="flex-1 min-h-0 overflow-auto p-5"
+          className="drawer-body"
           style={{ overscrollBehavior: "contain" }}
         >
           {children}

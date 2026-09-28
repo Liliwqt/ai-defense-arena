@@ -6,6 +6,7 @@ from typing import MutableMapping
 from project_files import ProjectFile
 from question_generator import (
     AnsweredQuestion,
+    ClarificationExchange,
     CRITICAL_JUDGE,
     DEFAULT_MODEL,
     GroundedQuestion,
@@ -28,6 +29,7 @@ class DefenseTurn:
     answer: str | None = None
     timed_out: bool = False
     assigned_seat: int | None = None
+    clarifications: list[ClarificationExchange] = field(default_factory=list)
 
     @property
     def resolved(self) -> bool:
@@ -87,7 +89,7 @@ class DefenseSession:
         return [
             AnsweredQuestion(
                 turn.panelist, turn.question.question, turn.answer, turn.timed_out,
-                turn.question.lead_in,
+                turn.question.lead_in, tuple(turn.clarifications),
             )
             for turn in self.turns
             if turn.resolved

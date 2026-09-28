@@ -7,9 +7,10 @@ import type { RoomSocketState } from "./hooks/useRoomSocket";
 import type { RoomState, Turn } from "./types";
 
 vi.mock("./hooks/useRoomSocket", () => ({ useRoomSocket: vi.fn() }));
-vi.mock("./components/ThreeDefenseScene", () => ({
-  ThreeDefenseScene: ({ presenterMoment }: { presenterMoment: { seat: number } | null }) =>
-    <div data-testid="scene" data-presenter-seat={presenterMoment?.seat ?? ""} />,
+vi.mock("./components/FlatRoom", () => ({
+  PanelistSeats: () => <div data-testid="panelist-row" />,
+  DefenderSeats: ({ presenterMoment }: { presenterMoment: { seat: number } | null }) =>
+    <div data-testid="seat-rows" data-presenter-seat={presenterMoment?.seat ?? ""} />,
 }));
 
 const turn = (answer: string | null, seat: number | null): Turn => ({
@@ -35,16 +36,16 @@ const setSocket = (state: RoomState | null) => vi.mocked(useRoomSocket).mockRetu
 
 afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); });
 
-describe("illustrated room flow", () => {
+describe("flat room flow", () => {
   it("does not replay past answers on the first snapshot, then focuses the accepted seat", () => {
     setSocket(null);
     const view = render(<App />);
     setSocket(room([turn("Earlier answer", 0)], "generating"));
     view.rerender(<App />);
-    expect(screen.getByTestId("scene").getAttribute("data-presenter-seat")).toBe("");
+    expect(screen.getByTestId("seat-rows").getAttribute("data-presenter-seat")).toBe("");
     setSocket(room([turn("Earlier answer", 0), turn("New answer", 1)], "generating"));
     view.rerender(<App />);
-    expect(screen.getByTestId("scene").getAttribute("data-presenter-seat")).toBe("1");
+    expect(screen.getByTestId("seat-rows").getAttribute("data-presenter-seat")).toBe("1");
   });
 
   it("keeps the selected speaker's answer input in the bottom dock", async () => {
@@ -54,6 +55,11 @@ describe("illustrated room flow", () => {
     const textbox = screen.getByRole("textbox", { name: /chosen to answer/i });
     expect(textbox.closest("#room-dock")).toBeTruthy();
     expect(screen.getByText("DATABASE = 'queue.db'")).toBeTruthy();
+    const panelists = screen.getByTestId("panelist-row");
+    const question = document.querySelector("#question-card")!;
+    const defenders = screen.getByTestId("seat-rows");
+    expect(panelists.compareDocumentPosition(question) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(question.compareDocumentPosition(defenders) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("waits for the final presenter moment before opening Transcript", () => {
@@ -62,7 +68,7 @@ describe("illustrated room flow", () => {
     const view = render(<App />);
     setSocket(room([turn("A1", 0), turn("A2", 1), turn("A3", 0), turn("Final answer", 1)], "complete"));
     view.rerender(<App />);
-    expect(screen.getByTestId("scene").getAttribute("data-presenter-seat")).toBe("1");
+    expect(screen.getByTestId("seat-rows").getAttribute("data-presenter-seat")).toBe("1");
     expect(screen.queryByRole("heading", { name: "Transcript" })).toBeNull();
     act(() => vi.advanceTimersByTime(2600));
     expect(screen.getByRole("heading", { name: "Transcript" })).toBeTruthy();

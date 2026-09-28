@@ -26,6 +26,15 @@ const baseState: RoomState = {
   chat: [],
 };
 
+describe("HUD clarification pause", () => {
+  it("shows saved answer time instead of a running deadline", () => {
+    const state = { ...baseState, phase: "interpreting" as const, remaining_answer_ms: 45_000,
+      answer_deadline_ms: null };
+    render(<HUD roomState={state} roomCode="TEST" previewMode={false} onOpenDrawer={() => {}} />);
+    expect(screen.getByRole("status", { name: /answer timer paused/i }).textContent).toContain("0:45");
+  });
+});
+
 describe("HUD", () => {
   it("shows No room yet when roomState is null", () => {
     render(

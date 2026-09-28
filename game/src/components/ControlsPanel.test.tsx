@@ -38,9 +38,21 @@ const defaultProps = {
 describe("ControlsPanel", () => {
   it("shows create/join forms when roomState is null and not connected", () => {
     render(<ControlsPanel {...defaultProps} roomState={null} connected={false} />);
-    expect(screen.getByRole("button", { name: /create room/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /join room/i })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /create room/i })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /join room/i })).toBeTruthy();
     expect(screen.queryByLabelText(/host passcode/i)).toBeNull();
+  });
+
+  it("moves between setup tabs with the arrow keys", () => {
+    render(<ControlsPanel {...defaultProps} roomState={null} connected={false} />);
+    const createTab = screen.getByRole("tab", { name: "Create room" });
+    fireEvent.keyDown(createTab, { key: "ArrowRight" });
+    const joinTab = screen.getByRole("tab", { name: "Join room" });
+    expect(joinTab.getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(joinTab);
+    fireEvent.keyDown(joinTab, { key: "ArrowLeft" });
+    expect(createTab.getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(createTab);
   });
 
   it("offers separate research documents and stage for paper defenses", () => {

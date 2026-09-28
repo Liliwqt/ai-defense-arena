@@ -8,7 +8,7 @@ from unittest.mock import patch
 from openai import OpenAIError
 from streamlit.testing.v1 import AppTest
 
-from question_generator import GroundedQuestion, PanelMove
+from question_generator import GroundedQuestion, PanelMove, SubmissionDecision
 
 
 class DefenseAppTests(unittest.TestCase):
@@ -29,6 +29,7 @@ class DefenseAppTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {"OPENAI_API_KEY": "offline-test-key"}),
             patch("question_generator.generate_first_question", return_value=questions[0]),
+            patch("question_generator.interpret_submission", return_value=SubmissionDecision("answer")),
             patch(
                 "defense_session.generate_next_move",
                 side_effect=[OpenAIError("temporary failure"),
@@ -50,7 +51,7 @@ class DefenseAppTests(unittest.TestCase):
             self.assertIn("Why use a local SQLite database?", [item.value for item in app.markdown])
 
             app.text_area[0].set_value("We chose a simple local prototype.")
-            next(button for button in app.button if button.label == "Submit answer").click().run()
+            next(button for button in app.button if button.label == "Send to panelist").click().run()
             self.assertTrue(any(button.label == "Retry next question" for button in app.button))
             self.assertEqual(len(app.session_state["defense_session"].turns), 1)
             self.assertEqual(
@@ -63,7 +64,7 @@ class DefenseAppTests(unittest.TestCase):
 
             for answer in ("We need sign-in.", "We would serialize writes.", "Add access checks."):
                 app.text_area[0].set_value(answer)
-                next(button for button in app.button if button.label == "Submit answer").click().run()
+                next(button for button in app.button if button.label == "Send to panelist").click().run()
                 self.assertFalse(app.exception)
             self.assertTrue(app.session_state["defense_session"].completed)
             self.assertEqual(
@@ -85,6 +86,41 @@ class DefenseAppTests(unittest.TestCase):
             self.assertNotIn("defense_session", app.session_state)
             self.assertTrue(any(button.label == "Start defense" for button in app.button))
             self.assertFalse(app.exception)
+
+
+    def test_clarification_keeps_streamlit_on_same_question(self):
+        from question_generator import SubmissionDecision
+        readme = Path("sample_project/README.md").read_bytes()
+        first = GroundedQuestion("Why use a reservation queue?", "README.md", 1,
+                                 readme.decode().splitlines()[0])
+        second = GroundedQuestion("Who may see reservations?", "README.md", 1,
+                                  readme.decode().splitlines()[0])
+        with (
+            patch.dict(os.environ, {"OPENAI_API_KEY": "offline-test-key"}),
+            patch("question_generator.generate_first_question", return_value=first),
+            patch("question_generator.interpret_submission", side_effect=[
+                SubmissionDecision("clarify", "I mean what benefit a queue gives students."),
+                SubmissionDecision("answer"),
+            ]) as interpreter,
+            patch("defense_session.generate_next_move", return_value=PanelMove("Security Reviewer", second)),
+        ):
+            app = AppTest.from_file("app.py").run()
+            app.file_uploader[0].set_value([("README.md", readme, "text/markdown")]).run()
+            next(button for button in app.button if button.label == "Start defense").click().run()
+            app.text_area[0].set_value("Can you explain that simply?")
+            next(button for button in app.button if button.label == "Send to panelist").click().run()
+            session = app.session_state["defense_session"]
+            self.assertEqual(len(session.turns), 1)
+            self.assertIsNone(session.turns[0].answer)
+            self.assertEqual(session.turns[0].clarifications[0].reply,
+                             "I mean what benefit a queue gives students.")
+            self.assertTrue(any("I mean what benefit" in item.value for item in app.info))
+            app.text_area[0].set_value("It reduces waiting time.")
+            next(button for button in app.button if button.label == "Send to panelist").click().run()
+            self.assertEqual(app.session_state["defense_session"].turns[0].answer,
+                             "It reduces waiting time.")
+            self.assertEqual(len(app.session_state["defense_session"].turns), 2)
+            self.assertEqual(interpreter.call_count, 2)
 
 
 if __name__ == "__main__":

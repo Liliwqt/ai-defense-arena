@@ -50,6 +50,30 @@ describe("AnswerComposer", () => {
     expect((screen.getByRole("textbox", { name: /chosen to answer/i }) as HTMLTextAreaElement).value).toBe("");
   });
 
+  it("preserves a pending submission and offers explicit retry or answer after AI failure", async () => {
+    const send = vi.fn(() => true);
+    const state: RoomState = { ...questionState, phase: "interpretation_retry",
+      remaining_answer_ms: 35_000, my_pending_submission: "Can you give an example?",
+      error: "AI request failed." };
+    render(<AnswerComposer {...defaults} roomState={state} onSendEvent={send} />);
+    expect(screen.getByText("Can you give an example?")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Retry panelist" }));
+    await userEvent.click(screen.getByRole("button", { name: "Use this as my answer" }));
+    expect(send).toHaveBeenCalledWith({ type: "retry_interpretation" });
+    expect(send).toHaveBeenCalledWith({ type: "use_pending_as_answer" });
+  });
+
+  it("clears the draft after a clarification on the same turn", async () => {
+    const { rerender } = render(<AnswerComposer {...defaults} roomState={questionState} />);
+    const field = screen.getByRole("textbox", { name: /chosen to answer/i }) as HTMLTextAreaElement;
+    await userEvent.type(field, "Can you repeat it?");
+    const clarified: RoomState = { ...questionState, revision: 2, turns: [{ ...questionState.turns[0],
+      clarifications: [{ request: "Can you repeat it?", reply: "Why was SQLite chosen?" }] }] };
+    rerender(<AnswerComposer {...defaults} roomState={clarified} />);
+    expect(field.value).toBe("");
+    expect(screen.getByText(/1 clarifications left/)).toBeTruthy();
+  });
+
   it("uses Ctrl+Enter to submit and plain Enter for a new line", async () => {
     const send = vi.fn(() => true);
     render(<AnswerComposer {...defaults} roomState={questionState} onSendEvent={send} />);

@@ -40,6 +40,19 @@ describe("QuestionCard", () => {
     expect(screen.getByText("Your team is gathering")).toBeTruthy();
   });
 
+  it("keeps the original question and citation while showing a clarification", () => {
+    const state: RoomState = { ...base, phase: "interpreting", remaining_answer_ms: 42_000,
+      turns: [{ panelist: "Methodology Reviewer", question: "How will you recruit?",
+        filename: "paper.pdf", evidence_line: 2, evidence_location: "Page 1 · extracted line 2",
+        evidence_kind: "research_pdf", evidence_text: "Planned interviews", answer: null, answered_by: null,
+        clarifications: [{ request: "Can you explain?", reply: "How will you invite participants?" }] }] };
+    render(<QuestionCard roomState={state} />);
+    expect(screen.getByText("How will you recruit?")).toBeTruthy();
+    expect(screen.getByText(/How will you invite participants/)).toBeTruthy();
+    expect(screen.getByText("Planned interviews")).toBeTruthy();
+    expect(screen.getByText(/clock paused/i)).toBeTruthy();
+  });
+
   it("shows question text and source block for question phase", () => {
     const state: RoomState = {
       ...base,

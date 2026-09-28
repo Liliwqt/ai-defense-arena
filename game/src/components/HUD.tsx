@@ -55,8 +55,9 @@ export function HUD({ roomState, roomCode, previewMode, onOpenDrawer, onPreviewM
         >
           <span aria-hidden="true">▥</span> {pillProgress}
         </span>
+        {(phase === "interpreting" || phase === "interpretation_retry") && <span id="room-countdown" className="hud-pill hud-timer" role="status" aria-label="Answer timer paused">PAUSED {formatCountdown(Math.ceil((roomState?.remaining_answer_ms ?? 0) / 1000))}</span>}
         {(phase === "voting" || phase === "question") && (
-          <span id="room-countdown" className="hud-pill hud-timer" role="timer" aria-label={`${phase === "voting" ? "Vote" : "Answer"} time remaining`}>
+          <span id="room-countdown" className={`hud-pill hud-timer${seconds !== null && seconds <= (phase === "voting" ? 5 : 15) ? " is-urgent" : ""}`} role="timer" aria-label={`${phase === "voting" ? "Vote" : "Answer"} time remaining`}>
             {phase === "voting" ? "VOTE" : "ANSWER"} {formatCountdown(seconds)}
           </span>
         )}

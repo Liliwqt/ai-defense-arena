@@ -5,7 +5,7 @@ import { Drawer } from "./components/Drawer";
 import { HUD } from "./components/HUD";
 import { QuestionCard } from "./components/QuestionCard";
 import { RotatePrompt } from "./components/RotatePrompt";
-import { ThreeDefenseScene, type PresenterMoment } from "./components/ThreeDefenseScene";
+import { DefenderSeats, PanelistSeats, type PresenterMoment } from "./components/FlatRoom";
 import { TranscriptPanel } from "./components/TranscriptPanel";
 import { useRoomSocket } from "./hooks/useRoomSocket";
 import { previewState } from "./previewState";
@@ -137,9 +137,10 @@ export function App() {
   return (
     <div className="arena-shell">
       <div id="stage" className="arena-stage">
-        <ThreeDefenseScene roomState={roomState} presenterMoment={presenterMoment} />
         <HUD roomState={roomState} roomCode={roomCode} previewMode={previewMode} onOpenDrawer={openDrawer} onPreviewMoment={previewPresenter} />
+        <PanelistSeats roomState={roomState} />
         <QuestionCard roomState={roomState} />
+        <DefenderSeats roomState={roomState} presenterMoment={presenterMoment} />
       </div>
       <RoomDock roomState={roomState} connected={connected} previewMode={previewMode}
         waitingForAnswerAck={waitingForAnswerAck} actionError={actionError} onSendEvent={sendEvent} />

@@ -24,6 +24,8 @@ from research_files import RESEARCH_EXTENSIONS, combine_sources, read_research_f
 from question_generator import (
     DEFAULT_MODEL,
     QuestionGenerationError,
+    ClarificationExchange,
+    interpret_submission,
     describe_openai_error,
     generate_first_question,
 )
@@ -143,6 +145,8 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                     f"Evidence: {turn.question.filename}, {turn.question.evidence_location or f'Line {turn.question.evidence_line}'}"
                 )
                 st.code(turn.question.evidence_text, language="text")
+                for exchange in turn.clarifications:
+                    st.info(f"You asked: {exchange.request}\n\n{turn.panelist}: {exchange.reply}")
                 if turn.answer is not None:
                     st.markdown("**Your answer**")
                     st.write(turn.answer)
@@ -157,22 +161,40 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
             elif session.awaiting_answer:
                 run_id = st.session_state["defense_run_id"]
                 turn_number = len(session.turns)
-                with st.form(f"answer_form_{run_id}_{turn_number}"):
+                clarification_count = len(session.turns[-1].clarifications)
+                with st.form(f"answer_form_{run_id}_{turn_number}_{clarification_count}"):
                     answer = st.text_area(
-                        "Your answer",
+                        "Your answer or clarification request",
                         max_chars=MAX_ANSWER_CHARS,
-                        key=f"answer_{run_id}_{turn_number}",
+                        key=f"answer_{run_id}_{turn_number}_{clarification_count}",
                     )
-                    submitted = st.form_submit_button("Submit answer")
+                    submitted = st.form_submit_button("Send to panelist")
                 if submitted:
-                    try:
-                        session.submit_answer(answer)
-                    except ValueError as error:
-                        st.error(str(error))
+                    if not answer.strip():
+                        st.error("Write an answer or clarification request before continuing.")
                     else:
-                        if not session.completed:
-                            generate_next_question(session, files, api_key, model)
-                        st.rerun()
+                        try:
+                            with st.spinner("Panelist is reading your submission..."):
+                                decision = interpret_submission(
+                                    files, api_key, panelist=session.turns[-1].panelist,
+                                    question=session.turns[-1].question, submission=answer.strip(),
+                                    clarifications=tuple(session.turns[-1].clarifications),
+                                    model=model, defense_type=mode, research_stage=research_stage,
+                                )
+                        except (QuestionGenerationError, OpenAIError, ValidationError) as error:
+                            st.error(generation_error_message(error, model, api_key))
+                        else:
+                            if decision.action == "clarify":
+                                if clarification_count >= 2:
+                                    st.error("This question has used both clarifications. Please submit an answer.")
+                                else:
+                                    session.turns[-1].clarifications.append(ClarificationExchange(answer.strip(), decision.clarification))
+                                    st.rerun()
+                            else:
+                                session.submit_answer(answer)
+                                if not session.completed:
+                                    generate_next_question(session, files, api_key, model)
+                                st.rerun()
     else:
         sync_project_session(st.session_state, None)
         st.session_state.pop("defense_error", None)

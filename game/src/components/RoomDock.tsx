@@ -93,12 +93,20 @@ export function RoomDock({ roomState, connected, previewMode, waitingForAnswerAc
   useEffect(() => { setSeenChatId(latestChatId); }, [roomState?.room_code]);
   useEffect(() => { if (tab === "chat") setSeenChatId(latestChatId); }, [tab, latestChatId]);
   const unread = (roomState?.chat ?? []).filter((message) => message.id > seenChatId).length;
+  function handleDockTabKey(event: React.KeyboardEvent<HTMLButtonElement>) {
+    if ((event.key !== "ArrowLeft" && event.key !== "ArrowRight") || !roomState) return;
+    event.preventDefault();
+    const next = tab === "action" ? "chat" : "action";
+    setTab(next);
+    const tabs = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("[role=tab]");
+    tabs?.[next === "action" ? 0 : 1]?.focus();
+  }
   return (
     <div id="room-dock" className="room-dock">
       <div className="dock-tabs" role="tablist" aria-label="Room conversation and answer">
-        <button type="button" role="tab" aria-selected={tab === "action"} aria-controls="dock-action"
-          onClick={() => setTab("action")}>{roomState?.phase === "voting" ? "Vote" : "Answer / status"}</button>
-        <button type="button" role="tab" aria-selected={tab === "chat"} aria-controls="dock-chat"
+        <button type="button" role="tab" aria-selected={tab === "action"} aria-controls="dock-action" tabIndex={tab === "action" ? 0 : -1} onKeyDown={handleDockTabKey}
+          onClick={() => setTab("action")}>Vote / Answer</button>
+        <button type="button" role="tab" aria-selected={tab === "chat"} aria-controls="dock-chat" tabIndex={tab === "chat" ? 0 : -1} onKeyDown={handleDockTabKey}
           disabled={!roomState} onClick={() => setTab("chat")}>Team chat{unread > 0 ? ` (${unread})` : ""}</button>
       </div>
       <div id="dock-action" role="tabpanel" hidden={tab !== "action"} className="dock-content">

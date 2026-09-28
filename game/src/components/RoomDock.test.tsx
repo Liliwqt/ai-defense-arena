@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RoomDock } from "./RoomDock";
 import type { RoomState } from "../types";
@@ -20,10 +20,22 @@ const state: RoomState = {
 const props = { connected: true, previewMode: false, waitingForAnswerAck: false, actionError: null };
 
 describe("RoomDock", () => {
+  it("moves between dock tabs with the arrow keys", () => {
+    render(<RoomDock {...props} roomState={state} onSendEvent={() => true} />);
+    const actionTab = screen.getByRole("tab", { name: "Vote / Answer" });
+    fireEvent.keyDown(actionTab, { key: "ArrowRight" });
+    const chatTab = screen.getByRole("tab", { name: "Team chat" });
+    expect(chatTab.getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(chatTab);
+    fireEvent.keyDown(chatTab, { key: "ArrowLeft" });
+    expect(actionTab.getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(actionTab);
+  });
+
   it("shows live votes and lets a defender change their vote", async () => {
     const send = vi.fn(() => true);
     render(<RoomDock {...props} roomState={state} onSendEvent={send} />);
-    expect(screen.getByRole("tab", { name: "Vote" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Vote / Answer" })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Alex.*1/ }).getAttribute("aria-pressed")).toBe("true");
     await userEvent.click(screen.getByRole("button", { name: /Sam.*0/ }));
     expect(send).toHaveBeenCalledWith({ type: "cast_vote", seat: 1 });
@@ -36,7 +48,7 @@ describe("RoomDock", () => {
     await userEvent.type(screen.getByRole("textbox", { name: "Team message" }), "Discuss the queue");
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
     expect(send).toHaveBeenCalledWith({ type: "send_chat", text: "Discuss the queue" });
-    await userEvent.click(screen.getByRole("tab", { name: "Vote" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Vote / Answer" }));
     view.rerender(<RoomDock {...props} roomState={{ ...state, chat: [{ id: 1, seat: 1, name: "Sam", text: "Check the lock", sent_at_ms: 1_000_100 }] }} onSendEvent={send} />);
     expect(screen.getByRole("tab", { name: "Team chat (1)" })).toBeTruthy();
     await userEvent.click(screen.getByRole("tab", { name: "Team chat (1)" }));
