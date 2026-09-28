@@ -4,6 +4,7 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Current status
 
+- Scenario-based panelist prompt guidance is pushed to `origin/feature/question-first-room` in commit `37f9a11`; no hosted or live-AI verification has been completed for this update. Opening and later questions can test a source-grounded rule, workflow, design choice, or research plan through one clearly hypothetical condition; the model must not claim the imagined outcome happened. Offline tests passed; live question quality remains unverified.
 - The flat grayscale React room redesign is pushed to `origin/feature/question-first-room` and verified offline; it replaces the active 3D canvas with panelist/question/defender rows and a fixed Vote/Answer and Team Chat dock. Preview: `http://127.0.0.1:8771/?preview=1` while the local server runs. Desktop, landscape, long-question, vote, chat, setup, transcript, coaching, and portrait review screenshots are in `screenshots/flat-*.png`. User visual review is pending; no production deployment was made.
 - Same-turn clarification requests are included in `origin/feature/question-first-room`; the selected defender can ask for a repeat, simpler wording, or an example up to twice per question. The original cited turn stays open, the answer clock pauses for AI interpretation, and failed interpretations retain the submission for retry or explicit use as an answer. Local review preview: `http://127.0.0.1:8771/?preview=1&research=1&clarify=1` while that server runs. This has not been deployed.
 - The research-paper defense checkpoint is committed on `feature/research-defense` and included in `origin/feature/question-first-room`; it has not been deployed. The local preview is available at `http://127.0.0.1:8765/?preview=1&research=1` while the development server runs.
@@ -424,3 +425,19 @@ Append new entries to the **end** of this file in date order:
 - Changed: created `feature/question-first-room` from the local research branch and pushed the question-first grayscale room with its uncommitted clarification dependencies to `origin/feature/question-first-room`. The branch is for review only; Render/main were not changed.
 - Verification: an isolated archive of commit `b69fdb3` passed 84 React tests, 88 Python tests, and a TypeScript/Vite production build. The push created the remote branch. No live AI call or hosted deployment was made.
 - Remaining: visual review of the new room and, if selected later, an explicit deployment request. Existing local unrelated changes and deletions remain untouched.
+
+### 2026-09-28 — Source-grounded what-if panelist prompts, local update
+
+- Session: root.
+- Files: `question_generator.py`, `test_question_generator.py`, `test_research_defense.py`, `README.md`, and this log.
+- Changed: added shared instructions to opening and subsequent question requests so every role can pose a short hypothetical scene when a cited rule, workflow, design choice, or research plan has a meaningful edge case. A scenario changes one condition or action, asks for the expected consequence or response, and keeps the imagined outcome explicitly hypothetical. Direct questions remain available when a grounded scenario would be forced. No prewritten questions, extra API calls, response fields, role-order changes, or citation rules were added.
+- Verification: 88 offline Python tests passed, including prompt/citation checks for code and research modes; after a wording refinement, 45 focused tests, Python compilation, and `git diff --check` passed. No live AI request was made, so scenario quality in model output has not yet been observed.
+- Remaining: try a live local defense to assess naturalness and grounding, then decide whether to push this prompt update. The remote feature branch and production Render service are unchanged; unrelated local changes and deletions remain untouched.
+
+### 2026-09-28 — What-if prompt update pushed to feature branch
+
+- Session: root.
+- Files: commit `37f9a11` contains `question_generator.py`, `test_question_generator.py`, `test_research_defense.py`, and `README.md`; this log entry follows separately.
+- Changed: pushed the source-grounded hypothetical question guidance to `origin/feature/question-first-room`. No change was pushed to `main`.
+- Verification: `37f9a11` is on the remote feature branch. The prior local checks passed 88 Python tests, then 45 focused tests after a wording refinement, plus Python compilation and `git diff --check`. No live OpenAI response or hosted room has been checked for this prompt change.
+- Remaining: assess question quality in a live defense. If a Render preview service tracks the feature branch, its deployment status still needs checking; the production main service was not targeted. Unrelated local changes and deletions remain untouched.
