@@ -173,6 +173,7 @@ class ResearchRoomTests(unittest.TestCase):
         host = response.json()
         room = game_server.rooms[host['room_code']]
         snapshot = room.snapshot(room.players[host['player_token']])
+        self.assertEqual(snapshot['players'][0]['name'], 'Alex')
         self.assertEqual(snapshot['defense_type'], 'research')
         self.assertEqual(snapshot['research_stage'], 'proposal')
         self.assertEqual(snapshot['accepted_files'][0]['detail'], '1 page')
@@ -182,6 +183,7 @@ class ResearchRoomTests(unittest.TestCase):
             joined = socket.receive_json()['state']
             self.assertEqual(joined['defense_type'], 'research')
             self.assertEqual(joined['accepted_files'], snapshot['accepted_files'])
+            self.assertEqual(joined['players'][0]['name'], 'Alex')
         invalid = self.client.post('/api/rooms', data={'host_name': 'Alex', 'defense_type': 'mixed'},
             files=[('research_files', ('paper.md', b'Proposal', 'text/markdown'))])
         self.assertEqual(invalid.status_code, 422)

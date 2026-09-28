@@ -483,11 +483,11 @@ async def create_room(
         raise HTTPException(422, errors[0])
     research_uploads = []
     for upload in paper_uploads:
-        name = upload.filename or ""
+        filename = upload.filename or ""
         data = await upload.read(MAX_RESEARCH_BYTES + 1)
         if len(data) > MAX_RESEARCH_BYTES:
-            raise HTTPException(413, f"{name or 'Research document'} exceeds the 10 MB limit.")
-        research_uploads.append(UploadedBytes(name, data))
+            raise HTTPException(413, f"{filename or 'Research document'} exceeds the 10 MB limit.")
+        research_uploads.append(UploadedBytes(filename, data))
     papers, errors = await asyncio.to_thread(read_research_files, research_uploads) if research_uploads else ([], [])
     if errors:
         raise HTTPException(422, errors[0])
