@@ -37,6 +37,9 @@
      so canvas and paper collapse into one base tone; --base-deep is for recessed wells only. */
   --base: #e9e7e2;
   --base-deep: #dcd9d2;
+  /* Lighter than the base so a document page reads as a sheet sitting on the
+     surface. Measured: ink 14.46, muted 6.97, subtle 6.14, accent 5.94 — all AA. */
+  --page-paper: #f6f4ef;
   --canvas: #e9e7e2;
   --paper: #e9e7e2;
   --surface-alt: #dcd9d2;
@@ -143,6 +146,20 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .source-code-scroll { display: flex; overflow-x: auto; overscroll-behavior: contain; scrollbar-color: #8c8c8c var(--code); }
 .source-line-number { flex: none; position: sticky; left: 0; min-width: 42px; padding: 10px 8px; border-right: 1px solid #3b3b3b; background: #202020; color: #bbb; text-align: right; font: 700 .78rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .source-code-scroll pre { flex: none; margin: 0; padding: 10px 13px; color: var(--code-text); white-space: pre; font: 500 .78rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+
+/* Research citations render as a document page rather than as source code. The text
+   is what the server extracted, so the note below states that plainly instead of
+   letting the page framing imply a true PDF render. */
+#page-citation { margin-top: 15px; overflow: hidden; border: 1px solid transparent; border-radius: 12px; background: var(--page-paper); box-shadow: var(--raise-sm); }
+.page-citation-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.page-citation-file { min-width: 0; color: var(--ink); font-size: .8rem; font-weight: 750; overflow-wrap: anywhere; }
+/* The page marker is a chip rather than loose text, matching the question number
+   above it, so "where this came from" reads as one locatable fact. */
+.page-citation-where { flex: none; display: inline-flex; align-items: baseline; gap: 5px; padding: 4px 9px; border: 1px solid transparent; border-radius: 8px; background: var(--base); color: var(--accent); box-shadow: var(--press-sm); font-size: .72rem; font-weight: 800; letter-spacing: .04em; white-space: nowrap; }
+.page-citation-line { color: var(--subtle); font-weight: 700; letter-spacing: 0; }
+.page-citation-body { padding: 16px 18px; }
+.page-citation-text { max-width: 68ch; margin: 0; color: var(--ink); font-size: .95rem; line-height: 1.62; white-space: pre-wrap; overflow-wrap: anywhere; }
+.page-fidelity-note { margin: 0; padding: 9px 16px; border-top: 1px solid var(--line); color: var(--subtle); font-size: .7rem; line-height: 1.4; }
 
 /* Persistent answer and private chat dock. */
 #room-dock { flex: 0 0 clamp(172px, 22dvh, 218px); display: flex; flex-direction: column; min-height: 0; padding: 12px clamp(16px, 2.2vw, 36px) 14px; border-top: 1px solid transparent; border-radius: 22px 22px 0 0; background: var(--base); color: var(--ink); box-shadow: 0 -6px 18px var(--neu-dark); }
@@ -281,6 +298,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .question-review-status { margin: 4px 0 0; font-size: .67rem; }
   .question-previous-answer, .question-clarification { margin: 5px 0; padding: 5px 7px; font-size: .65rem; line-height: 1.22; }
   #source-block { margin-top: 7px; border-radius: 5px; }
+  #page-citation { margin-top: 7px; border-radius: 8px; }
+  .page-citation-header { padding: 4px 8px; }
+  .page-citation-file { font-size: .63rem; }
+  .page-citation-where { font-size: .58rem; }
+  .page-citation-body { padding: 6px 9px; }
+  .page-citation-text { font-size: .7rem; line-height: 1.3; }
+  .page-fidelity-note { padding: 4px 8px; font-size: .58rem; line-height: 1.25; }
   .source-heading { padding: 3px 6px; font-size: .6rem; }
   .source-line-number, .source-code-scroll pre { padding-top: 4px; padding-bottom: 4px; font-size: .62rem; }
   .source-line-number { min-width: 29px; padding-left: 4px; padding-right: 4px; }

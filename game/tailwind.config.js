@@ -8,6 +8,7 @@ export default {
       colors: {
         "arena-base": "#e9e7e2",
         "arena-deep": "#dcd9d2",
+        "arena-page": "#f6f4ef",
         "arena-ink": "#232220",
         "arena-muted": "#56534e",
         "arena-subtle": "#5f5b54",

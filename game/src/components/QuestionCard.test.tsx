@@ -110,7 +110,7 @@ describe("QuestionCard", () => {
     };
     render(<QuestionCard roomState={state} />);
     expect(screen.getByText("Reviewing the missed turn…")).toBeTruthy();
-    expect(screen.getByText("Time expired · no answer was submitted.")).toBeTruthy();
+expect(screen.getByText("Time expired · question passed to the panel.")).toBeTruthy();
   });
 
   it("shows the cited question during speaker voting", () => {
@@ -147,7 +147,7 @@ describe("QuestionCard", () => {
     expect(container.querySelector("#source-block pre code")?.textContent).toBe(line);
   });
 
-  it("labels extracted PDF text with its page and exact excerpt", () => {
+it("presents extracted PDF text as a document page, not as code", () => {
     const state: RoomState = { ...base, defense_type: "research", phase: "voting", turns: [{
       panelist: "Methodology Reviewer", question: "How will you recruit students?",
       filename: "paper.pdf", evidence_line: 2, evidence_location: "Page 2 · extracted line 1",
@@ -155,9 +155,66 @@ describe("QuestionCard", () => {
       answer: null, answered_by: null,
     }] };
     const { container } = render(<QuestionCard roomState={state} />);
-    expect(screen.getByText("Page 2 · extracted line 1")).toBeTruthy();
-    expect(screen.getByLabelText("Exact extracted document text")).toBeTruthy();
-    expect(container.querySelector("#source-block pre code")?.textContent).toBe("  Planned student interviews  ");
+    // The page view replaces the code block entirely for research citations.
+    expect(container.querySelector("#page-citation")).toBeTruthy();
+    expect(container.querySelector("#source-block")).toBeNull();
+    expect(screen.getByText("paper.pdf")).toBeTruthy();
+    expect(screen.getByText("Page 2")).toBeTruthy();
+    expect(container.querySelector(".page-citation-line")?.textContent).toContain("line 1");
+    // The exact excerpt is preserved, including its original leading and trailing
+    // whitespace, so the citation still matches the uploaded document exactly.
+    expect(container.querySelector(".page-citation-text")?.textContent).toBe("  Planned student interviews  ");
+    expect(screen.getByLabelText(/Cited document text from paper\.pdf, Page 2/)).toBeTruthy();
+  });
+
+  it("states that the page view is extracted text, not a true PDF render", () => {
+    const state: RoomState = { ...base, defense_type: "research", phase: "voting", turns: [{
+      panelist: "Methodology Reviewer", question: "Q?",
+      filename: "paper.pdf", evidence_line: 1, evidence_location: "Page 1",
+      evidence_kind: "research_pdf", evidence_text: "Some text.",
+      answer: null, answered_by: null,
+    }] };
+    render(<QuestionCard roomState={state} />);
+    expect(screen.getByText(/Text extracted from the uploaded document/i)).toBeTruthy();
+  });
+
+  it("labels a DOCX citation without inventing a page number", () => {
+    const state: RoomState = { ...base, defense_type: "research", phase: "voting", turns: [{
+      panelist: "Ethics Reviewer", question: "How is consent handled?",
+      filename: "study.docx", evidence_line: 4, evidence_location: "Paragraph 4",
+      evidence_kind: "research_docx", evidence_text: "Participants sign a consent form.",
+      answer: null, answered_by: null,
+    }] };
+    const { container } = render(<QuestionCard roomState={state} />);
+    expect(container.querySelector("#page-citation")).toBeTruthy();
+    expect(screen.getByText("Paragraph 4")).toBeTruthy();
+    expect(screen.queryByText(/^Page \d/)).toBeNull();
+  });
+
+  it("keeps the exact monospace source block for code citations", () => {
+    const state: RoomState = { ...base, phase: "voting", turns: [{
+      panelist: "Technical Architect", question: "Why SQLite?",
+      filename: "queue.py", evidence_line: 5, evidence_location: "Line 5",
+      evidence_kind: "source", evidence_text: "DATABASE = 'queue.db'",
+      answer: null, answered_by: null,
+    }] };
+    const { container } = render(<QuestionCard roomState={state} />);
+    expect(container.querySelector("#source-block")).toBeTruthy();
+    expect(container.querySelector("#page-citation")).toBeNull();
+    expect(container.querySelector("#source-block pre code")?.textContent).toBe("DATABASE = 'queue.db'");
+    expect(container.querySelector(".page-fidelity-note")).toBeNull();
+  });
+
+  it("still renders the page view when the location string is malformed", () => {
+    const state: RoomState = { ...base, defense_type: "research", phase: "voting", turns: [{
+      panelist: "Impact Reviewer", question: "Who benefits?",
+      filename: "paper.pdf", evidence_line: 1, evidence_location: "somewhere unknown",
+      evidence_kind: "research_pdf", evidence_text: "Students benefit first.",
+      answer: null, answered_by: null,
+    }] };
+    const { container } = render(<QuestionCard roomState={state} />);
+    expect(container.querySelector("#page-citation")).toBeTruthy();
+    expect(screen.getByText("somewhere unknown")).toBeTruthy();
   });
 
   it("hides source block when phase is lobby", () => {

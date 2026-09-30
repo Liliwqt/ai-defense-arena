@@ -1,3 +1,5 @@
+import { PageCitation } from "./PageCitation";
+import { isResearchCitation } from "../lib/citation";
 import type { RoomState, Turn } from "../types";
 
 interface QuestionCardProps {
@@ -63,7 +65,7 @@ function deriveContent(state: RoomState | null): CardContent {
         number: "REVIEWING",
         reviewStatus: previous.timed_out ? "Reviewing the missed turn…" : "Reviewing your answer…",
         previousAnswer: previous.timed_out
-          ? "Time expired · no answer was submitted."
+          ? "Time expired · question passed to the panel."
           : `Team answer${previous.answered_by ? ` · ${previous.answered_by}` : ""}: ${previous.answer}`,
         ...sourceContent(previous),
         clarifications: previous.clarifications,
@@ -112,6 +114,13 @@ export function QuestionCard({ roomState }: QuestionCardProps) {
       </div>)}
       {content.previousAnswer && <p className="question-previous-answer">{content.previousAnswer}</p>}
       {content.filename !== undefined && (
+        isResearchCitation(content.kind) ? (
+          <PageCitation
+            filename={content.filename}
+            evidence={content.evidence}
+            location={content.location}
+          />
+        ) : (
         <div id="source-block" role="group" aria-label={content.kind?.startsWith("research") ? "Exact extracted document text" : "Exact cited source line"}>
           <div className="source-heading">
             <span className="source-filename" title={content.filename}>{content.filename}</span>
@@ -122,6 +131,7 @@ export function QuestionCard({ roomState }: QuestionCardProps) {
             <pre><code>{content.evidence}</code></pre>
           </div>
         </div>
+        )
       )}
     </section>
   );
