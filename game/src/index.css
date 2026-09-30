@@ -84,7 +84,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 /* Focus stays a hard outline: it is the one unambiguous affordance on a soft-UI surface,
    and the drawer traps keyboard focus. */
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible,
-#question-card:focus-visible, .source-code-scroll:focus-visible {
+.question-scroll:focus-visible, .source-code-scroll:focus-visible {
   outline: 3px solid var(--ink);
   outline-offset: 2px;
 }
@@ -127,8 +127,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .seat-state { color: var(--muted); font-size: .66rem; font-weight: 700; white-space: nowrap; }
 
 /* The question is the primary reading surface. */
-#question-card { grid-row: 3; width: min(100%, 1160px); min-height: 0; margin-inline: auto; padding: clamp(17px, 2vw, 30px) clamp(18px, 3vw, 42px); overflow-y: auto; overscroll-behavior: contain; border: 1px solid transparent; border-radius: 20px; background: var(--base); color: var(--ink); box-shadow: var(--raise-md); scrollbar-color: var(--subtle) var(--base-deep); }
-.question-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+#question-card { grid-row: 3; width: min(100%, 1160px); min-height: 0; margin-inline: auto; padding: clamp(17px, 2vw, 30px) clamp(18px, 3vw, 42px); display: flex; flex-direction: column; overflow: hidden; border: 1px solid transparent; border-radius: 20px; background: var(--base); color: var(--ink); box-shadow: var(--raise-md); }
+/* The heading stays pinned so the asker is always identifiable; only the body scrolls. */
+.question-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-color: var(--subtle) var(--base-deep); }
+.question-heading { display: flex; flex: none; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .question-kicker { margin: 0 0 6px; color: var(--subtle); font-size: .62rem; font-weight: 850; letter-spacing: .13em; }
 #panelist-name { margin: 0; font-size: clamp(.95rem, 1.25vw, 1.12rem); font-weight: 750; line-height: 1.25; }
 .question-number { flex: none; padding: 5px 10px; border: 1px solid transparent; border-radius: 8px; background: var(--base); color: var(--ink); box-shadow: var(--press-sm); font-size: .66rem; font-weight: 800; white-space: nowrap; }
@@ -150,7 +152,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 /* Research citations render as a document page rather than as source code. The text
    is what the server extracted, so the note below states that plainly instead of
    letting the page framing imply a true PDF render. */
-#page-citation { margin-top: 15px; overflow: hidden; border: 1px solid transparent; border-radius: 12px; background: var(--page-paper); box-shadow: var(--raise-sm); }
+/* The page is sized like a sheet rather than stretched to the card, so a short
+   citation is not framed by dead paper. min(100%, ...) keeps it safe when narrow. */
+#page-citation { width: min(100%, 78ch); margin: 15px auto 0; overflow: hidden; border: 1px solid transparent; border-radius: 12px; background: var(--page-paper); box-shadow: var(--raise-sm); }
 .page-citation-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
 .page-citation-file { min-width: 0; color: var(--ink); font-size: .8rem; font-weight: 750; overflow-wrap: anywhere; }
 /* The page marker is a chip rather than loose text, matching the question number

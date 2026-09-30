@@ -97,7 +97,7 @@ function deriveContent(state: RoomState | null): CardContent {
 export function QuestionCard({ roomState }: QuestionCardProps) {
   const content = deriveContent(roomState);
   return (
-    <section id="question-card" aria-labelledby="panelist-name" tabIndex={0}>
+    <section id="question-card" aria-labelledby="panelist-name">
       <div className="question-heading">
         <div>
           <p className="question-kicker">THE PANEL ASKS</p>
@@ -106,6 +106,7 @@ export function QuestionCard({ roomState }: QuestionCardProps) {
         <span className="question-number">{content.number}</span>
       </div>
       {content.reviewStatus && <p className="question-review-status" aria-live="polite">{content.reviewStatus}</p>}
+      <div className="question-scroll" tabIndex={0} aria-label="Question and cited source">
       {content.leadIn && <p id="panelist-lead-in">{content.leadIn}</p>}
       <p id="question-text">{content.question}</p>
       {content.clarifications?.map((exchange, index) => <div className="question-clarification" key={index}>
@@ -133,6 +134,7 @@ export function QuestionCard({ roomState }: QuestionCardProps) {
         </div>
         )
       )}
+      </div>
     </section>
   );
 }

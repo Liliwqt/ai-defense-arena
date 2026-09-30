@@ -224,6 +224,50 @@ it("presents extracted PDF text as a document page, not as code", () => {
     expect(screen.queryByLabelText("Exact cited source line")).toBeNull();
   });
 
+  // jsdom performs no layout, so pinning is asserted structurally: the heading must
+  // sit outside the scroll region, and the region that actually overflows must be
+  // the focusable one. The visual proof is a scroll-position measurement in a browser.
+  it("keeps the asker heading pinned outside the scrolling body", () => {
+    const { container } = render(<QuestionCard roomState={base} />);
+    const scroll = container.querySelector(".question-scroll");
+    const heading = container.querySelector(".question-heading");
+    expect(scroll).toBeTruthy();
+    expect(heading).toBeTruthy();
+    expect(scroll?.contains(heading)).toBe(false);
+    expect(container.querySelector("#question-card")?.contains(heading)).toBe(true);
+    expect(scroll?.querySelector("#question-text")).toBeTruthy();
+  });
+
+  it("scrolls the citation inside the pinned card for both citation kinds", () => {
+    const code: RoomState = { ...base, phase: "voting", turns: [{
+      panelist: "Technical Architect", question: "Why SQLite?", filename: "queue.py",
+      evidence_line: 5, evidence_location: "Line 5", evidence_kind: "source",
+      evidence_text: "DATABASE = 'queue.db'", answer: null, answered_by: null,
+    }] };
+    const codeView = render(<QuestionCard roomState={code} />);
+    expect(codeView.container.querySelector(".question-scroll #source-block")).toBeTruthy();
+    codeView.unmount();
+
+    const research: RoomState = { ...base, defense_type: "research", phase: "voting", turns: [{
+      panelist: "Methodology Reviewer", question: "How will you recruit students?",
+      filename: "paper.pdf", evidence_line: 2, evidence_location: "Page 2 · extracted line 1",
+      evidence_kind: "research_pdf", evidence_text: "Planned student interviews.",
+      answer: null, answered_by: null,
+    }] };
+    const researchView = render(<QuestionCard roomState={research} />);
+    expect(researchView.container.querySelector(".question-scroll #page-citation")).toBeTruthy();
+  });
+
+  it("moves the keyboard scroll tab stop onto the scrolling body", () => {
+    const { container } = render(<QuestionCard roomState={base} />);
+    const card = container.querySelector("#question-card");
+    const scroll = container.querySelector(".question-scroll");
+    // The card itself no longer scrolls, so it must not be the tab stop.
+    expect(card?.getAttribute("tabindex")).toBeNull();
+    expect(scroll?.getAttribute("tabindex")).toBe("0");
+    expect(scroll?.getAttribute("aria-label")).toBeTruthy();
+  });
+
   it("shows coaching preparing text when phase complete and feedback generating", () => {
     const state: RoomState = {
       ...base,
