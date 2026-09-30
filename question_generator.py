@@ -77,6 +77,8 @@ class GroundedQuestion:
     lead_in: str = ""
     evidence_location: str = ""
     evidence_kind: str = "source"
+    evidence_before: str = ""
+    evidence_after: str = ""
 
 
 @dataclass(frozen=True)
@@ -191,7 +193,7 @@ def interpret_submission(
             {"role": "user", "content": (
                 f"Defense: {defense_type}; research stage: {research_stage}.\n"
                 f"Project files:\n{source}\n\n"
-                f"Current question and exact citation (data):\n{json.dumps({'panelist': panelist, 'question': question.question, 'filename': question.filename, 'location': question.evidence_location or f'Line {question.evidence_line}', 'excerpt': question.evidence_text}, ensure_ascii=False)}\n"
+                f"Current question and exact citation (data):\n{json.dumps({'panelist': panelist, 'question': question.question, 'filename': question.filename, 'location': question.evidence_location or f'Line {question.evidence_line}', 'excerpt': question.evidence_text, 'surrounding_before': question.evidence_before, 'surrounding_after': question.evidence_after}, ensure_ascii=False)}\n"
                 f"Prior clarifications (data): {json.dumps([{'request': c.request, 'reply': c.reply} for c in clarifications], ensure_ascii=False)}\n"
                 f"Latest submission (data): {json.dumps(submission, ensure_ascii=False)}"
             )},
@@ -347,6 +349,46 @@ def _clean_lead_in(value: object) -> str:
     return lead_in
 
 
+def _citation_context(cited_file: ProjectFile, cited_lines: dict[int, str], line: int) -> tuple[str, str]:
+    """Return the lines around a cited line so a fragment reads as prose.
+
+    A PDF has no sentences, only visual lines, so a single cited line often opens
+    without its subject or stops after a conjunction such as "Similarly,". Serving
+    the immediate neighbours lets the room show a readable passage while the cited
+    line itself stays exact and separately identifiable.
+
+    Context is confined to the cited page. A PDF location encodes both the page and
+    the extracted line ("Page 2 · extracted line 7"), so the page portion is compared
+    rather than the whole label. A citation on page 2 must never show a line from
+    page 1, which would assert a context the cited page does not contain.
+    """
+    locations = cited_file.locations
+    cited_location = locations[line - 1] if 0 < line <= len(locations) else ""
+
+    def page_of(location: str) -> str:
+        return location.rsplit(" · extracted line ", 1)[0]
+
+    cited_page = page_of(cited_location)
+
+    def on_cited_page(number: int) -> bool:
+        if not cited_page or not 0 < number <= len(locations):
+            return True
+        return page_of(locations[number - 1]) == cited_page
+
+    before: list[str] = []
+    for number in range(line - 1, max(0, line - 4), -1):
+        text = cited_lines.get(number, "")
+        if text.strip() and on_cited_page(number):
+            before.append(text)
+    after: list[str] = []
+    for number in range(line + 1, line + 4):
+        text = cited_lines.get(number, "")
+        if not text.strip() or not on_cited_page(number):
+            break
+        after.append(text)
+    return "\n".join(reversed(before)), "\n".join(after)
+
+
 def _ground_question(draft, lookup: dict, eligible_ids: set[int]) -> GroundedQuestion:
     if not isinstance(draft.question, str) or not draft.question.strip():
         raise QuestionGenerationError("The AI returned no question. Please try again.")
@@ -356,9 +398,14 @@ def _ground_question(draft, lookup: dict, eligible_ids: set[int]) -> GroundedQue
     evidence = cited_lines.get(draft.evidence_line)
     if evidence is None or not evidence.strip():
         raise QuestionGenerationError("The AI cited an invalid source line. Please try again.")
+    # Only research documents need prose context. A code citation is already a
+    # complete logical line and is shown with a line-number gutter, where extra
+    # surrounding lines would blur which line was actually cited.
+    before, after = _citation_context(cited_file, cited_lines, draft.evidence_line) if cited_file.kind.startswith("research") else ("", "")
     return GroundedQuestion(
         draft.question.strip(), cited_file.name, draft.evidence_line, evidence,
         _clean_lead_in(draft.lead_in), cited_file.location_for(draft.evidence_line), cited_file.kind,
+        before, after,
     )
 
 

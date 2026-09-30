@@ -16,6 +16,8 @@ interface CardContent {
   evidence?: string;
   location?: string;
   kind?: string;
+  before?: string;
+  after?: string;
   reviewStatus?: string;
   previousAnswer?: string;
   clarifications?: Turn["clarifications"];
@@ -29,6 +31,8 @@ function sourceContent(turn: Turn) {
     evidence: turn.evidence_text,
     location: turn.evidence_location,
     kind: turn.evidence_kind,
+    before: turn.evidence_before,
+    after: turn.evidence_after,
   };
 }
 
@@ -120,6 +124,8 @@ export function QuestionCard({ roomState }: QuestionCardProps) {
             filename={content.filename}
             evidence={content.evidence}
             location={content.location}
+            before={content.before}
+            after={content.after}
           />
         ) : (
         <div id="source-block" role="group" aria-label={content.kind?.startsWith("research") ? "Exact extracted document text" : "Exact cited source line"}>

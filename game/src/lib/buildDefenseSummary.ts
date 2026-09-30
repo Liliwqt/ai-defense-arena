@@ -38,7 +38,11 @@ function turnLines(turn: Turn, index: number): string[] {
   if (turn.filename && Number.isInteger(turn.evidence_line)) {
     const location = turn.evidence_location ?? `Line ${turn.evidence_line}`;
     lines.push(`   Citation: ${turn.filename}, ${location}`);
+    // The cited line is the validated text. Surrounding lines, when the server sent
+    // them, are labeled as context so the export cannot be misread as one blob.
+    if (turn.evidence_before) lines.push(`   Context before: ${turn.evidence_before}`);
     lines.push(`   Cited text: ${turn.evidence_text ?? ""}`);
+    if (turn.evidence_after) lines.push(`   Context after: ${turn.evidence_after}`);
   }
   for (const exchange of turn.clarifications ?? []) {
     lines.push(`   Clarification requested: ${exchange.request}`);

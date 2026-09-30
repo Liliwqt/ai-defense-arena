@@ -114,6 +114,8 @@ class Room:
                         "evidence_text": turn.question.evidence_text,
                         "evidence_location": turn.question.evidence_location or f"Line {turn.question.evidence_line}",
                         "evidence_kind": turn.question.evidence_kind,
+                        "evidence_before": turn.question.evidence_before,
+                        "evidence_after": turn.question.evidence_after,
                         "clarifications": [exchange.__dict__ for exchange in turn.clarifications],
                         "answer": turn.answer,
                         "timed_out": turn.timed_out,

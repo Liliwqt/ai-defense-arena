@@ -33,6 +33,9 @@ export interface Turn {
   evidence_text: string;
   evidence_location?: string;
   evidence_kind?: string;
+  /** Research citations only: neighbouring lines so a fragment reads as prose. */
+  evidence_before?: string;
+  evidence_after?: string;
   answer: string | null;
   clarifications?: ClarificationExchange[];
   timed_out?: boolean;

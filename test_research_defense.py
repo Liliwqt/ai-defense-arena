@@ -48,6 +48,24 @@ def pdf_bytes(*texts, encrypted=False):
     return result.getvalue()
 
 
+def pdf_page_bytes(*lines):
+    """Build a one-page PDF whose page holds several separate extracted lines."""
+    writer = PdfWriter()
+    page = writer.add_blank_page(width=300, height=300)
+    font = DictionaryObject({NameObject('/Type'): NameObject('/Type'),
+                             NameObject('/Subtype'): NameObject('/Type1'),
+                             NameObject('/BaseFont'): NameObject('/Helvetica')})
+    page[NameObject('/Resources')] = DictionaryObject({
+        NameObject('/Font'): DictionaryObject({NameObject('/F1'): writer._add_object(font)})})
+    stream = DecodedStreamObject()
+    body = ''.join(f'BT /F1 12 Tf 50 {250 - index * 14} Td ({line}) Tj ET\n' for index, line in enumerate(lines))
+    stream.set_data(body.encode())
+    page[NameObject('/Contents')] = writer._add_object(stream)
+    result = BytesIO()
+    writer.write(result)
+    return result.getvalue()
+
+
 def docx_bytes():
     document = Document()
     document.add_paragraph('Planned interviews with students')
@@ -101,6 +119,52 @@ class ResearchFilesTests(unittest.TestCase):
         paper = ProjectFile('paper.md', 'b' * 300_000, 'research_text')
         code = ProjectFile('code.py', 'a' * 300_001)
         self.assertIn('600 KB', combine_sources([code], [paper])[1][0])
+
+    def test_research_citation_serves_neighbouring_lines_as_readable_context(self):
+        # A PDF has no sentences, only visual lines, so a cited line alone can open
+        # without its subject or stop after a conjunction. The server must supply the
+        # immediate neighbours while leaving the cited line itself untouched.
+        paper = read_research_files([upload('paper.pdf', pdf_page_bytes(
+            'The study uses a Wi-Fi 6 module for networking.',
+            'Wi-Fi 6 module (2.4 GHz) for networking. Similarly,',
+            'the registrar office runs the same hardware.',
+        ))])[0][0]
+        client = FakeClient(QuestionDraft(lead_in='', question='Which hardware?', source_file=1, evidence_line=2))
+        question = generate_first_question([paper], 'test-key', client=client, defense_type='research')
+        self.assertEqual(question.evidence_text, 'Wi-Fi 6 module (2.4 GHz) for networking. Similarly,')
+        self.assertEqual(question.evidence_before, 'The study uses a Wi-Fi 6 module for networking.')
+        self.assertEqual(question.evidence_after, 'the registrar office runs the same hardware.')
+
+    def test_citation_context_stops_at_a_page_boundary(self):
+        # Line 1 of page 2 must not reach back into page 1, or the passage would
+        # claim a context that the cited page does not contain.
+        paper = read_research_files([upload('paper.pdf', pdf_bytes('Page one text.', 'Page two text.'))])[0][0]
+        client = FakeClient(QuestionDraft(lead_in='', question='What?', source_file=1, evidence_line=2))
+        question = generate_first_question([paper], 'test-key', client=client, defense_type='research')
+        self.assertEqual(question.evidence_text, 'Page two text.')
+        self.assertEqual(question.evidence_before, '')
+        self.assertEqual(question.evidence_after, '')
+
+    def test_code_citations_get_no_prose_context(self):
+        # A code line is already complete and is shown with a line-number gutter,
+        # where neighbouring lines would blur which line was actually cited.
+        code = ProjectFile('app.py', 'first line\nDATABASE = 1\nthird line\nfourth line')
+        client = FakeClient(QuestionDraft(lead_in='', question='Why?', source_file=1, evidence_line=2))
+        question = generate_first_question([code], 'test-key', client=client, defense_type='code')
+        self.assertEqual(question.evidence_text, 'DATABASE = 1')
+        self.assertEqual(question.evidence_before, '')
+        self.assertEqual(question.evidence_after, '')
+
+    def test_room_snapshot_includes_the_citation_context(self):
+        paper = read_research_files([upload('paper.pdf', pdf_page_bytes('alpha', 'beta', 'omega'))])[0][0]
+        client = FakeClient(QuestionDraft(lead_in='', question='What?', source_file=1, evidence_line=2))
+        question = generate_first_question([paper], 'test-key', client=client, defense_type='research')
+        session = DefenseSession.start(question, 'research', 'proposal')
+        room = game_server.Room('TEST', [paper], {}, 'research', 'proposal', session)
+        turn = room.snapshot()['turns'][0]
+        self.assertEqual(turn['evidence_text'], 'beta')
+        self.assertEqual(turn['evidence_before'], 'alpha')
+        self.assertEqual(turn['evidence_after'], 'omega')
 
     def test_research_questions_cite_extracted_paper_and_stage(self):
         paper = read_research_files([upload('paper.pdf', pdf_bytes('Planned student interviews'))])[0][0]

@@ -30,6 +30,10 @@ export const previewState: RoomState = {
       evidence_line: researchPreview ? 8 : longPreview ? 457 : 3,
       evidence_location: researchPreview ? "Page 2 · extracted line 3" : undefined,
       evidence_kind: researchPreview ? "research_pdf" : "source",
+      // A PDF line can end on a conjunction and mean nothing alone, so the mock
+      // research citation reproduces that real case with its neighbours supplied.
+      evidence_before: researchPreview ? "The registrar office runs on a single shared queue for walk-in students." : undefined,
+      evidence_after: researchPreview ? "We will compare both groups across the same two-week window." : undefined,
       evidence_text: researchPreview ? "We plan to interview students who use the registrar office and compare common themes in their experiences." : longPreview
         ? "#question-card { z-index: 7; top: auto; bottom: clamp(14px, 3.2vh, 38px); left: max(18px, calc((100% - 1360px) / 2)); right: max(18px, calc((100% - 1360px) / 2)); min-height: 0; max-height: min(35dvh, 340px); padding: clamp(15px, 2.1vw, 28px) clamp(18px, 2.7vw, 40px); border: 1px solid #ffffff; border-radius: 20px; background: #f9fbfff2; box-shadow: 0 18px 55px #27415d60, inset 0 1px #fff; color: #17233e; scrollbar-color: #a3bcd8 #edf4fb; }"
         : "Campus Queue lets students reserve a place in a registrar office queue before",

@@ -217,7 +217,42 @@ it("presents extracted PDF text as a document page, not as code", () => {
     expect(screen.getByText("somewhere unknown")).toBeTruthy();
   });
 
-  it("hides source block when phase is lobby", () => {
+  it("shows the cited line with its neighbouring lines as dimmed context", () => {
+    // A PDF line can end on "Similarly," and mean nothing alone. The server sends
+    // the neighbours; the cited line must stay emphasized and byte-exact.
+    const state: RoomState = { ...base, defense_type: "research", phase: "voting", turns: [{
+      panelist: "Methodology Reviewer", question: "Which hardware?",
+      filename: "paper.pdf", evidence_line: 2, evidence_location: "Page 4 · extracted line 2",
+      evidence_kind: "research_pdf", evidence_text: "Wi-Fi 6 module (2.4 GHz). Similarly,",
+      evidence_before: "The study uses a Wi-Fi 6 module.", evidence_after: "The office runs the same hardware.",
+      answer: null, answered_by: null,
+    }] };
+    const { container } = render(<QuestionCard roomState={state} />);
+    const cited = container.querySelector(".page-citation-text.is-cited");
+    const before = container.querySelector(".page-citation-passage .page-citation-context");
+    const after = container.querySelectorAll(".page-citation-passage .page-citation-context")[1];
+    expect(cited?.textContent).toBe("Wi-Fi 6 module (2.4 GHz). Similarly,");
+    expect(cited?.classList.contains("is-cited")).toBe(true);
+    expect(before?.textContent).toBe("The study uses a Wi-Fi 6 module.");
+    expect(after?.textContent).toBe("The office runs the same hardware.");
+    // The note must say which line was cited, so context is never mistaken for it.
+    expect(screen.getByText(/Neighbouring lines are shown for context/i)).toBeTruthy();
+  });
+
+  it("shows the cited line alone when the server sent no context", () => {
+    const state: RoomState = { ...base, defense_type: "research", phase: "voting", turns: [{
+      panelist: "Ethics Reviewer", question: "How is consent handled?",
+      filename: "paper.pdf", evidence_line: 1, evidence_location: "Page 1",
+      evidence_kind: "research_pdf", evidence_text: "Participants sign a consent form.",
+      answer: null, answered_by: null,
+    }] };
+    const { container } = render(<QuestionCard roomState={state} />);
+    expect(container.querySelector(".page-citation-passage")).toBeNull();
+    expect(container.querySelector(".page-citation-text")?.textContent).toBe("Participants sign a consent form.");
+    expect(screen.queryByText(/Neighbouring lines/i)).toBeNull();
+  });
+
+  it("keeps source block when phase is lobby", () => {
     render(
       <QuestionCard roomState={base} />,
     );
