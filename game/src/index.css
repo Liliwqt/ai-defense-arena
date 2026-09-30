@@ -92,7 +92,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 /* Room structure: fixed controls and seats frame one independently scrolling question. */
 .arena-shell { width: 100%; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; background: var(--base); }
-.arena-stage { flex: 1 1 auto; min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 12px; padding: 16px clamp(16px, 2.2vw, 36px) 14px; }
+/* Gaps and padding are deliberately tight: the question card is the only flexible
+   row, so every pixel reclaimed here goes to reading the question and citation.
+   The dense-landscape block below re-declares all of this for phones and wins on
+   source order, so these values govern desktop and short desktop windows only. */
+.arena-stage { flex: 1 1 auto; min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 8px; padding: 10px clamp(16px, 2.2vw, 36px) 8px; }
 #arena-hud { grid-row: 1; display: flex; align-items: center; justify-content: space-between; gap: 14px; min-width: 0; }
 .brand-plate { display: flex; align-items: center; gap: 11px; min-width: 0; }
 .brand-cube { display: grid; place-items: center; width: 35px; height: 35px; flex: none; border: 1px solid transparent; border-radius: 12px; background: var(--base); color: var(--ink); box-shadow: var(--raise-sm); font-size: 1.12rem; }
@@ -112,7 +116,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .seat-section { width: min(100%, 1160px); min-width: 0; margin-inline: auto; }
 .panelist-section { grid-row: 2; }
 .defender-section { grid-row: 4; }
-.seat-section-heading { display: flex; justify-content: space-between; gap: 10px; margin: 0 0 5px; color: var(--subtle); font-size: .61rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.seat-section-heading { display: flex; justify-content: space-between; gap: 10px; margin: 0 0 3px; color: var(--subtle); font-size: .55rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .seat-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .seat-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 9px; min-height: 55px; padding: 8px 11px; border: 1px solid transparent; border-radius: 15px; background: var(--base); color: var(--ink); box-shadow: var(--raise-sm); }
 /* The speaker reads as pressed-in rather than inverted, and keeps the accent marker
@@ -171,8 +175,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .page-fidelity-note { margin: 0; padding: 9px 16px; border-top: 1px solid var(--line); color: var(--subtle); font-size: .7rem; line-height: 1.4; }
 
 /* Persistent answer and private chat dock. */
-#room-dock { flex: 0 0 clamp(172px, 22dvh, 218px); display: flex; flex-direction: column; min-height: 0; padding: 12px clamp(16px, 2.2vw, 36px) 14px; border-top: 1px solid transparent; border-radius: 22px 22px 0 0; background: var(--base); color: var(--ink); box-shadow: 0 -6px 18px var(--neu-dark); }
-.dock-tabs { display: flex; gap: 8px; flex: none; margin-bottom: 10px; }
+/* The dock keeps a constant height so the stage never reflows between phases, but
+   that height is sized to its content rather than padded out: the answer area needs
+   roughly 135px here, and the extra 37px was dead space taken from the card. */
+#room-dock { flex: 0 0 clamp(132px, 19dvh, 172px); display: flex; flex-direction: column; min-height: 0; padding: 8px clamp(16px, 2.2vw, 36px) 10px; border-top: 1px solid transparent; border-radius: 22px 22px 0 0; background: var(--base); color: var(--ink); box-shadow: 0 -6px 18px var(--neu-dark); }
+.dock-tabs { display: flex; gap: 8px; flex: none; margin-bottom: 7px; }
 .dock-tabs button { padding: 6px 13px; border: 1px solid transparent; border-radius: 10px; background: var(--base); color: var(--ink); box-shadow: var(--raise-sm); font-size: .74rem; font-weight: 750; }
 .dock-tabs button[aria-selected="true"] { color: var(--accent); box-shadow: var(--press-sm); }
 .dock-content { flex: 1; min-height: 0; overflow: hidden; }
