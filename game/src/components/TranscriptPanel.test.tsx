@@ -70,4 +70,43 @@ describe("TranscriptPanel", () => {
     expect(screen.getByText("4 answered")).toBeTruthy();
     expect(screen.getByText("Well done.")).toBeTruthy();
   });
+
+  it("reports per-defender coverage when more than one teammate answered", () => {
+    const turns = [
+      { panelist: "Technical Architect", question: "Q1", filename: "f.py", evidence_line: 1, evidence_text: "x", answer: "A", answered_by: "Alex", answered_by_seat: 0 },
+      { panelist: "Security Reviewer", question: "Q2", filename: "f.py", evidence_line: 2, evidence_text: "y", answer: "B", answered_by: "Alex", answered_by_seat: 0 },
+      { panelist: "Product Judge", question: "Q3", filename: "f.py", evidence_line: 3, evidence_text: "z", answer: "C", answered_by: "Sam", answered_by_seat: 1 },
+    ];
+    render(<TranscriptPanel roomState={{ ...emptyState, phase: "complete", turns }} />);
+    const coverage = screen.getByText(/Team coverage/i);
+    expect(coverage.textContent).toContain("Alex answered 2");
+    expect(coverage.textContent).toContain("Sam answered 1");
+  });
+
+  it("hides coverage when only one teammate answered, to avoid singling anyone out", () => {
+    const turns = [
+      { panelist: "Technical Architect", question: "Q1", filename: "f.py", evidence_line: 1, evidence_text: "x", answer: "A", answered_by: "Alex", answered_by_seat: 0 },
+      { panelist: "Security Reviewer", question: "Q2", filename: "f.py", evidence_line: 2, evidence_text: "y", answer: "B", answered_by: "Alex", answered_by_seat: 0 },
+    ];
+    render(<TranscriptPanel roomState={{ ...emptyState, phase: "complete", turns }} />);
+    expect(screen.queryByText(/Team coverage/i)).toBeNull();
+  });
+
+  it("does not count a timed-out turn toward anyone's coverage", () => {
+    const turns = [
+      { panelist: "Technical Architect", question: "Q1", filename: "f.py", evidence_line: 1, evidence_text: "x", answer: "A", answered_by: "Alex", answered_by_seat: 0 },
+      { panelist: "Security Reviewer", question: "Q2", filename: "f.py", evidence_line: 2, evidence_text: "y", answer: null, timed_out: true, answered_by: null, answered_by_seat: 1 },
+    ];
+    render(<TranscriptPanel roomState={{ ...emptyState, phase: "complete", turns }} />);
+    expect(screen.queryByText(/Team coverage/i)).toBeNull();
+  });
+
+  it("frames a timeout neutrally, without blaming the defender", () => {
+    const turns = [
+      { panelist: "Security Reviewer", question: "Q1", filename: "f.py", evidence_line: 1, evidence_text: "x", answer: null, timed_out: true, answered_by: null, answered_by_seat: 1 },
+    ];
+    render(<TranscriptPanel roomState={{ ...emptyState, phase: "complete", turns }} />);
+    expect(screen.getByText(/question passed to the panel/i)).toBeTruthy();
+    expect(screen.queryByText(/no answer was submitted/i)).toBeNull();
+  });
 });

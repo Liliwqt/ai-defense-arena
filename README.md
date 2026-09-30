@@ -2,7 +2,7 @@
 
 A browser-based code and research defense for up to four teammates. The local React room places four panelist cards above the question and four defender cards below it, with a persistent vote, answer, and chat dock. Code projects use Technical Architect, Security Reviewer, Product Judge, and Critical Judge; research defenses use a research-focused panel. Each asks at least one question and may ask one immediate follow-up, for four to eight resolved turns in total. Every question cites exact uploaded source or extracted document text. At the end, the team receives a shared coaching report with strengths, areas to improve, and a next step.
 
-The flat room redesign is on `feature/question-first-room` and has not been deployed; the hosted `main` release still uses the earlier 3D room.
+The flat React room is the built and served UI. The earlier 3D/Phaser room has been removed from the app entirely, along with the `three` and `phaser` dependencies.
 
 For work across agents or session windows, read [AGENTS.md](AGENTS.md) and [PROJECT_LOG.md](PROJECT_LOG.md) before making changes.
 

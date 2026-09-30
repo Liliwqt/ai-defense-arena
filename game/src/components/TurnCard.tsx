@@ -18,7 +18,7 @@ export function TurnCard({ turn, index }: TurnCardProps) {
         <p><strong>Clarification request:</strong> {exchange.request}</p>
         <p><strong>{turn.panelist}:</strong> {exchange.reply}</p>
       </div>)}
-      {turn.timed_out && <p className="turn-timeout">Time expired · no answer was submitted.</p>}
+      {turn.timed_out && <p className="turn-timeout">Time expired · question passed to the panel.</p>}
       {turn.answer && <p className="transcript-answer">
         <strong>Team answer{turn.answered_by ? ` · ${turn.answered_by}` : ""}:</strong> {turn.answer}
       </p>}
