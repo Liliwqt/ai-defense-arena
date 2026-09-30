@@ -2,6 +2,8 @@
 
 This project is a small FastAPI/React multiplayer hackathon prototype with a Streamlit fallback. `README.md` explains how to run it. `PROJECT_LOG.md` is the shared handoff record for agents and separate session windows.
 
+`main` is frozen for a hackathon review window of roughly three weeks from 2026-10-01. Do not merge into it, redeploy it, or alter its behavior until the user says the review is over. Work on `feature/question-first-room`; `main` still serves the earlier 3D room, and that difference is expected for now.
+
 Before working:
 
 1. Read `README.md` and `PROJECT_LOG.md`, then inspect the files relevant to your task. The code is the source of truth if the log is stale.
