@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { TranscriptPanel } from "./TranscriptPanel";
 import type { RoomState } from "../types";
@@ -108,5 +108,91 @@ describe("TranscriptPanel", () => {
     render(<TranscriptPanel roomState={{ ...emptyState, phase: "complete", turns }} />);
     expect(screen.getByText(/question passed to the panel/i)).toBeTruthy();
     expect(screen.queryByText(/no answer was submitted/i)).toBeNull();
+  });
+
+  it("offers a summary download once there is something to export", () => {
+    const turns = [
+      { panelist: "Technical Architect", question: "Q1", filename: "f.py", evidence_line: 1, evidence_text: "x", answer: "A", answered_by: "Alex", answered_by_seat: 0 },
+    ];
+    render(<TranscriptPanel roomState={{ ...emptyState, phase: "complete", turns }} />);
+    expect(screen.getByRole("button", { name: /download summary/i })).toBeTruthy();
+  });
+
+  it("does not offer a download when the room has no turns or coaching yet", () => {
+    render(<TranscriptPanel roomState={emptyState} />);
+    expect(screen.queryByRole("button", { name: /download summary/i })).toBeNull();
+  });
+
+  it("disables the download in preview mode", () => {
+    const turns = [
+      { panelist: "Technical Architect", question: "Q1", filename: "f.py", evidence_line: 1, evidence_text: "x", answer: "A", answered_by: "Alex", answered_by_seat: 0 },
+    ];
+    render(<TranscriptPanel roomState={{ ...emptyState, phase: "complete", turns }} previewMode />);
+    const button = screen.getByRole("button", { name: /download summary/i }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+  });
+
+  it("downloads a text file whose contents match the room", async () => {
+    const turns = [
+      { panelist: "Technical Architect", question: "Why SQLite?", filename: "queue.py", evidence_line: 12, evidence_text: "conn = sqlite3.connect(DB)", answer: "Serverless.", answered_by: "Alex", answered_by_seat: 0 },
+    ];
+    const state: RoomState = {
+      ...emptyState,
+      phase: "complete",
+      room_code: "ABC123",
+      files: ["queue.py"],
+      feedback_status: "ready",
+      turns,
+      feedback: { summary: "Solid.", strengths: [{ turn: 0, text: "Concrete." }], improvements: [{ turn: 0, text: "Cite more." }], next_step: "Rehearse." },
+    };
+
+    const createObjectURL = vi.fn((_blob: Blob) => `blob:mock`);
+    const revokeObjectURL = vi.fn();
+    const originalCreate = URL.createObjectURL;
+    const originalRevoke = URL.revokeObjectURL;
+    (URL as unknown as { createObjectURL: unknown }).createObjectURL = createObjectURL;
+    // Keep the stub in place for the whole test: the component revokes the object URL
+    // on a deferred timeout, after the click handler returns.
+    (URL as unknown as { revokeObjectURL: unknown }).revokeObjectURL = revokeObjectURL;
+
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    try {
+      render(<TranscriptPanel roomState={state} />);
+      const button = screen.getByRole("button", { name: /download summary/i }) as HTMLButtonElement;
+      button.click();
+
+      // The Blob is created synchronously by the handler; read it back to prove the
+      // file the user receives actually contains this defense.
+      expect(createObjectURL).toHaveBeenCalledTimes(1);
+      const blob = createObjectURL.mock.calls[0][0] as Blob;
+      // jsdom's Blob has no .text(); use FileReader so the assertion still reads real content.
+      const text = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsText(blob);
+      });
+      expect(blob.type).toBe("text/plain;charset=utf-8");
+      expect(text).toContain("AI DEFENSE ARENA");
+      expect(text).toContain("Room: ABC123");
+      expect(text).toContain("Why SQLite?");
+      expect(text).toContain("conn = sqlite3.connect(DB)");
+      expect(text).toContain("Solid.");
+      expect(text).toContain("Rehearse.");
+      expect(text).toContain("not a grade");
+
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+      const anchor = clickSpy.mock.instances[0] as unknown as HTMLAnchorElement;
+      expect(anchor.download).toBe("defense-abc123-1970-01-01.txt");
+      expect(anchor.href).toContain("blob:mock");
+
+      // The object URL must be released, otherwise repeated exports leak blobs.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:mock");
+    } finally {
+      clickSpy.mockRestore();
+      (URL as unknown as { createObjectURL: unknown }).createObjectURL = originalCreate;
+      (URL as unknown as { revokeObjectURL: unknown }).revokeObjectURL = originalRevoke;
+    }
   });
 });

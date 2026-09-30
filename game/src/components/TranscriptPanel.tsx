@@ -1,12 +1,14 @@
 import { CoachingReport } from "./CoachingReport";
 import { TurnCard } from "./TurnCard";
+import { buildDefenseSummary, defenseSummaryFileName } from "../lib/buildDefenseSummary";
 import type { RoomState } from "../types";
 
 interface TranscriptPanelProps {
   roomState: RoomState | null;
+  previewMode?: boolean;
 }
 
-export function TranscriptPanel({ roomState }: TranscriptPanelProps) {
+export function TranscriptPanel({ roomState, previewMode = false }: TranscriptPanelProps) {
   const turns = roomState?.turns ?? [];
   const answered = turns.filter((t) => t.answer).length;
   const timedOut = turns.filter((t) => t.timed_out).length;
@@ -54,6 +56,35 @@ export function TranscriptPanel({ roomState }: TranscriptPanelProps) {
             .map(([, entry]) => `${entry.name} answered ${entry.count}`)
             .join(" · ")}
         </p>
+      )}
+
+      {hasSomething && roomState && (
+        <div className="transcript-actions">
+          <button
+            type="button"
+            className="export-button"
+            disabled={previewMode}
+            title={previewMode ? "Preview mode cannot download" : "Save this defense as a text file"}
+            onClick={() => {
+              const text = buildDefenseSummary(roomState);
+              const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement("a");
+              link.href = url;
+              link.download = defenseSummaryFileName(roomState);
+              document.body.appendChild(link);
+              link.click();
+              link.remove();
+              // Release the object URL after the download has been handed to the browser.
+              window.setTimeout(() => URL.revokeObjectURL(url), 0);
+            }}
+          >
+            Download summary
+          </button>
+          <p className="export-note">
+            Rooms are not saved on the server, so this file is your copy of this defense.
+          </p>
+        </div>
       )}
 
       {!hasSomething && (

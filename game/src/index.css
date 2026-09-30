@@ -224,6 +224,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .transcript-empty { color: var(--muted); font-size: .84rem; }
 /* Coverage line: informational, so it recedes rather than competing with the coaching report. */
 .transcript-coverage { margin: 0 0 14px; padding: 10px 13px; border-left: 3px solid var(--accent); border-radius: 0 10px 10px 0; background: var(--base-deep); color: var(--muted); font-size: .78rem; line-height: 1.45; }
+.transcript-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 16px; }
+.export-button { flex: none; padding: 8px 14px; border: 1px solid transparent; border-radius: 12px; background: var(--base); color: var(--ink); box-shadow: var(--raise-sm); font-size: .78rem; font-weight: 800; }
+.export-button:hover:not(:disabled) { color: var(--accent); box-shadow: var(--press-sm); }
+.export-note { margin: 0; color: var(--subtle); font-size: .73rem; line-height: 1.4; }
 .transcript-list { display: grid; gap: 12px; }
 .transcript-turn, .coaching-report { padding: 15px; border: 1px solid transparent; border-radius: 14px; background: var(--base); color: var(--ink); box-shadow: var(--raise-sm); }
 .transcript-turn h3, .coaching-report h3 { margin: 0 0 9px; color: var(--ink); font-size: .83rem; font-weight: 850; }

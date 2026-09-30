@@ -153,7 +153,7 @@ export function App() {
             {message && <div role="alert" className="drawer-error">{message}</div>}
           </>
         ) : (
-          <TranscriptPanel roomState={roomState} />
+          <TranscriptPanel roomState={roomState} previewMode={previewMode} />
         )}
       </Drawer>
       <RotatePrompt />
