@@ -187,7 +187,7 @@ class ClarificationRoomTests(unittest.IsolatedAsyncioTestCase):
         old_id = self.room.interpretation_id
         await self.send(self.host, self.host_socket, type="restart")
         self.assertIsNone(self.room.pending_submission)
-        self.assertEqual(self.room.phase, "generating")
+        self.assertEqual(self.room.phase, "lobby")
         with patch.object(server, "interpret_submission") as ai:
             await server._interpret_pending(self.room, old_id)
             ai.assert_not_called()

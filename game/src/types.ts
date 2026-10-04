@@ -39,6 +39,9 @@ export interface Turn {
   answer: string | null;
   clarifications?: ClarificationExchange[];
   timed_out?: boolean;
+  ended_early?: boolean;
+  topic_id?: string | null;
+  is_follow_up?: boolean;
   assigned_seat?: number | null;
   answered_by: string | null;
   answered_by_seat?: number | null;
@@ -64,6 +67,24 @@ export interface ChatMessage {
   sent_at_ms: number;
 }
 
+export interface SourceReference {
+  filename: string;
+  evidence_line: number;
+  evidence_text: string;
+  evidence_location: string;
+  evidence_kind: string;
+  evidence_before?: string;
+  evidence_after?: string;
+}
+
+export interface ResearchPlan {
+  id: string;
+  suggested_budget: number;
+  uncertainties: string[];
+  topics: { id: string; title: string; objective: string; panelist: string;
+    references: SourceReference[]; gaps: string[] }[];
+}
+
 export interface RoomState {
   room_code: string;
   self_seat: number | null;
@@ -78,6 +99,15 @@ export interface RoomState {
   accepted_files?: { name: string; kind: string; detail: string }[];
   defense_type?: "code" | "research" | "mixed";
   research_stage?: "infer" | "proposal" | "completed";
+  research_planning_status?: "none" | "planning" | "ready" | "failed";
+  research_plan?: ResearchPlan | null;
+  research_plan_error?: string | null;
+  research_budget_preview?: number | null;
+  research_plan_approved?: boolean;
+  question_budget?: number | null;
+  coverage?: Record<string, {status: "pending" | "discussed" | "needs clarification" | "addressed"; turns: number[]; reason: string}>;
+  current_topic?: string | null;
+  completion_reason?: "coverage addressed" | "budget exhausted" | "ended by host" | null;
   feedback_status: FeedbackStatus;
   feedback: CoachingFeedback | null;
   server_now_ms?: number;

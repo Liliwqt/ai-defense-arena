@@ -1,10 +1,12 @@
 import type { RoomState } from "./types";
+import { researchPlanPreview } from "./researchPlanPreview";
 
 const previewParams = new URLSearchParams(window.location.search);
 const votePreview = previewParams.get("vote") === "1";
 const reviewPreview = previewParams.get("review") === "1";
 const longPreview = previewParams.get("long") === "1";
-const researchPreview = previewParams.get("research") === "1";
+const planPreview = previewParams.get("plan") === "1";
+const researchPreview = planPreview || previewParams.get("research") === "1";
 const clarifyPreview = previewParams.get("clarify") === "1";
 const completePreview = previewParams.get("complete") === "1";
 
@@ -96,4 +98,47 @@ if (completePreview) {
     improvements: [{ turn: 2, text: "Explain how wait times will be compared." }],
     next_step: "Write down the pilot measures before rehearsing again.",
   };
+}
+
+if (planPreview) {
+  const budget = Number(previewParams.get("budget") ?? researchPlanPreview.suggested_budget);
+  const requestedStatus = previewParams.get("planstatus");
+  previewState.phase = "lobby";
+  previewState.turns = [];
+  previewState.active_panelist = null;
+  previewState.vote_deadline_ms = null;
+  previewState.answer_deadline_ms = null;
+  previewState.selected_seat = null;
+  previewState.feedback = null;
+  previewState.feedback_status = "none";
+  previewState.research_planning_status = requestedStatus === "planning" || requestedStatus === "failed" ? requestedStatus : "ready";
+  previewState.research_plan = previewState.research_planning_status === "ready" ? researchPlanPreview : null;
+  previewState.research_budget_preview = Number.isInteger(budget) && budget >= 4 && budget <= 100 ? budget : researchPlanPreview.suggested_budget;
+  previewState.research_plan_approved = false;
+  previewState.research_plan_error = requestedStatus === "failed" ? "The AI cited an invalid source line. Retry preparing the defense." : null;
+  previewState.files = ["campus-queue-proposal.pdf"];
+  previewState.accepted_files = [{ name: "campus-queue-proposal.pdf", kind: "research_pdf", detail: "7 pages · synthetic visual fixture" }];
+}
+
+// Synthetic visual fixture for the longer policy; never used by live rooms.
+if (researchPreview && !planPreview) {
+  previewState.research_plan = researchPlanPreview;
+  previewState.research_planning_status = "ready";
+  previewState.research_plan_approved = true;
+  previewState.research_budget_preview = 24;
+  previewState.question_budget = 24;
+  previewState.current_topic = researchPlanPreview.topics[0].id;
+  previewState.coverage = Object.fromEntries(researchPlanPreview.topics.map((topic, i) =>
+    [topic.id, {status: i < 3 ? "addressed" : i === 3 ? "needs clarification" : "pending", turns: i < 4 ? [i] : [], reason: i === 3 ? "The pilot comparison needs a clearer explanation." : ""}]));
+  previewState.turns = previewState.turns.map(turn => ({...turn, topic_id: researchPlanPreview.topics[0].id}));
+  if (previewParams.get("coverage") === "1" && !completePreview) {
+    const current = previewState.turns[0];
+    previewState.turns = [...Array.from({length: 10}, (_, i) => ({...current,
+      panelist: ["Methodology Reviewer", "Ethics Reviewer", "Impact Reviewer", "Critical Judge"][i % 4],
+      question: `Synthetic discussion ${i + 1}: explain the pilot decision.`,
+      answer: i === 3 ? null : "We would measure waiting time in the pilot.",
+      timed_out: i === 3, answered_by: i === 3 ? null : "Teammate A",
+      topic_id: researchPlanPreview.topics[i % 7].id})), current];
+  }
+  if (completePreview) previewState.completion_reason = "budget exhausted";
 }

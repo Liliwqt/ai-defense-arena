@@ -15,9 +15,10 @@ from fastapi.staticfiles import StaticFiles
 from openai import OpenAIError
 from pydantic import BaseModel, ValidationError
 
-from defense_session import DefenseSession, MAX_ANSWER_CHARS, PANELIST_ORDER
+from defense_session import DefenseSession, ResearchDefenseSession, MAX_ANSWER_CHARS, PANELIST_ORDER
 from project_files import MAX_ARCHIVE_BYTES, MAX_FILE_BYTES, ProjectFile, read_project_files
 from research_files import MAX_RESEARCH_BYTES, read_research_files, combine_sources
+from research_plan import ResearchPlan, generate_research_plan, validate_question_budget
 from question_generator import (
     DEFAULT_MODEL,
     CoachingReport,
@@ -28,6 +29,7 @@ from question_generator import (
     generate_coaching_report,
     generate_first_question,
     generate_next_move,
+    generate_research_move,
 )
 
 
@@ -86,6 +88,12 @@ class Room:
     generation_id: int = 0
     feedback_status: str = "none"   # none | generating | ready | failed
     feedback: CoachingReport | None = None
+    research_planning_status: str = "none"  # none | planning | ready | failed
+    research_plan: ResearchPlan | None = None
+    research_plan_error: str | None = None
+    research_budget_preview: int | None = None
+    research_plan_approved: bool = False
+    research_plan_generation_id: int = 0
     feedback_generation_id: int = 0
     vote_deadline_ms: int | None = None
     answer_deadline_ms: int | None = None
@@ -119,6 +127,9 @@ class Room:
                         "clarifications": [exchange.__dict__ for exchange in turn.clarifications],
                         "answer": turn.answer,
                         "timed_out": turn.timed_out,
+                        "ended_early": turn.ended_early,
+                        "topic_id": turn.topic_id,
+                        "is_follow_up": turn.is_follow_up,
                         "assigned_seat": turn.assigned_seat,
                         "answered_by": self.answered_by.get(index),
                         "answered_by_seat": self.answered_by_seat.get(index),
@@ -162,6 +173,15 @@ class Room:
             "accepted_files": [{"name": file.name, "kind": file.kind, "detail": file.detail} for file in self.files],
             "defense_type": self.defense_type,
             "research_stage": self.research_stage,
+            "research_planning_status": self.research_planning_status,
+            "research_plan": self.research_plan.snapshot() if self.research_plan else None,
+            "research_plan_error": self.research_plan_error,
+            "research_budget_preview": self.research_budget_preview,
+            "research_plan_approved": self.research_plan_approved,
+            "question_budget": self.defense.question_budget if isinstance(self.defense, ResearchDefenseSession) else None,
+            "coverage": self.defense.coverage if isinstance(self.defense, ResearchDefenseSession) else {},
+            "current_topic": self.defense.turns[-1].topic_id if isinstance(self.defense, ResearchDefenseSession) and self.defense.turns else None,
+            "completion_reason": self.defense.completion_reason if isinstance(self.defense, ResearchDefenseSession) else None,
             "feedback_status": self.feedback_status,
             "feedback": feedback_dict,
             "server_now_ms": _now_ms(),
@@ -372,29 +392,55 @@ async def _expire_deadline(room: Room, expected_id: int | None = None) -> None:
 async def _generate_question(room: Room, generation_id: int, first: bool) -> None:
     api_key = os.getenv("OPENAI_API_KEY")
     model = os.getenv("OPENAI_MODEL") or DEFAULT_MODEL
+    next_clock = None
+    feedback_id = None
     try:
-        if first:
-            question = await asyncio.to_thread(
-                generate_first_question, room.files, api_key, model,
-                defense_type=room.defense_type, research_stage=room.research_stage,
-            )
+        async with room.lock:
+            if room.generation_id != generation_id:
+                return
+            session = room.defense
+            research = isinstance(session, ResearchDefenseSession)
+            history = session.answered_history() if session else []
+            context = session.context() if research else None
+            allowed = session.allowed_next_panelists if session and not research else ()
+            may_complete = session.may_complete if session and not research else False
+        if research:
+            move = await asyncio.to_thread(generate_research_move, room.files, api_key,
+                history=history, context=context, model=model,
+                defense_type=room.defense_type, research_stage=room.research_stage)
+        elif first:
+            question = await asyncio.to_thread(generate_first_question, room.files, api_key, model,
+                defense_type=room.defense_type, research_stage=room.research_stage)
         else:
-            async with room.lock:
-                if room.generation_id != generation_id or room.defense is None:
-                    return
-                allowed = room.defense.allowed_next_panelists
-                may_complete = room.defense.may_complete
-                history = room.defense.answered_history()
-            move = await asyncio.to_thread(
-                generate_next_move,
-                room.files,
-                api_key,
-                history=history,
-                allowed_panelists=allowed,
-                may_complete=may_complete,
-                model=model,
-                defense_type=room.defense_type, research_stage=room.research_stage,
-            )
+            move = await asyncio.to_thread(generate_next_move, room.files, api_key,
+                history=history, allowed_panelists=allowed, may_complete=may_complete, model=model,
+                defense_type=room.defense_type, research_stage=room.research_stage)
+        async with room.lock:
+            if room.generation_id != generation_id:
+                return
+            if research:
+                session.apply_move(move)
+            elif first:
+                room.defense = DefenseSession.start(question, room.defense_type, room.research_stage)
+            elif session and session.needs_question:
+                session.apply_move(move)
+            else:
+                return
+            if room.defense.completed:
+                room.phase = "complete"
+                room.feedback_status = "generating"
+                room.feedback_generation_id += 1
+                feedback_id = room.feedback_generation_id
+            else:
+                room.phase = "voting"
+                room.votes.clear()
+                room.selected_seat = None
+                room.answer_deadline_ms = None
+                room.vote_deadline_ms = _now_ms() + VOTE_MS
+                room.clock_id += 1
+                next_clock = (room.clock_id, room.vote_deadline_ms)
+            room.error = None
+            room.revision += 1
     except Exception as error:
         async with room.lock:
             if room.generation_id != generation_id:
@@ -404,42 +450,11 @@ async def _generate_question(room: Room, generation_id: int, first: bool) -> Non
             room.revision += 1
         await publish(room)
         return
-
-    start_coaching = False
-    feedback_generation_id = None
-    next_clock = None
-    async with room.lock:
-        if room.generation_id != generation_id:
-            return
-        if first:
-            room.defense = DefenseSession.start(question, room.defense_type, room.research_stage)
-            room.phase = "voting"
-        elif room.defense is not None and room.defense.needs_question:
-            room.defense.apply_move(move)
-            if room.defense.completed:
-                room.phase = "complete"
-                room.feedback_status = "generating"
-                room.feedback_generation_id += 1
-                feedback_generation_id = room.feedback_generation_id
-                start_coaching = True
-            else:
-                room.phase = "voting"
-        else:
-            return
-        if room.phase == "voting":
-            room.votes.clear()
-            room.selected_seat = None
-            room.answer_deadline_ms = None
-            room.vote_deadline_ms = _now_ms() + VOTE_MS
-            room.clock_id += 1
-            next_clock = (room.clock_id, room.vote_deadline_ms)
-        room.error = None
-        room.revision += 1
     await publish(room)
     if next_clock:
         _schedule_clock(room, *next_clock)
-    if start_coaching and feedback_generation_id is not None:
-        _schedule_coaching(room, feedback_generation_id)
+    if feedback_id is not None:
+        _schedule_coaching(room, feedback_id)
 
 
 async def _interpret_pending(room: Room, interpretation_id: int) -> None:
@@ -511,6 +526,41 @@ def _schedule_generation(room: Room, generation_id: int, first: bool) -> None:
     task.add_done_callback(lambda finished: finished.exception() if not finished.cancelled() else None)
 
 
+async def _prepare_research_plan(room: Room, plan_generation_id: int) -> None:
+    async with room.lock:
+        if room.research_plan_generation_id != plan_generation_id or room.phase != "lobby":
+            return
+        files, mode, stage = list(room.files), room.defense_type, room.research_stage
+    try:
+        plan = await asyncio.to_thread(generate_research_plan, files, os.getenv("OPENAI_API_KEY"),
+                                       os.getenv("OPENAI_MODEL") or DEFAULT_MODEL,
+                                       defense_type=mode, research_stage=stage)
+    except Exception as error:
+        async with room.lock:
+            if room.research_plan_generation_id != plan_generation_id or room.phase != "lobby":
+                return
+            room.research_planning_status = "failed"
+            room.research_plan_error = _safe_generation_error(error)
+            room.revision += 1
+        await publish(room)
+        return
+    async with room.lock:
+        if room.research_plan_generation_id != plan_generation_id or room.phase != "lobby":
+            return
+        room.research_plan = plan
+        room.research_planning_status = "ready"
+        room.research_plan_error = None
+        room.research_budget_preview = plan.suggested_budget
+        room.research_plan_approved = False
+        room.revision += 1
+    await publish(room)
+
+
+def _schedule_research_plan(room: Room, plan_generation_id: int) -> None:
+    task = asyncio.create_task(_prepare_research_plan(room, plan_generation_id))
+    task.add_done_callback(lambda finished: finished.exception() if not finished.cancelled() else None)
+
+
 async def _generate_coaching(room: Room, feedback_generation_id: int) -> None:
     api_key = os.getenv("OPENAI_API_KEY")
     model = os.getenv("OPENAI_MODEL") or DEFAULT_MODEL
@@ -518,11 +568,16 @@ async def _generate_coaching(room: Room, feedback_generation_id: int) -> None:
         if room.feedback_generation_id != feedback_generation_id or room.defense is None:
             return
         history = room.defense.answered_history()
+        research_context = room.defense.context() if isinstance(room.defense, ResearchDefenseSession) else None
     try:
-        report = await asyncio.to_thread(
-            generate_coaching_report, room.files, history, api_key, model,
-            defense_type=room.defense_type, research_stage=room.research_stage,
-        )
+        if not history:
+            report = CoachingReport("The host ended the defense before any answer or timeout was recorded. No discussion coverage was confirmed.", [], [], "Review the paper map and start a new defense when the team is ready.")
+        else:
+            report = await asyncio.to_thread(
+                generate_coaching_report, room.files, history, api_key, model,
+                defense_type=room.defense_type, research_stage=room.research_stage,
+                **({"research_context": research_context} if research_context else {}),
+            )
     except Exception as error:
         async with room.lock:
             if room.feedback_generation_id != feedback_generation_id:
@@ -652,20 +707,85 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
     generation_id = None
     feedback_generation_id = None
     interpretation_id = None
+    plan_generation_id = None
     async with room.lock:
-        if action in {"start", "restart", "retry", "retry_coaching"} and not player.is_host:
+        if action in {"start", "restart", "retry", "retry_coaching", "prepare_research_plan", "retry_research_plan", "approve_research_plan", "end_defense"} and not player.is_host:
             error = "Only the host can control the defense."
+        elif action in {"prepare_research_plan", "retry_research_plan"}:
+            if room.defense_type == "code":
+                error = "Paper mapping is available for research and mixed defenses only."
+            elif room.phase != "lobby" or room.defense is not None:
+                error = "Prepare the research map before starting a defense."
+            elif room.research_planning_status == "planning":
+                error = "The research map is already being prepared."
+            elif action == "retry_research_plan" and room.research_planning_status != "failed":
+                error = "There is no failed research map to retry."
+            else:
+                room.research_planning_status = "planning"
+                room.research_plan_error = None
+                room.research_plan = None
+                room.research_budget_preview = None
+                room.research_plan_approved = False
+                room.research_plan_generation_id += 1
+                plan_generation_id = room.research_plan_generation_id
+                room.revision += 1
+        elif action == "approve_research_plan":
+            if room.phase != "lobby" or room.research_planning_status != "ready" or room.research_plan is None:
+                error = "Prepare a research map before confirming its question budget."
+            elif message.get("plan_id") != room.research_plan.id:
+                error = "The research map changed. Review the current map before confirming."
+            else:
+                try:
+                    room.research_budget_preview = validate_question_budget(message.get("question_budget"))
+                except ValueError as exc:
+                    error = str(exc)
+                else:
+                    room.research_plan_approved = True
+                    room.revision += 1
         elif action == "start":
             if room.phase != "lobby" or room.defense is not None:
                 error = "The defense has already started."
+            elif room.research_planning_status == "planning":
+                error = "Wait for the research map to finish before starting."
+            elif room.defense_type != "code" and (
+                    room.research_plan is None or not room.research_plan_approved
+                    or message.get("plan_id") != room.research_plan.id
+                    or type(message.get("question_budget")) is not int
+                    or message.get("question_budget") != room.research_budget_preview):
+                error = "Prepare and confirm the current research map and question budget before starting."
             else:
+                if room.defense_type != "code":
+                    room.defense = ResearchDefenseSession.create(room.research_plan, room.research_budget_preview,
+                                                                 room.defense_type, room.research_stage)
                 room.phase = "generating"
                 room.error = None
                 room.generation_id += 1
                 generation_id = room.generation_id
                 room.revision += 1
                 generate_first = True
+        elif action == "end_defense":
+            if room.defense_type == "code" or not isinstance(room.defense, ResearchDefenseSession):
+                error = "Ending early is available for an active research defense."
+            elif room.defense.completed:
+                error = "The defense is already complete."
+            else:
+                room.generation_id += 1
+                room.interpretation_id += 1
+                room.pending_submission = None
+                _clear_clock_locked(room)
+                room.defense.end()
+                room.phase = "complete"
+                room.error = None
+                room.feedback_status = "generating"
+                room.feedback_generation_id += 1
+                feedback_generation_id = room.feedback_generation_id
+                room.revision += 1
         elif action == "restart":
+            # Cancel an in-flight map without letting it mutate an active defense.
+            room.research_plan_generation_id += 1
+            if room.research_planning_status == "planning":
+                room.research_planning_status = "none"
+                room.research_plan_error = None
             room.interpretation_id += 1
             room.pending_submission = None
             _clear_clock_locked(room)
@@ -683,6 +803,13 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
             room.feedback_generation_id += 1
             room.revision += 1
             generate_first = True
+            if room.defense_type != "code":
+                if room.research_plan is not None and room.research_plan_approved:
+                    room.defense = ResearchDefenseSession.create(room.research_plan, room.research_budget_preview,
+                                                                 room.defense_type, room.research_stage)
+                else:
+                    room.phase = "lobby"
+                    generate_first = None
         elif action == "retry":
             if room.phase != "retry":
                 error = "There is no failed question to retry."
@@ -791,6 +918,8 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
         await _send_error(socket, error)
         return
     await publish(room)
+    if plan_generation_id is not None:
+        _schedule_research_plan(room, plan_generation_id)
     if generate_first is not None and generation_id is not None:
         _schedule_generation(room, generation_id, generate_first)
     if feedback_generation_id is not None:

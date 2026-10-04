@@ -6,9 +6,11 @@ The multiplayer app uses a flat, question-centered React interface served by Fas
 
 ## Current branch and verification
 
-This README describes `feature/question-first-room`: research uploads, same-question clarifications, the flat room, summary downloads, and natural, answer-aware panelist prompts. `main` remains frozen during the review window that began on October 1, 2026, and serves the earlier room. Publishing the feature branch does not establish that its changes are deployed.
+This README describes `feature/question-first-room`: the flat room, research documents, same-question clarifications, summary downloads, and natural, answer-aware panelist conversations. Research and mixed defenses now require a source-grounded paper map and a host-confirmed 4–100-question maximum. Code-only defenses remain four to eight questions. Google sign-in and PayMongo account/test-credit work remain separate local work and are excluded from this release. `main` remains frozen during the review window that began on October 1, 2026, and serves the earlier room. Publishing a branch does not establish that a service has deployed it.
 
-The latest recorded checks passed **104 Python tests with AI mocked, 115 React tests, and a production build**. Local live code and synthetic research defenses exercised dialogue, exact citations, and synchronized clients. The final language-continuity refinement has offline regression coverage but still needs a live recheck after restarting the local server. User review, hosted verification of this checkpoint, and physical second-device confirmation remain separate.
+Release verification is recorded in [PROJECT_LOG.md](PROJECT_LOG.md). The larger local workspace passed 170 Python tests with AI, Google and PayMongo mocked, 142 React tests, and a production build; those totals include unpublished account/payment tests. The isolated research release passed **138 Python tests with AI mocked, 129 React tests, and a production build** using the committed dependency lockfile. These checks exclude the unpublished account/payment files. Mocked two-browser twelve-question research and mixed defenses covered planning, budget confirmation, voting, timeout follow-up, clarification, retry, reconnect, exact PDF/code citations, export and coaching. Desktop, landscape, narrow landscape, portrait rotation and keyboard drawer controls were checked separately.
+
+A live local mixed/proposal defense with synthetic materials completed exactly twelve questions (eleven answers and one real timeout). All citations matched its uploads. It exercised source-grounded follow-ups, two same-question clarifications, English/Taglish adaptation, retry without a duplicate answer, reconnect, shared coaching and a downloaded summary. It stopped at the approved budget with nine of twelve topics addressed and three explicitly reported gaps. The constrained opening-choice fix was verified live. The final Q1-style coaching-numbering instruction has offline regression coverage and loads on the next server restart. This is one synthetic live sample, not a guarantee of exhaustive paper coverage or consistently strong dialogue. User visual review, hosted verification and physical separate-device confirmation are separate claims.
 
 See [PROJECT_LOG.md](PROJECT_LOG.md) for evidence and publication history. Agents and other session windows must also read [AGENTS.md](AGENTS.md) before editing.
 
@@ -49,11 +51,15 @@ Open <http://127.0.0.1:8000/?preview=1>. Preview mode uses static mock state, ma
 | Flag | Preview |
 | --- | --- |
 | `&research=1` | Research roles and document citation |
+| `&plan=1` | Synthetic research map, with Controls open automatically |
 | `&vote=1` | Speaker voting |
+| `&coverage=1&research=1` | Longer-session progress (question 11 of 24) and topic coverage |
 | `&review=1` | Reviewing an answer |
 | `&clarify=1` | Same-question clarification |
 | `&complete=1` | Transcript and coaching |
 | `&long=1` | Long question and citation overflow |
+
+For scope-preview variants, add `&budget=4` to view a smaller proposed budget, or `&planstatus=planning` / `&planstatus=failed` to inspect mapping status and failure copy. These fixtures make no AI requests and cannot confirm a real plan.
 
 For frontend development, run `npm run dev` in `game/` alongside FastAPI on port 8000. Vite proxies `/api`, `/ws`, and `/health` to the backend. Real rooms still require the backend credentials.
 
@@ -61,10 +67,10 @@ For frontend development, run `npm run dev` in `game/` alongside FastAPI on port
 
 1. In **Controls**, enter your display name and host passcode, choose a defense type, and upload its materials. For a code demo, use [sample_project/README.md](sample_project/README.md) and [sample_project/queue.py](sample_project/queue.py).
 2. Share the room code. Teammates open the same service URL and join with their own display names. The four defender seats include the host.
-3. The host starts the defense. Each question appears with its panelist, optional reaction, and validated citation.
+3. For research or mixed rooms, the host first chooses **Prepare defense**, reviews the map, edits the question maximum and selects **Confirm question budget**. Then the host starts the defense. Each question appears with its panelist, optional reaction, and validated citation.
 4. Every question, including follow-ups, begins with a **15-second speaker vote**. Online defenders may vote for themselves or another online defender and change their vote. The highest count wins; ties and no votes are resolved randomly among online defenders.
 5. The chosen defender gets **120 seconds** to answer. Only that defender may submit. Disconnection assigns another online defender without resetting the clock. Expiry records an unanswered turn and advances the defense.
-6. After four to eight resolved turns, open **Transcript** for the conversation and coaching. **Download summary** saves a text copy of questions, citations, clarifications, answers, timeouts, and coaching in your browser.
+6. After completion (four to eight turns for code; coverage, budget, or host ending for research), open **Transcript** for the conversation and coaching. **Download summary** saves a text copy of questions, citations, clarifications, answers, timeouts, and coaching in your browser.
 
 The server owns deadlines, votes, speaker selection, and accepted answers. Reconnecting in the same browser restores the current snapshot while the room exists. Restarting a defense clears its turns, votes, timers, chat, and coaching.
 
@@ -82,7 +88,25 @@ Phone play is landscape-only. The header, both seat rows, and bottom dock stay v
 
 Research modes offer **Proposal**, **Completed study**, or **Let AI infer**. Proposal guidance examines planned methods and feasibility; completed-study guidance examines reported results and limitations. When the stage is unclear, prompts instruct reviewers to ask for clarification rather than invent findings.
 
-Each panelist asks one opening question and may ask **one immediate follow-up** for a material unresolved issue. All four roles must speak, producing four to eight resolved turns. A timeout counts as a resolved turn. Follow-ups are generated from the uploads and actual conversation, not a fixed second set of questions.
+In code-only defenses each panelist asks one opening question and may ask **one immediate follow-up** for a material unresolved issue. All four roles must speak, producing four to eight resolved turns. A timeout counts as a resolved turn. Follow-ups are generated from the uploads and actual conversation, not a fixed second set of questions.
+
+### Research scope, coverage and question budget
+
+After creating a Research paper or Research + code room, open **Controls → Prepare defense**. This is an explicit, host-only AI request; uploading or joining does not automatically call the model. It receives all accepted materials and the selected research stage, maps substantive sections and important claims into ordered discussion topics, assigns reviewers, and identifies missing or unclear information. References-only material should be excluded and repetitive content grouped. These are model instructions: validate the proposed coverage during review rather than assuming every important claim was recognized.
+
+Each topic includes its objective, assigned reviewer, gaps, and expandable source references. References resolve to the exact server-owned paper/code text, including PDF page or DOCX paragraph/table location. In mixed rooms a topic must include a paper reference and may also cite supporting code. A valid source location does not prove the model's interpretation.
+
+The suggested maximum is **two questions per topic, bounded to 4–100**. The host can edit and **Confirm question budget**; teammates see the same map, confirmed value and evolving coverage after reconnect. If the budget is smaller than the topic count, the screen warns that some topics may remain unexplored. A failed map retains uploads and offers **Retry research map**, without creating a question. Repeated preparation invalidates confirmation of the older map. Research planning and its errors remain separate from defense/coaching state.
+
+A research/mixed start requires the current validated map and confirmed maximum. All four research reviewers receive an opening turn in order, with one optional immediate follow-up per primary question. After the openings, the panel selects outstanding topics by reviewer expertise rather than stopping at eight turns. It prioritizes untouched topics, then useful revisits. Direct questions are the default; grounded what-if situations are occasional and prompts prohibit consecutive scenarios.
+
+Each next-move AI request also assesses the preceding resolved turn's topic as **discussed**, **needs clarification**, or **addressed**, with a supporting question reference. Unasked topics are **pending**. The entire assessment and next move are validated before either is applied; an invalid result preserves the accepted answer and earlier coverage for host retry. “Addressed” means the topic was covered in discussion, not that the research is correct. A timeout consumes one generated question and cannot be assessed as addressed. Clarifications keep the question and do not consume another slot.
+
+The session ends when every topic is addressed and all reviewers have participated, the approved maximum is reached, or the host chooses **End defense**. At the maximum, the next-move request may assess the final turn and complete but cannot generate another question. Early ending cancels clocks and discards stale AI results, preserves accepted answers, and marks an active unanswered turn **ended early**, separately from a timeout. With no resolved turns it shows a factual summary without requesting AI coaching. Controls and Transcript show coverage and ending reasons; text exports and coaching include remaining gaps. The question budget is not a payment quote and spends no test credits.
+
+Streamlit mirrors preparation, confirmation, adaptive questions, coverage, early ending and research coaching. It remains a single-browser app without multiplayer voting or chat. Changing documents, defense type or research stage clears the map, confirmation and session.
+
+Open the synthetic visual review at `/?preview=1&plan=1`. For a real AI map, start the updated local server with your own `OPENAI_API_KEY`; mock previews and offline tests do not demonstrate live map quality.
 
 ### Conversation and clarification
 
@@ -131,13 +155,14 @@ The document panel shows **extracted text**, not a rendered original PDF. Extrac
 | `game/src/` | React setup, flat room, question/citation UI, vote/answer/chat dock, transcript, and export |
 | `game_server.py` | FastAPI HTTP/WebSocket service, authentication, room state, timers, and broadcasts |
 | `defense_session.py` | Role order, optional follow-ups, resolved turns, and retained history |
+| `research_plan.py` | Structured research map, exact source references, suggested budget and scope-preview validation |
 | `question_generator.py` | Shared prompts, Responses API structured output, submission interpretation, citation validation, and coaching |
 | `project_files.py` / `research_files.py` | Upload validation and document extraction/location mapping |
 | `app.py` | Streamlit single-browser fallback |
 
-Endpoints: `POST /api/rooms` for passcode-protected host creation/uploads, `POST /api/rooms/{code}/join` for teammates, `WS /ws/{code}` for player-token-authenticated events, and `GET /health`. FastAPI serves the production React build from `game/dist`. There is no active 3D/Phaser scene.
+Endpoints: `POST /api/rooms` for passcode-protected host creation/uploads, `POST /api/rooms/{code}/join` for teammates, `WS /ws/{code}` for player-token-authenticated events, and `GET /health`. Research actions on the authenticated room socket are host-only `prepare_research_plan`, `retry_research_plan`, `approve_research_plan`, and `end_defense`. Approval and research `start` carry the current `plan_id` and an integer `question_budget`. Snapshots carry planning status, map, safe planning error, confirmed budget, topic coverage, current topic and completion reason. FastAPI serves the production React build from `game/dist`. There is no active 3D/Phaser scene.
 
-Rooms, accepted text, chat, and coaching live in process memory. There is no database or stored session history. A restart or instance shutdown loses active rooms; the downloaded summary is the team's own retained copy. Keep exactly **one worker and one instance**.
+Rooms, accepted text, chat, and coaching live in process memory. There is no stored defense-session history. A restart or instance shutdown loses active rooms; the downloaded summary is the team's own retained copy. Keep exactly **one worker and one instance**.
 
 ## Streamlit fallback
 

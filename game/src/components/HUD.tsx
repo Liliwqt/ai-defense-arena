@@ -18,11 +18,13 @@ export function HUD({ roomState, roomCode, previewMode, onOpenDrawer, onPreviewM
     ? `Room ${roomState.room_code || roomCode || "—"}`
     : "No room yet";
 
+  const addressed = Object.values(roomState?.coverage ?? {}).filter(item => item.status === "addressed").length;
+  const topicCount = roomState?.research_plan?.topics.length ?? 0;
   const pillProgress =
     phase === "complete"
       ? "COMPLETE"
       : roomState
-        ? `${resolved} RESOLVED`
+        ? roomState.question_budget ? `Question ${roomState.turns.length} of ${roomState.question_budget} · ${roomState.active_panelist?.replace(" Reviewer", "").replace(" Judge", "") ?? "Reviewing"}` : `${resolved} RESOLVED`
         : "READY";
 
   return (
@@ -55,6 +57,7 @@ export function HUD({ roomState, roomCode, previewMode, onOpenDrawer, onPreviewM
         >
           <span aria-hidden="true">▥</span> {pillProgress}
         </span>
+        {!!roomState?.question_budget && <span className="hud-pill hud-coverage">{addressed} of {topicCount} topics addressed</span>}
         {(phase === "interpreting" || phase === "interpretation_retry") && <span id="room-countdown" className="hud-pill hud-timer" role="status" aria-label="Answer timer paused">PAUSED {formatCountdown(Math.ceil((roomState?.remaining_answer_ms ?? 0) / 1000))}</span>}
         {(phase === "voting" || phase === "question") && (
           <span id="room-countdown" className={`hud-pill hud-timer${seconds !== null && seconds <= (phase === "voting" ? 5 : 15) ? " is-urgent" : ""}`} role="timer" aria-label={`${phase === "voting" ? "Vote" : "Answer"} time remaining`}>

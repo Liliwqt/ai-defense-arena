@@ -48,6 +48,15 @@ export function TranscriptPanel({ roomState, previewMode = false }: TranscriptPa
         </span>
       </div>
 
+      {roomState?.research_plan && roomState.coverage && <section className="transcript-coverage" aria-label="Research coverage">
+        <h4>Research coverage</h4>
+        {roomState.completion_reason && <p>Ending reason: {roomState.completion_reason}</p>}
+        <p>Addressed means discussion coverage, not proof that the research is correct.</p>
+        <ul>{roomState.research_plan.topics.map(topic => <li key={topic.id}>
+          <strong>{topic.title}</strong>: {roomState.coverage?.[topic.id]?.status ?? "pending"}
+          {roomState.coverage?.[topic.id]?.turns.length ? ` · questions ${roomState.coverage[topic.id].turns.map(i => i + 1).join(", ")}` : ""}
+        </li>)}</ul>
+      </section>}
       {roster.length > 0 && (
         <p className="transcript-coverage">
           Team coverage:{" "}
@@ -100,7 +109,7 @@ export function TranscriptPanel({ roomState, previewMode = false }: TranscriptPa
             feedback={roomState?.feedback ?? null}
           />
           {turns.map((turn, index) => (
-            <TurnCard key={index} turn={turn} index={index} />
+            <TurnCard key={index} turn={turn} index={index} research={!!roomState?.defense_type && roomState.defense_type !== "code"} />
           ))}
         </div>
       )}

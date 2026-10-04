@@ -12,7 +12,7 @@ const RESEARCH_PANELISTS = ["Methodology Reviewer", "Ethics Reviewer", "Impact R
 export function PanelistSeats({ roomState }: { roomState: RoomState | null }) {
   const panelists = roomState?.defense_type && roomState.defense_type !== "code"
     ? RESEARCH_PANELISTS : CODE_PANELISTS;
-  const speaker = roomState?.active_panelist;
+  const speaker = panelists === RESEARCH_PANELISTS && roomState?.active_panelist === "Critical Judge" ? "Critical Reviewer" : roomState?.active_panelist;
   const speaking = roomState?.phase === "voting" || roomState?.phase === "question"
     || roomState?.phase === "interpreting" || roomState?.phase === "interpretation_retry";
   return (

@@ -19,7 +19,7 @@ export function App() {
     roomState: liveRoomState, connected, roomCode, waitingForAnswerAck,
     actionError, sendEvent, useRoom, leaveRoom,
   } = useRoomSocket(previewMode);
-  const [drawerOpen, setDrawerOpen] = useState(!previewMode);
+  const [drawerOpen, setDrawerOpen] = useState(!previewMode || new URLSearchParams(window.location.search).get("plan") === "1");
   const [drawerMode, setDrawerMode] = useState<DrawerMode>("controls");
   const [message, setMessage] = useState("");
   const [presenterMoment, setPresenterMoment] = useState<PresenterMoment | null>(null);

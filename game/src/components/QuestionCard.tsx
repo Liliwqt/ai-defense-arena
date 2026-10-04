@@ -1,4 +1,5 @@
 import { PageCitation } from "./PageCitation";
+import { useEffect, useRef } from "react";
 import { isResearchCitation } from "../lib/citation";
 import type { RoomState, Turn } from "../types";
 
@@ -54,7 +55,7 @@ function deriveContent(state: RoomState | null): CardContent {
     return {
       name: current.panelist,
       question: current.question,
-      number: `QUESTION ${currentIndex + 1}`,
+      number: `QUESTION ${currentIndex + 1}${state?.question_budget ? ` OF ${state.question_budget}` : ""}`,
       ...sourceContent(current),
       clarifications: current.clarifications,
       reviewStatus: phase === "interpreting" ? "Reading your submission… Answer clock paused." : phase === "interpretation_retry" ? "Could not interpret the submission. Answer clock paused." : undefined,
@@ -88,11 +89,17 @@ function deriveContent(state: RoomState | null): CardContent {
         ? "The panel has finished. Your coaching report is being prepared."
         : feedback === "failed"
           ? `${state?.error ?? "The coaching report could not be generated."} The host can retry from Controls.`
-          : "Open Transcript to review your answers and coaching report.",
+          : `Open Transcript to review your answers and coaching report.${state?.completion_reason ? ` Ending reason: ${state.completion_reason}.` : ""}`,
       number: `${resolved} RESOLVED`,
     };
   }
   if (phase === "lobby") {
+    if (state?.research_planning_status === "planning") {
+      return { name: "Preparing research coverage", question: "Mapping the uploaded research. The scope preview will appear in Controls for your team to inspect.", number: "MAPPING" };
+    }
+    if (state?.research_plan) {
+      return { name: "Research scope ready", question: `${state.research_plan.topics.length} proposed topics are ready in Controls. Review the map and confirm the question budget before starting.`, number: "PLAN READY" };
+    }
     return { name: "Your team is gathering", question: "The host starts the defense when everyone is ready.", number: "READY" };
   }
   return { name: "Your defense begins here", question: "Create or join a room to begin your defense.", number: "READY" };
@@ -100,6 +107,11 @@ function deriveContent(state: RoomState | null): CardContent {
 
 export function QuestionCard({ roomState }: QuestionCardProps) {
   const content = deriveContent(roomState);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [roomState?.room_code, roomState?.turns.length]);
+  if (roomState?.defense_type && roomState.defense_type !== "code" && content.name === "Critical Judge") content.name = "Critical Reviewer";
   return (
     <section id="question-card" aria-labelledby="panelist-name">
       <div className="question-heading">
@@ -110,7 +122,8 @@ export function QuestionCard({ roomState }: QuestionCardProps) {
         <span className="question-number">{content.number}</span>
       </div>
       {content.reviewStatus && <p className="question-review-status" aria-live="polite">{content.reviewStatus}</p>}
-      <div className="question-scroll" tabIndex={0} aria-label="Question and cited source">
+      <div className="question-scroll" ref={scrollRef} tabIndex={0} aria-label="Question and cited source">
+      {roomState?.current_topic && <p className="question-topic">Topic: {roomState.research_plan?.topics.find(t => t.id === roomState.current_topic)?.title}</p>}
       {content.leadIn && <p id="panelist-lead-in">{content.leadIn}</p>}
       <p id="question-text">{content.question}</p>
       {content.clarifications?.map((exchange, index) => <div className="question-clarification" key={index}>

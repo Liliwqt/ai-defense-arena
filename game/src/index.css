@@ -158,7 +158,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
    letting the page framing imply a true PDF render. */
 /* The page is sized like a sheet rather than stretched to the card, so a short
    citation is not framed by dead paper. min(100%, ...) keeps it safe when narrow. */
-#page-citation { width: min(100%, 78ch); margin: 15px auto 0; overflow: hidden; border: 1px solid transparent; border-radius: 12px; background: var(--page-paper); box-shadow: var(--raise-sm); }
+#page-citation, .page-citation { width: min(100%, 78ch); margin: 15px auto 0; overflow: hidden; border: 1px solid transparent; border-radius: 12px; background: var(--page-paper); box-shadow: var(--raise-sm); }
 .page-citation-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
 .page-citation-file { min-width: 0; color: var(--ink); font-size: .8rem; font-weight: 750; overflow-wrap: anywhere; }
 /* The page marker is a chip rather than loose text, matching the question number
@@ -314,7 +314,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .question-review-status { margin: 4px 0 0; font-size: .67rem; }
   .question-previous-answer, .question-clarification { margin: 5px 0; padding: 5px 7px; font-size: .65rem; line-height: 1.22; }
   #source-block { margin-top: 7px; border-radius: 5px; }
-  #page-citation { margin-top: 7px; border-radius: 8px; }
+  #page-citation, .page-citation { margin-top: 7px; border-radius: 8px; }
   .page-citation-header { padding: 4px 8px; }
   .page-citation-file { font-size: .63rem; }
   .page-citation-where { font-size: .58rem; }
@@ -347,4 +347,37 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .submission-retry { font-size: .68rem; gap: 3px; }
   .submission-retry-actions button { font-size: .65rem; padding: 3px 6px; }
 }
+.research-plan-panel { min-width: 0; padding: 16px; border-radius: 12px; background: var(--base); box-shadow: var(--press-sm); }
+.research-plan-heading h3 { margin: 8px 0; font-size: 1.1rem; font-weight: 800; }
+.plan-preview-badge { font-size: .65rem; font-weight: 800; letter-spacing: .07em; }
+.research-plan-panel p { line-height: 1.5; margin: 8px 0; }
+.plan-summary { font-size: .86rem; }
+.plan-topics { list-style: none; padding: 0; margin: 18px 0; display: grid; gap: 16px; }
+.plan-topics > li { min-width: 0; padding: 14px; background: var(--page-paper); border: 1px solid var(--line); border-radius: 10px; }
+.plan-topic-heading { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .65rem; font-weight: 800; color: var(--muted); }
+.plan-topics h4 { margin: 7px 0; font-size: .94rem; font-weight: 800; overflow-wrap: anywhere; }
+.plan-topics p, .plan-topics li, .plan-uncertainties { font-size: .8rem; overflow-wrap: anywhere; }
+.plan-uncertainties, .plan-topic-gaps { margin: 12px 0; padding-left: 10px; border-left: 2px solid var(--ink); }
+.plan-uncertainties ul, .plan-topic-gaps ul { padding-left: 17px; list-style: disc; margin: 6px 0; }
+.plan-topics summary { cursor: pointer; padding: 8px 0; font-size: .76rem; font-weight: 700; }
+.plan-topics summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.plan-topics .page-citation { width: 100%; margin-top: 8px; }
+.plan-topics .page-citation-header { flex-wrap: wrap; gap: 5px; padding: 8px; }
+.plan-topics .page-citation-body { padding: 10px; }
+.plan-topics .page-citation-text, .plan-topics .page-citation-context { font-size: .8rem; }
+.plan-source { margin-top: 8px; border-radius: 8px; background: #171717; color: #f4f4f4; overflow: hidden; }
+.plan-source strong { display: block; padding: 8px; font-size: .7rem; overflow-wrap: anywhere; }
+.plan-source pre { padding: 10px; overflow-x: auto; font: .76rem/1.6 ui-monospace, monospace; white-space: pre; }
+.plan-budget-form { display: grid; gap: 8px; margin: 16px 0; }
+.plan-warning { font-size: .8rem; font-weight: 750; border-left: 3px solid var(--ink); padding-left: 8px; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }
+
+/* Coverage stays in the drawer; only compact progress enters the fixed HUD. */
+.topic-coverage { padding: 8px 10px; border-left: 3px solid var(--ink); margin-block: 8px; font-size: .8rem; }
+.question-topic { margin: 0 0 8px; color: var(--muted); font-size: .78rem; }
+.hud-progress { white-space: normal; max-width: 230px; line-height: 1.2; }
+.hud-coverage { white-space: normal; max-width: 160px; line-height: 1.2; }
+@media (max-height: 640px) and (orientation: landscape) {
+  .hud-progress { max-width: 156px; }
+  .hud-coverage { max-width: 90px; font-size: .55rem; padding: 4px; }
+}

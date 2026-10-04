@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { RoomState } from "../types";
+import { ResearchPlanPanel } from "./ResearchPlanPanel";
 
 interface ControlsPanelProps {
   roomState: RoomState | null;
@@ -44,6 +45,7 @@ export function ControlsPanel({
   const [activeTab, setActiveTab] = useState<"create" | "join">("create");
   const [createBusy, setCreateBusy] = useState(false);
   const [joinBusy, setJoinBusy] = useState(false);
+  const [budgetDirty, setBudgetDirty] = useState(false);
   const [defenseType, setDefenseType] = useState<"code" | "research" | "mixed">("code");
 
   const inRoom = roomState !== null || !!connected;
@@ -98,7 +100,10 @@ export function ControlsPanel({
   }
 
   function handleStart() {
-    if (onSendEvent({ type: "start" })) onCloseDrawer();
+    const payload = roomState?.defense_type && roomState.defense_type !== "code"
+      ? { type: "start", plan_id: roomState.research_plan?.id, question_budget: roomState.research_budget_preview }
+      : { type: "start" };
+    if (onSendEvent(payload)) onCloseDrawer();
   }
   function handleRetry() {
     if (onSendEvent({ type: "retry" })) onCloseDrawer();
@@ -263,8 +268,11 @@ export function ControlsPanel({
             </div>
           )}
           <p className="connection-status">
-            {connected ? "Connected · team state is live" : "Disconnected · reconnecting…"}
+            {previewMode ? "Visual preview · no AI calls or room connection" : connected ? "Connected · team state is live" : "Disconnected · reconnecting…"}
           </p>
+
+          {roomState?.defense_type && roomState.defense_type !== "code" && <ResearchPlanPanel
+            roomState={roomState} connected={connected} previewMode={previewMode} onSendEvent={onSendEvent} onBudgetDraftChange={setBudgetDirty} />}
 
           {/* Host-only controls */}
           {!previewMode && isHost && (
@@ -272,13 +280,19 @@ export function ControlsPanel({
               {phase === "lobby" && (
                 <button
                   type="button"
-                  disabled={!connected}
+                  disabled={!connected || budgetDirty || (!!roomState?.defense_type && roomState.defense_type !== "code" && (!roomState.research_plan_approved || !roomState.research_plan || roomState.research_planning_status !== "ready"))}
                   onClick={handleStart}
                   className={primaryBtn}
                 >
                   Start defense
                 </button>
               )}
+              {roomState?.defense_type && roomState.defense_type !== "code" && phase === "lobby" && !roomState.research_plan_approved && <p className="control-help">Prepare and confirm the research map and question budget to enable Start.</p>}
+              {roomState?.defense_type && roomState.defense_type !== "code" && phase !== "lobby" && phase !== "complete" && <>
+                <button type="button" disabled={!connected} className={secondaryBtn}
+                  onClick={() => { if (onSendEvent({ type: "end_defense" })) onCloseDrawer(); }}>End defense</button>
+                <p className="control-help">End now and keep accepted answers. An active unanswered question is marked ended early.</p>
+              </>}
               {phase === "retry" && (
                 <button
                   type="button"

@@ -45,7 +45,7 @@ export function Drawer({ open, mode, title, onClose, children }: DrawerProps) {
       if (!drawer) return;
       const focusable = Array.from(
         drawer.querySelectorAll<HTMLElement>(
-          "button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])",
+          "button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex='0']",
         ),
       ).filter(
         (el) =>

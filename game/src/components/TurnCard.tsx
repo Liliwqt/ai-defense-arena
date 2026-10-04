@@ -3,12 +3,15 @@ import type { Turn } from "../types";
 interface TurnCardProps {
   turn: Turn;
   index: number;
+  research?: boolean;
 }
 
-export function TurnCard({ turn, index }: TurnCardProps) {
+export function TurnCard({ turn, index, research = false }: TurnCardProps) {
+  const panelist = research && turn.panelist === "Critical Judge" ? "Critical Reviewer" : turn.panelist || "Panelist";
   return (
     <article className="transcript-turn">
-      <h3>Question {index + 1} · {turn.panelist || "Panelist"}</h3>
+      <h3>Question {index + 1} · {panelist}</h3>
+      {turn.topic_id && <p className="transcript-source">Topic {turn.topic_id}{turn.is_follow_up ? " · follow-up" : ""}</p>}
       {turn.lead_in && <p className="transcript-lead-in">{turn.lead_in}</p>}
       <p className="transcript-question">{turn.question || "Question being prepared…"}</p>
       {turn.filename && Number.isInteger(turn.evidence_line) && <p className="transcript-source">
@@ -16,8 +19,9 @@ export function TurnCard({ turn, index }: TurnCardProps) {
       </p>}
       {turn.clarifications?.map((exchange, exchangeIndex) => <div key={exchangeIndex} className="turn-clarification">
         <p><strong>Clarification request:</strong> {exchange.request}</p>
-        <p><strong>{turn.panelist}:</strong> {exchange.reply}</p>
+        <p><strong>{panelist}:</strong> {exchange.reply}</p>
       </div>)}
+      {turn.ended_early && <p className="turn-timeout">Ended early by host · no answer recorded.</p>}
       {turn.timed_out && <p className="turn-timeout">Time expired · question passed to the panel.</p>}
       {turn.answer && <p className="transcript-answer">
         <strong>Team answer{turn.answered_by ? ` · ${turn.answered_by}` : ""}:</strong> {turn.answer}

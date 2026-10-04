@@ -1,6 +1,7 @@
 import { citationLocationLabel, parseCitationLocation } from "../lib/citation";
 
 interface PageCitationProps {
+  id?: string;
   filename: string;
   evidence?: string;
   location?: string;
@@ -25,7 +26,7 @@ interface PageCitationProps {
  * cited line" stays visually distinct and remains exactly the text the server
  * validated.
  */
-export function PageCitation({ filename, evidence, location, before, after }: PageCitationProps) {
+export function PageCitation({ id = "page-citation", filename, evidence, location, before, after }: PageCitationProps) {
   const parsed = parseCitationLocation(location);
   const label = citationLocationLabel(location);
   const where = label || "Cited excerpt";
@@ -33,7 +34,8 @@ export function PageCitation({ filename, evidence, location, before, after }: Pa
 
   return (
     <div
-      id="page-citation"
+      id={id}
+      className="page-citation"
       role="group"
       aria-label={`Cited document text from ${filename}, ${where}`}
       tabIndex={0}

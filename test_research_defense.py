@@ -21,8 +21,10 @@ from question_generator import (
     AnsweredQuestion, CRITICAL_JUDGE, ETHICS_REVIEWER, IMPACT_REVIEWER,
     METHODOLOGY_REVIEWER, NextMoveDraft, PanelMove, QuestionDraft, QuestionGenerationError,
     RESEARCH_PANELISTS, generate_first_question, generate_next_move,
+    ResearchMove, TopicAssessmentDraft, GroundedCitation,
 )
 from research_files import combine_sources, read_research_files
+from research_plan import ResearchPlan, ResearchTopic
 
 
 def upload(name, data):
@@ -279,6 +281,16 @@ class ResearchTwoClientTests(unittest.TestCase):
         self.client.__enter__()
         self.addCleanup(lambda: self.client.__exit__(None, None, None))
 
+    def prepare(self, host, budget):
+        room = game_server.rooms[host['room_code']]
+        paper = next(file for file in room.files if file.kind.startswith('research'))
+        ref = GroundedCitation(paper.name, 1, paper.content.splitlines()[0], paper.location_for(1), paper.kind)
+        plan = ResearchPlan(tuple(ResearchTopic(f'topic-{i + 1}', f'Topic {i + 1}', 'Discuss the pilot.', role, (ref,))
+                                  for i, role in enumerate(RESEARCH_PANELISTS)))
+        room.research_plan, room.research_planning_status = plan, 'ready'
+        room.research_plan_approved, room.research_budget_preview = True, budget
+        return {'type': 'start', 'plan_id': plan.id, 'question_budget': budget}
+
     @staticmethod
     def until(socket, phase, turn_count=None):
         for _ in range(35):
@@ -305,13 +317,19 @@ class ResearchTwoClientTests(unittest.TestCase):
                 roles = [role for role in RESEARCH_PANELISTS for _ in range(2)] if followups else list(RESEARCH_PANELISTS)
                 questions = [GroundedQuestion(f'How will turn {i + 1} work?', 'paper.pdf', 1,
                     'Planned student interviews', '', 'Page 1 · extracted line 1', 'research_pdf') for i in range(len(roles))]
-                moves = [PanelMove(role, question) for role, question in zip(roles[1:], questions[1:])]
-                if not followups:
-                    moves.append(PanelMove(None, None))
+                moves = []
+                for i, (role, question) in enumerate(zip(roles, questions)):
+                    topic = f'topic-{RESEARCH_PANELISTS.index(role) + 1}'
+                    assessment = None if i == 0 else TopicAssessmentDraft(topic_id=f'topic-{RESEARCH_PANELISTS.index(roles[i - 1]) + 1}', turn=i - 1,
+                        status='needs clarification' if followups and i % 2 else 'addressed', reason='The pilot discussion needs detail.' if followups and i % 2 else 'The defender explained the planned pilot.')
+                    if followups and i == 2:  # the preceding follow-up timed out
+                        assessment = assessment.model_copy(update={'status': 'needs clarification'})
+                    moves.append(ResearchMove(role, question, topic, followups and i % 2 == 1, assessment))
+                moves.append(ResearchMove(None, None, None, False, TopicAssessmentDraft(topic_id='topic-4', turn=len(roles) - 1, status='addressed', reason='The limitation was explained.')))
+                start = self.prepare(host, len(roles))
                 report = CoachingReport('Review complete.', [{'turn': 0, 'text': 'Specific plan.'}],
                                          [{'turn': 1, 'text': 'Clarify ethics.'}], 'Run a pilot.')
-                with patch.object(game_server, 'generate_first_question', return_value=questions[0]), \
-                     patch.object(game_server, 'generate_next_move', side_effect=moves), \
+                with patch.object(game_server, 'generate_research_move', side_effect=moves), \
                      patch.object(game_server, 'generate_coaching_report', return_value=report):
                     with self.client.websocket_connect(f"/ws/{host['room_code']}") as host_ws, \
                          self.client.websocket_connect(f"/ws/{host['room_code']}") as guest_ws:
@@ -319,7 +337,7 @@ class ResearchTwoClientTests(unittest.TestCase):
                         self.until(host_ws, 'lobby')
                         guest_ws.send_json({'type': 'hello', 'token': guest['player_token']})
                         self.until(guest_ws, 'lobby')
-                        host_ws.send_json({'type': 'start'})
+                        host_ws.send_json(start)
                         for turn in range(len(roles)):
                             for ws in (host_ws, guest_ws):
                                 state = self.until(ws, 'voting', turn + 1)
@@ -369,14 +387,15 @@ class ResearchTwoClientTests(unittest.TestCase):
                                  'Pilot interviews are planned.', evidence_kind='research_text', evidence_location='Line 1')
         second = GroundedQuestion('How will consent work?', 'study.md', 1,
                                   'Pilot interviews are planned.', evidence_kind='research_text', evidence_location='Line 1')
-        with patch.object(game_server, 'generate_first_question', return_value=first), \
-             patch.object(game_server, 'generate_next_move', side_effect=[
+        start = self.prepare(host, 8)
+        with patch.object(game_server, 'generate_research_move', side_effect=[
+                ResearchMove(METHODOLOGY_REVIEWER, first, 'topic-1', False, None),
                 QuestionGenerationError('The AI cited an invalid source line. Please try again.'),
-                PanelMove(ETHICS_REVIEWER, second)]):
+                ResearchMove(ETHICS_REVIEWER, second, 'topic-2', False, TopicAssessmentDraft(topic_id='topic-1', turn=0, status='addressed', reason='Volunteer recruitment was described.'))]):
             with self.client.websocket_connect(f"/ws/{host['room_code']}") as host_ws:
                 host_ws.send_json({'type': 'hello', 'token': host['player_token']})
                 self.until(host_ws, 'lobby')
-                host_ws.send_json({'type': 'start'})
+                host_ws.send_json(start)
                 self.until(host_ws, 'voting', 1)
                 host_ws.send_json({'type': 'cast_vote', 'seat': 0})
                 self.now += game_server.VOTE_MS + 1

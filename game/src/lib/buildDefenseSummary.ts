@@ -30,9 +30,11 @@ function timestampLine(state: RoomState): string {
   return date.toISOString().replace("T", " ").slice(0, 16) + " UTC";
 }
 
-function turnLines(turn: Turn, index: number): string[] {
+function turnLines(turn: Turn, index: number, research = false): string[] {
   const lines: string[] = [];
-  lines.push(`Q${index + 1}. ${turn.panelist || "Panelist"}`);
+  const panelist = research && turn.panelist === "Critical Judge" ? "Critical Reviewer" : turn.panelist || "Panelist";
+  lines.push(`Q${index + 1}. ${panelist}`);
+  if (turn.topic_id) lines.push(`   Topic: ${turn.topic_id}${turn.is_follow_up ? " (follow-up)" : ""}`);
   if (turn.lead_in) lines.push(`   Panelist: ${turn.lead_in}`);
   lines.push(`   Question: ${turn.question}`);
   if (turn.filename && Number.isInteger(turn.evidence_line)) {
@@ -46,9 +48,11 @@ function turnLines(turn: Turn, index: number): string[] {
   }
   for (const exchange of turn.clarifications ?? []) {
     lines.push(`   Clarification requested: ${exchange.request}`);
-    lines.push(`   ${turn.panelist || "Panelist"} replied: ${exchange.reply}`);
+    lines.push(`   ${panelist} replied: ${exchange.reply}`);
   }
-  if (turn.timed_out) {
+  if (turn.ended_early) {
+    lines.push("   Result: ended early by host, no answer submitted.");
+  } else if (turn.timed_out) {
     lines.push("   Result: time expired, no answer submitted.");
   } else if (turn.answer) {
     const who = turn.answered_by ? ` (${turn.answered_by})` : "";
@@ -88,10 +92,24 @@ export function buildDefenseSummary(state: RoomState): string {
   lines.push(`Questions: ${state.turns.length} · answered ${answered}${expired ? ` · ${expired} timed out` : ""}`);
   lines.push("");
 
+  if (state.research_plan && state.coverage) {
+    lines.push(`Maximum questions: ${state.question_budget ?? state.research_budget_preview}`);
+    if (state.completion_reason) lines.push(`Ending reason: ${state.completion_reason}`);
+    lines.push("RESEARCH COVERAGE");
+    lines.push("Addressed means discussion coverage, not proof that the research is correct.");
+    for (const topic of state.research_plan.topics) {
+      const coverage = state.coverage[topic.id];
+      lines.push(`  - ${topic.title}: ${coverage?.status ?? "pending"} · ${topic.panelist === "Critical Judge" ? "Critical Reviewer" : topic.panelist}`);
+      if (coverage?.reason) lines.push(`    ${coverage.reason}`);
+      if (coverage?.turns.length) lines.push(`    Supporting questions: ${coverage.turns.map(i => i + 1).join(", ")}`);
+    }
+    const gaps = state.research_plan.topics.filter(t => state.coverage?.[t.id]?.status !== "addressed");
+    lines.push(`Unresolved topics: ${gaps.map(t => t.title).join("; ") || "none"}`, "");
+  }
   if (state.turns.length > 0) {
     lines.push("QUESTIONS AND ANSWERS");
     lines.push("");
-    state.turns.forEach((turn, index) => lines.push(...turnLines(turn, index)));
+    state.turns.forEach((turn, index) => lines.push(...turnLines(turn, index, !!state.defense_type && state.defense_type !== "code")));
   }
 
   if (state.feedback) {

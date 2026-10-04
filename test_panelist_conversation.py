@@ -41,6 +41,7 @@ class ConversationContextTests(unittest.TestCase):
         self.assertEqual(data['citation']['excerpt'], "STAFF_ONLY = True")
         self.assertEqual(data['citation']['location'], "Line 1")
         self.assertEqual(data['turn'], 0)
+        self.assertEqual(data['question_number'], 1)
         self.assertEqual(data['clarifications'][0]['request'], 'Please use simple English.')
         self.assertEqual(data['citation']['kind'], 'source')
 
@@ -61,6 +62,9 @@ class ConversationContextTests(unittest.TestCase):
             improvements=[CoachingPoint(turn=1, text="Show a test of it.")], next_step="Test staff access."))
         generate_coaching_report(self.files, history, "test-key", client=client)
         self.assertIn(serialize_transcript(history), client.request['input'][1]['content'])
+        self.assertEqual([t['question_number'] for t in json.loads(serialize_transcript(history))], [1, 2, 3, 4])
+        self.assertIn('one-based question_number (Q1, Q2, etc.)', client.request['input'][0]['content'])
+        self.assertIn('Structured point.turn references remain zero-based', client.request['input'][0]['content'])
 
     def test_next_roles_receive_their_own_allowed_citation_ids(self):
         files = [ProjectFile("README.md", "No authentication yet.\n"), self.files[0]]
