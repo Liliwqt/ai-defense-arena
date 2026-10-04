@@ -1,20 +1,20 @@
 # AI Defense Arena
 
-A browser-based code and research defense for up to four teammates. The local React room places four panelist cards above the question and four defender cards below it, with a persistent vote, answer, and chat dock. Code projects use Technical Architect, Security Reviewer, Product Judge, and Critical Judge; research defenses use a research-focused panel. Each asks at least one question and may ask one immediate follow-up, for four to eight resolved turns in total. Every question cites exact uploaded source or extracted document text. At the end, the team receives a shared coaching report with strengths, areas to improve, and a next step.
+Practice a code-project or research-paper defense with four AI panelists and up to four teammates. Questions cite exact uploaded source or extracted document text. Teammates vote for a speaker, answer under a timer, request clarification, and receive a shared coaching report.
 
-The flat React room is the built and served UI. The earlier 3D/Phaser room has been removed from the app entirely, along with the `three` and `phaser` dependencies.
+The multiplayer app uses a flat, question-centered React interface served by FastAPI. Four panelist cards sit above the question, four defender cards below it, and a persistent bottom dock holds voting, answers, and team chat. A separate Streamlit app provides a single-browser fallback.
 
-For work across agents or session windows, read [AGENTS.md](AGENTS.md) and [PROJECT_LOG.md](PROJECT_LOG.md) before making changes.
+## Current branch and verification
 
-## Run the multiplayer game locally
+This README describes `feature/question-first-room`: research uploads, same-question clarifications, the flat room, summary downloads, and natural, answer-aware panelist prompts. `main` remains frozen during the review window that began on October 1, 2026, and serves the earlier room. Publishing the feature branch does not establish that its changes are deployed.
 
-For real AI questions, run `./run_local.sh` in a terminal after installing the Python dependencies below. It builds the current React app, prompts privately for your API key and host passcode, and starts FastAPI at <http://127.0.0.1:8000/>. The key stays in that terminal process and is not saved in the repository. The launcher reads `GAME_HOST_PASSCODE` from the environment or the Git-ignored local `.env` file and prompts privately if neither is set. The `?preview=1` pages use mock room state for layout review and make no AI call. Ordinary rooms use the configured API key.
+The latest recorded checks passed **104 Python tests with AI mocked, 115 React tests, and a production build**. Local live code and synthetic research defenses exercised dialogue, exact citations, and synchronized clients. The final language-continuity refinement has offline regression coverage but still needs a live recheck after restarting the local server. User review, hosted verification of this checkpoint, and physical second-device confirmation remain separate.
 
-Questions arrive one at a time: the first panelist for the selected defense type starts, and an answer or timeout triggers the next question or a follow-up. All four judges speak at least once, so a defense has four to eight resolved turns. After the first question, each panelist can briefly react to a specific point in the latest answer before asking one focused question. The four roles use distinct professional, friendly voices and can match the language of a substantive answer, including Taglish. When a source claim has a meaningful edge case, panelists can pose a short, source-grounded what-if situation and ask what would happen; the imagined outcome is not presented as a project fact.
+See [PROJECT_LOG.md](PROJECT_LOG.md) for evidence and publication history. Agents and other session windows must also read [AGENTS.md](AGENTS.md) before editing.
 
-Panelists use short, conversational questions and may connect an earlier answer to the next reviewer's topic. They distinguish a defender's claim from evidence in the uploaded material and accept a sufficient explanation rather than asking a filler follow-up. Earlier citations and the answering defender's display name are supplied as conversation data; a name may be used occasionally to attribute an answer, while new questions address the team before voting. Clarification replies use the same role guidance. Explicit language requests in clarification history carry forward until a later request or a clearly substantive answer changes the language; short, code-only, and timed-out answers preserve it. These are AI prompt instructions, so live conversation quality still requires review.
+## Run locally
 
-While the AI reviews an answer, the room keeps the resolved question, team answer or timeout, and citation visible with a “Reviewing your answer…” status. The reaction and question arrive together in one validated response; every question still cites an exact uploaded source line.
+Install Python with virtual-environment support, Node.js, and npm, then run from the repository root:
 
 ```bash
 python3 -m venv .venv
@@ -22,46 +22,160 @@ python3 -m venv .venv
 ./run_local.sh
 ```
 
-Open <http://127.0.0.1:8000>. The setup drawer opens automatically: the host enters a display name and host passcode, selects **Code project**, **Research paper**, or **Research + code**, and uploads the required materials. Project sources accept individual text files or a ZIP; research documents accept text-based PDF, DOCX, TXT, and Markdown files directly. The host shares the room code. Teammates join from the same service URL. The host starts the defense from **Controls**.
+Open <http://127.0.0.1:8000/>. The launcher installs frontend packages when needed, builds React, privately prompts for missing credentials, and starts FastAPI. Restart it after changing Python code or prompt instructions.
 
-Research and mixed defenses use Methodology Reviewer, Ethics Reviewer, Impact Reviewer, and Critical Reviewer. The host can mark a paper as a proposal or completed study, or let the AI infer its stage. Methodology questions cover the study design and feasibility; ethics questions address participants and research integrity; impact questions concern practical value; critical questions challenge assumptions and evidence. Mixed defenses can connect claims in the paper to the implementation. The panel cites extracted document text with its PDF page and extracted line or DOCX paragraph/table location. The excerpt is exact extracted text, not a claim that its interpretation is proven. The 4–8-question structure and one optional follow-up per reviewer also apply to research defenses. Use <http://127.0.0.1:8000/?preview=1&research=1> to inspect the local research room without an AI call.
+| Setting | Purpose | Local configuration |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | Server-side AI requests | Export in the launching terminal, or enter at the hidden prompt. The launcher does not save it. |
+| `GAME_HOST_PASSCODE` | Creating rooms only | Export in the terminal, set in the Git-ignored `.env`, or enter at the hidden prompt. |
+| `OPENAI_MODEL` | Optional model override | Export before launching. The code defaults to `gpt-6-luna` with low reasoning effort. |
 
-Each new question is visible during a **15-second speaker vote**. Every online defender, including the host, can vote for an online teammate or change their vote. The server randomly resolves ties or no votes among online defenders. Then the selected teammate has a fresh **two minutes** to answer in the bottom **Vote/Answer** bar; only that teammate can submit. The clock and winner come from the server, so a late vote or answer is rejected even if a browser timer lags. If the selected teammate disconnects, another online teammate is chosen without resetting the deadline. An expired question is recorded as unanswered and the defense continues. The chosen defender may also type a request such as “Can you repeat that in simple English?” or “Can you give an example?” in the same answer box. The AI interprets each submission; a clarification explains the existing question without advancing, starting a new vote, or counting as an answer. Up to two clarifications are allowed per question. The answer clock pauses while the AI interprets the text and resumes with its remaining time. If interpretation fails, the submission and time remain saved: the chosen defender can retry or explicitly use the pending text as an answer, and the host can retry. If AI question generation fails, the saved answer or timeout remains and the host can retry from **Controls**.
+The launcher reads only `GAME_HOST_PASSCODE` from `.env`; it does not load an API key or model override from that file. Do not commit secrets. Teammates join using the room code without the host passcode; the OpenAI API key stays on the server.
 
-The complete question and exact cited line stay in a card between the two seat rows. The panelist name and question number stay pinned at the top of that card while the question, citation, and any previous answer scroll beneath them, so the asker is always identifiable even when a long question fills the card. How the citation is presented depends on what was uploaded. A **code** citation uses a near-black source panel with a filename, location, preserved indentation, and horizontal scrolling for long lines. A **research document** citation is presented as a page instead: the filename, a page chip, and the cited passage set on a lighter paper surface, so an extracted paragraph from a PDF reads as a document excerpt rather than as code. Because a PDF has sentences nowhere and only visual lines, a single cited line is often a fragment that opens without its subject or ends after a conjunction. The page therefore shows the cited line highlighted, with up to three neighbouring lines from the same page dimmed above and below it as context. The cited line itself is never altered and remains the only validated text in the block; neighbouring lines are never shown for a code citation, which is already a complete line. The document page is sized like a sheet and centered in the card rather than stretched across it. The header, seat rows, and bottom dock remain visible on short landscape screens while the question card scrolls. **Team Chat** in the bottom bar is private to the room's defenders, holds the latest 100 messages of up to 500 characters each, and is excluded from AI prompts, the transcript, and coaching. The Transcript drawer shows answers, missed turns, clarification exchanges, and the shared coaching report; coaching never treats a timeout as an answer. Reconnecting with the same browser restores the room, vote, deadline, chat, transcript, and coaching while this server process is running. On portrait phones, rotate to landscape. Use <http://127.0.0.1:8000/?preview=1> for a static mock question, add `&research=1` for a mock research-document citation, `&vote=1` for a mock voting phase, `&review=1` for the answer-review state, or `&long=1` to inspect card and citation scrolling. Add `&clarify=1` to preview a same-turn explanation or `&complete=1` for transcript and coaching. Preview mode makes no AI call and does not accept answers or chat messages.
+### Preview without AI calls
 
-The document page is not a real PDF render. `research_files.py` extracts text with `pypdf` and keeps only that text, so the original page layout, figures, tables, and equations are gone before the browser sees them. The page view therefore reproduces the extracted passage exactly, including its original whitespace, and a note under it says so plainly rather than letting the page framing imply a fidelity the app cannot deliver. Rendering the actual pages would require keeping each uploaded PDF's original bytes in the room's memory for as long as the room lives.
+Build the frontend before starting FastAPI directly:
 
-Page and line numbers are exact but describe the extracted text, not the visual page. `pypdf` reads a page's content stream, which is the order objects were drawn, so in a slide deck or a two-column layout a cited line can belong to a different visual position than its number suggests. The cited text is always genuinely present in the upload; only its position on the rendered page may look surprising. Each cited excerpt is validated against the extracted text server-side, so a question is never issued for a line that is not in the document.
+```bash
+cd game
+npm ci
+npm run build
+cd ..
+.venv/bin/uvicorn game_server:app --host 127.0.0.1 --port 8000 --workers 1
+```
 
-For a quick project upload, select `sample_project/README.md` and `sample_project/queue.py`. If your account cannot use the default `gpt-6-luna` model, set `OPENAI_MODEL` to one your account can access. The API key is read only by the Python server, never put in the browser bundle or repository. The launcher does not echo or save it in shell history. Restart the service after changing it.
+Open <http://127.0.0.1:8000/?preview=1>. Preview mode uses static mock state, makes no AI calls, and does not accept room actions. Add flags to inspect different screens:
 
-For teammates on other devices, use the deployed HTTPS URL. The browser selects `wss://` automatically for its room connection. Local `127.0.0.1` is reachable only on the host computer.
+| Flag | Preview |
+| --- | --- |
+| `&research=1` | Research roles and document citation |
+| `&vote=1` | Speaker voting |
+| `&review=1` | Reviewing an answer |
+| `&clarify=1` | Same-question clarification |
+| `&complete=1` | Transcript and coaching |
+| `&long=1` | Long question and citation overflow |
 
-## Deploy to Render
+For frontend development, run `npm run dev` in `game/` alongside FastAPI on port 8000. Vite proxies `/api`, `/ws`, and `/health` to the backend. Real rooms still require the backend credentials.
 
-`render.yaml` describes one Free Python web service with one worker, a health check, a frontend build (`npm ci && npm run build`), and prompts for `OPENAI_API_KEY` and `GAME_HOST_PASSCODE`. From a **private** GitHub repository, create a Render Blueprint or configure one Web Service with the same build and start commands. Set both values in Render's dashboard; never commit either one. A manually created preview service needs its own environment variables. If needed, add `OPENAI_MODEL` in the dashboard. Check `/health`, open the service URL on two devices, and create a fresh room shortly before the demo. The service serves the game, HTTP API, and WebSocket from one origin.
+## Create and play a defense
 
-Creating a room requires the server-side `GAME_HOST_PASSCODE`; when it is unset, room creation fails closed. The passcode is entered only by the host and is not stored in the browser or repository. Teammates can join using the room code without the host passcode. The page itself remains public, so keep room codes private and monitor API usage during the demo.
+1. In **Controls**, enter your display name and host passcode, choose a defense type, and upload its materials. For a code demo, use [sample_project/README.md](sample_project/README.md) and [sample_project/queue.py](sample_project/queue.py).
+2. Share the room code. Teammates open the same service URL and join with their own display names. The four defender seats include the host.
+3. The host starts the defense. Each question appears with its panelist, optional reaction, and validated citation.
+4. Every question, including follow-ups, begins with a **15-second speaker vote**. Online defenders may vote for themselves or another online defender and change their vote. The highest count wins; ties and no votes are resolved randomly among online defenders.
+5. The chosen defender gets **120 seconds** to answer. Only that defender may submit. Disconnection assigns another online defender without resetting the clock. Expiry records an unanswered turn and advances the defense.
+6. After four to eight resolved turns, open **Transcript** for the conversation and coaching. **Download summary** saves a text copy of questions, citations, clarifications, answers, timeouts, and coaching in your browser.
 
-Rooms are in memory. A Render restart, redeploy, or Free-instance idle spin-down erases active rooms; connected browsers will need a new room code after that. Keep only one worker and one instance for this prototype.
+The server owns deadlines, votes, speaker selection, and accepted answers. Reconnecting in the same browser restores the current snapshot while the room exists. Restarting a defense clears its turns, votes, timers, chat, and coaching.
+
+**Team Chat** is room-only defender conversation: the latest 100 messages, up to 500 characters each. Chat is excluded from panelist prompts, coaching, the transcript, and summary exports.
+
+Phone play is landscape-only. The header, both seat rows, and bottom dock stay visible while question content scrolls. Controls and Transcript use a keyboard-accessible drawer.
+
+## Defense types and panelists
+
+| Defense type | Uploads | Speaking order |
+| --- | --- | --- |
+| Code project | Project source/documentation files or ZIP | Technical Architect → Security Reviewer → Product Judge → Critical Judge |
+| Research paper | Direct PDF, DOCX, TXT, or Markdown documents | Methodology Reviewer → Ethics Reviewer → Impact Reviewer → Critical Reviewer |
+| Research + code | Research documents and project sources in separate inputs | Same research panel; questions may connect claims and implementation |
+
+Research modes offer **Proposal**, **Completed study**, or **Let AI infer**. Proposal guidance examines planned methods and feasibility; completed-study guidance examines reported results and limitations. When the stage is unclear, prompts instruct reviewers to ask for clarification rather than invent findings.
+
+Each panelist asks one opening question and may ask **one immediate follow-up** for a material unresolved issue. All four roles must speak, producing four to eight resolved turns. A timeout counts as a resolved turn. Follow-ups are generated from the uploads and actual conversation, not a fixed second set of questions.
+
+### Conversation and clarification
+
+Technical traces operations, Security examines boundaries and safeguards, Product explores a person's workflow, and Critical tests assumptions and evidence. Research reviewers apply corresponding methodology, participant-safeguard, and impact perspectives.
+
+The prompts encourage short questions, specific reactions to actual answers, occasional speaker-name attribution, and grounded hypothetical situations. They distinguish team claims from uploaded evidence. All substantive questions, reactions, clarification replies, and coaching are AI-generated; live quality still requires review.
+
+The chosen defender can use the answer box to request simpler wording, translation, terminology, or an example. The AI interprets each submission. A clarification explains the **same question**, preserving its intent and citation without advancing, adding a turn, or starting another vote. Up to two clarifications are allowed per question. The answer clock pauses during interpretation and resumes with the remaining time.
+
+Panelists start in English. Explicit clarification language requests carry forward until another request or a meaningful answer changes the language. Short, code-only, and timed-out answers preserve it. Taglish is supported through prompt guidance and language-context handling.
+
+If interpretation fails, the chosen defender can retry or explicitly use the saved submission as an answer; the host may also retry interpretation. Question-generation failures retain accepted answers or timeouts for host retry. Coaching failures have a separate host retry. Accepted answers do not need to be submitted again.
+
+## Uploads and citations
+
+Each question request receives all accepted source files and extracted research text, plus resolved dialogue and original citations. Files, names, answers, and earlier AI messages are treated as data; private chat is excluded. The app does not execute uploaded code, search the original repository, or read files excluded by upload validation.
+
+| Limit | Value |
+| --- | --- |
+| Accepted files, research and code combined | 100 |
+| Combined UTF-8 source and extracted research text | 600 KB |
+| Individual project text file | 200 KB |
+| Compressed project ZIP | 25 MB; at most 2,000 entries |
+| Individual research document | 10 MB |
+| PDF length | 100 pages |
+
+Project files must be supported UTF-8 source or documentation. ZIPs are read in memory, not extracted to disk. Hidden paths, generated/dependency directories, selected credential filenames, and unsupported ZIP entries are skipped. Upload a source-only archive rather than a checkout containing dependencies/build outputs. Review accepted names before starting; unsupported direct files and exceeded limits produce errors.
+
+Research uploads are separate, direct files. PDFs must contain readable text on every page; encrypted, invalid, image-only, and partially unreadable documents are rejected. DOCX paragraphs and table cells are extracted in document order. OCR, figures, and reliable equation interpretation are not supported.
+
+Every excerpt is resolved from server-owned text and validated before displaying a question:
+
+- **Code:** filename, source line number, and exact line in a near-black monospaced panel with horizontal scrolling.
+- **PDF:** filename, page, extracted line, and exact extracted text in a document-style panel.
+- **DOCX:** filename and paragraph or table/row/cell location.
+- **Research TXT/Markdown:** filename and text line location.
+
+Research excerpts may include up to three surrounding lines on each side, with PDF context confined to the cited page. The cited line remains emphasized and unchanged. Code citations do not include neighbouring lines.
+
+The document panel shows **extracted text**, not a rendered original PDF. Extraction order may differ from visual reading order, especially in columns or slide decks. Original layout and figures are not preserved. A validated excerpt establishes its location, not the correctness of the AI's interpretation.
+
+## Architecture
+
+| Component | Responsibility |
+| --- | --- |
+| `game/src/` | React setup, flat room, question/citation UI, vote/answer/chat dock, transcript, and export |
+| `game_server.py` | FastAPI HTTP/WebSocket service, authentication, room state, timers, and broadcasts |
+| `defense_session.py` | Role order, optional follow-ups, resolved turns, and retained history |
+| `question_generator.py` | Shared prompts, Responses API structured output, submission interpretation, citation validation, and coaching |
+| `project_files.py` / `research_files.py` | Upload validation and document extraction/location mapping |
+| `app.py` | Streamlit single-browser fallback |
+
+Endpoints: `POST /api/rooms` for passcode-protected host creation/uploads, `POST /api/rooms/{code}/join` for teammates, `WS /ws/{code}` for player-token-authenticated events, and `GET /health`. FastAPI serves the production React build from `game/dist`. There is no active 3D/Phaser scene.
+
+Rooms, accepted text, chat, and coaching live in process memory. There is no database or stored session history. A restart or instance shutdown loses active rooms; the downloaded summary is the team's own retained copy. Keep exactly **one worker and one instance**.
 
 ## Streamlit fallback
 
-The earlier single-browser app is still available:
+Configure `OPENAI_API_KEY` in the launching terminal, optionally set `OPENAI_MODEL`, then run:
 
 ```bash
 .venv/bin/streamlit run app.py
 ```
 
-It supports all three defense types, the corresponding panelists, adaptive follow-ups, and validated source or extracted-document citations. Voting, timers, and team chat are multiplayer web-room features only. The fallback supports two same-turn clarification requests per question without a timer.
+The fallback supports all three defense types, the corresponding four-role sequence, validated citations, conversational lead-ins, and same-question clarifications. It keeps its separate appearance and browser-session state. Voting, answer deadlines, and team chat belong to the multiplayer room.
 
-## Limits and troubleshooting
+## Render configuration
 
-Combined code and extracted research text is limited to 100 files and 600 KB. Source uploads allow 200 KB per text file and a 25 MB compressed ZIP. Direct research documents allow 10 MB each; PDFs allow up to 100 pages. Every PDF page must contain extractable text. Encrypted, unreadable, image-only, and partially unreadable PDFs receive a clear error; provide a text-based copy. DOCX paragraphs and table cells are extracted in document order. OCR, figures, and equations are not interpreted reliably.
+[render.yaml](render.yaml) defines the single-service deployment:
 
-Uploads accept up to 100 supported UTF-8 text files, 200 KB per file, and 600 KB total text. A ZIP can be up to 25 MB compressed. For this repository, upload a source-only ZIP; the full checkout contains large dependency and build folders. Generated folders, hidden files, and unsupported ZIP entries are skipped; files are read in memory and not extracted. The game server displays the accepted filenames in room state. Each question sends the accepted project text and earlier answers to OpenAI.
+```text
+Build: pip install -r requirements.txt && cd game && npm ci && npm run build
+Start: uvicorn game_server:app --host 0.0.0.0 --port $PORT --workers 1
+Health: /health
+```
 
-If generation fails, the app shows a safe error category and lets the host retry. HTTP 401 means the key was rejected; HTTP 404 often means the model is unavailable to the API project; HTTP 429 can mean a rate limit or insufficient credit. Missing API key is reported before a paid request. Rooms, chat, transcripts, and coaching reports are not persisted on the server, but once a defense has turns or a coaching report the Transcript drawer offers a **Download summary** button that saves a plain-text copy of that defense: the questions, each exact cited line, clarifications, team answers, timeouts, and the coaching report. Nothing is uploaded or stored; the file is created in the browser, so it is the team's own record to keep. The coaching report is practice guidance, not a numeric grade.
+Set `OPENAI_API_KEY` and `GAME_HOST_PASSCODE` in the service's environment settings, plus `OPENAI_MODEL` if needed. Select the intended branch explicitly; production `main` stays frozen until its review window is released. A separate feature-branch service needs its own environment configuration.
 
-Run offline checks with `.venv/bin/python -m unittest discover -v`, then `(cd game && npm test && npm run build)`; AI calls in the tests are mocked. The frontend build requires Node.js and npm.
+The service hosts UI, API, and WebSocket on one origin. HTTPS pages use `wss://` automatically. Teammates on other devices need a hosted URL; `127.0.0.1` refers to their own device. Restarts and redeploys require fresh rooms.
+
+## Checks and troubleshooting
+
+```bash
+.venv/bin/python -m unittest discover -v
+(cd game && npm test && npm run build)
+```
+
+AI calls are mocked in the Python suite. Tests confirm behavior and validation, not live dialogue quality or deployment. Record live dialogue, browser layout, hosted operation, and physical separate-device checks separately in the handoff log.
+
+- **Invalid host passcode:** use the value configured for that server. Local and hosted settings are independent. Missing `GAME_HOST_PASSCODE` disables room creation.
+- **Missing frontend build:** run `npm ci && npm run build` in `game/` before starting FastAPI directly.
+- **AI failure:** check the displayed safe error category and retry. A rejected key, unavailable model, rate/credit limit, or connection failure may require different fixes. `OPENAI_MODEL` overrides the default.
+- **Citation rejected:** the model supplied an invalid file or line. Validation blocks it; the host can retry with the prior answer retained.
+- **Room missing:** a process restart erased it. Create a fresh room and share its new code.
+
+Coaching is qualitative practice guidance: strengths, improvements, and a next step tied to actual resolved turns. It supplies no numeric score and must not treat missed answers as responses.
