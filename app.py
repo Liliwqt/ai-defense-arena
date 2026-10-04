@@ -179,6 +179,7 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                                     files, api_key, panelist=session.turns[-1].panelist,
                                     question=session.turns[-1].question, submission=answer.strip(),
                                     clarifications=tuple(session.turns[-1].clarifications),
+                                    history=session.answered_history(),
                                     model=model, defense_type=mode, research_stage=research_stage,
                                 )
                         except (QuestionGenerationError, OpenAIError, ValidationError) as error:

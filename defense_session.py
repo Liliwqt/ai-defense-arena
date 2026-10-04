@@ -30,6 +30,7 @@ class DefenseTurn:
     timed_out: bool = False
     assigned_seat: int | None = None
     clarifications: list[ClarificationExchange] = field(default_factory=list)
+    speaker_name: str | None = None
 
     @property
     def resolved(self) -> bool:
@@ -90,12 +91,13 @@ class DefenseSession:
             AnsweredQuestion(
                 turn.panelist, turn.question.question, turn.answer, turn.timed_out,
                 turn.question.lead_in, tuple(turn.clarifications),
+                turn.speaker_name, turn.question,
             )
             for turn in self.turns
             if turn.resolved
         ]
 
-    def submit_answer(self, answer: str) -> None:
+    def submit_answer(self, answer: str, *, speaker_name: str | None = None) -> None:
         if not self.awaiting_answer:
             raise ValueError("There is no question awaiting an answer.")
         answer = answer.strip()
@@ -104,6 +106,7 @@ class DefenseSession:
         if len(answer) > MAX_ANSWER_CHARS:
             raise ValueError(f"Keep your answer under {MAX_ANSWER_CHARS:,} characters.")
         self.turns[-1].answer = answer
+        self.turns[-1].speaker_name = speaker_name
         self._finish_if_last()
 
     def time_out_current(self) -> None:

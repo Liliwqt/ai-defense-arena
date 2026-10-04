@@ -139,6 +139,8 @@ class ClarificationRoomTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(history[0].answer, "We will recruit ten volunteers and observe use.")
         self.assertEqual(len(history[0].clarifications), 2)
         self.assertEqual(self.room.answered_by[0], "Sam")
+        self.assertEqual(history[0].speaker_name, "Sam")
+        self.assertIs(history[0].citation, self.room.defense.turns[0].question)
 
     async def test_old_deadline_cannot_expire_while_interpreting_or_after_resume(self):
         old_clock_id = self.room.clock_id
@@ -176,6 +178,8 @@ class ClarificationRoomTests(unittest.IsolatedAsyncioTestCase):
         await self.send(self.guest, self.guest_socket, type="use_pending_as_answer")
         self.assertEqual(self.room.defense.turns[0].answer, "We will test with volunteers.")
         self.assertEqual(self.room.phase, "generating")
+        self.assertEqual(self.room.defense.answered_history()[0].speaker_name, "Sam")
+        self.assertEqual(len(self.room.defense.answered_history()), 1)
 
     async def test_restart_invalidates_pending_ai_result(self):
         await self.send(self.guest, self.guest_socket, type="submit_answer", turn=0,

@@ -451,11 +451,12 @@ async def _interpret_pending(room: Room, interpretation_id: int) -> None:
         question = turn.question
         panelist = turn.panelist
         clarifications = tuple(turn.clarifications)
+        history = room.defense.answered_history()
     try:
         decision = await asyncio.to_thread(
             interpret_submission, room.files, os.getenv("OPENAI_API_KEY"),
             panelist=panelist, question=question, submission=pending.text,
-            clarifications=clarifications, model=os.getenv("OPENAI_MODEL") or DEFAULT_MODEL,
+            clarifications=clarifications, history=history, model=os.getenv("OPENAI_MODEL") or DEFAULT_MODEL,
             defense_type=room.defense_type, research_stage=room.research_stage,
         )
     except Exception as error:
@@ -484,7 +485,7 @@ async def _interpret_pending(room: Room, interpretation_id: int) -> None:
             room.pending_submission = None
             next_clock = _resume_answer_clock_locked(room, pending.remaining_ms)
         else:
-            room.defense.submit_answer(pending.text)
+            room.defense.submit_answer(pending.text, speaker_name=pending.name)
             room.answered_by[pending.turn] = pending.name
             room.answered_by_seat[pending.turn] = pending.seat
             room.pending_submission = None
@@ -744,7 +745,7 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
                 error = "Only the chosen defender can use their submission as an answer."
             else:
                 room.interpretation_id += 1
-                room.defense.submit_answer(pending.text)
+                room.defense.submit_answer(pending.text, speaker_name=pending.name)
                 room.answered_by[pending.turn] = pending.name
                 room.answered_by_seat[pending.turn] = pending.seat
                 room.pending_submission = None

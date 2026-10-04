@@ -98,7 +98,7 @@ class DefenseSessionTests(unittest.TestCase):
 
     def test_failed_request_and_invalid_citation_preserve_answer(self):
         session = DefenseSession.start(self.first)
-        session.submit_answer("Keep the answer.")
+        session.submit_answer("Keep the answer.", speaker_name="Sam")
         bad = NextMoveDraft(action="ask", panelist="Security Reviewer", lead_in="I heard your answer.", question="Risk?",
                             source_file=99, evidence_line=1)
         client = FakeClient([OpenAIError("temporary"), bad, ask("Security Reviewer")])
@@ -108,6 +108,8 @@ class DefenseSessionTests(unittest.TestCase):
             advance_defense(session, self.files, "test-key", client=client)
         self.assertTrue(session.needs_question)
         self.assertEqual(session.turns[0].answer, "Keep the answer.")
+        self.assertEqual(session.answered_history()[0].speaker_name, "Sam")
+        self.assertIs(session.answered_history()[0].citation, self.first)
         advance_defense(session, self.files, "test-key", client=client)
         self.assertEqual(len(session.turns), 2)
 

@@ -180,6 +180,9 @@ class GameServerTests(unittest.TestCase):
                             self.assertEqual(state["turns"][turn]["answered_by_seat"], 0 if turn in (1, 3) else 1)
                     self.assertEqual(len(state["turns"]), 4)
                     self.assertEqual(later_calls.call_count, 4)
+                    history = later_calls.call_args.kwargs["history"]
+                    self.assertEqual([item.speaker_name for item in history], ["Alex"] * 4)
+                    self.assertEqual([item.citation for item in history], self.questions)
                     self.assertEqual([turn["panelist"] for turn in state["turns"]], list(game_server.PANELIST_ORDER))
                 finally:
                     guest_socket.__exit__(None, None, None)
@@ -278,6 +281,10 @@ class GameServerTests(unittest.TestCase):
                         state = self.receive_phase(guest_socket, "complete")
                     self.assertEqual(state["feedback_status"], "ready")
                     self.assertEqual(coaching_call.call_count, 1)
+                    history = coaching_call.call_args.args[1]
+                    self.assertEqual(len(history), 8)
+                    self.assertEqual([item.speaker_name for item in history], ["Sam", "Alex"] * 4)
+                    self.assertEqual([item.citation for item in history], questions)
                 finally:
                     guest_socket.__exit__(None, None, None)
             finally:
