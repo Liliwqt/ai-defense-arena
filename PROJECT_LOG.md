@@ -4,7 +4,7 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Current status
 
-- README refreshed locally on 2026-10-04 using AI Defense Arena as the canonical project name. It now documents current feature-branch behavior, setup/environment handling, research and code uploads, voting/clarifications/chat/coaching/export, architecture, and verification limits. Documentation only; not yet committed or pushed.
+- README refreshed and pushed to `origin/feature/question-first-room` in commit `9cb9182` on 2026-10-04 using AI Defense Arena as the canonical project name. It documents current feature-branch behavior, setup/environment handling, research and code uploads, voting/clarifications/chat/coaching/export, architecture, and verification limits. Documentation only; main unchanged.
 
 - Natural answer-aware conversations are pushed to `origin/feature/question-first-room` in commit `1080030`, 2026-10-04. Shared role habits and clarification guidance, server-owned speaker names, original citations, and chronological language preferences reach question generation and coaching. Offline checks pass (104 Python tests with AI mocked, 115 React tests, production build). Local live code defenses of five and four turns and a seven-turn synthetic research defense completed with synchronized clients and exact citations. The research run exposed language drift after a timeout; the final language-anchor fix passes offline regression tests but needs a server restart and live recheck. User review remains pending. No deployment for this checkpoint; main remains frozen.
 
@@ -42,8 +42,6 @@ Use this file to track completed updates across agents and session windows. See 
 - Generated questions carry a validated conversational `lead_in`: distinct panelist voices briefly react to the latest answer, match a substantive answer's language, and stay separate from the grounded question and citation. The previous exchange remains visible while the next response is generated.
 
 ## Active work
-
-- Root README publication session, 2026-10-04: commit and push only `README.md` and `PROJECT_LOG.md` to `feature/question-first-room`; closes with the dated publication entry after checking the remote. Preserve unrelated local changes and frozen main.
 
 Entries below may be historical. Before relying on one, confirm it is still live with `git log --oneline` against the files it names; expire or annotate it when a commit or a dated entry lower in this log shows the work finished. Each entry states how it ends.
 
@@ -613,3 +611,11 @@ Append new entries to the **end** of this file in date order:
 - Changed: reorganized the README around AI Defense Arena's current flat React/FastAPI room, three defense types, four-to-eight-turn flow, speaker voting and deadlines, same-question clarification, language preferences, team chat, coaching, summary export, upload/citation limits, architecture, fallback, and deployment configuration. Local instructions distinguish the launcher's passcode-only `.env` handling from terminal API-key/model configuration and include manual production-build and mock-preview commands. The README separates published feature-branch behavior from frozen main and clearly retains the final language-fix live-verification limitation. AI Defense Arena remains the project name; presentation assets and unrelated local changes are untouched.
 - Verification: offline documentation check compared referenced files, Markdown relative links, the project title, and upload/timer constants against the current code; it passed. `git diff --check` passed. Runtime suites were not rerun for this documentation-only change; earlier 104 Python tests (AI mocked), 115 React tests, build, and local live evidence are explicitly attributed to their prior checks. No AI calls, hosted checks, or application changes.
 - Remaining: documentation commit/push when requested; existing live language-fix recheck and user review remain pending. Main was unchanged.
+
+### 2026-10-04 — Publish README refresh
+
+- Session: root README publication session; closes its active-work entry.
+- Files: `README.md` and `PROJECT_LOG.md`, published in commit `9cb9182`; this follow-up updates the log only.
+- Changed: committed and pushed the requested documentation refresh to `origin/feature/question-first-room`. Unrelated screenshot deletions, presentation files, browser artifacts, and the draft plan were excluded. Main and application behavior are unchanged.
+- Verification: the fetched remote matched the starting local commit; explicit-path staging included only the two documentation files and `git diff --cached --check` passed. The push succeeded; `git ls-remote` returned `9cb9182693a00b571eae19cda1b259cf78fd884c`, matching the README commit. Prior documentation checks are recorded above; no runtime tests, live AI calls, or deployment were performed for publication.
+- Remaining: existing live language-fix recheck and user review. No documentation publication work remains.
