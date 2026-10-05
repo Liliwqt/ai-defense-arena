@@ -305,10 +305,11 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                             st.error(generation_error_message(error, model, api_key))
                         else:
                             if decision.action == "clarify":
-                                if clarification_count >= 2:
-                                    st.error("This question has used both clarifications. Please submit an answer.")
+                                try:
+                                    session.record_clarification(ClarificationExchange(answer.strip(), decision.clarification))
+                                except ValueError as error:
+                                    st.error(str(error))
                                 else:
-                                    session.turns[-1].clarifications.append(ClarificationExchange(answer.strip(), decision.clarification))
                                     st.rerun()
                             else:
                                 session.submit_answer(answer)

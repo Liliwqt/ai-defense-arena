@@ -58,8 +58,8 @@ class TimedTurn:
 
     def set_selected(self, seat: int | None, session: DefenseSession | None) -> None:
         self.selected_seat = seat
-        if session and session.awaiting_answer:
-            session.turns[-1].assigned_seat = seat
+        if session is not None:
+            session.assign_current_defender(seat)
 
     def reassign(self, online: dict[str, int], session: DefenseSession | None, choose=None) -> bool:
         if self.phase != "question" or self.selected_seat in online.values():
@@ -135,11 +135,11 @@ class TimedTurn:
         if self.interpretation_id != expected_id or self.pending_submission is not pending:
             return None
         if decision.action == "clarify":
-            if len(session.turns[pending.turn].clarifications) >= 2:
-                self.error = "This question has used both clarifications. Please submit an answer."
-            else:
-                session.turns[pending.turn].clarifications.append(ClarificationExchange(pending.text, decision.clarification))
+            try:
+                session.record_clarification(ClarificationExchange(pending.text, decision.clarification))
                 self.error = None
+            except ValueError as error:
+                self.error = str(error)
             self.pending_submission = None
             self.phase = "question"
             self.answer_deadline_ms = now + pending.remaining_ms

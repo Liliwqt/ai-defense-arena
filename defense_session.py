@@ -123,6 +123,17 @@ class DefenseSession:
         self.turns[-1].timed_out = True
         self._finish_if_last()
 
+    def assign_current_defender(self, seat: int | None) -> None:
+        if self.awaiting_answer:
+            self.turns[-1].assigned_seat = seat
+
+    def record_clarification(self, exchange: ClarificationExchange) -> None:
+        if not self.awaiting_answer:
+            raise ValueError("There is no question awaiting an answer.")
+        if len(self.turns[-1].clarifications) >= 2:
+            raise ValueError("This question has used both clarifications. Please submit an answer.")
+        self.turns[-1].clarifications.append(exchange)
+
     def _finish_if_last(self) -> None:
         last = self.panelist_order[-1]
         if self.turns[-1].panelist == last and sum(t.panelist == last for t in self.turns) == 2:

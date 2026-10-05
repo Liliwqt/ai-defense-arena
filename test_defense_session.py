@@ -41,6 +41,18 @@ def complete():
 
 
 class DefenseSessionTests(unittest.TestCase):
+    def test_current_turn_retains_defender_and_bounded_clarifications(self):
+        from question_generator import ClarificationExchange
+        session = DefenseSession.start(GroundedQuestion("Why?", "queue.py", 1, "queue = []"))
+        session.assign_current_defender(1)
+        session.record_clarification(ClarificationExchange("Simplify", "Explain one item at a time."))
+        session.record_clarification(ClarificationExchange("Give an example", "Consider two queued items."))
+        with self.assertRaisesRegex(ValueError, "used both clarifications"):
+            session.record_clarification(ClarificationExchange("Again", "Ignored"))
+        self.assertEqual(session.turns[0].assigned_seat, 1)
+        self.assertEqual(len(session.turns[0].clarifications), 2)
+        self.assertIsNone(session.turns[0].answer)
+
     def setUp(self):
         self.files = [
             ProjectFile("README.md", "# Demo\nQueue requests safely.\n"),
