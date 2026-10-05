@@ -21,6 +21,7 @@ from defense_session import DefenseSession, ResearchDefenseSession, MAX_ANSWER_C
 from accounts import configure_auth, require_account, check_csrf, auth_settings
 from account_store import (AccessError, require_run_access, reserve_run, charge_run,
                            release_run, release_orphaned_reservations)
+from timed_turn import TimedTurn, PendingSubmission, DeadlineExpired, VOTE_MS, ANSWER_MS
 from payments import router as test_payment_router
 from project_files import MAX_ARCHIVE_BYTES, MAX_FILE_BYTES, ProjectFile, read_project_files
 from research_files import MAX_RESEARCH_BYTES, read_research_files, combine_sources
@@ -28,7 +29,6 @@ from research_plan import ResearchPlan, generate_research_plan, validate_questio
 from question_generator import (
     DEFAULT_MODEL,
     CoachingReport,
-    ClarificationExchange,
     interpret_submission,
     QuestionGenerationError,
     describe_openai_error,
@@ -40,8 +40,6 @@ from question_generator import (
 
 
 MAX_PLAYERS = 4
-VOTE_MS = 15_000
-ANSWER_MS = 120_000
 MAX_CHAT_MESSAGES = 100
 MAX_CHAT_CHARS = 500
 MAX_ROOMS = 20
@@ -69,27 +67,13 @@ class Player:
 
 
 @dataclass
-class PendingSubmission:
-    turn: int
-    token: str
-    name: str
-    seat: int
-    text: str
-    remaining_ms: int
-
-
-@dataclass
-class Room:
+class Room(TimedTurn):
     code: str
     files: list[ProjectFile]
     players: dict[str, Player]
     defense_type: str = "code"
     research_stage: str = "infer"
     defense: DefenseSession | None = None
-    answered_by: dict[int, str] = field(default_factory=dict)
-    answered_by_seat: dict[int, int] = field(default_factory=dict)
-    phase: str = "lobby"
-    error: str | None = None
     revision: int = 0
     generation_id: int = 0
     feedback_status: str = "none"   # none | generating | ready | failed
@@ -101,15 +85,8 @@ class Room:
     research_plan_approved: bool = False
     research_plan_generation_id: int = 0
     feedback_generation_id: int = 0
-    vote_deadline_ms: int | None = None
-    answer_deadline_ms: int | None = None
-    selected_seat: int | None = None
-    votes: dict[str, int] = field(default_factory=dict)
     chat: list[dict[str, Any]] = field(default_factory=list)
     chat_seq: int = 0
-    pending_submission: PendingSubmission | None = None
-    interpretation_id: int = 0
-    clock_id: int = 0
     clock_task: asyncio.Task | None = field(default=None, repr=False)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     broadcast_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
@@ -280,81 +257,42 @@ async def publish(room: Room) -> None:
                         player.sockets.discard(socket)
 
 
-def _online_seats(room: Room) -> list[int]:
-    return sorted(player.seat for player in room.players.values() if player.sockets)
+def _online_players(room: Room) -> dict[str, int]:
+    return {player.token: player.seat for player in room.players.values() if player.sockets}
 
 
 def _set_selected_locked(room: Room, seat: int | None) -> None:
-    room.selected_seat = seat
-    if room.defense and room.defense.awaiting_answer:
-        room.defense.turns[-1].assigned_seat = seat
+    room.set_selected(seat, room.defense)
 
 
 def _reassign_if_offline_locked(room: Room) -> bool:
-    if room.phase != "question":
-        return False
-    online = _online_seats(room)
-    if room.selected_seat in online:
-        return False
-    replacement = secrets.choice(online) if online else None
-    if replacement == room.selected_seat:
-        return False
-    _set_selected_locked(room, replacement)
-    room.revision += 1
-    return True
+    changed = room.reassign(_online_players(room), room.defense)
+    if changed:
+        room.revision += 1
+    return changed
 
 
 def _clear_clock_locked(room: Room) -> None:
-    room.clock_id += 1
-    room.vote_deadline_ms = None
-    room.answer_deadline_ms = None
-    room.selected_seat = None
-    room.votes.clear()
+    room.clear_clock()
+    _cancel_clock_task(room)
+
+
+def _cancel_clock_task(room: Room) -> None:
     if room.clock_task and room.clock_task is not asyncio.current_task():
         room.clock_task.cancel()
     room.clock_task = None
-
-
-def _pause_answer_clock_locked(room: Room) -> None:
-    room.clock_id += 1
-    if room.clock_task and room.clock_task is not asyncio.current_task():
-        room.clock_task.cancel()
-    room.clock_task = None
-    room.answer_deadline_ms = None
-
-
-def _resume_answer_clock_locked(room: Room, remaining_ms: int) -> tuple[int, int]:
-    room.phase = "question"
-    room.answer_deadline_ms = _now_ms() + remaining_ms
-    room.clock_id += 1
-    _reassign_if_offline_locked(room)
-    return room.clock_id, room.answer_deadline_ms
 
 
 def _resolve_turn_locked(room: Room) -> tuple[int | None, int | None]:
     """Finish a resolved turn and return the next question/coaching generation id."""
-    _clear_clock_locked(room)
+    _cancel_clock_task(room)
     assert room.defense is not None
-    if room.defense.completed:
-        room.phase = "complete"
+    if room.phase == "complete":
         room.feedback_status = "generating"
         room.feedback_generation_id += 1
         return None, room.feedback_generation_id
-    room.phase = "generating"
     room.generation_id += 1
     return room.generation_id, None
-
-
-def _choose_vote_winner_locked(room: Room) -> int | None:
-    online = _online_seats(room)
-    if not online:
-        return None
-    counts = {seat: 0 for seat in online}
-    for token, seat in room.votes.items():
-        if seat in counts and room.players[token].sockets:
-            counts[seat] += 1
-    highest = max(counts.values())
-    return secrets.choice([seat for seat, count in counts.items() if count == highest])
 
 
 def _schedule_clock(room: Room, clock_id: int, deadline_ms: int) -> None:
@@ -374,23 +312,12 @@ async def _expire_deadline(room: Room, expected_id: int | None = None) -> None:
     generation_id = None
     feedback_id = None
     async with room.lock:
-        if expected_id is not None and room.clock_id != expected_id:
-            return
-        now = _now_ms()
-        if room.phase == "voting" and room.vote_deadline_ms is not None and now >= room.vote_deadline_ms:
-            winner = _choose_vote_winner_locked(room)
-            _set_selected_locked(room, winner)
-            room.votes.clear()
-            room.vote_deadline_ms = None
-            room.phase = "question"
-            room.answer_deadline_ms = now + ANSWER_MS
-            room.clock_id += 1
+        outcome = room.expire(_now_ms(), _online_players(room), room.defense, expected_id)
+        if outcome == "voting_closed":
             room.revision += 1
             changed = True
             next_clock = (room.clock_id, room.answer_deadline_ms)
-        elif room.phase == "question" and room.answer_deadline_ms is not None and now >= room.answer_deadline_ms:
-            assert room.defense is not None
-            room.defense.time_out_current()
+        elif outcome == "timed_out":
             generation_id, feedback_id = _resolve_turn_locked(room)
             room.revision += 1
             changed = True
@@ -451,12 +378,7 @@ async def _generate_question(room: Room, generation_id: int, first: bool) -> Non
                 room.feedback_generation_id += 1
                 feedback_id = room.feedback_generation_id
             else:
-                room.phase = "voting"
-                room.votes.clear()
-                room.selected_seat = None
-                room.answer_deadline_ms = None
-                room.vote_deadline_ms = _now_ms() + VOTE_MS
-                room.clock_id += 1
+                room.begin_vote(_now_ms())
                 next_clock = (room.clock_id, room.vote_deadline_ms)
             room.error = None
             room.revision += 1
@@ -497,10 +419,8 @@ async def _interpret_pending(room: Room, interpretation_id: int) -> None:
         )
     except Exception as error:
         async with room.lock:
-            if room.interpretation_id != interpretation_id or room.pending_submission is not pending:
+            if not room.interpretation_failed(interpretation_id, pending, _safe_generation_error(error)):
                 return
-            room.phase = "interpretation_retry"
-            room.error = _safe_generation_error(error)
             room.revision += 1
         await publish(room)
         return
@@ -508,24 +428,14 @@ async def _interpret_pending(room: Room, interpretation_id: int) -> None:
     generation_id = None
     feedback_id = None
     async with room.lock:
-        if room.interpretation_id != interpretation_id or room.pending_submission is not pending or room.defense is None:
+        if room.defense is None:
             return
-        if decision.action == "clarify":
-            if len(room.defense.turns[pending.turn].clarifications) >= 2:
-                room.error = "This question has used both clarifications. Please submit an answer."
-            else:
-                room.defense.turns[pending.turn].clarifications.append(
-                    ClarificationExchange(pending.text, decision.clarification)
-                )
-                room.error = None
-            room.pending_submission = None
-            next_clock = _resume_answer_clock_locked(room, pending.remaining_ms)
-        else:
-            room.defense.submit_answer(pending.text, speaker_name=pending.name)
-            room.answered_by[pending.turn] = pending.name
-            room.answered_by_seat[pending.turn] = pending.seat
-            room.pending_submission = None
-            room.error = None
+        outcome = room.interpret(room.defense, decision, interpretation_id, pending, _online_players(room), _now_ms())
+        if outcome is None:
+            return
+        if outcome == "clarified":
+            next_clock = (room.clock_id, room.answer_deadline_ms)
+        elif outcome == "answered":
             generation_id, feedback_id = _resolve_turn_locked(room)
         room.revision += 1
     await publish(room)
@@ -833,8 +743,7 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
                 error = "The defense is already complete."
             else:
                 room.generation_id += 1
-                room.interpretation_id += 1
-                room.pending_submission = None
+                room.discard_pending()
                 _clear_clock_locked(room)
                 room.defense.end()
                 release_run(room.run_id)
@@ -850,8 +759,7 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
             if room.research_planning_status == "planning":
                 room.research_planning_status = "none"
                 room.research_plan_error = None
-            room.interpretation_id += 1
-            room.pending_submission = None
+            room.discard_pending()
             _clear_clock_locked(room)
             room.defense = None
             room.answered_by.clear()
@@ -894,16 +802,12 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
                 feedback_generation_id = room.feedback_generation_id
                 room.revision += 1
         elif action == "cast_vote":
-            seat = message.get("seat")
-            if room.phase != "voting" or room.vote_deadline_ms is None:
-                error = "Voting is not open."
-            elif _now_ms() >= room.vote_deadline_ms:
-                error = "Voting time is over."
-                expired_action = True
-            elif isinstance(seat, bool) or not isinstance(seat, int) or seat not in _online_seats(room):
-                error = "Choose an online defender."
+            try:
+                room.cast_vote(player.token, message.get("seat"), _online_players(room), _now_ms())
+            except ValueError as failure:
+                error = str(failure)
+                expired_action = isinstance(failure, DeadlineExpired)
             else:
-                room.votes[player.token] = seat
                 room.revision += 1
         elif action == "send_chat":
             content = message.get("text")
@@ -918,62 +822,34 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
                 room.chat = room.chat[-MAX_CHAT_MESSAGES:]
                 room.revision += 1
         elif action == "retry_interpretation":
-            if room.phase != "interpretation_retry" or room.pending_submission is None:
-                error = "There is no failed submission to retry."
-            elif not (player.is_host or room.selected_seat == player.seat):
-                error = "Only the host or chosen defender can retry."
+            try:
+                room.retry_interpretation(is_host=player.is_host, seat=player.seat)
+            except ValueError as failure:
+                error = str(failure)
             else:
-                room.phase = "interpreting"
-                room.error = None
-                room.interpretation_id += 1
                 interpretation_id = room.interpretation_id
                 room.revision += 1
         elif action == "use_pending_as_answer":
-            pending = room.pending_submission
-            if room.phase != "interpretation_retry" or pending is None or room.defense is None:
-                error = "There is no failed submission to use as an answer."
-            elif room.selected_seat != player.seat or player.token != pending.token:
-                error = "Only the chosen defender can use their submission as an answer."
+            try:
+                room.accept_saved_answer(room.defense, player.token, player.seat)
+            except ValueError as failure:
+                error = str(failure)
             else:
-                room.interpretation_id += 1
-                room.defense.submit_answer(pending.text, speaker_name=pending.name)
-                room.answered_by[pending.turn] = pending.name
-                room.answered_by_seat[pending.turn] = pending.seat
-                room.pending_submission = None
-                room.error = None
                 generation_id, feedback_generation_id = _resolve_turn_locked(room)
                 if generation_id is not None:
                     generate_first = False
                 room.revision += 1
         elif action == "submit_answer":
-            turn = message.get("turn")
-            answer = message.get("answer")
-            if room.phase != "question" or room.defense is None:
-                error = "There is no question awaiting an answer."
-            elif room.answer_deadline_ms is None or _now_ms() >= room.answer_deadline_ms:
-                error = "Answer time is over."
-                expired_action = True
-            elif room.selected_seat != player.seat:
-                error = "Only the chosen defender can answer this question."
-            elif isinstance(turn, bool) or not isinstance(turn, int) or turn != len(room.defense.turns) - 1:
-                error = "That question has already been answered."
-            elif not isinstance(answer, str):
-                error = "Write an answer before continuing."
-            elif len(answer) > MAX_ANSWER_CHARS:
-                error = f"Keep your answer under {MAX_ANSWER_CHARS:,} characters."
+            try:
+                room.submit(player.token, player.name, player.seat, message.get("turn"), message.get("answer"),
+                            room.defense, _now_ms())
+            except ValueError as failure:
+                error = str(failure)
+                expired_action = isinstance(failure, DeadlineExpired)
             else:
-                if not answer.strip():
-                    error = "Write an answer or clarification request before continuing."
-                else:
-                    remaining_ms = max(0, room.answer_deadline_ms - _now_ms())
-                    room.pending_submission = PendingSubmission(turn, player.token, player.name, player.seat,
-                                                                answer.strip(), remaining_ms)
-                    _pause_answer_clock_locked(room)
-                    room.phase = "interpreting"
-                    room.error = None
-                    room.interpretation_id += 1
-                    interpretation_id = room.interpretation_id
-                    room.revision += 1
+                _cancel_clock_task(room)
+                interpretation_id = room.interpretation_id
+                room.revision += 1
         else:
             error = "Unknown room action."
     if expired_action:
