@@ -4,6 +4,20 @@ Practice a code-project or research-paper defense with four AI panelists and up 
 
 The multiplayer app uses a flat, question-centered React interface served by FastAPI. Four panelist cards sit above the question, four defender cards below it, and a persistent bottom dock holds voting, answers, and team chat. A separate Streamlit app provides a single-browser fallback.
 
+## Mobile website and WebView apps (local checkpoint)
+
+The existing React room supports phone portrait and landscape, with compact seat
+strips, internally scrolling questions/citations and a bottom answer/chat dock.
+The same website is loaded by the new Android WebView and iOS WKWebView projects
+under [mobile/](mobile/README.md); there is no separate mobile frontend or backend.
+
+Android's local debug APK is built under `mobile/artifacts/`. The iOS project
+requires macOS/Xcode and your own signing configuration; no iPhone artifact has
+been built here. Installed-device, real Google return and sandbox provider checks
+are still pending. These changes remain local and the live service stays on its
+current release. See the mobile README for builds, secure sign-in handoff and
+verification boundaries.
+
 ## Current branch and verification
 
 This README describes `feature/question-first-room`: the flat room, research documents, same-question clarifications, summary downloads, answer-aware conversations, and Google host accounts with voucher or sandbox-credit access. Research and mixed defenses require a source-grounded paper map and a host-confirmed **4–100-question maximum**. Code-only defenses remain four to eight questions. The architecture release is served at [defense-simulator.onrender.com](https://defense-simulator.onrender.com), with shared timed-turn, purchase and progression modules and checkout UI compatible with account-owned receipts. Hosted health and asset hashes match the tested release; Google and test-payment configuration is enabled. A fresh signed-in defense and provider simulator purchase remain separate unverified checks. Separate Account UI and measured upload-progress work is still local. `main` stays frozen during the review window that began on October 1, 2026, and its earlier service remains unchanged.

@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Request, Query
 from pydantic import BaseModel, ConfigDict, Field
 from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
+from mobile_auth import handoffs, RETURN_URL
 
 from account_store import (SESSION_SECONDS, AccessError, account_access, account_overview, redeem_voucher,
                           create_google_session, remove_session, session_account)
@@ -60,8 +61,8 @@ class HideGoogleCallbackQuery(logging.Filter):
     def filter(self, record):
         if isinstance(record.args, tuple) and len(record.args) == 5:
             args = list(record.args)
-            if isinstance(args[2], str) and args[2].split("?", 1)[0] == "/api/auth/google/callback":
-                args[2] = "/api/auth/google/callback"
+            if isinstance(args[2], str) and args[2].split("?", 1)[0] in {"/api/auth/google/callback", "/api/auth/google/login"}:
+                args[2] = args[2].split("?", 1)[0]
                 record.args = tuple(args)
         return True
 
@@ -139,6 +140,11 @@ async def login(request: Request, return_to: str = Query("/")):
     client_id, secret, origin = auth_settings()
     target = destination(return_to)
     request.session["return_to"] = target
+    request.session.pop("mobile_flow", None)
+    mobile_flow = request.query_params.get("mobile_flow")
+    if mobile_flow:
+        handoffs.open(mobile_flow)
+        request.session["mobile_flow"] = mobile_flow
     try:
         result = await google_client(client_id, secret).authorize_redirect(request, origin + "/api/auth/google/callback", prompt="select_account")
         result.headers["Cache-Control"] = "no-store"
@@ -154,6 +160,7 @@ async def login(request: Request, return_to: str = Query("/")):
 async def callback(request: Request):
     client_id, secret, origin = auth_settings()
     target = destination(request.session.get("return_to", "/"))
+    mobile_flow = request.session.get("mobile_flow")
     try:
         # Authlib exchanges the code, validates state, JWT signature/issuer/
         # audience/expiry and OIDC nonce, then supplies verified userinfo.
@@ -163,15 +170,54 @@ async def callback(request: Request):
         if not isinstance(sub, str) or not 1 <= len(sub) <= 255 or not isinstance(email, str) or not 1 <= len(email) <= 320 or info.get("email_verified") is not True:
             raise ValueError("Unverified Google identity")
         name = info.get("name") if isinstance(info.get("name"), str) else email
+        if mobile_flow:
+            target = handoffs.verified_return(mobile_flow, (sub, email, name[:100]))
+            request.session.clear()
+            return RedirectResponse(target, status_code=303, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
         session, _ = create_google_session(sub, email, name[:100])
         old = request.cookies.get(ACCOUNT_COOKIE)
         if old:
             remove_session(old)
     except Exception:
         request.session.clear()
-        return RedirectResponse(failed_destination(target, "failed"), status_code=303, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
+        return RedirectResponse(RETURN_URL + "?error=signin_failed" if mobile_flow else failed_destination(target, "failed"), status_code=303, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
     request.session.clear()
     result = RedirectResponse(target, status_code=303, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
+    result.set_cookie(ACCOUNT_COOKIE, session, max_age=SESSION_SECONDS, httponly=True,
+                      secure=origin.startswith("https://"), samesite="lax", path="/")
+    return result
+
+
+class MobileStart(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    challenge: str = Field(pattern=r"^[A-Za-z0-9_-]{43}$")
+    return_to: str = Field(default="/", max_length=100)
+
+
+class MobileComplete(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    flow: str = Field(min_length=43, max_length=43)
+    code: str = Field(min_length=43, max_length=43)
+    verifier: str = Field(pattern=r"^[A-Za-z0-9._~-]{43,128}$")
+
+
+@router.post("/mobile/start")
+def mobile_start(body: MobileStart):
+    origin = auth_settings()[2]
+    if destination(body.return_to) != body.return_to:
+        raise HTTPException(400, "Choose an app screen for sign-in.")
+    flow = handoffs.start(body.challenge, body.return_to)
+    return account_response({"flow": flow, "login_url": origin + "/api/auth/google/login?mobile_flow=" + flow})
+
+
+@router.post("/mobile/complete")
+def mobile_complete(body: MobileComplete, request: Request):
+    origin = auth_settings()[2]
+    session, target = handoffs.consume(body.flow, body.code, body.verifier, create_google_session)
+    old = request.cookies.get(ACCOUNT_COOKIE)
+    if old:
+        remove_session(old)
+    result = account_response({"return_to": target})
     result.set_cookie(ACCOUNT_COOKIE, session, max_age=SESSION_SECONDS, httponly=True,
                       secure=origin.startswith("https://"), samesite="lax", path="/")
     return result

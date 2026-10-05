@@ -1,0 +1,57 @@
+.arena-shell { height: var(--room-viewport-height, 100dvh); }
+.arena-shell #drawer { height: var(--room-viewport-height, 100dvh) !important; }
+
+@media (max-width: 900px) {
+  .arena-stage { gap: 9px; padding: max(10px, env(safe-area-inset-top)) 12px 8px; }
+  #arena-hud { flex-wrap: wrap; gap: 8px; }
+  .brand-plate h1 { font-size: .92rem; }
+  .brand-cube, .hud-kicker { display: none; }
+  .hud-actions { flex-wrap: wrap; gap: 6px; }
+  .hud-pill { min-height: 32px; font-size: .65rem; }
+  .hud-button { min-height: 40px; padding: 8px; font-size: .7rem; }
+  .hud-progress { white-space: normal; }
+  .seat-row { gap: 6px; }
+  .seat-card { grid-template-columns: 1fr; min-height: 48px; padding: 6px 4px; text-align: center; }
+  .seat-index { display: none; }
+  .seat-card strong { font-size: .66rem; }
+  .seat-state { font-size: .58rem; }
+  #question-card { padding: 14px 12px; border-radius: 14px; }
+  .question-heading { flex-wrap: wrap; gap: 5px; }
+  .question-kicker { display: none; }
+  #panelist-name { font-size: .87rem; }
+  .question-number { font-size: .57rem; }
+  #panelist-lead-in { font-size: .82rem; line-height: 1.5; }
+  #question-text { font-size: 1.23rem; line-height: 1.4; }
+  .source-heading, .page-citation-header { flex-wrap: wrap; gap: 5px; padding: 9px; }
+  .source-code-scroll { font-size: .7rem; }
+  .page-citation-body { padding: 12px; font-size: .87rem; line-height: 1.6; }
+  #room-dock { flex-basis: 167px; padding: 8px 12px max(8px, env(safe-area-inset-bottom)); }
+  .dock-tabs button { min-height: 36px; }
+  #answer-textarea, #chat-input, .drawer-panel input, .drawer-panel select, .drawer-panel textarea { font-size: 16px; }
+  .vote-choices button { min-height: 44px; }
+}
+
+@media (max-width: 900px) {
+  .arena-shell[data-compact-viewport="true"] .arena-stage { gap: 4px; padding: max(5px, env(safe-area-inset-top)) 9px 5px; }
+  .arena-shell[data-compact-viewport="true"] .brand-plate,
+  .arena-shell[data-compact-viewport="true"] .seat-section-heading,
+  .arena-shell[data-compact-viewport="true"] .hud-coverage { display: none; }
+  .arena-shell[data-compact-viewport="true"] .hud-actions { gap: 4px; }
+  .arena-shell[data-compact-viewport="true"] .hud-button { min-height: 28px; padding: 5px; font-size: .6rem; }
+  .arena-shell[data-compact-viewport="true"] .seat-card { min-height: 32px; padding: 3px; }
+  .arena-shell[data-compact-viewport="true"] #question-card { padding: 7px 9px; }
+  .arena-shell[data-compact-viewport="true"] #question-text { font-size: 1rem; }
+  .arena-shell[data-compact-viewport="true"] #room-dock { flex-basis: 119px; padding: 5px 9px max(5px, env(safe-area-inset-bottom)); }
+  .arena-shell[data-compact-viewport="true"] .dock-tabs button { min-height: 28px; }
+}
+
+@media (max-width: 900px) {
+  #arena-hud { display: block; }
+  .brand-plate { margin-bottom: 8px; }
+  .hud-actions { justify-content: flex-start; }
+  .seat-card.is-active { padding: 6px 4px; }
+  #answer-composer button { min-width: 80px; padding: 8px; }
+  .arena-shell[data-compact-viewport="true"] .seat-card.is-active { padding: 3px; }
+  .arena-shell[data-compact-viewport="true"] #answer-form label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .arena-shell[data-compact-viewport="true"] #answer-status { font-size: .6rem; }
+}

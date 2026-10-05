@@ -1,0 +1,11 @@
+**/build/
+**/.gradle/
+**/local.properties
+**/local.xcconfig
+**/xcuserdata/
+**/*.xcuserstate
+artifacts/
+*.jks
+*.keystore
+*.mobileprovision
+*.p12

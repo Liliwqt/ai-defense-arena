@@ -26,6 +26,16 @@ const emptyState: RoomState = {
 };
 
 describe("TranscriptPanel", () => {
+  it("hands the existing summary to the installed iOS save/share action", () => {
+    const postMessage = vi.fn();
+    Object.defineProperty(window, "webkit", {configurable: true, value: {messageHandlers: {defenseExport: {postMessage}}}});
+    try {
+      render(<TranscriptPanel roomState={{...emptyState, room_code: "ABC123", turns: [{panelist: "Technical Architect", question: "Why queue?", filename: "queue.py", evidence_line: 1, evidence_text: "queue = []", answer: "For ordering.", answered_by: "Alex"}]}} />);
+      screen.getByRole("button", {name: /download summary/i}).click();
+      expect(postMessage).toHaveBeenCalledWith({filename: "defense-abc123-1970-01-01.txt", text: expect.stringContaining("For ordering.")});
+    } finally { delete (window as unknown as {webkit?: unknown}).webkit; }
+  });
+
   it("shows empty state when no turns and no feedback", () => {
     render(<TranscriptPanel roomState={null} />);
     expect(screen.getByText(/will appear here/i)).toBeTruthy();

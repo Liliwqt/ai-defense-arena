@@ -159,6 +159,13 @@ export function useRoomSocket(previewMode: boolean): RoomSocketState {
     });
   }, [previewMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The native shell requests a fresh authoritative snapshot on foregrounding.
+  // Keep React mounted so same-turn drafts survive this connection replacement.
+  useEffect(() => {
+    window.addEventListener("defense-native-resume", connectSocket);
+    return () => window.removeEventListener("defense-native-resume", connectSocket);
+  }, [connectSocket]);
+
   const useRoom = useCallback(
     (code: string, token: string, host: boolean) => {
       const upperCode = code.toUpperCase();

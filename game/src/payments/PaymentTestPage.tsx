@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "./payments.css";
 import { purchaseLabel, type TestPurchase } from "../lib/paymentHistory";
 
@@ -47,11 +47,17 @@ export function PaymentTestPage() {
   const returnState = new URLSearchParams(location.search).get("payment_return");
   const signinError = new URLSearchParams(location.search).get("signin_error");
 
-  async function refreshAccount() {
+  const refreshAccount = useCallback(async () => {
     const version = ++accountVersion.current;
     const body = await readResponse(await fetch("/api/auth/me", { cache: "no-store" }));
     if (accountVersion.current === version) setAccount(body);
-  }
+  }, []);
+
+  useEffect(() => {
+    const refresh = () => { void refreshAccount().catch(() => setError("Could not refresh your account. Try Refresh balance.")); };
+    window.addEventListener("defense-native-resume", refresh);
+    return () => window.removeEventListener("defense-native-resume", refresh);
+  }, [refreshAccount]);
 
   useEffect(() => {
     let active = true;
@@ -86,9 +92,10 @@ export function PaymentTestPage() {
       } finally { checking.current = false; }
     }
     void refresh();
+    window.addEventListener("defense-native-resume", refresh);
     const interval = window.setInterval(() => { void refresh(); }, 5000);
-    return () => { active = false; window.clearInterval(interval); };
-  }, [receipt, order?.status, account?.authenticated, account?.user?.id]);
+    return () => { active = false; window.clearInterval(interval); window.removeEventListener("defense-native-resume", refresh); };
+  }, [receipt, order?.status, account?.authenticated, account?.user?.id, refreshAccount]);
 
   async function create(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();

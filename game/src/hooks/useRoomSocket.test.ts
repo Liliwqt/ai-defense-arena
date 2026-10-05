@@ -53,6 +53,19 @@ afterEach(() => {
 });
 
 describe("useRoomSocket", () => {
+  it("restores an authoritative snapshot on native resume without starting a run", () => {
+    const { result } = renderHook(() => useRoomSocket(false));
+    act(() => result.current.useRoom("ABCD12", "same-token", false));
+    act(() => allSockets[0].emit("open", {}));
+    act(() => window.dispatchEvent(new Event("defense-native-resume")));
+    expect(allSockets.length).toBe(2);
+    act(() => allSockets[1].emit("open", {}));
+    expect(allSockets[1].sentMessages).toEqual([JSON.stringify({type: "hello", token: "same-token"})]);
+    act(() => allSockets[1].emit("message", {data: JSON.stringify({type:"snapshot",state:{room_code:"ABCD12",phase:"question",selected_seat:1,turns:[],answer_deadline_ms:12345}})}));
+    expect(result.current.roomState?.answer_deadline_ms).toBe(12345);
+    expect(result.current.roomState?.selected_seat).toBe(1);
+  });
+
   it("sends hello after socket opens", async () => {
     const { result } = renderHook(() => useRoomSocket(false));
     act(() => result.current.useRoom("ABCD12", "token123", true));

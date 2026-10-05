@@ -6,7 +6,8 @@ import { ControlsPanel } from "./components/ControlsPanel";
 import { Drawer } from "./components/Drawer";
 import { HUD } from "./components/HUD";
 import { QuestionCard } from "./components/QuestionCard";
-import { RotatePrompt } from "./components/RotatePrompt";
+import { useRoomViewport } from "./hooks/useRoomViewport";
+import "./mobile.css";
 import { DefenderSeats, PanelistSeats, type PresenterMoment } from "./components/FlatRoom";
 import { TranscriptPanel } from "./components/TranscriptPanel";
 import { useRoomSocket } from "./hooks/useRoomSocket";
@@ -17,6 +18,7 @@ const PRESENTER_MS = 2600;
 const previewMode = new URLSearchParams(window.location.search).get("preview") === "1";
 
 export function App() {
+  const viewport = useRoomViewport();
   const {
     roomState: liveRoomState, connected, roomCode, waitingForAnswerAck,
     actionError, sendEvent, useRoom, leaveRoom,
@@ -24,6 +26,11 @@ export function App() {
   const [drawerOpen, setDrawerOpen] = useState(!previewMode || new URLSearchParams(window.location.search).get("plan") === "1");
   const [drawerMode, setDrawerMode] = useState<DrawerMode>(new URLSearchParams(location.search).get("account") === "1" ? "account" : "controls");
   const { account, refresh: refreshAccount, error: accountError } = useAccount(previewMode);
+  useEffect(() => {
+    const refresh = () => { void refreshAccount(); };
+    window.addEventListener("defense-native-resume", refresh);
+    return () => window.removeEventListener("defense-native-resume", refresh);
+  }, [refreshAccount]);
   const [message, setMessage] = useState("");
   const [presenterMoment, setPresenterMoment] = useState<PresenterMoment | null>(null);
   const presenterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -143,7 +150,7 @@ export function App() {
   const title = drawerMode === "transcript" ? "Transcript" : drawerMode === "account" ? "Account" : "Controls";
 
   return (
-    <div className="arena-shell">
+    <div className="arena-shell" data-compact-viewport={viewport.compact} style={{ "--room-viewport-height": `${viewport.height}px` } as React.CSSProperties}>
       <div id="stage" className="arena-stage">
         <HUD roomState={roomState} roomCode={roomCode} previewMode={previewMode} onOpenDrawer={openDrawer} onPreviewMoment={previewPresenter} />
         <PanelistSeats roomState={roomState} />
@@ -167,7 +174,6 @@ export function App() {
           <TranscriptPanel roomState={roomState} previewMode={previewMode} />
         )}
       </Drawer>
-      <RotatePrompt />
     </div>
   );
 }

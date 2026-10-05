@@ -38,6 +38,17 @@ const setSocket = (state: RoomState | null) => vi.mocked(useRoomSocket).mockRetu
 afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); });
 
 describe("flat room flow", () => {
+  it("allows upright-phone participation without a blocking rotation instruction", async () => {
+    setSocket(room([turn(null, null)]));
+    render(<App />);
+    expect(screen.queryByText("Rotate your phone")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /close panel/i }));
+    const answer = screen.getByRole("textbox", { name: /chosen to answer/i });
+    await userEvent.type(answer, "A draft that survives orientation changes.");
+    act(() => window.dispatchEvent(new Event("resize")));
+    expect(answer).toHaveValue("A draft that survives orientation changes.");
+    expect(screen.getByText("DATABASE = 'queue.db'")).toBeTruthy();
+  });
   it("shows rejected host actions in Controls while keeping the room visible", () => {
     const state = room([], "lobby");
     vi.mocked(useRoomSocket).mockReturnValue({

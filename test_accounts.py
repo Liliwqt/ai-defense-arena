@@ -350,5 +350,126 @@ class AccountCreditTests(unittest.TestCase):
         self.assertNotIn("private-state", record.getMessage())
 
 
+    def test_mobile_login_establishes_cookie_only_after_verifier_exchange(self):
+        import base64
+        verifier = "A" * 64
+        challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
+        start = self.client.post("/api/auth/mobile/start", json={"challenge": challenge, "return_to": "/?account=1"})
+        self.assertEqual(start.status_code, 200, start.text)
+        flow = start.json()["flow"]
+        login = self.client.get(start.json()["login_url"], follow_redirects=False)
+        params = parse_qs(urlsplit(login.headers["location"]).query)
+        self.nonce = params["nonce"][0]
+        returned = self.client.get("/api/auth/google/callback", params={"code": "offline-code", "state": params["state"][0]}, follow_redirects=False)
+        self.assertNotIn(accounts.ACCOUNT_COOKIE, self.client.cookies)
+        result = urlsplit(returned.headers["location"])
+        self.assertEqual((result.scheme, result.netloc), ("defensearena", "auth"))
+        code = parse_qs(result.query)["code"][0]
+        wrong = self.client.post("/api/auth/mobile/complete", json={"flow": flow, "code": code, "verifier": "B" * 64})
+        self.assertEqual(wrong.status_code, 400)
+        exchanged = self.client.post("/api/auth/mobile/complete", json={"flow": flow, "code": code, "verifier": verifier})
+        self.assertEqual(exchanged.status_code, 200, exchanged.text)
+        self.assertEqual(exchanged.json(), {"return_to": "/?account=1"})
+        self.assertIn("httponly", exchanged.headers["set-cookie"].lower())
+        self.assertTrue(self.client.get("/api/auth/me").json()["authenticated"])
+        replay = self.client.post("/api/auth/mobile/complete", json={"flow": flow, "code": code, "verifier": verifier})
+        self.assertEqual(replay.status_code, 400)
+
+    def mobile_fixture_return(self, verifier="C" * 64):
+        import base64
+        challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
+        start = self.client.post("/api/auth/mobile/start", json={"challenge": challenge}).json()
+        redirect = self.client.get(start["login_url"], follow_redirects=False)
+        params = parse_qs(urlsplit(redirect.headers["location"]).query)
+        self.nonce = params["nonce"][0]
+        callback = self.client.get("/api/auth/google/callback", params={"code":"offline-code", "state":params["state"][0]}, follow_redirects=False)
+        code = parse_qs(urlsplit(callback.headers["location"]).query)["code"][0]
+        return {"flow":start["flow"], "code":code, "verifier":verifier}
+
+    def test_mobile_expiry_does_not_create_an_account_session(self):
+        import mobile_auth
+        now = [1000.0]
+        with patch.object(mobile_auth.time, "monotonic", side_effect=lambda: now[0]):
+            body = self.mobile_fixture_return()
+            now[0] += mobile_auth.TTL_SECONDS + 1
+            self.assertEqual(self.client.post("/api/auth/mobile/complete", json=body).status_code, 400)
+            self.assertFalse(self.client.get("/api/auth/me").json()["authenticated"])
+
+    def test_mobile_concurrent_exchange_issues_only_one_session(self):
+        body = self.mobile_fixture_return()
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda _: self.client.post("/api/auth/mobile/complete", json=body).status_code, range(2)))
+        self.assertEqual(sorted(results), [200, 400])
+
+    def test_mobile_rejects_foreign_flow_bad_targets_and_identity(self):
+        self.assertEqual(self.client.post("/api/auth/mobile/start", json={"challenge":"x" * 43, "return_to":"https://evil.example"}).status_code, 400)
+        self.assertEqual(self.client.post("/api/auth/mobile/start", json={"challenge":"short"}).status_code, 422)
+        body = self.mobile_fixture_return()
+        wrong = {**body, "flow":"Z" * 43}
+        self.assertEqual(self.client.post("/api/auth/mobile/complete", json=wrong).status_code, 400)
+        self.assertFalse(self.client.get("/api/auth/me").json()["authenticated"])
+        self.override_claims = {"email_verified":False}
+        import base64
+        challenge = base64.urlsafe_b64encode(hashlib.sha256(b"D" * 64).digest()).decode().rstrip("=")
+        start = self.client.post("/api/auth/mobile/start", json={"challenge":challenge}).json()
+        redirect = self.client.get(start["login_url"], follow_redirects=False)
+        params = parse_qs(urlsplit(redirect.headers["location"]).query)
+        self.nonce = params["nonce"][0]
+        callback = self.client.get("/api/auth/google/callback", params={"code":"offline-code", "state":params["state"][0]}, follow_redirects=False)
+        self.assertEqual(callback.headers["location"], "defensearena://auth?error=signin_failed")
+        self.assertFalse(self.client.get("/api/auth/me").json()["authenticated"])
+
+    def test_mobile_secure_cookie_logout_and_original_owner_boundaries(self):
+        with patch.dict(os.environ, {"AUTH_PUBLIC_BASE_URL":"https://arena.example.test"}):
+            original = self.client
+            with TestClient(self.client.app, base_url="https://arena.example.test") as secure_client:
+                self.client = secure_client
+                try:
+                    body = self.mobile_fixture_return()
+                    result = self.client.post("/api/auth/mobile/complete", json=body)
+                    self.assertIn("Secure", result.headers["set-cookie"])
+                    self.assertIn("HttpOnly", result.headers["set-cookie"])
+                    self.assertTrue(self.client.get("/api/auth/me").json()["authenticated"])
+                finally:
+                    self.client = original
+        # Same local fixture boundary exercises revocation and CSRF after handoff.
+        body = self.mobile_fixture_return("E" * 64)
+        self.assertEqual(self.client.post("/api/auth/mobile/complete", json=body).status_code, 200)
+        account = self.client.get("/api/auth/me").json()
+        self.assertEqual(self.client.post("/api/auth/logout").status_code, 403)
+        self.assertEqual(self.client.post("/api/auth/logout", headers={"Origin":self.origin,"X-CSRF-Token":account["csrf_token"]}).status_code, 200)
+        self.assertFalse(self.client.get("/api/auth/me").json()["authenticated"])
+
+    def test_mobile_authenticated_host_and_guests_use_existing_room_permissions(self):
+        import game_server
+        self.client.app.router.routes.extend(route for route in game_server.app.router.routes if getattr(route, "path", "") in {"/api/rooms", "/api/rooms/{code}/join", "/ws/{code}"})
+        body = self.mobile_fixture_return()
+        self.assertEqual(self.client.post("/api/auth/mobile/complete", json=body).status_code, 200)
+        account = self.client.get("/api/auth/me").json()
+        headers = {"Origin":self.origin,"X-CSRF-Token":account["csrf_token"]}
+        self.assertEqual(self.client.post("/api/rooms", data={"host_name":"Alex"}, files={"files":("queue.py",b"queue = []")}).status_code, 403)
+        created = self.client.post("/api/rooms", data={"host_name":"Alex"}, files={"files":("queue.py",b"queue = []")}, headers=headers)
+        self.assertEqual(created.status_code, 201, created.text)
+        room = created.json()
+        self.addCleanup(lambda: game_server.rooms.pop(room["room_code"], None))
+        with self.client.websocket_connect(self.origin.replace("http", "ws", 1) + "/ws/" + room["room_code"], headers={"Origin":self.origin}) as socket:
+            socket.send_json({"type":"hello","token":room["player_token"]})
+            first = socket.receive_json()
+            self.assertEqual(first["type"], "snapshot", first.get("message"))
+            state = first["state"]
+            self.assertTrue(state["self_is_host"])
+            self.assertNotIn(account["user"]["email"], json.dumps(state))
+            self.assertNotIn(account["csrf_token"], json.dumps(state))
+        with TestClient(self.client.app, base_url=self.origin) as guest:
+            joined = guest.post("/api/rooms/"+room["room_code"]+"/join",json={"name":"Sam"})
+            self.assertEqual(joined.status_code, 200)
+            with guest.websocket_connect("/ws/"+room["room_code"], headers={"Origin":self.origin}) as socket:
+                socket.send_json({"type":"hello","token":joined.json()["player_token"]})
+                self.assertFalse(socket.receive_json()["state"]["self_is_host"])
+            with guest.websocket_connect("/ws/"+room["room_code"], headers={"Origin":self.origin}) as socket:
+                socket.send_json({"type":"hello","token":room["player_token"]})
+                self.assertEqual(socket.receive_json()["type"], "error")
+
+
 if __name__ == "__main__":
     unittest.main()

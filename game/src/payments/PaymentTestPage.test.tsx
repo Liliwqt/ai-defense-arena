@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { PaymentTestPage, RECEIPT_KEY, ATTEMPT_KEY } from "./PaymentTestPage";
 
 const order = { id: "test_fixture", mode: "test", status: "pending", amount: 10000, currency: "PHP", credits: 100, checkout_url: "https://checkout.paymongo.com/offline" };
@@ -10,6 +10,22 @@ beforeEach(() => { sessionStorage.clear(); history.replaceState(null, "", "/?pay
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe("PaymentTestPage", () => {
+  it("refreshes server-verified payment and balance when the WebView returns", async () => {
+    let paid = false;
+    sessionStorage.setItem(RECEIPT_KEY, JSON.stringify({id: order.id}));
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => url.endsWith("/api/auth/me")
+      ? json({...signedIn, test_credits: paid ? 100 : 0})
+      : url.endsWith("config") ? json({mode:"test", enabled:true}) : json({order:{...order,status:paid ? "paid" : "pending"}})));
+    render(<PaymentTestPage />);
+    await screen.findByRole("link", {name:"Open test checkout"});
+    await act(async () => { fireEvent(window, new Event("defense-native-resume")); });
+    expect(screen.queryByText("Test payment confirmed.")).toBeNull();
+    paid = true;
+    await act(async () => { fireEvent(window, new Event("defense-native-resume")); });
+    await screen.findByText("Test payment confirmed.", {}, {timeout:1000});
+    expect(await screen.findByText("100", {selector:".payment-balance b"})).toBeTruthy();
+  });
+
   it("labels simulated payments and disables unconfigured checkout", async () => {
     vi.stubGlobal("fetch", vi.fn(async (url: string) => url.endsWith("/api/auth/me") ? json(signedIn) : json({ mode: "test", enabled: false })));
     render(<PaymentTestPage />);

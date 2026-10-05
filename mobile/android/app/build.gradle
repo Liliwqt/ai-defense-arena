@@ -1,0 +1,20 @@
+plugins { id 'com.android.application' }
+def site = providers.gradleProperty('arenaUrl').getOrElse('https://defense-simulator.onrender.com')
+def uri = new URI(site)
+if (uri.scheme != 'https' || !uri.host || uri.rawUserInfo || uri.rawQuery || uri.rawFragment || !(uri.path in ['', '/'])) {
+    throw new GradleException('arenaUrl must be a single HTTPS website origin')
+}
+android {
+    namespace 'com.defensearena.mobile'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'com.defensearena.mobile'
+        minSdk 30
+        targetSdk 36
+        versionCode 1
+        versionName '0.1.0'
+        buildConfigField 'String', 'ARENA_URL', '"' + site.replaceAll('/+$', '') + '"'
+    }
+    buildFeatures { buildConfig true }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}

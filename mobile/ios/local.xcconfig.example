@@ -1,0 +1,4 @@
+// Copy to ignored local.xcconfig on your Mac. Signing identity is not in Git.
+DEVELOPMENT_TEAM = YOUR_APPLE_TEAM_ID
+// Optional staging origin, still HTTPS only:
+// ARENA_URL = https:/$()/your-staging-service.example

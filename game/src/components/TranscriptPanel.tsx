@@ -1,6 +1,7 @@
 import { CoachingReport } from "./CoachingReport";
 import { TurnCard } from "./TurnCard";
 import { buildDefenseSummary, defenseSummaryFileName } from "../lib/buildDefenseSummary";
+import { saveDefenseSummary } from "../lib/saveDefenseSummary";
 import type { RoomState } from "../types";
 
 interface TranscriptPanelProps {
@@ -75,17 +76,7 @@ export function TranscriptPanel({ roomState, previewMode = false }: TranscriptPa
             disabled={previewMode}
             title={previewMode ? "Preview mode cannot download" : "Save this defense as a text file"}
             onClick={() => {
-              const text = buildDefenseSummary(roomState);
-              const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-              const url = URL.createObjectURL(blob);
-              const link = document.createElement("a");
-              link.href = url;
-              link.download = defenseSummaryFileName(roomState);
-              document.body.appendChild(link);
-              link.click();
-              link.remove();
-              // Release the object URL after the download has been handed to the browser.
-              window.setTimeout(() => URL.revokeObjectURL(url), 0);
+              saveDefenseSummary(defenseSummaryFileName(roomState), buildDefenseSummary(roomState));
             }}
           >
             Download summary

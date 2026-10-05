@@ -24,7 +24,7 @@ export function PanelistSeats({ roomState }: { roomState: RoomState | null }) {
           return <div key={name} className={`seat-card panelist-seat${active ? " is-active" : ""}`}
             aria-label={`${name}${active ? ", asking this question" : ""}`} aria-current={active ? "true" : undefined}>
             <span className="seat-index" aria-hidden="true">0{index + 1}</span>
-            <strong>{name}</strong>
+            <strong title={name}>{name}</strong>
             <span className="seat-state">{active ? "Asking" : "Panelist"}</span>
           </div>;
         })}
@@ -53,7 +53,7 @@ export function DefenderSeats({ roomState, presenterMoment }: {
           return <div key={seat} className={`seat-card defender-seat${isSelected || presenting ? " is-active" : ""}${!player?.online ? " is-muted" : ""}`}
             aria-label={`Defender seat ${seat + 1}: ${label}${isSelected ? ", chosen to answer" : ""}${choosing && player?.online ? `, ${votes} votes` : ""}`}>
             <span className="seat-index" aria-hidden="true">0{seat + 1}</span>
-            <strong>{player?.name ?? "Open seat"}{player && player.seat === roomState?.self_seat ? " (you)" : ""}</strong>
+            <strong title={player?.name ?? "Open seat"}>{player?.name ?? "Open seat"}{player && player.seat === roomState?.self_seat ? " (you)" : ""}</strong>
             <span className="seat-state">{state}</span>
           </div>;
         })}

@@ -1,0 +1,7 @@
+// URL escaping avoids xcconfig interpreting double slash as a comment.
+ARENA_URL = https:/$()/defense-simulator.onrender.com
+PRODUCT_BUNDLE_IDENTIFIER = com.defensearena.mobile
+IPHONEOS_DEPLOYMENT_TARGET = 15.0
+SWIFT_VERSION = 5.0
+CODE_SIGN_STYLE = Automatic
+#include? "local.xcconfig"
