@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { RoomState } from "../types";
+import type { Account } from "../hooks/useAccount";
 import { ResearchPlanPanel } from "./ResearchPlanPanel";
 
 interface ControlsPanelProps {
+  account?: Account | null;
+  onOpenAccount?: () => void;
   roomState: RoomState | null;
   connected: boolean;
   previewMode: boolean;
@@ -33,6 +36,8 @@ async function responseJson(response: Response): Promise<Record<string, unknown>
 }
 
 export function ControlsPanel({
+  account,
+  onOpenAccount,
   roomState,
   connected,
   previewMode,
@@ -48,6 +53,12 @@ export function ControlsPanel({
   const [budgetDirty, setBudgetDirty] = useState(false);
   const [defenseType, setDefenseType] = useState<"code" | "research" | "mixed">("code");
 
+  const [hostName, setHostName] = useState("");
+  const [nameEdited, setNameEdited] = useState(false);
+  const [confirmRestart, setConfirmRestart] = useState(false);
+  useEffect(() => { if (!nameEdited && account?.user?.name) setHostName(account.user.name.slice(0, 24)); }, [account?.user?.name, nameEdited]);
+  const canRun = !!account?.authenticated && (!!account.free_access || (account.test_credits ?? 0) >= 10);
+
   const inRoom = roomState !== null || !!connected;
   const phase = roomState?.phase ?? "none";
   const feedbackStatus = roomState?.feedback_status ?? "none";
@@ -62,6 +73,7 @@ export function ControlsPanel({
     try {
       const resp = await fetch("/api/rooms", {
         method: "POST",
+        headers: { "X-CSRF-Token": account?.csrf_token ?? "" },
         body: new FormData(form),
       });
       const body = await responseJson(resp);
@@ -101,8 +113,8 @@ export function ControlsPanel({
 
   function handleStart() {
     const payload = roomState?.defense_type && roomState.defense_type !== "code"
-      ? { type: "start", plan_id: roomState.research_plan?.id, question_budget: roomState.research_budget_preview }
-      : { type: "start" };
+      ? { type: "start", confirm_cost: true, plan_id: roomState.research_plan?.id, question_budget: roomState.research_budget_preview }
+      : { type: "start", confirm_cost: true };
     if (onSendEvent(payload)) onCloseDrawer();
   }
   function handleRetry() {
@@ -112,7 +124,8 @@ export function ControlsPanel({
     if (onSendEvent({ type: "retry_coaching" })) onCloseDrawer();
   }
   function handleRestart() {
-    if (onSendEvent({ type: "restart" })) onCloseDrawer();
+    if (!account?.free_access && !confirmRestart) { setConfirmRestart(true); return; }
+    if (onSendEvent({ type: "restart", confirm_cost: true })) { setConfirmRestart(false); onCloseDrawer(); }
   }
 
   function handleSetupTabKey(event: React.KeyboardEvent<HTMLButtonElement>) {
@@ -183,13 +196,10 @@ export function ControlsPanel({
 
           {activeTab === "create" && (
             <form id="create-form" role="tabpanel" onSubmit={handleCreate} className="grid gap-[15px]">
+              {!account?.authenticated && <div className="account-access-card"><p>Sign in with Google to create a room. Teammates can use Join room without an account.</p><button type="button" className={secondaryBtn} onClick={onOpenAccount}>Open Account</button></div>}
               <label className="setup-label">
                 Your name
-                <input name="host_name" maxLength={24} autoComplete="name" required placeholder="Your name" className={inputClass} />
-              </label>
-              <label className="setup-label">
-                Host passcode
-                <input name="host_passcode" type="password" autoComplete="off" required placeholder="Enter the host passcode" className={inputClass} />
+                <input name="host_name" maxLength={24} autoComplete="name" required placeholder="Your name" value={hostName} onChange={e => { setNameEdited(true); setHostName(e.target.value); }} className={inputClass} />
               </label>
               <label className="setup-label">
                 Defense type
@@ -218,7 +228,7 @@ export function ControlsPanel({
               <p className="control-help">
                 Research papers: text-based PDF, DOCX, TXT, or Markdown. PDF pages must contain readable text.
               </p>
-              <button type="submit" disabled={createBusy} className={primaryBtn}>
+              <button type="submit" disabled={createBusy || !account?.authenticated} className={primaryBtn}>
                 {createBusy ? "Creating…" : "Create defense room"}
               </button>
             </form>
@@ -274,17 +284,19 @@ export function ControlsPanel({
           {roomState?.defense_type && roomState.defense_type !== "code" && <ResearchPlanPanel
             roomState={roomState} connected={connected} previewMode={previewMode} onSendEvent={onSendEvent} onBudgetDraftChange={setBudgetDirty} />}
 
+          {isHost && !previewMode && <div className="account-access-card"><strong>{account?.free_access ? "Free access active" : "10 test credits per defense run"}</strong><p>{account?.authenticated ? `${account.test_credits ?? 0} available · ${account.reserved_credits ?? 0} reserved test credits` : "Sign in with the room owner’s Google account to use host controls."}</p><button type="button" className={secondaryBtn} onClick={onOpenAccount}>Open Account</button></div>}
+
           {/* Host-only controls */}
           {!previewMode && isHost && (
             <div className="grid gap-[9px]">
               {phase === "lobby" && (
                 <button
                   type="button"
-                  disabled={!connected || budgetDirty || (!!roomState?.defense_type && roomState.defense_type !== "code" && (!roomState.research_plan_approved || !roomState.research_plan || roomState.research_planning_status !== "ready"))}
+                  disabled={!connected || !canRun || budgetDirty || (!!roomState?.defense_type && roomState.defense_type !== "code" && (!roomState.research_plan_approved || !roomState.research_plan || roomState.research_planning_status !== "ready"))}
                   onClick={handleStart}
                   className={primaryBtn}
                 >
-                  Start defense
+                  {account?.free_access ? "Start defense · free access" : "Start defense · 10 test credits"}
                 </button>
               )}
               {roomState?.defense_type && roomState.defense_type !== "code" && phase === "lobby" && !roomState.research_plan_approved && <p className="control-help">Prepare and confirm the research map and question budget to enable Start.</p>}
@@ -316,15 +328,17 @@ export function ControlsPanel({
               {phase !== "lobby" && (
                 <button
                   type="button"
-                  disabled={!connected}
+                  disabled={!connected || !canRun}
                   onClick={handleRestart}
                   className={secondaryBtn}
                 >
-                  Restart defense
+                  {confirmRestart ? "Confirm restart · 10 test credits" : "Restart defense"}
                 </button>
               )}
             </div>
           )}
+
+          {confirmRestart && <p role="status" className="control-help">Restart begins a new run for 10 test credits. Your previous transcript will be replaced. <button type="button" className={secondaryBtn} onClick={() => setConfirmRestart(false)}>Cancel restart</button></p>}
 
           {waitText && (
             <p className="control-help">

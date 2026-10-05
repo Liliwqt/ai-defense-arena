@@ -16,7 +16,7 @@ const state: RoomState = {room_code:"OFFLINE", self_seat:0, self_is_host:true, p
   files:["study.pdf"], defense_type:"research",research_plan:researchPlanPreview,question_budget:24,current_topic:"topic-1",
   coverage:Object.fromEntries(researchPlanPreview.topics.map((t,i)=>[t.id,{status:i<3 ? "addressed":"pending",turns:i<3?[i]:[],reason:""}])),
   feedback_status:"none",feedback:null};
-const controls = {roomState:state,connected:true,previewMode:false,onUseRoom:vi.fn(),onLeaveRoom:vi.fn(),onSendEvent:vi.fn(()=>true),onCloseDrawer:vi.fn(),showMessage:vi.fn()};
+const controls = { account: { authenticated: true, google_enabled: true, free_access: true },roomState:state,connected:true,previewMode:false,onUseRoom:vi.fn(),onLeaveRoom:vi.fn(),onSendEvent:vi.fn(()=>true),onCloseDrawer:vi.fn(),showMessage:vi.fn()};
 describe("Research coverage room",()=>{
  it("shows question numbers beyond eight and the complete topic",()=>{
    render(<HUD roomState={state} roomCode="OFFLINE" previewMode={false} onOpenDrawer={vi.fn()}/>);
@@ -44,11 +44,11 @@ describe("Research coverage room",()=>{
    const ready={...state,phase:"lobby" as const,research_plan_approved:true,research_planning_status:"ready" as const,research_budget_preview:24};
    const {rerender}=render(<ControlsPanel {...controls} roomState={ready}/>);
    fireEvent.change(screen.getByLabelText("Question budget"),{target:{value:"20"}});
-   expect((screen.getByRole("button",{name:"Start defense"}) as HTMLButtonElement).disabled).toBe(true);
+   expect((screen.getByRole("button",{name:/Start defense/}) as HTMLButtonElement).disabled).toBe(true);
    fireEvent.click(screen.getByRole("button",{name:"Confirm question budget"}));
-   expect((screen.getByRole("button",{name:"Start defense"}) as HTMLButtonElement).disabled).toBe(true);
+   expect((screen.getByRole("button",{name:/Start defense/}) as HTMLButtonElement).disabled).toBe(true);
    rerender(<ControlsPanel {...controls} roomState={{...ready,research_budget_preview:20}}/>);
-   expect((screen.getByRole("button",{name:"Start defense"}) as HTMLButtonElement).disabled).toBe(false);
+   expect((screen.getByRole("button",{name:/Start defense/}) as HTMLButtonElement).disabled).toBe(false);
  });
  it("exports coverage gaps, original question references, and distinct early ending",()=>{
    const ended={...state,phase:"complete" as const,completion_reason:"ended by host" as const,turns:[{...turn,ended_early:true}]};

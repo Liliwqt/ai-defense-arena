@@ -20,23 +20,30 @@ if [[ -z "$OPENAI_API_KEY" ]]; then
   printf 'An OpenAI API key is required.\n' >&2
   exit 1
 fi
-if [[ -z "${GAME_HOST_PASSCODE:-}" && -f .env ]]; then
-  while IFS= read -r env_line; do
-    if [[ "$env_line" == GAME_HOST_PASSCODE=* ]]; then
-      GAME_HOST_PASSCODE="${env_line#GAME_HOST_PASSCODE=}"
-      export GAME_HOST_PASSCODE
-      break
-    fi
-  done < .env
+if [[ -z "${FREE_ACCESS_VOUCHER:-}" ]]; then
+  FREE_ACCESS_VOUCHER="$(.venv/bin/python - <<'PYVOUCHER'
+import os
+from pathlib import Path
+import secrets
+folder = Path('.local')
+folder.mkdir(exist_ok=True)
+path = folder / 'free-access-voucher'
+try:
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+except FileExistsError:
+    pass
+else:
+    with os.fdopen(fd, 'w') as output:
+        output.write(secrets.token_urlsafe(32))
+os.chmod(path, 0o600)
+print(path.read_text().strip())
+PYVOUCHER
+)"
+  export FREE_ACCESS_VOUCHER
+  printf 'Free-access voucher is available in .local/free-access-voucher (keep it private).\n'
 fi
-if [[ -z "${GAME_HOST_PASSCODE:-}" ]]; then
-  read -r -s -p 'Room host passcode (input hidden): ' GAME_HOST_PASSCODE
-  printf '\n'
-  export GAME_HOST_PASSCODE
-fi
-if [[ -z "$GAME_HOST_PASSCODE" ]]; then
-  printf 'A room host passcode is required.\n' >&2
-  exit 1
+if [[ -z "${GOOGLE_CLIENT_ID:-}" || -z "${GOOGLE_CLIENT_SECRET:-}" || -z "${AUTH_SESSION_SECRET:-}" || -z "${AUTH_PUBLIC_BASE_URL:-}" ]]; then
+  printf 'Google host sign-in needs configuration. Follow the README account setup; joining and visual previews remain available.\n'
 fi
 
 printf 'Real AI room ready at http://127.0.0.1:8000/\n'

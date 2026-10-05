@@ -121,4 +121,4 @@ export interface RoomState {
   chat?: ChatMessage[];
 }
 
-export type DrawerMode = "controls" | "transcript";
+export type DrawerMode = "controls" | "transcript" | "account";

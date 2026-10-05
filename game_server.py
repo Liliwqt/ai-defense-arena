@@ -1,6 +1,8 @@
 """Single-process multiplayer room server for AI Defense Arena."""
 
 import asyncio
+import copy
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 import json
 import os
@@ -9,13 +11,17 @@ import secrets
 import time
 from typing import Any
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from openai import OpenAIError
 from pydantic import BaseModel, ValidationError
 
 from defense_session import DefenseSession, ResearchDefenseSession, MAX_ANSWER_CHARS, PANELIST_ORDER
+from accounts import configure_auth, require_account, check_csrf, auth_settings
+from account_store import (AccessError, require_run_access, reserve_run, charge_run,
+                           release_run, release_orphaned_reservations)
+from payments import router as test_payment_router
 from project_files import MAX_ARCHIVE_BYTES, MAX_FILE_BYTES, ProjectFile, read_project_files
 from research_files import MAX_RESEARCH_BYTES, read_research_files, combine_sources
 from research_plan import ResearchPlan, generate_research_plan, validate_question_budget
@@ -107,6 +113,8 @@ class Room:
     clock_task: asyncio.Task | None = field(default=None, repr=False)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     broadcast_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    owner_account_id: str | None = None
+    run_id: str | None = None
 
     def snapshot(self, recipient: Player | None = None) -> dict[str, Any]:
         turns = []
@@ -209,7 +217,15 @@ def _now_ms() -> int:
 
 rooms: dict[str, Room] = {}
 registry_lock = asyncio.Lock()
-app = FastAPI(title="AI Defense Arena")
+@asynccontextmanager
+async def lifespan(app):
+    # One process/worker owns all rooms; no in-memory run survives startup.
+    release_orphaned_reservations()
+    yield
+
+
+app = FastAPI(title="AI Defense Arena", lifespan=lifespan)
+configure_auth(app)
 
 
 @app.middleware("http")
@@ -398,7 +414,7 @@ async def _generate_question(room: Room, generation_id: int, first: bool) -> Non
         async with room.lock:
             if room.generation_id != generation_id:
                 return
-            session = room.defense
+            session = copy.deepcopy(room.defense) if room.run_id and (room.defense is None or not room.defense.turns) else room.defense
             research = isinstance(session, ResearchDefenseSession)
             history = session.answered_history() if session else []
             context = session.context() if research else None
@@ -421,11 +437,14 @@ async def _generate_question(room: Room, generation_id: int, first: bool) -> Non
             if research:
                 session.apply_move(move)
             elif first:
-                room.defense = DefenseSession.start(question, room.defense_type, room.research_stage)
+                session = DefenseSession.start(question, room.defense_type, room.research_stage)
             elif session and session.needs_question:
                 session.apply_move(move)
             else:
                 return
+            if room.run_id and (room.defense is None or not room.defense.turns) and session.turns:
+                charge_run(room.owner_account_id, room.run_id)
+            room.defense = session
             if room.defense.completed:
                 room.phase = "complete"
                 room.feedback_status = "generating"
@@ -446,6 +465,8 @@ async def _generate_question(room: Room, generation_id: int, first: bool) -> Non
             if room.generation_id != generation_id:
                 return
             room.phase = "retry"
+            if room.defense is None or not room.defense.turns:
+                release_run(room.run_id)
             room.error = _safe_generation_error(error)
             room.revision += 1
         await publish(room)
@@ -610,18 +631,15 @@ async def health() -> dict[str, str]:
 
 @app.post("/api/rooms", status_code=201)
 async def create_room(
+    request: Request,
     host_name: str = Form(...),
-    host_passcode: str = Form(""),
     files: list[UploadFile] | None = File(None),
     research_files: list[UploadFile] | None = File(None),
     defense_type: str = Form("code"),
     research_stage: str = Form("infer"),
 ) -> dict[str, str]:
-    expected_passcode = os.getenv("GAME_HOST_PASSCODE") or ""
-    if not expected_passcode:
-        raise HTTPException(503, "Room access is not configured on this server.")
-    if not secrets.compare_digest(host_passcode, expected_passcode):
-        raise HTTPException(403, "Invalid host passcode.")
+    account = require_account(request)
+    check_csrf(request, account)
     name = _player_name(host_name)
     if defense_type not in {"code", "research", "mixed"} or research_stage not in {"infer", "proposal", "completed"}:
         raise HTTPException(422, "Choose a valid defense type and research stage.")
@@ -664,7 +682,8 @@ async def create_room(
         while code in rooms:
             code = _room_code()
         token = _new_token()
-        rooms[code] = Room(code, project_files, {token: Player(token, name, 0, True)}, defense_type, research_stage)
+        rooms[code] = Room(code, project_files, {token: Player(token, name, 0, True)}, defense_type, research_stage,
+                           owner_account_id=account["id"])
     return {"room_code": code, "player_token": token}
 
 
@@ -698,7 +717,33 @@ async def _send_error(socket: WebSocket, message: str) -> None:
         pass
 
 
+def _host_account(room: Room, socket: WebSocket):
+    account = require_account(socket)
+    if account["id"] != room.owner_account_id or socket.headers.get("origin") != auth_settings()[2]:
+        raise HTTPException(403, "Sign in with the account that created this room to use host controls.")
+    return account
+
+
+def _reserve_room_run(room: Room, account_id: str, confirmed: bool, retry: bool = False) -> None:
+    if not retry:
+        access = require_run_access(account_id)
+        if not access["free_access"] and not confirmed:
+            raise AccessError("Confirm the 10-test-credit cost before starting or restarting this run.")
+    run_id = room.run_id if retry and room.run_id else secrets.token_hex(24)
+    reserve_run(account_id, run_id)
+    if run_id != room.run_id:
+        release_run(room.run_id)
+    room.run_id = run_id
+
+
 async def _handle_action(room: Room, player: Player, socket: WebSocket, message: dict) -> None:
+    account = None
+    if player.is_host:
+        try:
+            account = _host_account(room, socket)
+        except HTTPException as failure:
+            await _send_error(socket, failure.detail)
+            return
     await _expire_deadline(room)
     action = message.get("type")
     error = None
@@ -709,6 +754,24 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
     interpretation_id = None
     plan_generation_id = None
     async with room.lock:
+        # Authorize before mutation or scheduling any paid AI work.
+        try:
+            if player.is_host and action in {"prepare_research_plan", "retry_research_plan"}:
+                require_run_access(account["id"])
+            if player.is_host and action == "start" and room.phase == "lobby" and room.defense is None:
+                # Budget/map validation below must precede a reservation.
+                if room.defense_type == "code" or (room.research_plan and room.research_plan_approved
+                        and message.get("plan_id") == room.research_plan.id
+                        and type(message.get("question_budget")) is int
+                        and message["question_budget"] == room.research_budget_preview):
+                    _reserve_room_run(room, account["id"], message.get("confirm_cost") is True)
+            if player.is_host and action == "restart" and (room.defense_type == "code" or (room.research_plan and room.research_plan_approved)):
+                _reserve_room_run(room, account["id"], message.get("confirm_cost") is True)
+            if player.is_host and action == "retry" and room.phase == "retry" and (room.defense is None or not room.defense.turns):
+                _reserve_room_run(room, account["id"], True, retry=True)
+        except AccessError as failure:
+            await _send_error(socket, str(failure))
+            return
         if action in {"start", "restart", "retry", "retry_coaching", "prepare_research_plan", "retry_research_plan", "approve_research_plan", "end_defense"} and not player.is_host:
             error = "Only the host can control the defense."
         elif action in {"prepare_research_plan", "retry_research_plan"}:
@@ -774,6 +837,7 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
                 room.pending_submission = None
                 _clear_clock_locked(room)
                 room.defense.end()
+                release_run(room.run_id)
                 room.phase = "complete"
                 room.error = None
                 room.feedback_status = "generating"
@@ -949,6 +1013,13 @@ async def room_socket(socket: WebSocket, code: str) -> None:
         token = None
     async with room.lock:
         player = room.players.get(token) if isinstance(token, str) else None
+        if player is not None and player.is_host:
+            try:
+                _host_account(room, socket)
+            except HTTPException as failure:
+                await _send_error(socket, failure.detail)
+                await socket.close(code=1008)
+                return
         if player is not None:
             player.sockets.add(socket)
             _reassign_if_offline_locked(room)
@@ -987,4 +1058,5 @@ async def room_socket(socket: WebSocket, code: str) -> None:
         await publish(room)
 
 
+app.include_router(test_payment_router)
 app.mount("/", StaticFiles(directory=GAME_DIR, html=True), name="game")

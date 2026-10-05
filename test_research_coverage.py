@@ -1,3 +1,4 @@
+from offline_accounts import authenticate
 """Coverage policy and real room protocol with offline AI and clocks."""
 import asyncio
 from copy import deepcopy
@@ -262,6 +263,7 @@ class CoveragePolicyTests(unittest.TestCase):
 
 class CoverageRoomTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        authenticate(self, unit_server=game_server)
         self.host = game_server.Player('host', 'Host', 0, True)
         self.guest = game_server.Player('guest', 'Sam', 1, False)
         self.room = game_server.Room('OFFLINE', FILES, {'host':self.host, 'guest':self.guest}, 'research', 'proposal')
@@ -348,8 +350,10 @@ class CoverageProtocolTests(unittest.TestCase):
                      patch.object(game_server, '_now_ms', side_effect=lambda: self.now),
                      patch.object(game_server, '_schedule_clock')):
             mock.start(); self.addCleanup(mock.stop)
+        authenticate(self)
         self.client = TestClient(game_server.app).__enter__()
         self.addCleanup(lambda:self.client.__exit__(None,None,None))
+        authenticate(self, self.client)
 
     def until(self, socket, phase=None, count=None, **conditions):
         for _ in range(60):
@@ -478,6 +482,9 @@ class CoverageStreamlitTests(unittest.TestCase):
 
 
 class CoverageAdditionalTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        authenticate(self, unit_server=game_server)
+
     async def test_ending_during_interpretation_discards_result_and_marks_no_answer(self):
         host = game_server.Player('host', 'Host', 0, True)
         room = game_server.Room('OFFLINE', FILES, {'host':host}, 'research', 'proposal')

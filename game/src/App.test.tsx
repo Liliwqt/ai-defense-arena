@@ -6,6 +6,7 @@ import { useRoomSocket } from "./hooks/useRoomSocket";
 import type { RoomSocketState } from "./hooks/useRoomSocket";
 import type { RoomState, Turn } from "./types";
 
+vi.mock("./hooks/useAccount", () => ({ useAccount: () => ({account: null, error: "", refresh: vi.fn(async () => {})}) }));
 vi.mock("./hooks/useRoomSocket", () => ({ useRoomSocket: vi.fn() }));
 vi.mock("./components/FlatRoom", () => ({
   PanelistSeats: () => <div data-testid="panelist-row" />,
@@ -37,6 +38,17 @@ const setSocket = (state: RoomState | null) => vi.mocked(useRoomSocket).mockRetu
 afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); });
 
 describe("flat room flow", () => {
+  it("shows rejected host actions in Controls while keeping the room visible", () => {
+    const state = room([], "lobby");
+    vi.mocked(useRoomSocket).mockReturnValue({
+      ...socket(state), actionError: "You need 10 available test credits to start a defense.",
+    });
+    render(<App />);
+    const controls = screen.getByRole("dialog");
+    expect(controls.textContent).toContain("You need 10 available test credits");
+    expect(screen.getByTestId("seat-rows")).toBeTruthy();
+  });
+
   it("does not replay past answers on the first snapshot, then focuses the accepted seat", () => {
     setSocket(null);
     const view = render(<App />);

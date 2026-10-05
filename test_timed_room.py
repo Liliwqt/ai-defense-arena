@@ -1,3 +1,4 @@
+from offline_accounts import authenticate
 """Fake-clock checks for room-owned voting, answer deadlines, and private chat."""
 
 import asyncio
@@ -19,6 +20,7 @@ class FakeSocket:
 
 class TimedRoomTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        authenticate(self, unit_server=server)
         self.now = 1_000_000
         self.clock_patch = patch.object(server, "_now_ms", side_effect=lambda: self.now)
         self.clock_patch.start()

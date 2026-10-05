@@ -72,6 +72,7 @@ export function HUD({ roomState, roomCode, previewMode, onOpenDrawer, onPreviewM
         >
           <span aria-hidden="true">⚙</span> Controls
         </button>
+        {!previewMode && <button type="button" onClick={() => onOpenDrawer("account")} aria-controls="drawer" className="hud-button">Account</button>}
         {previewMode && onPreviewMoment && (
           <button type="button" onClick={onPreviewMoment} className="hud-button">Preview presenter</button>
         )}

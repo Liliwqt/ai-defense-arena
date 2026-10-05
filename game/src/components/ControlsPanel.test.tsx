@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ControlsPanel } from "./ControlsPanel";
 import type { RoomState } from "../types";
 
@@ -26,6 +26,7 @@ const baseState: RoomState = {
 };
 
 const defaultProps = {
+  account: { authenticated: true, google_enabled: true, free_access: true },
   connected: true,
   previewMode: false,
   onUseRoom: vi.fn(),
@@ -40,9 +41,7 @@ describe("ControlsPanel", () => {
     render(<ControlsPanel {...defaultProps} roomState={null} connected={false} />);
     expect(screen.getByRole("tab", { name: /create room/i })).toBeTruthy();
     expect(screen.getByRole("tab", { name: /join room/i })).toBeTruthy();
-    const passcode = screen.getByLabelText("Host passcode") as HTMLInputElement;
-    expect(passcode.type).toBe("password");
-    expect(passcode.required).toBe(true);
+    expect(screen.queryByLabelText("Host passcode")).toBeNull();
   });
 
   it("moves between setup tabs with the arrow keys", () => {
@@ -126,5 +125,33 @@ describe("ControlsPanel", () => {
     const state: RoomState = { ...baseState, phase: "lobby" };
     render(<ControlsPanel {...defaultProps} roomState={state} />);
     expect(screen.queryByRole("button", { name: /retry coaching report/i })).toBeNull();
+  });
+});
+
+describe("Host account controls", () => {
+  const signedIn = {authenticated:true,google_enabled:true,user:{id:"account-id",name:"Configured host",email:"private@example.test"},csrf_token:"csrf",free_access:false,test_credits:10};
+  it("prefills an editable account name without replacing edits",()=>{
+    const view=render(<ControlsPanel {...defaultProps} account={signedIn} roomState={null} connected={false}/>);
+    const input=screen.getByLabelText("Your name") as HTMLInputElement;
+    expect(input.value).toBe("Configured host");fireEvent.change(input,{target:{value:"My team name"}});
+    view.rerender(<ControlsPanel {...defaultProps} account={{...signedIn,user:{...signedIn.user,name:"Changed account name"}}} roomState={null} connected={false}/>);
+    expect(input.value).toBe("My team name");expect(screen.queryByText("private@example.test")).toBeNull();
+  });
+  it("keeps guest joining available when host login is unavailable",()=>{
+    render(<ControlsPanel {...defaultProps} account={{authenticated:false,google_enabled:false}} roomState={null} connected={false}/>);
+    expect((screen.getByRole("button",{name:"Create defense room"}) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("tab",{name:"Join room"}));expect((screen.getByRole("button",{name:"Join team"}) as HTMLButtonElement).disabled).toBe(false);
+  });
+  it("includes CSRF when creating an account-owned room",async()=>{
+    const fetcher=vi.fn(async()=>({ok:true,json:async()=>({room_code:"ROOM",player_token:"token"})}));vi.stubGlobal("fetch",fetcher);
+    const onUseRoom=vi.fn();render(<ControlsPanel {...defaultProps} account={signedIn} roomState={null} connected={false} onUseRoom={onUseRoom}/>);
+    fireEvent.submit(document.querySelector("#create-form")!);
+    await waitFor(()=>expect(onUseRoom).toHaveBeenCalledWith("ROOM","token",true));
+    expect(fetcher.mock.calls[0]).toEqual(["/api/rooms",expect.objectContaining({headers:{"X-CSRF-Token":"csrf"},body:expect.any(FormData)})]);vi.unstubAllGlobals();
+  });
+  it("requires a second explicit click for a paid restart",()=>{
+    const onSendEvent=vi.fn(()=>true);render(<ControlsPanel {...defaultProps} account={signedIn} roomState={{...baseState,phase:"complete"}} onSendEvent={onSendEvent}/>);
+    fireEvent.click(screen.getByRole("button",{name:"Restart defense"}));expect(onSendEvent).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button",{name:"Confirm restart · 10 test credits"}));expect(onSendEvent).toHaveBeenCalledWith({type:"restart",confirm_cost:true});
   });
 });

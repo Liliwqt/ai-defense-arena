@@ -1,0 +1,295 @@
+"""Offline Google OIDC and account-owned credit checks; all providers mocked."""
+
+from concurrent.futures import ThreadPoolExecutor
+import hashlib
+import hmac
+import importlib
+import json
+import logging
+import os
+from pathlib import Path
+import sqlite3
+import tempfile
+import time
+import unittest
+from unittest.mock import AsyncMock, Mock, patch
+from urllib.parse import parse_qs, urlsplit
+
+from authlib.integrations.starlette_client import OAuth
+from authlib.integrations.httpx_client import AsyncOAuth2Client
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from joserfc import jwt
+from joserfc.jwk import RSAKey
+
+import accounts
+import account_store
+import payments
+
+# Authlib 1.8 uses HTTPX 2; earlier supported releases use HTTPX 1. Return
+# fixture responses/streams from the same HTTP client as the real OAuth code.
+provider_http = importlib.import_module(next(base.__module__ for base in AsyncOAuth2Client.__mro__ if base.__name__ == "AsyncClient").split(".")[0])
+
+
+class AccountCreditTests(unittest.TestCase):
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.db_path = Path(folder.name) / "sandbox.sqlite3"
+        self.origin = "http://127.0.0.1:8774"
+        env = patch.dict(os.environ, {
+            "GOOGLE_CLIENT_ID": "offline-google-client", "GOOGLE_CLIENT_SECRET": "offline-google-secret",
+            "AUTH_PUBLIC_BASE_URL": self.origin, "AUTH_SESSION_SECRET": "offline-session-secret-with-more-than-32-characters",
+            "PAYMONGO_SECRET_KEY": "sk_test_offline", "PAYMONGO_WEBHOOK_SECRET": "offline-webhook-secret",
+            "PAYMONGO_PUBLIC_BASE_URL": self.origin, "PAYMONGO_TEST_DB_PATH": str(self.db_path),
+            "GAME_HOST_PASSCODE": "offline-host-passcode",
+        })
+        env.start()
+        self.addCleanup(env.stop)
+        self.clock = int(time.time())
+        clock = patch.object(account_store.time, "time", side_effect=lambda: self.clock)
+        clock.start()
+        self.addCleanup(clock.stop)
+        app = FastAPI()
+        accounts.configure_auth(app)
+        app.include_router(payments.router)
+        self.client = TestClient(app, base_url=self.origin)
+        self.client.__enter__()
+        self.addCleanup(lambda: self.client.__exit__(None, None, None))
+        self.key = RSAKey.generate_key(2048, parameters={"kid": "offline-key"})
+        self.override_claims = {}
+        self.signing_key = self.key
+        self.nonce = ""
+        self.token_requests = 0
+        self.google = OAuth().register("google", client_id="offline-google-client", client_secret="offline-google-secret",
+            server_metadata_url=accounts.GOOGLE_METADATA,
+            client_kwargs={"scope": "openid email profile", "code_challenge_method": "S256", "transport": provider_http.MockTransport(self.google_response)})
+        google_patch = patch.object(accounts, "google_client", return_value=self.google)
+        google_patch.start()
+        self.addCleanup(google_patch.stop)
+
+    def google_response(self, request):
+        if str(request.url) == accounts.GOOGLE_METADATA:
+            return provider_http.Response(200, json={"issuer": "https://accounts.google.com",
+                "authorization_endpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+                "token_endpoint": "https://oauth2.googleapis.com/token", "jwks_uri": "https://www.googleapis.com/offline-jwks",
+                "id_token_signing_alg_values_supported": ["RS256"]})
+        if request.url.path == "/token":
+            self.token_requests += 1
+            params = parse_qs(request.content.decode())
+            self.assertIn("code_verifier", params)
+            claims = {"iss": "https://accounts.google.com", "aud": "offline-google-client",
+                "sub": "offline-google-sub", "email": "alex@example.test", "name": "Alex", "email_verified": True,
+                "nonce": self.nonce, "iat": self.clock, "exp": self.clock + 3600, **self.override_claims}
+            encoded = jwt.encode({"alg": "RS256", "kid": "offline-key"}, claims, self.signing_key)
+            return provider_http.Response(200, json={"access_token": "offline-google-access-token", "token_type": "Bearer", "expires_in": 3600, "id_token": encoded})
+        if request.url.path == "/offline-jwks":
+            return provider_http.Response(200, json={"keys": [self.key.as_dict(private=False)]})
+        raise AssertionError("Unexpected Google fixture request")
+
+    def google_login(self, client=None, return_to="/"):
+        client = client or self.client
+        start = client.get("/api/auth/google/login", params={"return_to":return_to}, follow_redirects=False)
+        self.assertEqual(start.status_code, 302, start.text)
+        params = parse_qs(urlsplit(start.headers["location"]).query)
+        self.nonce = params["nonce"][0]
+        self.assertEqual(params["code_challenge_method"], ["S256"])
+        result = client.get("/api/auth/google/callback", params={"code": "offline-code", "state": params["state"][0]}, follow_redirects=False)
+        return result, params
+
+    def sign_in_fixture(self, sub="fixture-sub", client=None):
+        client = client or self.client
+        token, csrf = account_store.create_google_session(sub, sub + "@example.test", sub)
+        client.cookies.set(accounts.ACCOUNT_COOKIE, token)
+        client.headers.update({"Origin": self.origin, "X-CSRF-Token": csrf})
+        return token, csrf
+
+    def checkout(self, client=None, **extra):
+        client = client or self.client
+        result = Mock()
+        result.json.return_value = {"data": {"id": "cs_" + os.urandom(8).hex(), "attributes": {
+            "livemode": False, "checkout_url": "https://checkout.paymongo.com/offline"}}}
+        provider = AsyncMock()
+        provider.post.return_value = result
+        with patch.object(payments.httpx, "AsyncClient") as factory:
+            factory.return_value.__aenter__.return_value = provider
+            response = client.post("/api/payments/test/checkout", json={**extra})
+        return response
+
+    def webhook(self, order, client=None):
+        with account_store.connect_store(self.db_path) as db:
+            row = db.execute("SELECT checkout_id FROM test_orders WHERE id=?", (order["id"],)).fetchone()
+        body = {"data": {"type": "checkout_session.payment.paid", "livemode": False, "data": {
+            "id": row[0], "type": "checkout_session", "attributes": {"reference_number": order["id"],
+            "payments": [{"id": "pay_" + order["id"], "attributes": {"status": "paid", "amount": 10000, "currency": "PHP"}}]}}}}
+        raw = json.dumps(body).encode()
+        stamp = str(self.clock)
+        digest = hmac.new(b"offline-webhook-secret", stamp.encode() + b"." + raw, hashlib.sha256).hexdigest()
+        return (client or self.client).post("/api/payments/test/webhook", content=raw,
+            headers={"Paymongo-Signature": f"t={stamp},te={digest}"})
+
+    def test_login_returns_only_to_allowlisted_app_screens(self):
+        for target in ('/', '/?account=1', '/?payments=test', '//evil.test', 'https://evil.test', '/?next=evil'):
+            with self.subTest(target=target):
+                result,_=self.google_login(return_to=target)
+                self.assertEqual(result.headers['location'], target if target in ('/', '/?account=1', '/?payments=test') else '/')
+
+    def test_real_oidc_library_validates_fixture_and_sets_private_session(self):
+        result, params = self.google_login()
+        self.assertEqual(result.headers["location"], "/")
+        self.assertEqual(self.token_requests, 1)
+        cookie = result.headers["set-cookie"]
+        self.assertIn("HttpOnly", cookie)
+        self.assertIn("SameSite=lax", cookie)
+        identity = self.client.get("/api/auth/me").json()
+        self.assertTrue(identity["authenticated"])
+        self.assertEqual(identity["user"]["email"], "alex@example.test")
+        self.assertEqual(identity["test_credits"], 0)
+        with account_store.connect_store(self.db_path) as db:
+            saved = json.dumps([dict(row) for row in db.execute("SELECT * FROM account_sessions")])
+        self.assertNotIn(self.client.cookies.get(accounts.ACCOUNT_COOKIE), saved)
+        self.assertNotIn("offline-google-access-token", saved)
+        replay = self.client.get("/api/auth/google/callback", params={"code": "offline-code", "state": params["state"][0]}, follow_redirects=False)
+        self.assertIn("signin_error=failed", replay.headers["location"])
+        self.assertEqual(self.token_requests, 1)
+
+    def test_invalid_issuer_audience_nonce_expiry_and_email_rejected(self):
+        for override in ({"iss": "https://evil.example"}, {"aud": "other-client"}, {"nonce": "different-nonce"}, {"exp": self.clock - 1000}, {"email_verified": False}):
+            with self.subTest(override=override):
+                self.override_claims = override
+                result, _ = self.google_login()
+                self.assertIn("signin_error=failed", result.headers["location"])
+                self.assertFalse(self.client.get("/api/auth/me").json()["authenticated"])
+
+    def test_invalid_google_signature_is_rejected(self):
+        self.signing_key = RSAKey.generate_key(2048, parameters={"kid": "offline-key"})
+        result, _ = self.google_login()
+        self.assertIn("signin_error=failed", result.headers["location"])
+        self.assertFalse(self.client.get("/api/auth/me").json()["authenticated"])
+
+    def test_https_origin_uses_secure_session_cookies(self):
+        with patch.dict(os.environ, {"AUTH_PUBLIC_BASE_URL": "https://arena.example.test"}):
+            app = FastAPI()
+            accounts.configure_auth(app)
+            with TestClient(app, base_url="https://arena.example.test") as client:
+                start = client.get("/api/auth/google/login", follow_redirects=False)
+                self.assertIn("secure", start.headers["set-cookie"].lower())
+                params = parse_qs(urlsplit(start.headers["location"]).query)
+                self.assertEqual(params["redirect_uri"], ["https://arena.example.test/api/auth/google/callback"])
+                self.nonce = params["nonce"][0]
+                result = client.get("/api/auth/google/callback", params={"code": "offline-code", "state": params["state"][0]}, follow_redirects=False)
+                self.assertIn("Secure", result.headers["set-cookie"])
+                self.assertTrue(client.get("/api/auth/me").json()["authenticated"])
+
+    def test_missing_state_or_configuration_fails_closed(self):
+        result = self.client.get("/api/auth/google/callback?code=offline-code&state=unknown", follow_redirects=False)
+        self.assertIn("signin_error=failed", result.headers["location"])
+        self.assertEqual(self.token_requests, 0)
+        with patch.dict(os.environ, {"GOOGLE_CLIENT_SECRET": ""}):
+            self.assertFalse(self.client.get("/api/auth/me").json()["google_enabled"])
+            self.assertEqual(self.client.get("/api/auth/google/login").status_code, 503)
+
+    def test_google_subject_not_email_controls_identity(self):
+        account_store.create_google_session("subject-one", "same@example.test", "Alex")
+        account_store.create_google_session("subject-one", "renamed@example.test", "Alex New")
+        account_store.create_google_session("subject-two", "same@example.test", "Sam")
+        with account_store.connect_store(self.db_path) as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM accounts").fetchone()[0], 2)
+            self.assertEqual(db.execute("SELECT email FROM accounts WHERE google_sub='subject-one'").fetchone()[0], "renamed@example.test")
+
+    def test_logout_revokes_session_and_checks_csrf_origin(self):
+        token, _ = self.sign_in_fixture()
+        self.assertEqual(self.client.post("/api/auth/logout", headers={"Origin": "https://evil.example"}).status_code, 403)
+        self.assertEqual(self.client.post("/api/auth/logout", headers={"X-CSRF-Token": "wrong"}).status_code, 403)
+        self.assertEqual(self.client.post("/api/auth/logout").status_code, 200)
+        self.assertIsNone(account_store.session_account(token))
+        self.assertFalse(self.client.get("/api/auth/me").json()["authenticated"])
+
+    def test_expired_session_cannot_read_account_or_purchase(self):
+        self.sign_in_fixture()
+        self.clock += account_store.SESSION_SECONDS + 1
+        self.assertFalse(self.client.get("/api/auth/me").json()["authenticated"])
+        self.assertEqual(self.checkout().status_code, 401)
+
+    def test_checkout_requires_session_csrf_and_server_owned_credit_pack(self):
+        self.assertEqual(self.checkout().status_code, 401)
+        self.sign_in_fixture()
+        self.assertEqual(self.client.post("/api/payments/test/checkout", json={}, headers={"X-CSRF-Token": "wrong"}).status_code, 403)
+        self.assertEqual(self.checkout(credits=99999).status_code, 422)
+        self.assertEqual(self.checkout(account_id="another").status_code, 422)
+        created = self.checkout().json()
+        self.assertEqual(created["order"]["credits"], 100)
+
+    def test_signed_payment_awards_once_to_owner_without_browser(self):
+        self.sign_in_fixture()
+        order = self.checkout().json()["order"]
+        owner = self.client.get("/api/auth/me").json()["user"]["id"]
+        self.assertEqual(self.client.get("/api/auth/me").json()["test_credits"], 0)
+        self.client.post("/api/auth/logout")
+        self.assertEqual(self.webhook(order).status_code, 200)
+        self.assertEqual(self.webhook(order).status_code, 200)
+        with account_store.connect_store(self.db_path) as db:
+            rows = db.execute("SELECT * FROM test_credit_ledger").fetchall()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["account_id"], owner)
+        self.assertEqual(rows[0]["credits"], 100)
+        self.sign_in_fixture()
+        self.assertEqual(self.client.get("/api/auth/me").json()["test_credits"], 100)
+
+    def test_two_users_have_private_orders_balances_and_history(self):
+        self.sign_in_fixture("alex")
+        created = self.checkout().json()
+        self.assertEqual(self.webhook(created["order"]).status_code, 200)
+        with TestClient(self.client.app, base_url=self.origin) as sam:
+            self.sign_in_fixture("sam", sam)
+            response = sam.get("/api/payments/test/orders/" + created["order"]["id"], headers={"Authorization": "Bearer " + created["order_token"]})
+            self.assertEqual(response.status_code, 404)
+            self.assertEqual(sam.get("/api/auth/me").json()["test_credits"], 0)
+            self.assertEqual(sam.get("/api/auth/me").json()["orders"], [])
+        self.assertEqual(self.client.get("/api/auth/me").json()["test_credits"], 100)
+
+    def test_concurrent_duplicate_webhooks_do_not_duplicate_credits(self):
+        self.sign_in_fixture()
+        order = self.checkout().json()["order"]
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda _: self.webhook(order), range(2)))
+        self.assertTrue(all(result.status_code == 200 for result in results))
+        self.assertEqual(self.client.get("/api/auth/me").json()["test_credits"], 100)
+
+    def test_credit_failure_rolls_back_payment_until_retry(self):
+        self.sign_in_fixture()
+        order = self.checkout().json()["order"]
+        with account_store.connect_store(self.db_path) as db:
+            db.execute("CREATE TRIGGER reject_credit BEFORE INSERT ON test_credit_ledger BEGIN SELECT RAISE(ABORT, 'offline failure'); END")
+        self.assertEqual(self.webhook(order).status_code, 400)
+        self.assertEqual(self.client.get("/api/payments/test/orders/" + order["id"]).json()["order"]["status"], "pending")
+        self.assertEqual(self.client.get("/api/auth/me").json()["test_credits"], 0)
+        with account_store.connect_store(self.db_path) as db:
+            db.execute("DROP TRIGGER reject_credit")
+        self.assertEqual(self.webhook(order).status_code, 200)
+        self.assertEqual(self.client.get("/api/auth/me").json()["test_credits"], 100)
+
+    def test_existing_receipt_migration_preserves_anonymous_paid_record(self):
+        with sqlite3.connect(self.db_path) as db:
+            db.execute("""CREATE TABLE test_orders (id TEXT PRIMARY KEY, token_hash TEXT NOT NULL, checkout_id TEXT UNIQUE,
+                checkout_url TEXT, amount INTEGER NOT NULL, currency TEXT NOT NULL, status TEXT NOT NULL,
+                payment_id TEXT UNIQUE, created_at INTEGER NOT NULL, paid_at INTEGER)""")
+            db.execute("INSERT INTO test_orders VALUES ('legacy', ?, 'cs_legacy', 'https://checkout.paymongo.com/legacy', 10000, 'PHP', 'paid', 'pay_legacy', ?, ?)",
+                (account_store.token_hash("legacy-token"), self.clock, self.clock))
+        self.sign_in_fixture()
+        result = self.client.get("/api/payments/test/orders/legacy", headers={"Authorization": "Bearer legacy-token"})
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json()["order"]["credits"], 0)
+        self.assertEqual(self.client.get("/api/auth/me").json()["test_credits"], 0)
+        self.assertEqual(self.client.get("/api/auth/me").json()["orders"], [])
+
+    def test_callback_access_log_redacts_code_and_state(self):
+        record = logging.LogRecord("uvicorn.access", logging.INFO, "", 0, '%s - "%s %s HTTP/%s" %d',
+            ("client", "GET", "/api/auth/google/callback?code=private-code&state=private-state", "1.1", 303), None)
+        accounts.HideGoogleCallbackQuery().filter(record)
+        self.assertNotIn("private-code", record.getMessage())
+        self.assertNotIn("private-state", record.getMessage())
+
+
+if __name__ == "__main__":
+    unittest.main()

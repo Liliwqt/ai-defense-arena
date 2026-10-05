@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AccountPanel } from "./components/AccountPanel";
+import { useAccount } from "./hooks/useAccount";
 import { RoomDock } from "./components/RoomDock";
 import { ControlsPanel } from "./components/ControlsPanel";
 import { Drawer } from "./components/Drawer";
@@ -20,7 +22,8 @@ export function App() {
     actionError, sendEvent, useRoom, leaveRoom,
   } = useRoomSocket(previewMode);
   const [drawerOpen, setDrawerOpen] = useState(!previewMode || new URLSearchParams(window.location.search).get("plan") === "1");
-  const [drawerMode, setDrawerMode] = useState<DrawerMode>("controls");
+  const [drawerMode, setDrawerMode] = useState<DrawerMode>(new URLSearchParams(location.search).get("account") === "1" ? "account" : "controls");
+  const { account, refresh: refreshAccount, error: accountError } = useAccount(previewMode);
   const [message, setMessage] = useState("");
   const [presenterMoment, setPresenterMoment] = useState<PresenterMoment | null>(null);
   const presenterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -132,7 +135,12 @@ export function App() {
     openDrawer("controls");
   }, [resetMoment, leaveRoom, openDrawer]);
 
-  const title = drawerMode === "transcript" ? "Transcript" : "Controls";
+  useEffect(() => { if (liveRoomState?.self_is_host) void refreshAccount(); }, [liveRoomState?.phase, refreshAccount]);
+  useEffect(() => {
+    if (actionError?.startsWith("Sign in")) { openDrawer("account"); void refreshAccount(); }
+  }, [actionError, openDrawer, refreshAccount]);
+
+  const title = drawerMode === "transcript" ? "Transcript" : drawerMode === "account" ? "Account" : "Controls";
 
   return (
     <div className="arena-shell">
@@ -149,9 +157,12 @@ export function App() {
           <>
             <ControlsPanel roomState={previewMode ? roomState : liveRoomState} connected={connected} previewMode={previewMode}
               onUseRoom={handleUseRoom} onLeaveRoom={handleLeaveRoom} onSendEvent={sendEvent}
-              onCloseDrawer={closeDrawer} showMessage={showMessage} />
-            {message && <div role="alert" className="drawer-error">{message}</div>}
+              onCloseDrawer={closeDrawer} showMessage={showMessage} account={account}
+              onOpenAccount={() => openDrawer("account")} />
+            {(message || actionError) && <div role="alert" className="drawer-error">{message || actionError}</div>}
           </>
+        ) : drawerMode === "account" ? (
+          <AccountPanel account={account} refresh={refreshAccount} error={actionError?.startsWith("Sign in") ? actionError : accountError} previewMode={previewMode} />
         ) : (
           <TranscriptPanel roomState={roomState} previewMode={previewMode} />
         )}

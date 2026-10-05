@@ -6,9 +6,11 @@ The multiplayer app uses a flat, question-centered React interface served by Fas
 
 ## Current branch and verification
 
-This README describes `feature/question-first-room`: the flat room, research documents, same-question clarifications, summary downloads, and answer-aware panelist conversations. Research and mixed defenses require a source-grounded paper map and a host-confirmed **4–100-question maximum**. Code-only defenses remain four to eight questions. The research release is live at [defense-simulator.onrender.com](https://defense-simulator.onrender.com). Google sign-in and PayMongo account/test-credit work remain separate local work and are excluded from this release. `main` stays frozen during the review window that began on October 1, 2026, and its earlier service remains unchanged.
+This README describes `feature/question-first-room`: the flat room, research documents, same-question clarifications, summary downloads, answer-aware conversations, and Google host accounts with voucher or sandbox-credit access. Research and mixed defenses require a source-grounded paper map and a host-confirmed **4–100-question maximum**. Code-only defenses remain four to eight questions. The earlier research release is live at [defense-simulator.onrender.com](https://defense-simulator.onrender.com); account, voucher, and payment integration is prepared for manual feature-service deployment and is not yet deployed. Its rollout awaits durable storage and hosted Google settings. `main` stays frozen during the review window that began on October 1, 2026, and its earlier service remains unchanged.
 
-The isolated published release passed **138 Python tests with AI mocked, 129 React tests, and a production build** using the committed lockfile. Mocked two-browser twelve-question research and mixed defenses covered planning, budget confirmation, voting, timeout follow-up, clarification, retry, reconnect, exact PDF/code citations, export and coaching. Desktop, landscape, narrow landscape, portrait rotation and keyboard drawer controls were checked separately. The larger local workspace's 170 Python/142 React totals include unpublished account/payment tests.
+The local account/access checkpoint passes **188 Python tests with AI, Google, and PayMongo mocked, 153 React tests, and a production build**. Two-browser mocked defenses completed all four combinations of code/research and voucher/test-credit access, including votes, clarification, answers, reconnect, transcript, and coaching. Mocked checkout/webhooks awarded 100 credits once, an opening failure released its reservation, and the subsequent code and research runs charged 10 credits each. Actual Google sign-in and a new account-linked PayMongo simulator purchase await configuration. Local desktop/landscape captures are linked in the account section below; user review is pending.
+
+The isolated published research release passed **138 Python tests with AI mocked, 129 React tests, and a production build** using the committed lockfile. Its mocked two-browser twelve-question research and mixed defenses covered planning, budget confirmation, voting, timeout follow-up, clarification, retry, reconnect, exact PDF/code citations, export and coaching. Desktop, landscape, narrow landscape, portrait rotation and keyboard drawer controls were checked separately. These published-release checks are distinct from the newer local account/access tests.
 
 Live evidence is separate: a local synthetic mixed/proposal defense completed twelve questions (eleven answers and one real timeout), English/Taglish adaptation, retries, clarifications, exact citations, reconnect, export and coaching. A fresh hosted synthetic mixed/proposal smoke check completed a deliberately selected four-question budget with two browser clients: planning, real voting, answers from both defenders, a same-question clarification, reconnect, transcript download and shared coaching. All 22 hosted map references and four question citations matched the uploads exactly; the session stopped at budget exhaustion with two of twelve topics addressed and the remaining gaps shown. Coaching used valid turn references and Q1-style question numbers. Hosted health and JavaScript/CSS bytes matched the tested release. These synthetic checks do not establish exhaustive coverage or consistently strong dialogue for arbitrary papers. User visual review and physical separate-device confirmation remain pending; the hosted four-question check does not replace the longer local checks.
 
@@ -24,15 +26,16 @@ python3 -m venv .venv
 ./run_local.sh
 ```
 
-Open <http://127.0.0.1:8000/>. The launcher installs frontend packages when needed, builds React, privately prompts for missing credentials, and starts FastAPI. Restart it after changing Python code or prompt instructions.
+Open <http://127.0.0.1:8000/>. The launcher installs frontend packages when needed, builds React, privately prompts for a missing OpenAI key, creates a private local voucher if needed, and starts FastAPI. Configure Google sign-in before hosting a room; an unconfigured server shows setup instructions and allows guest joining and visual previews. Restart it after changing Python code or prompt instructions.
 
 | Setting | Purpose | Local configuration |
 | --- | --- | --- |
 | `OPENAI_API_KEY` | Server-side AI requests | Export in the launching terminal, or enter at the hidden prompt. The launcher does not save it. |
-| `GAME_HOST_PASSCODE` | Creating rooms only | Export in the terminal, set in the Git-ignored `.env`, or enter at the hidden prompt. |
+| `FREE_ACCESS_VOUCHER` | Shareable free-run voucher, redeemed by signed-in hosts | Export a new random value, or let the launcher load/create the Git-ignored `.local/free-access-voucher`. |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `AUTH_SESSION_SECRET`, `AUTH_PUBLIC_BASE_URL` | Google host sign-in | Export in the launching terminal; follow the account setup below. |
 | `OPENAI_MODEL` | Optional model override | Export before launching. The code defaults to `gpt-6-luna` with low reasoning effort. |
 
-The launcher reads only `GAME_HOST_PASSCODE` from `.env`; it does not load an API key or model override from that file. Do not commit secrets. Teammates join using the room code without the host passcode; the OpenAI API key stays on the server.
+The launcher does not load `.env`. Export configuration in the launching terminal; keep secrets out of Git and `VITE_` variables. The former host passcode is no longer used by this local version. Only hosts sign in; teammates join with a room code and display name. The OpenAI key and voucher configuration stay on the server.
 
 ### Preview without AI calls
 
@@ -61,18 +64,20 @@ Open <http://127.0.0.1:8000/?preview=1>. Preview mode uses static mock state, ma
 
 For scope-preview variants, add `&budget=4` to view a smaller proposed budget, or `&planstatus=planning` / `&planstatus=failed` to inspect mapping status and failure copy. These fixtures make no AI requests and cannot confirm a real plan.
 
-For frontend development, run `npm run dev` in `game/` alongside FastAPI on port 8000. Vite proxies `/api`, `/ws`, and `/health` to the backend. Real rooms still require the backend credentials.
+For frontend development, run `npm run dev` in `game/` alongside FastAPI on port 8000. Vite proxies `/api`, `/ws`, and `/health` to the backend. Check signed-in room and checkout flows on the built app served by FastAPI, where browser origin, OAuth callback, and CSRF settings match.
 
 ## Create and play a defense
 
-1. In **Controls**, enter your display name and host passcode, choose a defense type, and upload its materials. For a code demo, use [sample_project/README.md](sample_project/README.md) and [sample_project/queue.py](sample_project/queue.py).
+1. Open **Account**, sign in with Google, and redeem the configured free-access voucher or obtain sandbox test credits. In **Controls**, keep or edit your prefilled display name, choose a defense type, and upload its materials. Uploading and creating the room are free. For a code demo, use [sample_project/README.md](sample_project/README.md) and [sample_project/queue.py](sample_project/queue.py).
 2. Share the room code. Teammates open the same service URL and join with their own display names. The four defender seats include the host.
-3. For research or mixed rooms, the host first chooses **Prepare defense**, reviews the map, edits the question maximum and selects **Confirm question budget**. Then the host starts the defense. Each question appears with its panelist, optional reaction, and validated citation.
+3. For research or mixed rooms, the host first chooses **Prepare defense**, reviews the map, edits the question maximum and selects **Confirm question budget**. Preparation requires free access or at least 10 available test credits, but deducts nothing. Start uses the voucher or reserves **10 test credits per run**, charged when the first validated question appears. The question count does not change this sandbox fixture charge. Each question appears with its panelist, optional reaction, and validated citation.
 4. Every question, including follow-ups, begins with a **15-second speaker vote**. Online defenders may vote for themselves or another online defender and change their vote. The highest count wins; ties and no votes are resolved randomly among online defenders.
 5. The chosen defender gets **120 seconds** to answer. Only that defender may submit. Disconnection assigns another online defender without resetting the clock. Expiry records an unanswered turn and advances the defense.
 6. After completion (four to eight turns for code; coverage, budget, or host ending for research), open **Transcript** for the conversation and coaching. **Download summary** saves a text copy of questions, citations, clarifications, answers, timeouts, and coaching in your browser.
 
-The server owns deadlines, votes, speaker selection, and accepted answers. Reconnecting in the same browser restores the current snapshot while the room exists. Restarting a defense clears its turns, votes, timers, chat, and coaching.
+The server owns deadlines, votes, speaker selection, and accepted answers. Reconnecting in the same browser restores the current snapshot while the room exists. A host also needs a valid session for the room's creator account; guests keep their player-token access. Signing out or session expiry does not reset the room or stop teammates' timers. Signing back in with the same account restores host access while the room exists.
+
+Restarting clears turns, votes, timers, chat, and coaching and starts a new run. Paid restarts require explicit 10-test-credit confirmation. Opening-generation failure releases the reservation; Retry reserves again without duplicate charging. After the first question, further questions, clarifications, retries, and coaching are included. Ending early after a question appears does not refund the flat charge. The budget is a question maximum, not a currency quote.
 
 **Team Chat** is room-only defender conversation: the latest 100 messages, up to 500 characters each. Chat is excluded from panelist prompts, coaching, the transcript, and summary exports.
 
@@ -152,17 +157,136 @@ The document panel shows **extracted text**, not a rendered original PDF. Extrac
 
 | Component | Responsibility |
 | --- | --- |
-| `game/src/` | React setup, flat room, question/citation UI, vote/answer/chat dock, transcript, and export |
+| `game/src/` | React account/setup drawers, flat room, question/citation UI, vote/answer/chat dock, transcript, and export |
 | `game_server.py` | FastAPI HTTP/WebSocket service, authentication, room state, timers, and broadcasts |
+| `accounts.py`, `account_store.py` | Google sign-in, opaque sessions, voucher grants, private balances, atomic run reservations/charges, and additive SQLite migrations |
+| `payments.py`, `game/src/payments/` | Account-authenticated PayMongo test checkout, signed webhooks, and once-only test-credit awards |
 | `defense_session.py` | Role order, optional follow-ups, resolved turns, and retained history |
 | `research_plan.py` | Structured research map, exact source references, suggested budget and scope-preview validation |
 | `question_generator.py` | Shared prompts, Responses API structured output, submission interpretation, citation validation, and coaching |
 | `project_files.py` / `research_files.py` | Upload validation and document extraction/location mapping |
 | `app.py` | Streamlit single-browser fallback |
 
-Endpoints: `POST /api/rooms` for passcode-protected host creation/uploads, `POST /api/rooms/{code}/join` for teammates, `WS /ws/{code}` for player-token-authenticated events, and `GET /health`. Research actions on the authenticated room socket are host-only `prepare_research_plan`, `retry_research_plan`, `approve_research_plan`, and `end_defense`. Approval and research `start` carry the current `plan_id` and an integer `question_budget`. Snapshots carry planning status, map, safe planning error, confirmed budget, topic coverage, current topic and completion reason. FastAPI serves the production React build from `game/dist`. There is no active 3D/Phaser scene.
+Endpoints: `POST /api/rooms` requires a verified account, matching origin, and CSRF token; `POST /api/rooms/{code}/join` admits guests; `WS /ws/{code}` authenticates player tokens and additionally checks the owner's account and origin for hosts. `GET /api/auth/me` returns private account/access/history data; `POST /api/auth/voucher` requires account authentication and CSRF. Research socket actions remain host-only `prepare_research_plan`, `retry_research_plan`, `approve_research_plan`, and `end_defense`. Approval and research `start` carry the current `plan_id` and integer `question_budget`; paid start/restart also requires `confirm_cost: true`. Shared snapshots carry research state, never email, account identifiers, balances, or voucher details. FastAPI serves the production React build from `game/dist`. There is no active 3D/Phaser scene.
 
-Rooms, accepted text, chat, and coaching live in process memory. There is no stored defense-session history. A restart or instance shutdown loses active rooms; the downloaded summary is the team's own retained copy. Keep exactly **one worker and one instance**.
+Rooms, accepted text, chat, and coaching live in process memory. There is no stored defense-session history. Sandbox accounts and receipts use the separate local database described below. A restart or instance shutdown loses active rooms; the downloaded summary is the team's own retained copy. Keep exactly **one worker and one instance**.
+
+## Google host accounts, vouchers, and sandbox credits
+
+The main app's **Account** drawer shows Google sign-in/sign-out, available and reserved test credits, voucher redemption, and purchase history. Hosts sign in; teammates do not. Account data stays private to the host. A voucher covers unlimited free runs; otherwise each defense costs **10 test credits**, regardless of its question budget. These are sandbox fixtures, not final pricing or a paper-cost estimate. Streamlit keeps its separate single-browser behavior without account charging.
+
+The **Get sandbox test credits** link opens `/?payments=test`. A simulated **PHP 100.00 → 100 test credits** pack is awarded only by a verified matching test-mode PayMongo webhook. Browser redirects never award credits; duplicate notifications award once. No host passcode is required for either checkout or room creation.
+
+### Step 1: view the local screen
+
+Build React, then start a separate local server so an existing defense server does not need to be stopped:
+
+```bash
+(cd game && npm ci && npm run build)
+.venv/bin/uvicorn game_server:app --host 127.0.0.1 --port 8790 --workers 1
+```
+
+Open <http://127.0.0.1:8790/?account=1> for the Account drawer, or <http://127.0.0.1:8790/?preview=1> for a mock room without AI. Without Google configuration, sign-in explains the required setup and anonymous room creation is disabled. No OpenAI key is required to inspect account/payment screens.
+
+Local review captures: [account setup](screenshots/account-setup-desktop.png), [voucher account](screenshots/account-voucher-mock-desktop.png), [sandbox purchase/balance](screenshots/account-paid-mock-desktop.png), [completed research/coaching](screenshots/account-voucher-research-complete-mock.png), and [landscape account drawer](screenshots/account-paid-mock-landscape.png). Except the unconfigured setup screen, these use synthetic identities and mocked Google, PayMongo, and AI. They do not demonstrate actual provider sign-in or payment.
+
+### Step 2: configure Google sign-in locally
+
+1. Create or select a project in [Google Cloud Console](https://console.cloud.google.com/). Open **Google Auth Platform**, configure Branding with the app name and contact email, and select an External audience for personal Google accounts. Keep it in Testing; add your own Google email as a test user where requested.
+2. Under **Clients**, create an OAuth client of type **Web application**. Add this exact **Authorized redirect URI**:
+
+   ```text
+   http://127.0.0.1:8790/api/auth/google/callback
+   ```
+
+   This server redirect flow does not require the browser JavaScript origins field. Use `127.0.0.1` consistently in your browser and configuration; `localhost`, another port, or another path is a different redirect URI.
+3. Copy the client ID and secret privately into the **same terminal that starts FastAPI**. Do not put either secret into a `VITE_` variable or commit a downloaded client JSON. Request only the basic `openid email profile` scopes; this app does not access Drive or other Google APIs.
+
+   ```bash
+   read -r -p 'Google client ID: ' GOOGLE_CLIENT_ID
+   read -r -s -p 'Google client secret: ' GOOGLE_CLIENT_SECRET
+   printf '\n'
+   export GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET
+   export AUTH_PUBLIC_BASE_URL=http://127.0.0.1:8790
+   export AUTH_SESSION_SECRET="$(.venv/bin/python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+   .venv/bin/pip install -r requirements.txt
+   .venv/bin/uvicorn game_server:app --host 127.0.0.1 --port 8790 --workers 1
+   ```
+
+   Stop the old port-8790 server with Ctrl+C before starting the updated one. Keep your existing PayMongo variables exported if you want to test checkout too. Google-only sign-in works without PayMongo or OpenAI credentials. `run_local.sh` does not load Google values from `.env`; export them explicitly.
+4. Open <http://127.0.0.1:8790/?account=1>, select **Sign in with Google**, and confirm your name, email, and initial **0 test credits** appear. The main app and payment page each return to their allowlisted originating screen after login. Signing out revokes this app's session; it does not sign you out of Google or delete your balance. Reconnecting as host requires the room creator's account as well as the saved room token.
+
+`AUTH_SESSION_SECRET` must have at least 32 characters. It signs the ten-minute temporary OAuth state cookie; keep it private and stable for a server run. The application uses state, PKCE, nonce and verified ID-token checks through Authlib, then replaces provider credentials with an opaque eight-hour HttpOnly app cookie. Google access/refresh/ID tokens are not stored. HTTPS origins use Secure cookies; loopback HTTP is permitted for local testing. Google subject identifies an account even if its email or display name changes.
+
+For a separate HTTPS sandbox check, set **both** `AUTH_PUBLIC_BASE_URL` and `PAYMONGO_PUBLIC_BASE_URL` to the exact public origin you browse. Register its `/api/auth/google/callback` URI in the same Google client, and its `/api/payments/test/webhook` in PayMongo. A changed tunnel hostname needs updated settings and a server restart. Auth state and app cookies must stay on the same origin throughout login and checkout. Keep this local checkpoint separate from both live services.
+
+References: [Google web-server OAuth setup](https://developers.google.com/identity/protocols/oauth2/web-server) and [Google OpenID Connect](https://developers.google.com/identity/openid-connect/openid-connect).
+
+### Step 3: configure and redeem the free-access voucher
+
+`./run_local.sh` creates a new random voucher once at `.local/free-access-voucher`, with owner-only file permissions and a Git ignore rule. It exports that value as `FREE_ACCESS_VOUCHER` for its server; it never reuses the old host passcode. Open the file privately in your editor and redeem its value through **Account** after sign-in. For a server launched directly with Uvicorn, export the voucher in that server's terminal first:
+
+```bash
+read -r -s -p 'Free-access voucher: ' FREE_ACCESS_VOUCHER
+printf '\n'
+export FREE_ACCESS_VOUCHER
+```
+
+The same voucher may be shared with multiple signed-in accounts. Each gets a free-access grant; repeated redemption is harmless. The database stores its fingerprint, never the submitted plaintext. Grants have no expiry by default. Changing or removing the server environment value revokes matching grants for future runs; already authorized runs continue. A replacement voucher requires redemption again. Five failed attempts within five minutes trigger a temporary account-level throttle.
+
+Rotating the launcher's stored voucher requires replacing its private file as well, or exporting a replacement before launch. Removing the environment variable alone is insufficient when the launcher will reload that file. To run without voucher access, start Uvicorn directly without `FREE_ACCESS_VOUCHER`.
+
+### Step 4: configure PayMongo test credentials and a callback
+
+In PayMongo's dashboard, switch to test mode and find your **secret test key** in the Developers settings. If your account cannot access test keys yet, finish the onboarding requested by PayMongo; an existing login does not establish API access. Do not use a live key or paste a key into chat.
+
+For PayMongo to deliver webhooks to a local server, provide a public HTTPS development tunnel forwarding to port 8790. A loopback URL can display the UI but cannot receive PayMongo's remote notifications. Use the same public origin in your browser and `PAYMONGO_PUBLIC_BASE_URL` so the receipt remains available after redirect. Keep this separate from frozen production `main`.
+
+Register a **test-mode** webhook at:
+
+```text
+https://YOUR-DEVELOPMENT-ORIGIN/api/payments/test/webhook
+Event: checkout_session.payment.paid
+```
+
+Copy its signing secret into the server environment. These are server settings, not React/Vite settings:
+
+| Setting | Value |
+| --- | --- |
+| `PAYMONGO_SECRET_KEY` | Your `sk_test_...` secret key; live keys are rejected |
+| `PAYMONGO_WEBHOOK_SECRET` | The signing secret of this test webhook endpoint |
+| `PAYMONGO_PUBLIC_BASE_URL` | Your public HTTPS origin, with no path/query |
+| `PAYMONGO_TEST_DB_PATH` | Optional local SQLite path; defaults to `.local/payments-test.sqlite3` |
+
+Enter secret values without saving them in shell history:
+
+```bash
+read -r -s -p 'PayMongo test secret key: ' PAYMONGO_SECRET_KEY
+printf '\n'
+read -r -s -p 'Test webhook signing secret: ' PAYMONGO_WEBHOOK_SECRET
+printf '\n'
+export PAYMONGO_SECRET_KEY PAYMONGO_WEBHOOK_SECRET
+export PAYMONGO_PUBLIC_BASE_URL=https://YOUR-DEVELOPMENT-ORIGIN
+.venv/bin/uvicorn game_server:app --host 127.0.0.1 --port 8790 --workers 1
+```
+
+Stop the earlier server on 8790 before restarting it with these settings. The regular `run_local.sh` does not load PayMongo values from `.env`; explicitly exported values are inherited. No secret value belongs in Git, browser code, screenshots, or the handoff log.
+
+### Step 5: complete one simulated account purchase and defense
+
+1. Open `https://YOUR-DEVELOPMENT-ORIGIN/?payments=test`, sign in with Google, and confirm that server setup is configured. Google and payment origins must match this browser origin.
+2. Create a test checkout and open it. Complete QRPh using PayMongo's **test simulator**. **Do not scan and pay the QR code with a real bank or wallet app:** PayMongo warns that QRPh test codes can still process real transactions. If checkout does not offer a simulator, pause and inspect the provider's testing instructions instead of paying the QR.
+3. Return to this browser tab. The app refreshes status every five seconds until the signed webhook confirms payment. A success redirect alone does **not** mark it paid.
+4. Confirm **Test payment confirmed**, **100 test credits**, and a paid row in **Your test purchases**. Duplicate notifications must leave the balance unchanged. Sign out and back in to confirm the account retains its balance. If it stays pending, inspect webhook delivery in PayMongo's test dashboard and check the tunnel and signing secret.
+5. Return to the main app, create a room, and start a defense without voucher access. The balance reserves 10 credits at Start, then becomes **90 available / 0 reserved** when the first validated question appears. An opening failure restores 100 available until retry. Finish or end the run: later questions and coaching spend no additional credits. Restart requires a fresh, explicitly confirmed charge. A voucher account instead spends zero.
+
+The backend uses Hosted Checkout v2, server-owned amounts and references, HMAC verification of the exact raw body, a five-minute signature window, checkout/payment/mode/amount/currency validation, and transactional duplicate handling. New test-order lookup requires its owner's signed-in session; a receipt token cannot bypass ownership. The tab saves a receipt reference/token for returning from checkout, but never a host passcode or provider key. Earlier anonymous receipts remain token-protected and grant no account credits. Unknown provider orders are acknowledged without changing local receipts. Creation failures are shown safely and are never automatically retried.
+
+The Git-ignored SQLite file stores a basic Google profile (subject, name, email), hashed app sessions, minimal sandbox receipts, the once-only test-credit ledger, voucher fingerprints, and unique run reservation/charge records. Additive migrations preserve existing accounts, purchases, and awards. A signed matching paid event updates receipt and credits in one transaction. Reservations serialize concurrent starts; first-question charges and repeated messages are idempotent. Server startup releases orphaned reservations because active rooms do not survive a restart. Published questions remain charged.
+
+Private account endpoints expose only the current user's access/balance and latest 20 purchases; mutations validate origin and session CSRF. WebSocket host controls recheck account ownership and origin. Uploaded files, room dialogue, and team chat are not stored in this database. Existing anonymous paid receipts stay separate and receive no retroactive credits. Local accounts/balances survive a Python restart; they are not the hosted persistence plan. **Choose durable hosted storage before deploying accounts or balances.** Upload-based quotes, real credit pricing/spending, and real-money enforcement remain separate checkpoints.
+
+Integration references: [PayMongo Hosted Checkout](https://docs.paymongo.com/docs/payment-channels-hosted-checkout), [test checkout quick start](https://docs.paymongo.com/docs/payment-channels-hosted-checkout-quick-start), [QRPh simulator guidance](https://docs.paymongo.com/docs/payment-acceptance-testing), and [webhook signatures](https://docs.paymongo.com/docs/developer-tools-webhook-setup-management).
 
 ## Streamlit fallback
 
@@ -176,6 +300,8 @@ The fallback supports all three defense types, the corresponding four-role seque
 
 ## Render configuration
 
+The account/access release has a separate [feature-service deployment guide](docs/ACCOUNT_DEPLOYMENT.md), including persistent storage, hosted Google callbacks, voucher settings and test webhooks. Its publication uses `[skip render]` until those prerequisites are configured; no paid resources are provisioned automatically.
+
 [render.yaml](render.yaml) defines the single-service deployment:
 
 ```text
@@ -184,7 +310,7 @@ Start: uvicorn game_server:app --host 0.0.0.0 --port $PORT --workers 1
 Health: /health
 ```
 
-Set `OPENAI_API_KEY` and `GAME_HOST_PASSCODE` in the service's environment settings, plus `OPENAI_MODEL` if needed. Select the intended branch explicitly; production `main` stays frozen until its review window is released. A separate feature-branch service needs its own environment configuration.
+The currently published research release uses `OPENAI_API_KEY` and `GAME_HOST_PASSCODE`, plus optional `OPENAI_MODEL`, in its own service environment. This local account/access update replaces the passcode with Google authentication and voucher/test-credit eligibility; it is not deployed. Keep both existing services unchanged during review. Select durable hosted account/payment storage and configure exact HTTPS Google/PayMongo callbacks before a later account rollout. A feature service's configuration is independent of frozen `main`.
 
 The service hosts UI, API, and WebSocket on one origin. HTTPS pages use `wss://` automatically. Teammates on other devices need a hosted URL; `127.0.0.1` refers to their own device. Restarts and redeploys require fresh rooms.
 
@@ -195,9 +321,11 @@ The service hosts UI, API, and WebSocket on one origin. HTTPS pages use `wss://`
 (cd game && npm test && npm run build)
 ```
 
-AI calls are mocked in the Python suite. Tests confirm behavior and validation, not live dialogue quality or deployment. Record live dialogue, browser layout, hosted operation, and physical separate-device checks separately in the handoff log.
+AI, Google, and PayMongo calls are mocked in the Python suite. Tests confirm behavior and validation, not live dialogue quality, real provider integration, or deployment. Record live dialogue, browser layout, hosted operation, and physical separate-device checks separately in the handoff log.
 
-- **Invalid host passcode:** use the value configured for that server. Local and hosted settings are independent. Missing `GAME_HOST_PASSCODE` disables room creation.
+- **Google sign-in unconfigured:** export the four account settings in the terminal starting the server. The callback port and `AUTH_PUBLIC_BASE_URL` must match the origin opened in your browser. Anonymous host access stays disabled.
+- **Host session expired:** sign in with the room creator's Google account. Guests and timers continue; the saved room token alone cannot grant host controls.
+- **Insufficient test credits:** redeem the server's voucher or obtain the sandbox credit pack. Uploading and joining are free; research preparation requires eligibility but does not deduct credits.
 - **Missing frontend build:** run `npm ci && npm run build` in `game/` before starting FastAPI directly.
 - **AI failure:** check the displayed safe error category and retry. A rejected key, unavailable model, rate/credit limit, or connection failure may require different fixes. `OPENAI_MODEL` overrides the default.
 - **Citation rejected:** the model supplied an invalid file or line. Validation blocks it; the host can retry with the prior answer retained.

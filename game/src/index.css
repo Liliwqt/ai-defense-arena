@@ -381,3 +381,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .hud-progress { max-width: 156px; }
   .hud-coverage { max-width: 90px; font-size: .55rem; padding: 4px; }
 }
+
+/* Private account controls use the room's existing surface and type tokens. */
+.account-panel { display: grid; gap: 16px; }
+.account-panel h2, .account-panel h3 { margin: 0; font-weight: 700; }
+.account-panel p { margin: 6px 0; line-height: 1.5; }
+.account-kicker { font-size: .7rem; letter-spacing: .08em; font-weight: 700; }
+.account-access-card { padding: 15px; border-radius: 14px; background: var(--surface-alt); box-shadow: var(--press-sm); font-size: .85rem; }
+.account-voucher { display: grid; gap: 10px; }
+.account-login { display: inline-block; text-align: center; padding: 10px 14px; }
+.account-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
+.account-orders { padding: 0; list-style: none; display: grid; gap: 10px; }
+.account-orders li { display: grid; gap: 4px; }
+.account-orders small { overflow-wrap: anywhere; }
+.account-message { padding: 10px; border: 1px solid currentColor; border-radius: 8px; }

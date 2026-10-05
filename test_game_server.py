@@ -1,3 +1,4 @@
+from offline_accounts import authenticate
 """Offline multiplayer room checks; all AI calls are mocked."""
 
 import os
@@ -28,9 +29,11 @@ class GameServerTests(unittest.TestCase):
         interpretation_patch = patch.object(game_server, "interpret_submission", return_value=SubmissionDecision("answer"))
         interpretation_patch.start()
         self.addCleanup(interpretation_patch.stop)
+        authenticate(self)
         self.client = TestClient(game_server.app)
         self.client.__enter__()
         self.addCleanup(lambda: self.client.__exit__(None, None, None))
+        authenticate(self, self.client)
         self.files = [
             ("files", ("README.md", Path("sample_project/README.md").read_bytes(), "text/markdown")),
             ("files", ("queue.py", Path("sample_project/queue.py").read_bytes(), "text/x-python")),
@@ -98,28 +101,24 @@ class GameServerTests(unittest.TestCase):
         self.assertEqual(first["type"], "snapshot")
         return socket, first["state"]
 
-    def test_creation_requires_configured_matching_passcode_before_upload_validation(self):
-        missing = self.client.post("/api/rooms", data={"host_name": "Alex"}, files=self.files)
-        self.assertEqual(missing.status_code, 403)
-        wrong = self.client.post("/api/rooms", data={"host_name": "Alex", "host_passcode": "wrong"}, files=self.files)
+    def test_creation_requires_account_and_csrf_before_upload_validation(self):
+        cookie = self.client.cookies.get('arena_account')
+        self.client.cookies.clear()
+        missing = self.client.post('/api/rooms', data={'host_name':'Alex'}, files=self.files)
+        self.assertEqual(missing.status_code, 401)
+        self.client.cookies.set('arena_account', cookie)
+        wrong = self.client.post('/api/rooms', data={'host_name':'Alex'}, files=self.files, headers={'X-CSRF-Token':'wrong'})
         self.assertEqual(wrong.status_code, 403)
-        self.assertFalse(game_server.rooms)
-        with patch.dict(os.environ, {"GAME_HOST_PASSCODE": ""}):
-            unconfigured = self.client.post("/api/rooms", data={"host_name": "Alex", "host_passcode": TEST_HOST_PASSCODE}, files=self.files)
+        with patch.dict(os.environ, {'GOOGLE_CLIENT_ID':''}):
+            unconfigured = self.client.post('/api/rooms', data={'host_name':'Alex'}, files=self.files)
         self.assertEqual(unconfigured.status_code, 503)
         self.assertFalse(game_server.rooms)
-        invalid = self.client.post(
-            "/api/rooms",
-            data={"host_name": "Alex", "host_passcode": TEST_HOST_PASSCODE},
-            files=[("files", ("secret.env", b"PRIVATE=1", "text/plain"))],
-        )
+        invalid = self.client.post('/api/rooms', data={'host_name':'Alex'}, files=[('files',('secret.env',b'PRIVATE=1','text/plain'))])
         self.assertEqual(invalid.status_code, 422)
         host = self.create_room()
-        self.assertEqual(len(game_server.rooms[host["room_code"]].files), 2)
-        self.assertNotIn(TEST_HOST_PASSCODE, str(game_server.rooms[host["room_code"]].snapshot()))
-        for name in ("Sam", "Lee", "Kai"):
-            self.join_room(host["room_code"], name)
-        full = self.client.post(f"/api/rooms/{host['room_code']}/join", json={"name": "Fifth"})
+        self.assertEqual(len(game_server.rooms[host['room_code']].files), 2)
+        for name in ('Sam','Lee','Kai'): self.join_room(host['room_code'], name)
+        full = self.client.post(f"/api/rooms/{host['room_code']}/join", json={'name':'Fifth'})
         self.assertEqual(full.status_code, 409)
 
     def test_websocket_requires_a_valid_room_token(self):

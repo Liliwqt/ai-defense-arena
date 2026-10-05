@@ -1,3 +1,4 @@
+from offline_accounts import authenticate
 """Offline research extraction, grounded questions, and room protocol checks."""
 
 from io import BytesIO
@@ -236,9 +237,11 @@ class ResearchRoomTests(unittest.TestCase):
         passcode_patch = patch.dict(os.environ, {"GAME_HOST_PASSCODE": TEST_HOST_PASSCODE})
         passcode_patch.start()
         self.addCleanup(passcode_patch.stop)
+        authenticate(self)
         self.client = TestClient(game_server.app)
         self.client.__enter__()
         self.addCleanup(lambda: self.client.__exit__(None, None, None))
+        authenticate(self, self.client)
 
     def test_research_room_creation_snapshot_and_mixed_requirements(self):
         response = self.client.post('/api/rooms', data={
@@ -277,9 +280,11 @@ class ResearchTwoClientTests(unittest.TestCase):
         interpretation_patch = patch.object(game_server, 'interpret_submission', return_value=SubmissionDecision('answer'))
         interpretation_patch.start()
         self.addCleanup(interpretation_patch.stop)
+        authenticate(self)
         self.client = TestClient(game_server.app)
         self.client.__enter__()
         self.addCleanup(lambda: self.client.__exit__(None, None, None))
+        authenticate(self, self.client)
 
     def prepare(self, host, budget):
         room = game_server.rooms[host['room_code']]
@@ -398,6 +403,7 @@ class ResearchTwoClientTests(unittest.TestCase):
                 host_ws.send_json(start)
                 self.until(host_ws, 'voting', 1)
                 host_ws.send_json({'type': 'cast_vote', 'seat': 0})
+                self.until(host_ws, 'voting', 1)
                 self.now += game_server.VOTE_MS + 1
                 self.client.portal.call(game_server._expire_deadline, game_server.rooms[host['room_code']])
                 self.until(host_ws, 'question', 1)

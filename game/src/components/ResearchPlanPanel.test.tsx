@@ -86,13 +86,13 @@ describe("ResearchPlanPanel", () => {
 
   it("requires confirmation before sending the research start budget", () => {
     const p = props();
-    const controls = { ...p, onUseRoom: vi.fn(), onLeaveRoom: vi.fn(), onCloseDrawer: vi.fn(), showMessage: vi.fn() };
+    const controls = { account: { authenticated: true, google_enabled: true, free_access: true }, ...p, onUseRoom: vi.fn(), onLeaveRoom: vi.fn(), onCloseDrawer: vi.fn(), showMessage: vi.fn() };
     const { rerender } = render(<ControlsPanel {...controls} roomState={{ ...state, research_plan: null, research_planning_status: "planning" }} />);
-    expect((screen.getByRole("button", { name: "Start defense" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: /Start defense/ }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByRole("status").textContent).toContain("Mapping");
     rerender(<ControlsPanel {...controls} roomState={{...state, research_plan_approved: true}} />);
-    fireEvent.click(screen.getByRole("button", { name: "Start defense" }));
-    expect(p.onSendEvent).toHaveBeenCalledWith({ type: "start", plan_id: researchPlanPreview.id, question_budget: 14 });
+    fireEvent.click(screen.getByRole("button", { name: /Start defense/ }));
+    expect(p.onSendEvent).toHaveBeenCalledWith({ type: "start", confirm_cost: true, plan_id: researchPlanPreview.id, question_budget: 14 });
   });
 
   it("preserves indentation and scrollable code references in mixed topics", () => {

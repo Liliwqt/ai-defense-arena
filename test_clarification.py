@@ -1,3 +1,4 @@
+from offline_accounts import authenticate
 """Offline same-turn clarification and answer-clock checks."""
 
 import asyncio
@@ -68,6 +69,7 @@ class InterpretationTests(unittest.TestCase):
 
 class ClarificationRoomTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        authenticate(self, unit_server=server)
         self.now = 1_000_000
         self.clock = patch.object(server, "_now_ms", side_effect=lambda: self.now)
         self.clock.start()

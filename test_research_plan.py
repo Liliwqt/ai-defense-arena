@@ -1,3 +1,4 @@
+from offline_accounts import authenticate
 """Offline paper-map checks; all AI calls mocked, no paid requests."""
 
 import asyncio
@@ -180,9 +181,11 @@ class ResearchPlanRoomTests(unittest.TestCase):
         env = patch.dict(os.environ, {"GAME_HOST_PASSCODE": "offline-passcode", "OPENAI_API_KEY": "offline-key"})
         env.start()
         self.addCleanup(env.stop)
+        authenticate(self)
         self.client = TestClient(game_server.app)
         self.client.__enter__()
         self.addCleanup(lambda: self.client.__exit__(None, None, None))
+        authenticate(self, self.client)
         self.plan = fixture_plan()
 
     def create(self, mode="research"):
@@ -288,6 +291,7 @@ class ResearchPlanRoomTests(unittest.TestCase):
 
 class ResearchPlanRaceTests(unittest.IsolatedAsyncioTestCase):
     async def test_start_during_planning_rejected_and_restart_discards_late_map(self):
+        authenticate(self, unit_server=game_server)
         host = game_server.Player("host", "Host", 0, True)
         room = game_server.Room("OFFLINE", [ProjectFile("study.md", PAPER, "research_text")], {host.token: host}, "research")
         room.research_planning_status = "planning"
