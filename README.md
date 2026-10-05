@@ -6,7 +6,7 @@ The multiplayer app uses a flat, question-centered React interface served by Fas
 
 ## Current branch and verification
 
-This README describes `feature/question-first-room`: the flat room, research documents, same-question clarifications, summary downloads, answer-aware conversations, and Google host accounts with voucher or sandbox-credit access. Research and mixed defenses require a source-grounded paper map and a host-confirmed **4–100-question maximum**. Code-only defenses remain four to eight questions. The earlier research release is live at [defense-simulator.onrender.com](https://defense-simulator.onrender.com); account, voucher, and payment integration is prepared for manual feature-service deployment and is not yet deployed. Its rollout awaits a configured external PostgreSQL store and hosted verification. The owner chose free Render hosting with external PostgreSQL; the PostgreSQL adapter is published in feature commit `8da2cd8`, not yet hosted. `main` stays frozen during the review window that began on October 1, 2026, and its earlier service remains unchanged.
+This README describes `feature/question-first-room`: the flat room, research documents, same-question clarifications, summary downloads, answer-aware conversations, and Google host accounts with voucher or sandbox-credit access. Research and mixed defenses require a source-grounded paper map and a host-confirmed **4–100-question maximum**. Code-only defenses remain four to eight questions. The architecture release is served at [defense-simulator.onrender.com](https://defense-simulator.onrender.com), with shared timed-turn, purchase and progression modules and checkout UI compatible with account-owned receipts. Hosted health and asset hashes match the tested release; Google and test-payment configuration is enabled. A fresh signed-in defense and provider simulator purchase remain separate unverified checks. Separate Account UI and measured upload-progress work is still local. `main` stays frozen during the review window that began on October 1, 2026, and its earlier service remains unchanged.
 
 The local account/access checkpoint, including the PostgreSQL adapter, passes **194 Python tests with AI, Google, and PayMongo mocked, 153 React tests, and a production build**. A separate **52-test gate against real local PostgreSQL**, with external providers still mocked, verifies migrations, rollback, concurrent reservations, duplicate webhooks and room charging. Two-browser mocked defenses completed all four combinations of code/research and voucher/test-credit access, including votes, clarification, answers, reconnect, transcript, and coaching. Mocked checkout/webhooks awarded 100 credits once, an opening failure released its reservation, and the subsequent code and research runs charged 10 credits each. Actual Google sign-in and a new account-linked PayMongo simulator purchase await configuration. Local desktop/landscape captures are linked in the account section below; user review is pending.
 
@@ -18,12 +18,11 @@ See [PROJECT_LOG.md](PROJECT_LOG.md) for evidence and publication history. Agent
 
 ## Architecture release checkpoint
 
-The timed-turn, purchase persistence and shared progression modules are ready for
-feature-service publication, with checkout UI compatible with account-owned
-receipts. The isolated committed release passed **212 Python tests with external
+The timed-turn, purchase persistence and shared progression modules are published
+on the feature service, with checkout UI compatible with account-owned receipts. The isolated committed release passed **212 Python tests with external
 providers mocked, 156 React tests, and the production build**. Separate Account
-UI and upload-progress changes remain local. Hosted verification is tracked in
-[PROJECT_LOG.md](PROJECT_LOG.md); main remains frozen.
+UI and upload-progress changes remain local. Hosted health and assets match the tested release. Evidence and limitations are
+tracked in [PROJECT_LOG.md](PROJECT_LOG.md); main remains frozen.
 
 ## Run locally
 

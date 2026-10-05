@@ -72,4 +72,8 @@ Its separate Account UI and upload-progress changes remain local. The isolated
 final release passes 212 mocked-provider Python tests, 156 React tests and the
 production build. These supersede the earlier isolated subset for deployment;
 the prior full working-tree counts still include unpublished frontend changes.
-Hosted verification is pending and no real purchase is claimed.
+Hosted health and exact asset hashes were subsequently verified for release
+`fcaf33e` at defense-simulator.onrender.com. Google/test-payment configuration
+is enabled and anonymous access is rejected. No fresh authenticated defense or
+real/simulated provider purchase is claimed; see PROJECT_LOG.md for the hosted
+smoke and synthetic preview evidence.
