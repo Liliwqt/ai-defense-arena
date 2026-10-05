@@ -151,13 +151,11 @@ def account_overview(account_id: str) -> dict:
     with connect_store(database_path()) as db:
         db.execute("BEGIN IMMEDIATE")
         access = _access(db, account_id)
-        orders = db.execute("""SELECT o.id, o.amount, o.currency, o.credits, o.status,
-            o.created_at, o.paid_at, COALESCE(l.credits,0) AS awarded_credits
-            FROM test_orders o LEFT JOIN test_credit_ledger l ON l.order_id=o.id
-            WHERE o.account_id=? ORDER BY o.created_at DESC, o.id DESC LIMIT 20""", (account_id,)).fetchall()
+        from purchase_store import purchase_history
+        orders = purchase_history(db, account_id)
         runs = db.execute("""SELECT id, mode, cost, status, created_at, charged_at
             FROM defense_runs WHERE account_id=? ORDER BY created_at DESC, id DESC LIMIT 20""", (account_id,)).fetchall()
-    return {**access, "orders": [dict(row) for row in orders], "runs": [dict(row) for row in runs]}
+    return {**access, "orders": orders, "runs": [dict(row) for row in runs]}
 
 
 def require_run_access(account_id: str) -> dict:

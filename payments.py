@@ -6,7 +6,6 @@ import hmac
 import json
 import os
 from pathlib import Path
-import secrets
 import re
 import sqlite3
 import time
@@ -17,15 +16,12 @@ from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 from account_store import DEFAULT_DB, connect_store, token_hash
+from purchase_store import PurchaseStore, PurchaseError, TEST_AMOUNT, TEST_CREDITS, CHECKOUT_WINDOW, CHECKOUT_LIMIT
 from accounts import check_csrf, require_account
 
 
 router = APIRouter(prefix="/api/payments/test", tags=["test payments"])
-TEST_AMOUNT = 10_000  # PHP 100.00 simulated, not a product price.
 CHECKOUT_API = "https://api.paymongo.com/v2/checkout_sessions"
-TEST_CREDITS = 100  # Sandbox fixture only, not production pricing.
-CHECKOUT_WINDOW = 600
-CHECKOUT_LIMIT = 5
 
 
 @dataclass(frozen=True)
@@ -57,6 +53,20 @@ def public_order(row: sqlite3.Row) -> dict:
     return {key: row[key] for key in ("id", "amount", "currency", "status", "checkout_url", "created_at", "paid_at", "credits")} | {"mode": "test"}
 
 
+def purchase_http_error(error: PurchaseError) -> HTTPException:
+    errors = {
+        "creating": (409, "This checkout is still being created. Keep the same request and try again shortly."),
+        "unverified": (409, "The earlier checkout could not be verified. Check purchase history before explicitly starting a new attempt."),
+        "limited": (429, "Too many checkout attempts. Wait ten minutes before creating another."),
+        "registration_pending": (503, "Checkout registration is pending; retry the webhook."),
+        "checkout_mismatch": (400, "Test checkout does not match the order."),
+        "payment_mismatch": (400, "Test payment does not match the recorded receipt."),
+        "duplicate_payment": (400, "Test payment has already been recorded for another order."),
+    }
+    status, message = errors[error.kind]
+    return HTTPException(status, message, headers={"Retry-After": str(CHECKOUT_WINDOW)} if error.kind == "limited" else None)
+
+
 def response(body: dict, status: int = 200) -> JSONResponse:
     return JSONResponse(body, status_code=status, headers={"Cache-Control": "no-store"})
 
@@ -82,26 +92,14 @@ async def create_checkout(body: CheckoutRequest, request: Request, idempotency_k
     config = settings()
     if idempotency_key and not re.fullmatch(r"[A-Za-z0-9_-]{16,128}", idempotency_key):
         raise HTTPException(400, "Use a valid checkout request ID and try again.")
-    request_hash = token_hash(account["id"] + ":" + idempotency_key) if idempotency_key else None
-    order_id = "test_" + secrets.token_hex(16)
-    with connect_store(config.database) as db:
-        db.execute("BEGIN IMMEDIATE")
-        if request_hash:
-            previous = db.execute("SELECT * FROM test_orders WHERE request_hash=?", (request_hash,)).fetchone()
-            if previous:
-                if previous["status"] in {"pending", "paid"}:
-                    return response({"order": public_order(previous)})
-                if previous["status"] == "creating":
-                    raise HTTPException(409, "This checkout is still being created. Keep the same request and try again shortly.")
-                raise HTTPException(409, "The earlier checkout could not be verified. Check purchase history before explicitly starting a new attempt.")
-        attempts = db.execute("SELECT count(*) FROM test_orders WHERE account_id=? AND created_at>?",
-                              (account["id"], int(time.time()) - CHECKOUT_WINDOW)).fetchone()[0]
-        if attempts >= CHECKOUT_LIMIT:
-            raise HTTPException(429, "Too many checkout attempts. Wait ten minutes before creating another.", headers={"Retry-After": str(CHECKOUT_WINDOW)})
-        # New purchases are account-owned. No browser bearer capability is needed;
-        # token_hash remains populated only for legacy schema compatibility.
-        db.execute("INSERT INTO test_orders (id, token_hash, amount, currency, status, created_at, account_id, credits, request_hash) VALUES (?, ?, ?, 'PHP', 'creating', ?, ?, ?, ?)",
-                   (order_id, token_hash(secrets.token_urlsafe(32)), TEST_AMOUNT, int(time.time()), account["id"], TEST_CREDITS, request_hash))
+    store = PurchaseStore(config.database)
+    try:
+        row = store.begin(account["id"], idempotency_key)
+    except PurchaseError as error:
+        raise purchase_http_error(error) from None
+    if row["status"] != "creating":
+        return response({"order": public_order(row)})
+    order_id = row["id"]
     payload = {"data": {"attributes": {
         "line_items": [{"name": "AI Defense Arena sandbox test", "amount": TEST_AMOUNT, "currency": "PHP", "quantity": 1}],
         "payment_method_types": ["qrph"],
@@ -122,12 +120,9 @@ async def create_checkout(body: CheckoutRequest, request: Request, idempotency_k
     except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError):
         # A network failure can leave a provider checkout whose result is unknown.
         # Never automatically retry a creation request or infer payment success.
-        with connect_store(config.database) as db:
-            db.execute("UPDATE test_orders SET status='creation_failed' WHERE id=?", (order_id,))
+        store.creation_failed(order_id)
         raise HTTPException(502, "Could not create a verified test checkout. Check your test key and connection; no payment was confirmed.") from None
-    with connect_store(config.database) as db:
-        db.execute("UPDATE test_orders SET checkout_id=?, checkout_url=?, status='pending' WHERE id=?", (checkout_id, checkout_url, order_id))
-        row = db.execute("SELECT * FROM test_orders WHERE id=?", (order_id,)).fetchone()
+    row = store.register(order_id, checkout_id, checkout_url)
     return response({"order": public_order(row)}, 201)
 
 
@@ -135,8 +130,7 @@ async def create_checkout(body: CheckoutRequest, request: Request, idempotency_k
 def get_order(order_id: str, request: Request, authorization: str = Header(default="")):
     config = settings()
     token = authorization.removeprefix("Bearer ") if authorization.startswith("Bearer ") else ""
-    with connect_store(config.database) as db:
-        row = db.execute("SELECT * FROM test_orders WHERE id=?", (order_id,)).fetchone()
+    row = PurchaseStore(config.database).get(order_id)
     if row is None:
         raise HTTPException(404, "Test order not found. Use the browser that created it.")
     if row["account_id"] is not None:
@@ -216,26 +210,8 @@ async def receive_webhook(request: Request, paymongo_signature: str = Header(def
             raise ValueError("Amount or payment mismatch")
     except (KeyError, TypeError, ValueError):
         raise HTTPException(400, "Test payment details do not match the test order.") from None
-    with connect_store(config.database) as db:
-        # Immediate transaction serializes deliveries; duplicate notifications
-        # cannot overwrite a paid receipt or award anything twice.
-        db.execute("BEGIN IMMEDIATE")
-        row = db.execute("SELECT * FROM test_orders WHERE id=?", (order_id,)).fetchone()
-        if row is None:
-            return response({"received": True})  # Other orders from the account.
-        if row["status"] == "creating":
-            raise HTTPException(503, "Checkout registration is pending; retry the webhook.")
-        if row["checkout_id"] != checkout_id or row["amount"] != TEST_AMOUNT or row["currency"] != "PHP":
-            raise HTTPException(400, "Test checkout does not match the order.")
-        try:
-            if row["status"] == "pending":
-                db.execute("UPDATE test_orders SET status='paid', payment_id=?, paid_at=? WHERE id=? AND status='pending'",
-                           (payment_ids[0], int(time.time()), order_id))
-            elif row["status"] == "paid" and row["payment_id"] not in payment_ids:
-                raise HTTPException(400, "Test payment does not match the recorded receipt.")
-            if row["account_id"] is not None and row["credits"] > 0 and row["status"] in ("paid", "pending"):
-                db.execute("INSERT INTO test_credit_ledger VALUES (?, ?, ?, ?) ON CONFLICT(order_id) DO NOTHING",
-                           (order_id, row["account_id"], row["credits"], int(time.time())))
-        except sqlite3.IntegrityError:
-            raise HTTPException(400, "Test payment has already been recorded for another order.") from None
+    try:
+        PurchaseStore(config.database).record_paid(order_id, checkout_id, payment_ids)
+    except PurchaseError as error:
+        raise purchase_http_error(error) from None
     return response({"received": True})

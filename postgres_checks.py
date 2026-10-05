@@ -22,6 +22,7 @@ import postgres_store
 import test_accounts
 import test_room_access
 import test_payment_sandbox
+import test_purchase_store
 
 
 class LocalDatabase:
@@ -103,6 +104,10 @@ class PostgresRoomAccess(LocalDatabase, test_room_access.RoomAccessTests):
 
 
 class PostgresPayments(LocalDatabase, test_payment_sandbox.PaymentSandboxTests):
+    pass
+
+
+class PostgresPurchases(LocalDatabase, test_purchase_store.PurchaseStoreTests):
     pass
 
 
