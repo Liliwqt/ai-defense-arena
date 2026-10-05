@@ -25,6 +25,7 @@ from joserfc.jwk import RSAKey
 import accounts
 import account_store
 import payments
+import payment_audit
 
 # Authlib 1.8 uses HTTPX 2; earlier supported releases use HTTPX 1. Return
 # fixture responses/streams from the same HTTP client as the real OAuth code.
@@ -242,7 +243,7 @@ class AccountCreditTests(unittest.TestCase):
         self.assertEqual(self.webhook(created["order"]).status_code, 200)
         with TestClient(self.client.app, base_url=self.origin) as sam:
             self.sign_in_fixture("sam", sam)
-            response = sam.get("/api/payments/test/orders/" + created["order"]["id"], headers={"Authorization": "Bearer " + created["order_token"]})
+            response = sam.get("/api/payments/test/orders/" + created["order"]["id"], headers={"Authorization": "Bearer unused-legacy-token"})
             self.assertEqual(response.status_code, 404)
             self.assertEqual(sam.get("/api/auth/me").json()["test_credits"], 0)
             self.assertEqual(sam.get("/api/auth/me").json()["orders"], [])
@@ -268,6 +269,64 @@ class AccountCreditTests(unittest.TestCase):
             db.execute("DROP TRIGGER reject_credit")
         self.assertEqual(self.webhook(order).status_code, 200)
         self.assertEqual(self.client.get("/api/auth/me").json()["test_credits"], 100)
+
+    def test_private_history_tracks_verified_awards_reservation_release_and_charge(self):
+        token, _ = self.sign_in_fixture()
+        account_id = account_store.session_account(token)['id']
+        order = self.checkout().json()['order']
+        pending = self.client.get('/api/auth/me').json()
+        self.assertEqual(pending['orders'][0]['awarded_credits'], 0)
+        self.webhook(order)
+        account_store.reserve_run(account_id, 'released-run')
+        self.assertEqual(self.client.get('/api/auth/me').json()['reserved_credits'], 10)
+        account_store.release_run('released-run')
+        account_store.reserve_run(account_id, 'charged-run')
+        account_store.charge_run(account_id, 'charged-run')
+        saved = self.client.get('/api/auth/me').json()
+        self.assertEqual(saved['orders'][0]['awarded_credits'], 100)
+        self.assertEqual(saved['test_credits'], 90)
+        self.assertEqual(saved['spent_credits'], 10)
+        self.assertEqual({run['status'] for run in saved['runs']}, {'charged','released'})
+        self.sign_in_fixture('other-account')
+        private = self.client.get('/api/auth/me').json()
+        self.assertEqual(private['runs'], [])
+        self.assertEqual(private['orders'], [])
+
+    def test_audit_reports_consistent_totals_without_private_identifiers(self):
+        token, _ = self.sign_in_fixture()
+        account_id = account_store.session_account(token)['id']
+        order = self.checkout().json()['order']; self.webhook(order)
+        account_store.reserve_run(account_id, 'charged-run')
+        account_store.charge_run(account_id, 'charged-run')
+        result = payment_audit.audit_store()
+        self.assertTrue(result['ok'])
+        self.assertEqual(result['awarded_test_credits'], 100)
+        self.assertEqual(result['charged_test_credits'], 10)
+        self.assertNotIn(account_id, json.dumps(result))
+        self.assertNotIn(order['id'], json.dumps(result))
+        self.assertNotIn('example.test', json.dumps(result))
+
+    def test_audit_detects_inconsistent_awards_and_negative_balance_without_repair(self):
+        token, _ = self.sign_in_fixture()
+        account_id = account_store.session_account(token)['id']
+        order = self.checkout().json()['order']; self.webhook(order)
+        account_store.reserve_run(account_id, 'charged-run')
+        account_store.charge_run(account_id, 'charged-run')
+        with account_store.connect_store(self.db_path) as db:
+            db.execute('DELETE FROM test_credit_ledger')
+        result = payment_audit.audit_store()
+        self.assertFalse(result['ok'])
+        self.assertEqual(result['problems']['paid_purchases_without_award'], 1)
+        self.assertEqual(result['problems']['negative_available_balances'], 1)
+        with account_store.connect_store(self.db_path) as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM test_credit_ledger').fetchone()[0], 0)
+
+    def test_audit_detects_award_mismatch(self):
+        self.sign_in_fixture()
+        order = self.checkout().json()['order']; self.webhook(order)
+        with account_store.connect_store(self.db_path) as db:
+            db.execute('UPDATE test_credit_ledger SET credits=50')
+        self.assertEqual(payment_audit.audit_store()['problems']['awards_not_matching_paid_purchase'], 1)
 
     def test_existing_receipt_migration_preserves_anonymous_paid_record(self):
         with sqlite3.connect(self.db_path) as db:

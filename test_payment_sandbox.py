@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import tempfile
 import unittest
@@ -58,12 +59,12 @@ class PaymentSandboxTests(unittest.TestCase):
         provider_class.return_value.__aenter__.return_value = self.provider
         self.addCleanup(provider_patch.stop)
 
-    def create(self, **extra):
-        return self.client.post("/api/payments/test/checkout", json={**extra})
+    def create(self, *, request_id=None, **extra):
+        return self.client.post("/api/payments/test/checkout", json={**extra}, headers={"Idempotency-Key":request_id} if request_id else {})
 
     def status(self, created, token=None):
         return self.client.get("/api/payments/test/orders/" + created["order"]["id"],
-                               headers={"Authorization": "Bearer " + (token or created["order_token"])})
+                               headers={"Authorization": "Bearer " + (token or "unused-legacy-token")})
 
     def event(self, created):
         return {"event_type": "send.webhook", "data": {
@@ -90,6 +91,65 @@ class PaymentSandboxTests(unittest.TestCase):
         with payments.connect_store(self.database) as db:
             self.assertEqual(db.execute("SELECT count(*) FROM test_orders").fetchone()[0], 0)
 
+    def test_same_checkout_request_reuses_order_without_provider_call(self):
+        key = "offline-idempotency-key"
+        first = self.create(request_id=key)
+        second = self.create(request_id=key)
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(first.json(), second.json())
+        self.provider.post.assert_awaited_once()
+        with payments.connect_store(self.database) as db:
+            row = db.execute('SELECT request_hash FROM test_orders').fetchone()
+            self.assertNotEqual(row[0], key)
+            self.assertEqual(db.execute('SELECT count(*) FROM test_orders').fetchone()[0], 1)
+
+    def test_concurrent_same_key_cannot_create_duplicate_checkouts(self):
+        with ThreadPoolExecutor(max_workers=4) as workers:
+            results = list(workers.map(lambda _: self.create(request_id='concurrent-checkout-key'), range(4)))
+        self.assertEqual(sum(result.status_code == 201 for result in results), 1)
+        self.assertTrue(all(result.status_code in {200, 201, 409} for result in results))
+        self.provider.post.assert_awaited_once()
+        self.assertEqual(self.create(request_id='concurrent-checkout-key').status_code, 200)
+
+    def test_unverified_and_inflight_checkout_are_not_automatically_recreated(self):
+        key = 'inflight-checkout-key'
+        self.create(request_id=key)
+        for status in ('creating', 'creation_failed'):
+            with payments.connect_store(self.database) as db:
+                db.execute('UPDATE test_orders SET status=?', (status,))
+            self.assertEqual(self.create(request_id=key).status_code, 409)
+        self.provider.post.assert_awaited_once()
+
+    def test_idempotency_is_account_scoped_and_invalid_ids_rejected(self):
+        self.assertEqual(self.create(request_id='bad\nkey').status_code, 400)
+        first = self.create(request_id='account-scoped-checkout').json()
+        token, csrf = account_store.create_google_session('other-sub', 'other@example.test', 'Other')
+        self.client.cookies.set(accounts.ACCOUNT_COOKIE, token)
+        self.client.headers['X-CSRF-Token'] = csrf
+        self.result.json.return_value['data']['id'] = 'cs_other_account'
+        second = self.create(request_id='account-scoped-checkout').json()
+        self.assertNotEqual(first['order']['id'], second['order']['id'])
+        self.assertEqual(self.provider.post.await_count, 2)
+
+    def test_checkout_throttle_persists_and_does_not_block_existing_receipt(self):
+        for index in range(payments.CHECKOUT_LIMIT):
+            self.result.json.return_value['data']['id'] = 'cs_throttle_' + str(index)
+            self.assertEqual(self.create(request_id='throttle-request-key-' + str(index)).status_code, 201)
+        limited = self.create(request_id='new-throttle-request-key')
+        self.assertEqual(limited.status_code, 429)
+        self.assertEqual(limited.headers['Retry-After'], '600')
+        self.assertEqual(self.create(request_id='throttle-request-key-0').status_code, 200)
+        self.assertEqual(self.provider.post.await_count, payments.CHECKOUT_LIMIT)
+
+    def test_paid_receipt_rejects_a_different_payment_identifier(self):
+        created = self.create().json()
+        self.assertEqual(self.deliver(self.event(created)).status_code, 200)
+        event = self.event(created)
+        event['data']['data']['attributes']['payments'][0]['id'] = 'pay_different'
+        self.assertEqual(self.deliver(event).status_code, 400)
+        self.assertEqual(self.status(created).json()['order']['status'], 'paid')
+
     def test_removed_passcode_and_client_amount_rejected(self):
         result = self.client.post("/api/payments/test/checkout", json={"host_passcode": "wrong"})
         self.assertEqual(result.status_code, 422)
@@ -113,13 +173,13 @@ class PaymentSandboxTests(unittest.TestCase):
         self.assertEqual(attrs["reference_number"], created["order"]["id"])
         self.assertEqual(attrs["payment_method_types"], ["qrph"])
         self.assertEqual(kwargs["auth"], ("sk_test_offline_fixture", ""))
-        self.assertNotIn(created["order_token"], attrs["success_url"])
+        self.assertNotIn("order_token", result.text)
         self.assertNotIn("offline_host_passcode", result.text)
         self.assertNotIn("sk_test", result.text)
         self.assertEqual(result.headers["cache-control"], "no-store")
         with payments.connect_store(self.database) as db:
             stored = dict(db.execute("SELECT * FROM test_orders").fetchone())
-        self.assertNotIn(created["order_token"], json.dumps(stored))
+        self.assertNotIn("order_token", created)
 
     def test_owned_status_requires_account_and_survives_new_client(self):
         created = self.create().json()
@@ -128,7 +188,7 @@ class PaymentSandboxTests(unittest.TestCase):
         url = "/api/payments/test/orders/" + created["order"]["id"]
         self.assertEqual(self.client.get(url).status_code, 200)
         with TestClient(self.client.app, base_url="http://127.0.0.1:8774") as another:
-            self.assertEqual(another.get(url, headers={"Authorization": "Bearer " + created["order_token"]}).status_code, 401)
+            self.assertEqual(another.get(url, headers={"Authorization": "Bearer unused-legacy-token"}).status_code, 401)
             another.cookies.set(accounts.ACCOUNT_COOKIE, self.session_token)
             self.assertEqual(another.get(url).json()["order"]["status"], "pending")
 

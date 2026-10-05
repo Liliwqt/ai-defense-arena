@@ -13,8 +13,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 
-from account_store import (SESSION_SECONDS, AccessError, account_access, redeem_voucher,
-                          connect_store, create_google_session, database_path, remove_session, session_account)
+from account_store import (SESSION_SECONDS, AccessError, account_access, account_overview, redeem_voucher,
+                          create_google_session, remove_session, session_account)
 
 router = APIRouter(prefix="/api/auth", tags=["accounts"])
 ACCOUNT_COOKIE = "arena_account"
@@ -104,12 +104,9 @@ def me(request: Request):
     account = session_account(request.cookies.get(ACCOUNT_COOKIE, "")) if enabled else None
     if account is None:
         return account_response({"authenticated": False, "google_enabled": enabled})
-    with connect_store(database_path()) as db:
-        rows = db.execute("SELECT id, amount, currency, credits, status, created_at, paid_at FROM test_orders WHERE account_id=? ORDER BY created_at DESC, id DESC LIMIT 20", (account["id"],)).fetchall()
     return account_response({"authenticated": True, "google_enabled": enabled,
                              "user": {key: account[key] for key in ("id", "email", "name")},
-                             "csrf_token": account["csrf_token"], **account_access(account["id"]),
-                             "orders": [dict(row) for row in rows]})
+                             "csrf_token": account["csrf_token"], **account_overview(account["id"])})
 
 
 class VoucherRequest(BaseModel):
