@@ -9,3 +9,4 @@ pypdf>=5,<7
 python-docx>=1.1,<2
 Authlib>=1.6,<2
 itsdangerous>=2.2,<3
+psycopg[binary]>=3.2,<4

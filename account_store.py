@@ -1,4 +1,4 @@
-"""Local sandbox identities, opaque sessions and transactional test-credit ledger."""
+"""Sandbox identities, opaque sessions and transactional SQLite/PostgreSQL credits."""
 
 from contextlib import contextmanager
 import hashlib
@@ -21,59 +21,69 @@ def token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def _initialize_store(db, *, postgres=False):
+    db.execute("""CREATE TABLE IF NOT EXISTS accounts (
+        id TEXT PRIMARY KEY, google_sub TEXT UNIQUE NOT NULL,
+        email TEXT NOT NULL, name TEXT NOT NULL, created_at INTEGER NOT NULL
+    )""")
+    db.execute("""CREATE TABLE IF NOT EXISTS account_sessions (
+        token_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id),
+        csrf_token TEXT NOT NULL, expires_at INTEGER NOT NULL
+    )""")
+    db.execute("""CREATE TABLE IF NOT EXISTS test_orders (
+        id TEXT PRIMARY KEY, token_hash TEXT NOT NULL,
+        checkout_id TEXT UNIQUE, checkout_url TEXT,
+        amount INTEGER NOT NULL, currency TEXT NOT NULL,
+        status TEXT NOT NULL, payment_id TEXT UNIQUE,
+        created_at INTEGER NOT NULL, paid_at INTEGER
+    )""")
+    columns = db.columns("test_orders") if postgres else {row["name"] for row in db.execute("PRAGMA table_info(test_orders)")}
+    if "account_id" not in columns:
+        db.execute("ALTER TABLE test_orders ADD COLUMN account_id TEXT REFERENCES accounts(id)")
+    if "credits" not in columns:
+        db.execute("ALTER TABLE test_orders ADD COLUMN credits INTEGER NOT NULL DEFAULT 0")
+    db.execute("""CREATE TABLE IF NOT EXISTS test_credit_ledger (
+        order_id TEXT PRIMARY KEY REFERENCES test_orders(id),
+        account_id TEXT NOT NULL REFERENCES accounts(id),
+        credits INTEGER NOT NULL CHECK(credits > 0), created_at INTEGER NOT NULL
+    )""")
+    db.execute("CREATE INDEX IF NOT EXISTS orders_by_account ON test_orders(account_id)")
+    db.execute("CREATE INDEX IF NOT EXISTS credits_by_account ON test_credit_ledger(account_id)")
+    db.execute("""CREATE TABLE IF NOT EXISTS voucher_grants (
+        account_id TEXT PRIMARY KEY REFERENCES accounts(id), fingerprint TEXT NOT NULL,
+        redeemed_at INTEGER NOT NULL
+    )""")
+    db.execute("""CREATE TABLE IF NOT EXISTS voucher_attempts (
+        account_id TEXT PRIMARY KEY REFERENCES accounts(id), window_start INTEGER NOT NULL,
+        failures INTEGER NOT NULL
+    )""")
+    db.execute("""CREATE TABLE IF NOT EXISTS defense_runs (
+        id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id),
+        mode TEXT NOT NULL CHECK(mode IN ('voucher', 'credits')),
+        cost INTEGER NOT NULL CHECK(cost IN (0, 10)),
+        status TEXT NOT NULL CHECK(status IN ('reserved', 'charged', 'released')),
+        created_at INTEGER NOT NULL, charged_at INTEGER
+    )""")
+    db.execute("CREATE INDEX IF NOT EXISTS runs_by_account ON defense_runs(account_id)")
+
+
 @contextmanager
 def connect_store(path: Path):
+    """DATABASE_URL selects PostgreSQL; otherwise preserve local SQLite data."""
+    url = os.environ.get("DATABASE_URL", "").strip()
+    if url:
+        from postgres_store import connect_postgres
+        with connect_postgres(url, _initialize_store) as db:
+            yield db
+        return
     path.parent.mkdir(parents=True, exist_ok=True)
     db = sqlite3.connect(path, timeout=5)
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA foreign_keys=ON")
     try:
-        # Serialize the additive migration as well as concurrent first requests.
         with db:
             db.execute("BEGIN IMMEDIATE")
-            db.execute("""CREATE TABLE IF NOT EXISTS accounts (
-                id TEXT PRIMARY KEY, google_sub TEXT UNIQUE NOT NULL,
-                email TEXT NOT NULL, name TEXT NOT NULL, created_at INTEGER NOT NULL
-            )""")
-            db.execute("""CREATE TABLE IF NOT EXISTS account_sessions (
-                token_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id),
-                csrf_token TEXT NOT NULL, expires_at INTEGER NOT NULL
-            )""")
-            db.execute("""CREATE TABLE IF NOT EXISTS test_orders (
-                id TEXT PRIMARY KEY, token_hash TEXT NOT NULL,
-                checkout_id TEXT UNIQUE, checkout_url TEXT,
-                amount INTEGER NOT NULL, currency TEXT NOT NULL,
-                status TEXT NOT NULL, payment_id TEXT UNIQUE,
-                created_at INTEGER NOT NULL, paid_at INTEGER
-            )""")
-            columns = {row["name"] for row in db.execute("PRAGMA table_info(test_orders)")}
-            if "account_id" not in columns:
-                db.execute("ALTER TABLE test_orders ADD COLUMN account_id TEXT REFERENCES accounts(id)")
-            if "credits" not in columns:
-                db.execute("ALTER TABLE test_orders ADD COLUMN credits INTEGER NOT NULL DEFAULT 0")
-            db.execute("""CREATE TABLE IF NOT EXISTS test_credit_ledger (
-                order_id TEXT PRIMARY KEY REFERENCES test_orders(id),
-                account_id TEXT NOT NULL REFERENCES accounts(id),
-                credits INTEGER NOT NULL CHECK(credits > 0), created_at INTEGER NOT NULL
-            )""")
-            db.execute("CREATE INDEX IF NOT EXISTS orders_by_account ON test_orders(account_id)")
-            db.execute("CREATE INDEX IF NOT EXISTS credits_by_account ON test_credit_ledger(account_id)")
-            db.execute("""CREATE TABLE IF NOT EXISTS voucher_grants (
-                account_id TEXT PRIMARY KEY REFERENCES accounts(id), fingerprint TEXT NOT NULL,
-                redeemed_at INTEGER NOT NULL
-            )""")
-            db.execute("""CREATE TABLE IF NOT EXISTS voucher_attempts (
-                account_id TEXT PRIMARY KEY REFERENCES accounts(id), window_start INTEGER NOT NULL,
-                failures INTEGER NOT NULL
-            )""")
-            db.execute("""CREATE TABLE IF NOT EXISTS defense_runs (
-                id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id),
-                mode TEXT NOT NULL CHECK(mode IN ('voucher', 'credits')),
-                cost INTEGER NOT NULL CHECK(cost IN (0, 10)),
-                status TEXT NOT NULL CHECK(status IN ('reserved', 'charged', 'released')),
-                created_at INTEGER NOT NULL, charged_at INTEGER
-            )""")
-            db.execute("CREATE INDEX IF NOT EXISTS runs_by_account ON defense_runs(account_id)")
+            _initialize_store(db)
         with db:
             yield db
     finally:
