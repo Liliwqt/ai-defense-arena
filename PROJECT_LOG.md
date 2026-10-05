@@ -65,6 +65,8 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Active work
 
+- Root architecture publication, 2026-10-06: user requested push/deploy of the reviewed feature checkpoints. Verify an isolated release, include the required account-owned checkout UI dependency, push feature/question-first-room only and inspect the configured feature service. Files: checkout UI/tests/shared purchase labels, README/log, selected release artifacts. Ends with a dated verified publication entry or precise deployment blocker. Preserve upload-progress/Account UI work and unrelated files/deletions; main remains frozen.
+
 
 
 
@@ -941,3 +943,17 @@ Append new entries to the **end** of this file in date order:
 - Verification, isolated selected commits/providers mocked: archived the selected commits to a temporary directory, ran its committed React production build and 51 focused Python tests covering timed turns, purchases, progression, code/research policy and run access. Initial imports failed because `game/dist` was absent in Git; the documented frontend build resolved that setup requirement. This confirms selected backend changes do not require pending frontend/payment files. Generated build output is not committed.
 - Verification, final loopback integration/AI and identity mocked: reran `/tmp/architecture_browser_check.js` through Playwright after the metadata cleanup. Four-turn voucher, eight-turn credit (one timeout), and twelve-turn mixed/proposal voucher runs passed with two contexts, selected-speaker enforcement, same-question clarification, host generation retry, reconnect, exact citations, identical transcript/coaching and exactly zero/10 credits charged. Captures were refreshed. Separate chat send/reconnect and ArrowRight/ArrowLeft dock-focus checks passed; desktop/landscape have no horizontal page overflow. Temporary harness mistakes are recorded in the preceding entry, not attributed to production failures.
 - Handoff: `docs/ARCHITECTURE_REVIEW.md` records both review axes and evidence limits. Mocked checks do not establish live AI conversation quality, real Google/payment-provider behavior, hosted verification, physical-device confirmation or user visual review. Disposable browser/PostgreSQL fixtures are stopped/cleaned up; user-owned services and private data are untouched. Main remains frozen at `866e923`; no push or deployment occurred. Publication is a later user-requested step.
+
+
+### 2026-10-06 — Architecture release preparation
+
+- Session: root architecture publication; user explicitly requested push and deploy. Feature/main remote tips still match the recorded pre-publication baseline, so no merge is needed. Main remains frozen. Added an active publication claim.
+- Release inspection found that committed PaymentTestPage still required the removed `order_token` response field. The earlier local checkout UI already supports account-owned receipts, stable request IDs and legacy tokens; its two files and shared purchase labels are a necessary deployment dependency. Include that tested dependency before publishing the architecture commits; preserve separate Account UI, upload-progress work and unrelated files/deletions.
+- Verification: source inspection and read-only remote-ref check only for this new release step. The prior offline/mock/database gates are historical evidence; an isolated final release gate and hosted verification are pending. No push, deploy or live payment has occurred in this entry.
+
+
+### 2026-10-06 — Deployable architecture release gate
+
+- Session: root architecture publication; required checkout UI compatibility committed as `c17fd64`. It accepts account-owned receipts without a browser token, preserves legacy token restoration, reuses a persisted checkout request ID and reads safe purchase labels. Separate Account UI, upload-progress work and unrelated local files/deletions remain uncommitted.
+- Verification, isolated committed release/providers mocked: exported `c17fd64` to `/tmp/architecture-release-20261006`, ran its React suite/build (156 tests; assets `index-CisIUiHN.js` and `index-BnlZFKj2.css`) and full Python suite (212 tests), all passed. The earlier 163-React working-tree gate includes pending frontend changes and is not the deployable bundle. This is offline evidence, not a live provider purchase or hosted defense.
+- Hosted preflight: the first public health request hit a read timeout; it does not establish a deployment failure or a healthy service. Push and post-deployment checks remain pending. No anonymous room creation, private account access, AI request or payment-provider call was attempted.

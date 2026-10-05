@@ -61,3 +61,15 @@ Standards: 0 remaining findings (1 heuristic resolved); Spec: 0 findings.
 
 No live AI-quality, Google, PayMongo, hosted, physical-device or user visual-review
 claim follows from these mocked checks. Main and hosted services are unchanged.
+
+
+## Publication preparation — 2026-10-06
+
+A release inspection caught the old committed checkout screen's requirement for
+`order_token`, removed by the prior backend cleanup. The already-tested local
+checkout UI dependency is now committed as `c17fd64` with shared purchase labels.
+Its separate Account UI and upload-progress changes remain local. The isolated
+final release passes 212 mocked-provider Python tests, 156 React tests and the
+production build. These supersede the earlier isolated subset for deployment;
+the prior full working-tree counts still include unpublished frontend changes.
+Hosted verification is pending and no real purchase is claimed.

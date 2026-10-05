@@ -16,6 +16,15 @@ Live evidence is separate: a local synthetic mixed/proposal defense completed tw
 
 See [PROJECT_LOG.md](PROJECT_LOG.md) for evidence and publication history. Agents and other session windows must also read [AGENTS.md](AGENTS.md) before editing.
 
+## Architecture release checkpoint
+
+The timed-turn, purchase persistence and shared progression modules are ready for
+feature-service publication, with checkout UI compatible with account-owned
+receipts. The isolated committed release passed **212 Python tests with external
+providers mocked, 156 React tests, and the production build**. Separate Account
+UI and upload-progress changes remain local. Hosted verification is tracked in
+[PROJECT_LOG.md](PROJECT_LOG.md); main remains frozen.
+
 ## Run locally
 
 Install Python with virtual-environment support, Node.js, and npm, then run from the repository root:
