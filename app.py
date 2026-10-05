@@ -14,6 +14,7 @@ from defense_session import (
     advance_defense,
     sync_project_session,
 )
+from defense_progression import prepare_progression
 from project_files import (
     ALLOWED_EXTENSIONS,
     MAX_ARCHIVE_BYTES,
@@ -181,8 +182,8 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
             try:
                 with st.spinner("Reviewing defense materials..."):
                     if mode == "code":
-                        first_question = generate_first_question(files, api_key, model=model, defense_type=mode, research_stage=research_stage)
-                        new_session = DefenseSession.start(first_question, mode, research_stage)
+                        request = prepare_progression(None, defense_type=mode, research_stage=research_stage)
+                        new_session = request.apply(request.generate(files, api_key, model, first_question=generate_first_question))
                     else:
                         new_session = ResearchDefenseSession.create(st.session_state["research_plan"],
                             st.session_state["research_confirmed_budget"], mode, research_stage)

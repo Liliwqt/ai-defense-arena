@@ -299,25 +299,12 @@ def advance_defense(
     client=None,
 ) -> PanelMove:
     """Generate one allowed move; leave the saved answer untouched on failure."""
-    if not session.needs_question:
-        raise ValueError("There is no pending panel move.")
-    if isinstance(session, ResearchDefenseSession):
-        move = generate_research_move(project_files, api_key, history=session.answered_history(),
-                                      context=session.context(), model=model, client=client,
-                                      defense_type=session.defense_type, research_stage=session.research_stage)
-        session.apply_move(move)
-        return move
-    move = generate_next_move(
-        project_files,
-        api_key,
-        history=session.answered_history(),
-        allowed_panelists=session.allowed_next_panelists,
-        may_complete=session.may_complete,
-        model=model,
-        client=client,
-        defense_type=session.defense_type, research_stage=session.research_stage,
-    )
-    session.apply_move(move)
+    # Local import avoids a cycle between the policy types and orchestration.
+    from defense_progression import prepare_progression, commit_progression
+    request = prepare_progression(session)
+    move = request.generate(project_files, api_key, model, client,
+                            next_move=generate_next_move, research_move=generate_research_move)
+    commit_progression(session, request.apply(move))
     return move
 
 

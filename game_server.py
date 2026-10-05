@@ -1,7 +1,6 @@
 """Single-process multiplayer room server for AI Defense Arena."""
 
 import asyncio
-import copy
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 import json
@@ -18,6 +17,7 @@ from openai import OpenAIError
 from pydantic import BaseModel, ValidationError
 
 from defense_session import DefenseSession, ResearchDefenseSession, MAX_ANSWER_CHARS, PANELIST_ORDER
+from defense_progression import prepare_progression, commit_progression
 from accounts import configure_auth, require_account, check_csrf, auth_settings
 from account_store import (AccessError, require_run_access, reserve_run, charge_run,
                            release_run, release_orphaned_reservations)
@@ -341,37 +341,18 @@ async def _generate_question(room: Room, generation_id: int, first: bool) -> Non
         async with room.lock:
             if room.generation_id != generation_id:
                 return
-            session = copy.deepcopy(room.defense) if room.run_id and (room.defense is None or not room.defense.turns) else room.defense
-            research = isinstance(session, ResearchDefenseSession)
-            history = session.answered_history() if session else []
-            context = session.context() if research else None
-            allowed = session.allowed_next_panelists if session and not research else ()
-            may_complete = session.may_complete if session and not research else False
-        if research:
-            move = await asyncio.to_thread(generate_research_move, room.files, api_key,
-                history=history, context=context, model=model,
-                defense_type=room.defense_type, research_stage=room.research_stage)
-        elif first:
-            question = await asyncio.to_thread(generate_first_question, room.files, api_key, model,
-                defense_type=room.defense_type, research_stage=room.research_stage)
-        else:
-            move = await asyncio.to_thread(generate_next_move, room.files, api_key,
-                history=history, allowed_panelists=allowed, may_complete=may_complete, model=model,
-                defense_type=room.defense_type, research_stage=room.research_stage)
+            request = prepare_progression(room.defense, defense_type=room.defense_type,
+                                          research_stage=room.research_stage)
+        result = await asyncio.to_thread(request.generate, room.files, api_key, model,
+            first_question=generate_first_question, next_move=generate_next_move,
+            research_move=generate_research_move)
         async with room.lock:
             if room.generation_id != generation_id:
                 return
-            if research:
-                session.apply_move(move)
-            elif first:
-                session = DefenseSession.start(question, room.defense_type, room.research_stage)
-            elif session and session.needs_question:
-                session.apply_move(move)
-            else:
-                return
+            session = request.apply(result)
             if room.run_id and (room.defense is None or not room.defense.turns) and session.turns:
                 charge_run(room.owner_account_id, room.run_id)
-            room.defense = session
+            room.defense = commit_progression(room.defense, session)
             if room.defense.completed:
                 room.phase = "complete"
                 room.feedback_status = "generating"
