@@ -158,10 +158,13 @@ The document panel shows **extracted text**, not a rendered original PDF. Extrac
 | Component | Responsibility |
 | --- | --- |
 | `game/src/` | React account/setup drawers, flat room, question/citation UI, vote/answer/chat dock, transcript, and export |
-| `game_server.py` | FastAPI HTTP/WebSocket service, authentication, room state, timers, and broadcasts |
+| `game_server.py` | FastAPI HTTP/WebSocket service, authentication, room state, task scheduling, charging, and broadcasts |
+| `timed_turn.py` | Synchronous voting, speaker selection, authoritative deadlines, interpretation, clarification and timeout transitions |
 | `accounts.py`, `account_store.py` | Google sign-in, opaque sessions, voucher grants, private balances, atomic run reservations/charges, and additive SQLite migrations |
-| `payments.py`, `game/src/payments/` | Account-authenticated PayMongo test checkout, signed webhooks, and once-only test-credit awards |
-| `defense_session.py` | Role order, optional follow-ups, resolved turns, and retained history |
+| `payments.py`, `game/src/payments/` | Account-authenticated PayMongo test checkout, provider/signature validation and HTTP error translation |
+| `purchase_store.py` | Transactional request reuse, checkout registration, receipts, once-only credit awards and private purchase history |
+| `defense_session.py` | Code/research policies, role order, optional follow-ups, coverage, resolved turns, and retained history |
+| `defense_progression.py` | Shared isolated generation preparation and validated move application for FastAPI and Streamlit |
 | `research_plan.py` | Structured research map, exact source references, suggested budget and scope-preview validation |
 | `question_generator.py` | Shared prompts, Responses API structured output, submission interpretation, citation validation, and coaching |
 | `project_files.py` / `research_files.py` | Upload validation and document extraction/location mapping |

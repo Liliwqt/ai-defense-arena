@@ -42,3 +42,18 @@ Two things stay true regardless of the log's state:
 
 - Rooms are in memory. A Render restart, redeploy, or Free-instance spin-down erases active rooms, so keep exactly one worker and one instance, and create a fresh room shortly before a demo.
 - Do not mark visual review, hosted verification, or physical separate-device confirmation complete without evidence.
+
+
+## Agent skills
+
+### Issue tracker
+
+For skill-driven planning or review, read [local Markdown tracker conventions](docs/agents/issue-tracker.md).
+
+### Triage labels
+
+For task status changes, use [local triage labels](docs/agents/triage-labels.md).
+
+### Domain docs
+
+For architecture exploration, follow [single-context domain guidance](docs/agents/domain.md).
