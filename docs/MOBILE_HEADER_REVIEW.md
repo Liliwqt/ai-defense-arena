@@ -78,3 +78,41 @@ installed-device or physical-keyboard evidence. The user subsequently requested
 push/deploy; current rollout results are recorded separately in PROJECT_LOG.md. Main
 remains frozen. Unrelated Account/upload edits and screenshot deletions are
 excluded from the selected commit.
+
+## Hosted rollout — 2026-10-06
+
+User subsequently requested push and deployment. Source `b5502e3` and rollout
+`23248cf` are published on the feature branch. The authenticated Render dashboard
+identified Defense-Simulator, service `srv-dat25hm0tbcc739j4nfg`, connected to
+`feature/question-first-room` and <https://defense-simulator.onrender.com>.
+The similarly named older service is connected to frozen main and was not modified.
+
+The automatic build succeeded but deployment failed immediately with “Cause of
+failure could not be determined.” One Manual Deploy → Deploy latest commit retry
+of the same release succeeded; Render shows `23248cf` Live in deployment
+`dep-db29a37lot8c73ebsfgg`. Startup logs show one Uvicorn worker, successful
+application startup and public service availability. No runtime, secret, build
+command, instance size or branch setting was changed.
+
+Hosted `/health` returns 200 with status ok. Served JS and CSS SHA-256 bytes match
+the isolated tested source exactly:
+
+| Asset | SHA-256 |
+| --- | --- |
+| index-Oq6ye7B_.js | d84802cd5ca1f8b1ba5d0badca5e978376b18709271e3b5069973ef3a60f1023 |
+| index-CG8bX7IF.css | 7d4fbae8447e53a8466338eddc118237251e0bb2b68bbf075476d0d7dbe05362 |
+
+Actual hosted browser checks use synthetic preview dialogue, with no AI/provider
+calls: portrait390x844, landscape667x375 and desktop1365x900 have no horizontal
+page overflow. Mobile icon targets remain44x44, with centered timer within0.01
+CSS pixel. Research excerpts, question11of24, internal scrolling, Controls coverage,
+Transcript, Account and Escape focus return work. Ordinary unauthenticated setup
+and empty Transcript also work without page errors; `/api/auth/me` returns200
+and Google configuration enabled. These checks establish served layout and API
+availability, not a fresh authenticated live AI defense or physical device.
+
+Hosted captures: [portrait](../screenshots/mobile-header-hosted-portrait.png),
+[landscape](../screenshots/mobile-header-hosted-landscape.png),
+[desktop](../screenshots/mobile-header-hosted-desktop.png).
+Documentation receipt uses `[skip render]` to avoid another room-erasing deploy.
+User visual review and native/provider/device prerequisites remain separate.

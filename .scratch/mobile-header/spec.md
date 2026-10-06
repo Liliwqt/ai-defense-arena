@@ -243,3 +243,13 @@ included. Independent Standards review found no hard breaches and one nonblockin
 coverage-count duplication; Spec review found no actionable defects. Isolated
 selected files pass 177 React tests and build, excluding unrelated pending edits.
 Selective local commit is the handoff; publication remains a later request.
+
+## Publication handoff — 2026-10-06
+
+The user subsequently requested push and deployment. Feature release 23248cf
+is Live at https://defense-simulator.onrender.com after one manual retry of a
+failed automatic deployment. Health, exact production asset bytes and hosted
+synthetic portrait/landscape/desktop navigation checks pass; see the review guide
+and PROJECT_LOG.md. Main and unrelated local work remain unchanged. Status remains
+ready-for-human for user visual review; no new live AI or installed-device evidence
+is claimed. Documentation-only receipt skips another Render deployment.

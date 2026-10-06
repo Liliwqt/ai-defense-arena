@@ -14,12 +14,13 @@ under [mobile/](mobile/README.md); there is no separate mobile frontend or backe
 Android's local debug APK is built under `mobile/artifacts/`. The iOS project
 requires macOS/Xcode and your own signing configuration; no iPhone artifact has
 been built here. Installed-device, real Google return and sandbox provider checks
-are still pending. Source is published on `feature/question-first-room`; the
-publication uses `[skip render]` and does not request a deployment. See the mobile README for builds, secure sign-in handoff and
-verification boundaries.
+are still pending. The source and compact mobile header are published on
+`feature/question-first-room`, and the website is deployed at
+<https://defense-simulator.onrender.com>. See the mobile README for builds,
+secure sign-in handoff and verification boundaries.
 
 
-The compact mobile-header checkpoint is implemented locally: Settings and Account
+The compact mobile-header checkpoint is deployed: Settings and Account
 icons flank a centered vote/answer timer or phase status. Room code, research
 coverage and Transcript are available in Controls; question progress stays on
 the question card. Desktop navigation is retained. Review the mock screen at
@@ -29,7 +30,7 @@ website-only layout changes require no native app rebuild.
 
 ## Current branch and verification
 
-This README describes `feature/question-first-room`: the flat room, research documents, same-question clarifications, summary downloads, answer-aware conversations, and Google host accounts with voucher or sandbox-credit access. Research and mixed defenses require a source-grounded paper map and a host-confirmed **4–100-question maximum**. Code-only defenses remain four to eight questions. The architecture release is served at [defense-simulator.onrender.com](https://defense-simulator.onrender.com), with shared timed-turn, purchase and progression modules and checkout UI compatible with account-owned receipts. Hosted health and asset hashes match the tested release; Google and test-payment configuration is enabled. A fresh signed-in defense and provider simulator purchase remain separate unverified checks. Separate Account UI and measured upload-progress work is still local. `main` stays frozen during the review window that began on October 1, 2026, and its earlier service remains unchanged.
+This README describes `feature/question-first-room`: the flat room, research documents, same-question clarifications, summary downloads, answer-aware conversations, and Google host accounts with voucher or sandbox-credit access. Research and mixed defenses require a source-grounded paper map and a host-confirmed **4–100-question maximum**. Code-only defenses remain four to eight questions. The compact mobile header and existing architecture are served at [defense-simulator.onrender.com](https://defense-simulator.onrender.com), with shared timed-turn, purchase and progression modules and checkout UI compatible with account-owned receipts. Hosted health and asset hashes match the tested release; Google and test-payment configuration is enabled. A fresh signed-in defense and provider simulator purchase remain separate unverified checks. Separate Account UI and measured upload-progress work is still local. `main` stays frozen during the review window that began on October 1, 2026, and its earlier service remains unchanged.
 
 The local account/access checkpoint, including the PostgreSQL adapter, passes **194 Python tests with AI, Google, and PayMongo mocked, 153 React tests, and a production build**. A separate **52-test gate against real local PostgreSQL**, with external providers still mocked, verifies migrations, rollback, concurrent reservations, duplicate webhooks and room charging. Two-browser mocked defenses completed all four combinations of code/research and voucher/test-credit access, including votes, clarification, answers, reconnect, transcript, and coaching. Mocked checkout/webhooks awarded 100 credits once, an opening failure released its reservation, and the subsequent code and research runs charged 10 credits each. Actual Google sign-in and a new account-linked PayMongo simulator purchase await configuration. Local desktop/landscape captures are linked in the account section below; user review is pending.
 
