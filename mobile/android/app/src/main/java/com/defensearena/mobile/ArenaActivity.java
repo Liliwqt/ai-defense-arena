@@ -184,7 +184,14 @@ public class ArenaActivity extends Activity {
     @Override protected void onNewIntent(Intent intent) { super.onNewIntent(intent); setIntent(intent); handleReturn(intent); }
     private void handleReturn(Intent intent) {
         Uri uri = intent.getData();
-        if (uri == null || !"defensearena".equals(uri.getScheme()) || !"auth".equals(uri.getHost()) || uri.getUserInfo() != null || uri.getPort() != -1 || !"".equals(uri.getPath()) || authBusy) return;
+        if (uri == null || !"defensearena".equals(uri.getScheme()) || uri.getUserInfo() != null || uri.getPort() != -1 || !"".equals(uri.getPath())) return;
+        if ("payment-return".equals(uri.getHost()) && uri.getQuery() == null && uri.getFragment() == null) {
+            // A navigation signal never confirms payment or replaces a live room.
+            if (web.getUrl() == null) web.loadUrl(BuildConfig.ARENA_URL + "/?payments=test");
+            else web.evaluateJavascript("window.dispatchEvent(new Event('defense-native-resume'))", null);
+            return;
+        }
+        if (!"auth".equals(uri.getHost()) || authBusy) return;
         String flow = getPreferences(MODE_PRIVATE).getString("flow", "");
         String verifier = getPreferences(MODE_PRIVATE).getString("verifier", "");
         if (flow.isEmpty() || !flow.equals(uri.getQueryParameter("flow")) || uri.getQueryParameter("code") == null) {

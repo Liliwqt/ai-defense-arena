@@ -52,6 +52,19 @@ describe("PaymentTestPage", () => {
     expect(creation[1].headers).toEqual({ "Content-Type": "application/json", "X-CSRF-Token": signedIn.csrf_token, "Idempotency-Key": sessionStorage.getItem(ATTEMPT_KEY) });
   });
 
+  it("requests a fixed return-to-app checkout only inside the native shell", async () => {
+    vi.stubGlobal("webkit", {messageHandlers:{defenseExport:{postMessage:vi.fn()}}});
+    const fetcher = vi.fn(async (url: string) => url.endsWith("/api/auth/me") ? json(signedIn) : url.endsWith("config") ? json({mode:"test", enabled:true}) : json({order}));
+    vi.stubGlobal("fetch", fetcher);
+    render(<PaymentTestPage />);
+    await screen.findByText("Test checkout is configured.");
+    fireEvent.click(screen.getByRole("button", {name:"Create test checkout"}));
+    await screen.findByRole("link", {name:"Open test checkout"});
+    const creation = (fetcher.mock.calls as unknown as [string, RequestInit][]).find(([url]) => url.endsWith("checkout"))!;
+    expect(creation[1].headers).toMatchObject({"X-Arena-Native":"1", "X-CSRF-Token":signedIn.csrf_token});
+    expect(screen.queryByText("Test payment confirmed.")).toBeNull();
+  });
+
   it("does not trust a successful checkout redirect as payment", async () => {
     history.replaceState(null, "", "/?payments=test&payment_return=success");
     sessionStorage.setItem(RECEIPT_KEY, JSON.stringify({ id: order.id, token: "fixture-token" }));

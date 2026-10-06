@@ -103,7 +103,7 @@ Restarting clears turns, votes, timers, chat, and coaching and starts a new run.
 
 **Team Chat** is room-only defender conversation: the latest 100 messages, up to 500 characters each. Chat is excluded from panelist prompts, coaching, the transcript, and summary exports.
 
-Phone play is landscape-only. The header, both seat rows, and bottom dock stay visible while question content scrolls. Controls and Transcript use a keyboard-accessible drawer.
+Phone play supports portrait and landscape in this local mobile checkpoint. The header, both seat rows, and bottom dock stay visible while question content scrolls. Controls and Transcript use a keyboard-accessible drawer.
 
 ## Defense types and panelists
 

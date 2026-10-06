@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 
 import httpx
 from fastapi import APIRouter, Header, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict
 from account_store import DEFAULT_DB, connect_store, token_hash
 from purchase_store import PurchaseStore, PurchaseError, TEST_AMOUNT, TEST_CREDITS, CHECKOUT_WINDOW, CHECKOUT_LIMIT
@@ -85,6 +85,20 @@ class CheckoutRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+@router.get("/mobile-return", response_class=HTMLResponse)
+def mobile_return():
+    # This public page only navigates. Provider webhooks remain authoritative.
+    return HTMLResponse("""<!doctype html><html lang="en"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Return to AI Defense Arena</title><body>
+<h1>Return to AI Defense Arena</h1>
+<p>This return does not confirm payment. The app checks your server-verified receipt.</p>
+<p><a href="defensearena://payment-return">Return to app</a></p>
+<p>If the link does not open, switch back to the app and refresh your receipt.</p>
+</body></html>""", headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer",
+                          "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"})
+
+
 @router.post("/checkout", status_code=201)
 async def create_checkout(body: CheckoutRequest, request: Request, idempotency_key: str = Header(default="")):
     account = require_account(request)
@@ -100,12 +114,14 @@ async def create_checkout(body: CheckoutRequest, request: Request, idempotency_k
     if row["status"] != "creating":
         return response({"order": public_order(row)})
     order_id = row["id"]
+    native = request.headers.get("X-Arena-Native") == "1"
+    native_return = config.origin + "/api/payments/test/mobile-return"
     payload = {"data": {"attributes": {
         "line_items": [{"name": "AI Defense Arena sandbox test", "amount": TEST_AMOUNT, "currency": "PHP", "quantity": 1}],
         "payment_method_types": ["qrph"],
         "reference_number": order_id,
-        "success_url": config.origin + "/?payments=test&payment_return=success",
-        "cancel_url": config.origin + "/?payments=test&payment_return=cancel",
+        "success_url": native_return if native else config.origin + "/?payments=test&payment_return=success",
+        "cancel_url": native_return if native else config.origin + "/?payments=test&payment_return=cancel",
     }}}
     try:
         async with httpx.AsyncClient(timeout=20) as client:

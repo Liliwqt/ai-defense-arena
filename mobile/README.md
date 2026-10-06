@@ -114,11 +114,14 @@ iOS validates the top-level message origin and opens native save/share. Names an
 text size are restricted; document contents are never logged. Browsers retain their
 ordinary text-file download.
 
-Foregrounding requests a new authoritative WebSocket snapshot and refreshes the
-private account. The same React page remains mounted so same-turn drafts survive
-resize/reconnect. Server timers keep running; selection may change while a player
-is offline. Returning from sandbox checkout refreshes server-verified state;
-redirects never award credits. Existing webhook verification remains authoritative.
+Foregrounding refreshes the private account and keeps a healthy WebSocket open.
+A closed connection reconnects for the authoritative room snapshot. The same React
+page remains mounted so same-turn drafts survive resize/reconnect. Server timers keep running; selection may change while a player
+is offline. Native checkout uses a fixed HTTPS return page with a **Return to app** link
+(`defensearena://payment-return`). It resumes the mounted page and refreshes
+server-verified state; if the app was closed, open its payment screen to inspect
+purchase history. Browser checkouts retain their normal website return. Neither
+return path confirms payment or awards credits. Existing webhook verification remains authoritative.
 
 ## Verification checklist
 

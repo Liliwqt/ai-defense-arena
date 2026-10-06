@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import "./payments.css";
 import { purchaseLabel, type TestPurchase } from "../lib/paymentHistory";
+import { isNativeShell } from "../lib/saveDefenseSummary";
 
 export const RECEIPT_KEY = "arena-test-payment";
 export const ATTEMPT_KEY = "arena-test-checkout-attempt";
@@ -108,7 +109,8 @@ export function PaymentTestPage() {
       // provider checkout, rather than creating another payable session.
       sessionStorage.setItem(ATTEMPT_KEY, requestId); setAttempt(requestId);
       const body = await readResponse(await fetch("/api/payments/test/checkout", {
-        method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": account.csrf_token, "Idempotency-Key": requestId },
+        method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": account.csrf_token, "Idempotency-Key": requestId,
+          ...(isNativeShell() ? { "X-Arena-Native": "1" } : {}) },
         body: JSON.stringify({}),
       }));
       const result = validateOrder(body.order);

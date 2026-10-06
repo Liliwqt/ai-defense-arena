@@ -33,3 +33,5 @@ for physical devices, providers and local release checks.
 2026-10-06: User approved this breakdown and requested implementation. Canonical specification: portrait website and downloadable WebView apps.
 
 2026-10-06 implementation handoff: Offline gate passes 218 Python tests and 167 React tests/build. Mocked portrait/desktop code4/code8/mixed12 and layout checks pass. Android debug APK built; actual installations, signed iOS output and live providers remain blocked by explicit platform/device/configuration prerequisites. No push/deploy. Unchecked native criteria are not claimed complete.
+
+2026-10-06 review-fix handoff: Working-tree gate passes 219 Python (providers mocked) and 169 React tests/build; isolated selected mobile code passes 162 React tests/build. Required independent Standards/Spec reviews identify no remaining code defects; three delivery/provider/device prerequisite groups stay open. Healthy native resume and fixed checkout-return navigation have regression evidence. Rebuilt debug APK is local; see docs/MOBILE_REVIEW.md. No publication.

@@ -83,6 +83,14 @@ final class ArenaViewController: UIViewController, WKNavigationDelegate, WKUIDel
     @objc private func resume() {
         web?.evaluateJavaScript("window.dispatchEvent(new Event('defense-native-resume'))", completionHandler: nil)
     }
+    func returnFromCheckout() {
+        loadViewIfNeeded()
+        guard web != nil else { return }
+        // Preserve the mounted page/receipt; only the server can confirm payment.
+        if web.url == nil, let target = URL(string: "/?payments=test", relativeTo: origin) {
+            web.load(URLRequest(url: target))
+        } else { resume() }
+    }
     private func external(_ url: URL) {
         guard url.scheme == "https", url.user == nil, url.password == nil else { return }
         UIApplication.shared.open(url)

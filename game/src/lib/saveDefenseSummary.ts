@@ -10,6 +10,11 @@ window.addEventListener("message", (event: MessageEvent) => {
   androidPort = event.ports[0];
 });
 
+export function isNativeShell(): boolean {
+  const native = window as unknown as { webkit?: { messageHandlers?: { defenseExport?: unknown } } };
+  return window === window.top && Boolean(androidPort || native.webkit?.messageHandlers?.defenseExport);
+}
+
 export function saveDefenseSummary(filename: string, text: string): void {
   const payload: NativeExport = { filename, text };
   const native = window as unknown as { webkit?: { messageHandlers?: { defenseExport?: { postMessage: (value: NativeExport) => void } } } };

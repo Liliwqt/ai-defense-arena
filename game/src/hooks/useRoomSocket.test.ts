@@ -53,10 +53,22 @@ afterEach(() => {
 });
 
 describe("useRoomSocket", () => {
-  it("restores an authoritative snapshot on native resume without starting a run", () => {
+  it("keeps a healthy socket and chosen defender when the native app resumes", () => {
     const { result } = renderHook(() => useRoomSocket(false));
     act(() => result.current.useRoom("ABCD12", "same-token", false));
     act(() => allSockets[0].emit("open", {}));
+    act(() => allSockets[0].emit("message", {data:JSON.stringify({type:"snapshot",state:{room_code:"ABCD12",phase:"question",selected_seat:1,turns:[]}})}));
+    act(() => window.dispatchEvent(new Event("defense-native-resume")));
+    expect(allSockets.length).toBe(1);
+    expect(allSockets[0].readyState).toBe(MockWebSocket.OPEN);
+    expect(result.current.roomState?.selected_seat).toBe(1);
+  });
+
+  it("restores an authoritative snapshot on native resume when disconnected", () => {
+    const { result } = renderHook(() => useRoomSocket(false));
+    act(() => result.current.useRoom("ABCD12", "same-token", false));
+    act(() => allSockets[0].emit("open", {}));
+    act(() => allSockets[0].close());
     act(() => window.dispatchEvent(new Event("defense-native-resume")));
     expect(allSockets.length).toBe(2);
     act(() => allSockets[1].emit("open", {}));
@@ -65,7 +77,6 @@ describe("useRoomSocket", () => {
     expect(result.current.roomState?.answer_deadline_ms).toBe(12345);
     expect(result.current.roomState?.selected_seat).toBe(1);
   });
-
   it("sends hello after socket opens", async () => {
     const { result } = renderHook(() => useRoomSocket(false));
     act(() => result.current.useRoom("ABCD12", "token123", true));

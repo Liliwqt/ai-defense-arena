@@ -16,13 +16,20 @@ TTL_SECONDS = 300
 MAX_PENDING = 128
 
 
+@dataclass(frozen=True)
+class VerifiedGoogleIdentity:
+    subject: str
+    email: str
+    display_name: str
+
+
 @dataclass
 class Handoff:
     challenge: str
     target: str
     expires: float
     opened: bool = False
-    identity: tuple[str, str, str] | None = None
+    identity: VerifiedGoogleIdentity | None = None
     code_hash: str | None = None
 
 
@@ -56,7 +63,7 @@ class MobileHandoffs:
                 raise HTTPException(400, "Start a new sign-in in the app.")
             value.opened = True
 
-    def verified_return(self, flow: str, identity: tuple[str, str, str]) -> str:
+    def verified_return(self, flow: str, identity: VerifiedGoogleIdentity) -> str:
         with self._lock:
             value = self._get(flow)
             if not value.opened or value.identity is not None:
@@ -74,7 +81,7 @@ class MobileHandoffs:
             value = self._get(flow)
             if value.identity is None or not hmac.compare_digest(value.challenge, challenge) or not hmac.compare_digest(value.code_hash or "", hashlib.sha256(code.encode()).hexdigest()):
                 raise HTTPException(400, "Sign-in could not be verified. Start again in the app.")
-            session, _ = issue_session(*value.identity)
+            session, _ = issue_session(value.identity)
             del self._pending[flow]
             return session, value.target
 

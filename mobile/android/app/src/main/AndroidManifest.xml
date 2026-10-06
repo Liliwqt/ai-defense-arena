@@ -11,6 +11,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="defensearena" android:host="auth" />
+                <data android:scheme="defensearena" android:host="payment-return" />
             </intent-filter>
         </activity>
     </application>

@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException, Request, Query
 from pydantic import BaseModel, ConfigDict, Field
 from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
-from mobile_auth import handoffs, RETURN_URL
+from mobile_auth import handoffs, RETURN_URL, VerifiedGoogleIdentity
 
 from account_store import (SESSION_SECONDS, AccessError, account_access, account_overview, redeem_voucher,
                           create_google_session, remove_session, session_account)
@@ -156,6 +156,20 @@ async def login(request: Request, return_to: str = Query("/")):
         return RedirectResponse(failed_destination(target, "unavailable"), status_code=303)
 
 
+def replace_account_session(request: Request, identity: VerifiedGoogleIdentity):
+    session = create_google_session(identity.subject, identity.email, identity.display_name)
+    old = request.cookies.get(ACCOUNT_COOKIE)
+    if old:
+        remove_session(old)
+    return session
+
+
+def attach_account_cookie(result, session: str, origin: str):
+    result.set_cookie(ACCOUNT_COOKIE, session, max_age=SESSION_SECONDS, httponly=True,
+                      secure=origin.startswith("https://"), samesite="lax", path="/")
+    return result
+
+
 @router.get("/google/callback")
 async def callback(request: Request):
     client_id, secret, origin = auth_settings()
@@ -170,22 +184,18 @@ async def callback(request: Request):
         if not isinstance(sub, str) or not 1 <= len(sub) <= 255 or not isinstance(email, str) or not 1 <= len(email) <= 320 or info.get("email_verified") is not True:
             raise ValueError("Unverified Google identity")
         name = info.get("name") if isinstance(info.get("name"), str) else email
+        identity = VerifiedGoogleIdentity(subject=sub, email=email, display_name=name[:100])
         if mobile_flow:
-            target = handoffs.verified_return(mobile_flow, (sub, email, name[:100]))
+            target = handoffs.verified_return(mobile_flow, identity)
             request.session.clear()
             return RedirectResponse(target, status_code=303, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
-        session, _ = create_google_session(sub, email, name[:100])
-        old = request.cookies.get(ACCOUNT_COOKIE)
-        if old:
-            remove_session(old)
+        session, _ = replace_account_session(request, identity)
     except Exception:
         request.session.clear()
         return RedirectResponse(RETURN_URL + "?error=signin_failed" if mobile_flow else failed_destination(target, "failed"), status_code=303, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
     request.session.clear()
     result = RedirectResponse(target, status_code=303, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
-    result.set_cookie(ACCOUNT_COOKIE, session, max_age=SESSION_SECONDS, httponly=True,
-                      secure=origin.startswith("https://"), samesite="lax", path="/")
-    return result
+    return attach_account_cookie(result, session, origin)
 
 
 class MobileStart(BaseModel):
@@ -213,14 +223,10 @@ def mobile_start(body: MobileStart):
 @router.post("/mobile/complete")
 def mobile_complete(body: MobileComplete, request: Request):
     origin = auth_settings()[2]
-    session, target = handoffs.consume(body.flow, body.code, body.verifier, create_google_session)
-    old = request.cookies.get(ACCOUNT_COOKIE)
-    if old:
-        remove_session(old)
+    session, target = handoffs.consume(body.flow, body.code, body.verifier,
+                                      lambda identity: replace_account_session(request, identity))
     result = account_response({"return_to": target})
-    result.set_cookie(ACCOUNT_COOKIE, session, max_age=SESSION_SECONDS, httponly=True,
-                      secure=origin.startswith("https://"), samesite="lax", path="/")
-    return result
+    return attach_account_cookie(result, session, origin)
 
 
 @router.post("/logout")

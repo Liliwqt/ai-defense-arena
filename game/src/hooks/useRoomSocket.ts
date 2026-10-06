@@ -159,11 +159,14 @@ export function useRoomSocket(previewMode: boolean): RoomSocketState {
     });
   }, [previewMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // The native shell requests a fresh authoritative snapshot on foregrounding.
-  // Keep React mounted so same-turn drafts survive this connection replacement.
+  // A healthy socket already receives authoritative snapshots. Replacing it
+  // would disconnect the chosen defender and trigger speaker reassignment.
   useEffect(() => {
-    window.addEventListener("defense-native-resume", connectSocket);
-    return () => window.removeEventListener("defense-native-resume", connectSocket);
+    const resume = () => {
+      if (websocketRef.current?.readyState !== WebSocket.OPEN) connectSocket();
+    };
+    window.addEventListener("defense-native-resume", resume);
+    return () => window.removeEventListener("defense-native-resume", resume);
   }, [connectSocket]);
 
   const useRoom = useCallback(

@@ -162,6 +162,20 @@ class PaymentSandboxTests(unittest.TestCase):
                 self.assertEqual(self.create().status_code, 503)
         self.provider.post.assert_not_called()
 
+    def test_native_checkout_returns_to_app_without_confirming_payment(self):
+        result = self.client.post("/api/payments/test/checkout", json={}, headers={"X-Arena-Native":"1"})
+        self.assertEqual(result.status_code, 201, result.text)
+        attributes = self.provider.post.call_args.kwargs["json"]["data"]["attributes"]
+        self.assertEqual(attributes["success_url"], "https://sandbox.example.com/api/payments/test/mobile-return")
+        self.assertEqual(attributes["cancel_url"], attributes["success_url"])
+        page = self.client.get("/api/payments/test/mobile-return?status=paid")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn('defensearena://payment-return', page.text)
+        self.assertIn('does not confirm payment', page.text)
+        order = result.json()["order"]
+        checked = self.client.get("/api/payments/test/orders/" + order["id"])
+        self.assertEqual(checked.json()["order"]["status"], "pending")
+
     def test_checkout_server_amount_reference_and_no_secret_exposure(self):
         result = self.create()
         self.assertEqual(result.status_code, 201, result.text)
