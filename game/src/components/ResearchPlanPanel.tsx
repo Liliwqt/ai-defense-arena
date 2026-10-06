@@ -13,6 +13,7 @@ interface Props {
 
 export function ResearchPlanPanel({ roomState: state, connected, previewMode, onSendEvent, onBudgetDraftChange }: Props) {
   const plan = state.research_plan;
+  const addressed = Object.values(state.coverage ?? {}).filter(topic => topic.status === "addressed").length;
   const status = state.research_planning_status ?? "none";
   const [budget, setBudget] = useState<string>("");
   const [dirty, setDirty] = useState(false);
@@ -58,6 +59,7 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
     </button>}
     {plan && <>
       {state.completion_reason && <p role="status">Ending reason: {state.completion_reason}</p>}
+      {state.coverage && <p className="plan-summary">{addressed} of {plan.topics.length} topics addressed</p>}
       <p className="plan-summary"><strong>{plan.topics.length} proposed topics</strong> · suggested maximum {plan.suggested_budget} questions</p>
       {plan.uncertainties.length > 0 && <div className="plan-uncertainties"><strong>Unclear or missing information</strong>
         <ul>{plan.uncertainties.map((item, i) => <li key={i}>{item}</li>)}</ul>

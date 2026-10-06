@@ -18,6 +18,15 @@ are still pending. Source is published on `feature/question-first-room`; the
 publication uses `[skip render]` and does not request a deployment. See the mobile README for builds, secure sign-in handoff and
 verification boundaries.
 
+
+The compact mobile-header checkpoint is implemented locally: Settings and Account
+icons flank a centered vote/answer timer or phase status. Room code, research
+coverage and Transcript are available in Controls; question progress stays on
+the question card. Desktop navigation is retained. Review the mock screen at
+<http://127.0.0.1:8816/?preview=1> and the evidence in
+[the header review](docs/MOBILE_HEADER_REVIEW.md). This update is not pushed or
+deployed; website-only layout changes require no native app rebuild.
+
 ## Current branch and verification
 
 This README describes `feature/question-first-room`: the flat room, research documents, same-question clarifications, summary downloads, answer-aware conversations, and Google host accounts with voucher or sandbox-credit access. Research and mixed defenses require a source-grounded paper map and a host-confirmed **4–100-question maximum**. Code-only defenses remain four to eight questions. The architecture release is served at [defense-simulator.onrender.com](https://defense-simulator.onrender.com), with shared timed-turn, purchase and progression modules and checkout UI compatible with account-owned receipts. Hosted health and asset hashes match the tested release; Google and test-payment configuration is enabled. A fresh signed-in defense and provider simulator purchase remain separate unverified checks. Separate Account UI and measured upload-progress work is still local. `main` stays frozen during the review window that began on October 1, 2026, and its earlier service remains unchanged.

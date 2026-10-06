@@ -6,6 +6,8 @@ import { ResearchPlanPanel } from "./ResearchPlanPanel";
 interface ControlsPanelProps {
   account?: Account | null;
   onOpenAccount?: () => void;
+  onOpenTranscript?: () => void;
+  onPreviewMoment?: () => void;
   roomState: RoomState | null;
   connected: boolean;
   previewMode: boolean;
@@ -38,6 +40,8 @@ async function responseJson(response: Response): Promise<Record<string, unknown>
 export function ControlsPanel({
   account,
   onOpenAccount,
+  onOpenTranscript,
+  onPreviewMoment,
   roomState,
   connected,
   previewMode,
@@ -167,6 +171,8 @@ export function ControlsPanel({
 
   return (
     <div className="grid gap-[15px]">
+      {onOpenTranscript && <button type="button" className={secondaryBtn} onClick={onOpenTranscript}>Transcript</button>}
+      {previewMode && onPreviewMoment && <button type="button" className={secondaryBtn} onClick={onPreviewMoment}>Preview presenter</button>}
       {/* Connect forms — shown before joining */}
       {!inRoom && !previewMode && (
         <div>

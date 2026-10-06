@@ -165,7 +165,8 @@ export function App() {
             <ControlsPanel roomState={previewMode ? roomState : liveRoomState} connected={connected} previewMode={previewMode}
               onUseRoom={handleUseRoom} onLeaveRoom={handleLeaveRoom} onSendEvent={sendEvent}
               onCloseDrawer={closeDrawer} showMessage={showMessage} account={account}
-              onOpenAccount={() => openDrawer("account")} />
+              onOpenAccount={() => openDrawer("account")} onOpenTranscript={() => openDrawer("transcript")}
+              onPreviewMoment={previewPresenter} />
             {(message || actionError) && <div role="alert" className="drawer-error">{message || actionError}</div>}
           </>
         ) : drawerMode === "account" ? (
