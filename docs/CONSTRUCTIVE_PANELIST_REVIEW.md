@@ -42,3 +42,8 @@ Independent read-only review against starting HEAD `0d47be9` found no documented
 ## Spec
 
 Independent read-only review found no implementation mismatch or unrequested scope. It identified the unrecorded Streamlit rendering check, now resolved by the passing mocked AppTest above. One verification requirement remains pending: live synthetic proposal, completed-study and mixed conversations with sufficient, vague, contradictory, constrained and Taglish answers. No configured key was available here. **0 code findings; 1 pending verification requirement, live dialogue quality.**
+
+
+## Publication update
+
+On 2026-10-07, the user's subsequent push request published source `5966eb9` on `origin/feature/question-first-room`, including the earlier committed QR store work `0d47be9`. Independent remote-ref inspection confirmed the source tip and unchanged frozen `main`. The source and documentation receipt use `[skip render]`; deployment, hosted verification and the pending live quality/user review are not claimed. Unrelated uncommitted work remains local.
