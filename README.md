@@ -24,8 +24,8 @@ icons flank a centered vote/answer timer or phase status. Room code, research
 coverage and Transcript are available in Controls; question progress stays on
 the question card. Desktop navigation is retained. Review the mock screen at
 <http://127.0.0.1:8816/?preview=1> and the evidence in
-[the header review](docs/MOBILE_HEADER_REVIEW.md). This update is not pushed or
-deployed; website-only layout changes require no native app rebuild.
+[the header review](docs/MOBILE_HEADER_REVIEW.md). Publication and hosted verification are tracked in PROJECT_LOG.md;
+website-only layout changes require no native app rebuild.
 
 ## Current branch and verification
 

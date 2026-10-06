@@ -73,6 +73,8 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Active work
 
+- Root mobile-header-rollout, 2026-10-06: user requested push/deploy of reviewed b5502e3 on feature/question-first-room to defense-simulator.onrender.com. Files: selected README/review rollout wording, this log and new hosted captures only. Ends with verified remote publication and hosted asset/layout result or factual access limitation; preserve pending local work and frozen main.
+
 
 
 
@@ -1080,3 +1082,9 @@ Append new entries to the **end** of this file in date order:
 - Verification, local browser/mock previews: 320x568, 390x844, 667x375, simulated keyboard 390x360 and desktop1365x900 show no horizontal page overflow. Mobile icon targets are 44x44; timer/status center deviation is under 0.01 CSS pixel. The long question's card height is approximately 289/450/106/91/505 pixels respectively, with internal scrolling and horizontally scrolling code. Research excerpt labels, clarification history and question 11 of 24 are retained. Tab skips hidden desktop actions; Controls-to-Transcript focuses Close, Escape restores Settings, Account opens and 125% enlarged text has no horizontal overflow. Final real-browser check at1365x375 confirms desktop button labels remain visible. New captures use `screenshots/mobile-header-*`.
 - Required independent review: user confirmed the latest starting commit, `743d905`, as the baseline. Parallel read-only Standards and Spec reviews inspected the selected staged diff and final CSS fix. Standards: 0 hard breaches, 1 nonblocking duplicated simple coverage count retained without a new abstraction. Spec: 0 actionable defects or scope creep. Full findings are in `docs/MOBILE_HEADER_REVIEW.md`; the local specification is ready-for-human for visual review.
 - Preservation/handoff: commit only the selected UI/tests/docs/new captures. Shared Controls/README files were staged using patches against their committed versions; pending Account/upload/payment changes, unrelated local files and 23 screenshot deletions remain unstaged. Local mock preview runs at `http://127.0.0.1:8816/?preview=1`. No push, deployment, live AI/provider, installed-device or physical-keyboard check; no user visual approval is inferred. Frozen main remains `866e923`. Website-only layout updates do not require rebuilding native apps.
+
+### 2026-10-06 — Mobile header release prepared for deployment
+
+- User requested push and deployment after the local header implementation handoff. Fetch of origin/feature/question-first-room shows a normal one-commit fast-forward from 743d905 to reviewed source b5502e3, with no remote-only commits. Target remains the configured feature service at defense-simulator.onrender.com; frozen main is excluded.
+- Prior source commit intentionally included [skip render]. This documentation rollout tip omits the skip phrase to request the configured feature auto-deploy. Render deployment documentation confirms branch pushes trigger configured automatic builds and skip phrases suppress them. No service configuration, provider secret or paid tier is changed. A redeploy erases active in-memory rooms.
+- Verification: checked Git status/history, unchanged main, selected release diff and existing gate evidence. Reviewed source gate remains 219 Python tests (providers mocked), 177 selected React tests/build; no executable changes require another gate. Local preview/two-client evidence stays separate from hosted operation. Push and fresh hosted health/assets/layout verification are pending.

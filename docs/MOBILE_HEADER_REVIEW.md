@@ -73,7 +73,8 @@ remains pending. No account/payment, backend, protocol, AI or native changes ent
 the selected diff.
 
 Review totals: Standards 0 hard breaches / 1 nonblocking smell; Spec 0 actionable
-findings. User visual review remains pending. No push, deployment,
-paid AI call, installed-device or physical-keyboard evidence is claimed. Main
+findings. User visual review remains pending. Implementation checks above do not establish deployment, paid AI calls,
+installed-device or physical-keyboard evidence. The user subsequently requested
+push/deploy; current rollout results are recorded separately in PROJECT_LOG.md. Main
 remains frozen. Unrelated Account/upload edits and screenshot deletions are
 excluded from the selected commit.
