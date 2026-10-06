@@ -72,6 +72,8 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Active work
 
+- Root mobile-publish, 2026-10-06: user requested push. Publish existing mobile commits plus documentation on feature/question-first-room with a skip-render tip. Preserve unrelated edits/deletions; ends at a verified remote SHA and dated publication result. No main update or manual deployment.
+
 
 
 
@@ -1044,3 +1046,9 @@ Append new entries to the **end** of this file in date order:
 - Verification, local browser/mock AI: fresh desktop/390x844 portrait clients completed four code questions. Native-resume kept one socket, selected seat 1, unchanged server answer deadline and draft; a subsequent chat broadcast arrived. All exact citations match the upload, both transcripts/coaching match, and reload restores completion. Earlier code8/mixed12 mock runs remain historical evidence above. New `mobile-resume-review-portrait.png` and `mobile-review-portrait.png` capture this check and synthetic long research preview; 390x844/667x375 show no page-level horizontal overflow. Temporary helper errors (fixture route order and incorrect chat field) were fixed in the helper only.
 - Verification, native build/source: rebuilt Android `:app:assembleDebug` passes; apksigner verifies v2; package com.defensearena.mobile/min30/target36. Ignored local APK SHA-256 is recorded in mobile review. adb lists no device and emulator lists no AVD. iOS plist/shared scheme and Android manifest parse; shell scripts pass syntax checks. No iOS compile/signed artifact/installation, live Google or provider checkout, physical keyboard or user visual approval is inferred.
 - Handoff: local preview and artifact/build instructions are presented; remaining native criteria stay unchecked/ready-for-human. Commit only selected mobile source/tests/docs/captures, preserving unrelated local edits/files and 23 screenshot deletions. No push/deployment; main remains `866e923` and feature hosting stays on the prior architecture release. Default APK origin still serves that older website until future publication; native new-integration testing requires a controlled HTTPS staging origin.
+
+### 2026-10-06 — Mobile publication prepared
+
+- User requested push after the local implementation and iOS handoff. Session root mobile-publish checked branch, unstaged changes, existing review/gate evidence and fetched the feature branch. Remote remains at `48e3ff7`; source commits `5a639df` and `6d7384e` form a normal fast-forward update with no remote-only commits.
+- Adding a documentation tip with `[skip render]` before the requested push, using Render's documented auto-deploy skip phrase. No Render deployment or main update is requested. Android APK remains a Git-ignored local test artifact; iOS source/build guidance will be published, not a signed installable iPhone binary.
+- Verification: Git status, fetch, ahead/behind history and diff checks; no new executable edits, tests, paid calls or hosted/device check for this publication-only step. Existing isolated mobile gate is 219 Python (providers mocked), 162 React/build. Unrelated Account/upload edits, files and 23 screenshot deletions remain unstaged. Push verification is pending.
