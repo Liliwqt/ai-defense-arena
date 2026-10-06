@@ -4,7 +4,7 @@ Practice a code-project or research-paper defense with four AI panelists and up 
 
 The multiplayer app uses a flat, question-centered React interface served by FastAPI. Four panelist cards sit above the question, four defender cards below it, and a persistent bottom dock holds voting, answers, and team chat. A separate Streamlit app provides a single-browser fallback.
 
-## Mobile website and WebView apps (local checkpoint)
+## Mobile website and WebView apps (feature-branch checkpoint)
 
 The existing React room supports phone portrait and landscape, with compact seat
 strips, internally scrolling questions/citations and a bottom answer/chat dock.
@@ -14,8 +14,8 @@ under [mobile/](mobile/README.md); there is no separate mobile frontend or backe
 Android's local debug APK is built under `mobile/artifacts/`. The iOS project
 requires macOS/Xcode and your own signing configuration; no iPhone artifact has
 been built here. Installed-device, real Google return and sandbox provider checks
-are still pending. These changes remain local and the live service stays on its
-current release. See the mobile README for builds, secure sign-in handoff and
+are still pending. Source is published on `feature/question-first-room`; the
+publication uses `[skip render]` and does not request a deployment. See the mobile README for builds, secure sign-in handoff and
 verification boundaries.
 
 ## Current branch and verification

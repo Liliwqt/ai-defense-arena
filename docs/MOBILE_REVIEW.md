@@ -72,3 +72,13 @@ Main and hosted services are unchanged. Default native URL still receives the
 older deployed website; a controlled HTTPS staging origin is needed to exercise
 new native integrations before publication. No push/deployment or user visual
 approval is claimed.
+
+## Publication handoff — 2026-10-06
+
+After the local review, the user requested push. Mobile source commits `5a639df`
+and `6d7384e` were pushed with documentation tip `ee27dfb` to
+`origin/feature/question-first-room`. `git ls-remote` confirmed that exact tip.
+Publication uses `[skip render]` and does not request a deployment. The local
+review's device/provider/signing prerequisites remain open; APK is still ignored
+and no signed iOS artifact is published. Subsequent documentation records the
+verified push separately from the earlier local-only review.

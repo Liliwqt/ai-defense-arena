@@ -21,8 +21,9 @@ The iOS project and shared scheme are provided, but this Linux workspace lacks
 macOS/Xcode. No iOS build, signed artifact or installation is claimed. Use your
 own Apple signing team/provisioning on a Mac. No paid distribution is assumed.
 
-The default origin is `https://defense-simulator.onrender.com`. This checkpoint
-is local; its portrait and mobile-auth changes are **not deployed** there yet.
+The default origin is `https://defense-simulator.onrender.com`. Source is now
+published on `feature/question-first-room` with `[skip render]`; publication does
+not request deployment. No hosted verification of the mobile changes is claimed.
 An APK loading that URL receives the currently deployed website. To test the
 new integration before publication, configure a controlled HTTPS staging server
 with this branch. Do not point it at frozen main or disable certificate checks.
