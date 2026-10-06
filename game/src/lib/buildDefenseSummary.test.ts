@@ -41,6 +41,16 @@ const turn = (over: Partial<RoomState["turns"][number]> = {}) => ({
 });
 
 describe("buildDefenseSummary", () => {
+  it("attributes a research suggestion to the panelist rather than the team's answer", () => {
+    const advice = "One option is broader recruitment if access permits.";
+    const answer = "We will keep the pilot and limit its claims.";
+    const text = buildDefenseSummary({ ...baseState, defense_type: "research", turns: [turn({
+      panelist: "Methodology Reviewer", lead_in: advice, answer, filename: "paper.md",
+    })] });
+    expect(text).toContain(`Panelist: ${advice}`);
+    expect(text).toContain(`Team answer (You): ${answer}`);
+    expect(text).not.toContain(`Team answer (You): ${advice}`);
+  });
   it("includes the defense kind, room, team, and materials", () => {
     const text = buildDefenseSummary(baseState);
     expect(text).toContain("Code project defense");

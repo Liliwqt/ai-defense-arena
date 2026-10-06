@@ -39,6 +39,31 @@ const setSocket = (state: RoomState | null) => vi.mocked(useRoomSocket).mockRetu
 afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); });
 
 describe("flat room flow", () => {
+  it("keeps research advice separate from the question and accepted answer in the room and transcript", async () => {
+    const advice = "One option is to narrow the claim if recruitment access is limited.";
+    const answer = "We retained the pilot and limited our conclusions to its participants.";
+    const question = "How will the team define the pilot's scope?";
+    const state: RoomState = { ...room([{ ...turn(answer, 0), panelist: "Methodology Reviewer",
+      lead_in: advice, question, filename: "paper.md", evidence_text: "We plan a small campus pilot.",
+    }], "complete"), defense_type: "research", feedback_status: "ready", feedback: {
+      summary: "The team explained its scope.", strengths: [{ turn: 0, text: "Justified the scope limit." }],
+      improvements: [], next_step: "Document the limits of the pilot claim.",
+    } };
+    setSocket({ ...state, phase: "question", turns: [{ ...state.turns[0], answer: null }] });
+    const view = render(<App />);
+    await userEvent.click(screen.getByRole("button", { name: /close panel/i }));
+    expect(screen.getByText(advice)).toBeTruthy();
+    expect(screen.getByText(question)).toBeTruthy();
+    expect(screen.getByText("We plan a small campus pilot.")).toBeTruthy();
+    setSocket(state);
+    view.rerender(<App />);
+    await userEvent.click(screen.getByRole("button", { name: /settings.*controls/i }));
+    await userEvent.click(within(screen.getByRole("dialog", { name: "Controls" })).getByRole("button", { name: "Transcript" }));
+    const transcript = screen.getByRole("dialog", { name: "Transcript" });
+    expect(within(transcript).getByText(advice)).toBeTruthy();
+    expect(within(transcript).getByText(answer)).toBeTruthy();
+    expect(within(transcript).getByText("Justified the scope limit.")).toBeTruthy();
+  });
   it("allows upright-phone participation without a blocking rotation instruction", async () => {
     setSocket(room([turn(null, null)]));
     render(<App />);

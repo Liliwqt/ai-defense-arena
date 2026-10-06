@@ -157,6 +157,7 @@ class ResearchFilesTests(unittest.TestCase):
         self.assertEqual(question.evidence_text, 'DATABASE = 1')
         self.assertEqual(question.evidence_before, '')
         self.assertEqual(question.evidence_after, '')
+        self.assertNotIn('Constructive research advice', client.request['input'][0]['content'])
 
     def test_room_snapshot_includes_the_citation_context(self):
         paper = read_research_files([upload('paper.pdf', pdf_page_bytes('alpha', 'beta', 'omega'))])[0][0]
@@ -229,6 +230,27 @@ class ResearchFilesTests(unittest.TestCase):
                         session.apply_move(PanelMove(None, None))
                 self.assertTrue(session.completed)
                 self.assertEqual(len(session.turns), 8 if followups else 4)
+
+    def test_research_and_mixed_fallback_requests_share_advice_policy(self):
+        paper = ProjectFile('proposal.md', 'We will recruit students for interviews.', 'research_text')
+        for mode in ('research', 'mixed'):
+            with self.subTest(mode=mode):
+                first_client = FakeClient(QuestionDraft(lead_in='', question='Why interviews?',
+                    source_file=1, evidence_line=1))
+                first = generate_first_question([paper], 'test-key', client=first_client,
+                    defense_type=mode, research_stage='proposal')
+                self.assertEqual(first.lead_in, '')
+                self.assertIn('Do not offer a suggestion in lead_in', first_client.request['input'][0]['content'])
+                session = DefenseSession.start(first, mode, 'proposal')
+                session.submit_answer('Access is limited to volunteers, so we will limit the scope of our claims.')
+                client = FakeClient(NextMoveDraft(action='ask', panelist=ETHICS_REVIEWER,
+                    lead_in='One option is private recruitment if it reduces pressure on volunteers.',
+                    question='How will volunteers be invited?', source_file=1, evidence_line=1))
+                move = generate_next_move([paper], 'test-key', history=session.answered_history(),
+                    allowed_panelists=session.allowed_next_panelists, may_complete=False,
+                    defense_type=mode, research_stage='proposal', client=client)
+                self.assertIn('conditional advice', client.request['input'][0]['content'])
+                self.assertEqual(move.question.evidence_text, paper.content)
 
 
 class ResearchRoomTests(unittest.TestCase):

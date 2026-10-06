@@ -13,7 +13,7 @@ from defense_session import ResearchDefenseSession, advance_defense
 from project_files import ProjectFile
 from question_generator import (RESEARCH_PANELISTS, ResearchMove, ResearchMoveDraft, TopicAssessmentDraft,
     GroundedQuestion, GroundedCitation, QuestionGenerationError, generate_research_move,
-    generate_coaching_report, CoachingDraft, CoachingPoint, CoachingReport, SubmissionDecision)
+    generate_coaching_report, CoachingDraft, CoachingPoint, CoachingReport, SubmissionDecision, AnsweredQuestion)
 from research_plan import ResearchPlan, ResearchTopic
 
 PAPER = '\n'.join(f'Section {i}: The proposal will examine campus queue pilot decision {i}.' for i in range(1, 13))
@@ -113,6 +113,58 @@ class CoveragePolicyTests(unittest.TestCase):
         self.assertFalse(session.turns[-1].is_follow_up)
         self.assertEqual(session.turns[-1].panelist, RESEARCH_PANELISTS[1])
         self.assertEqual(session.turns[-1].topic_id, 'topic-2')
+
+    def test_research_request_allows_conditional_advice_after_an_accepted_answer(self):
+        session = self.session(4, 8)
+        self.apply(session)
+        answer = 'We can recruit classmates, but access to other departments is limited.'
+        session.submit_answer(answer, speaker_name='Sam')
+        advice = 'One option is broader recruitment if access permits; otherwise the team could narrow its claim.'
+        output = proposal(session.context(), session.answered_history()) | {'lead_in': advice}
+        client = Client(output)
+        move = generate_research_move(FILES, 'offline-key', history=session.answered_history(),
+            context=session.context(), client=client, research_stage='proposal')
+        self.assertEqual(move.question.lead_in, advice)
+        self.assertEqual(move.question.evidence_text, PAPER.splitlines()[1])
+        system, data = [item['content'] for item in client.calls[0]['input']]
+        self.assertIn('conditional advice', system)
+        self.assertIn('not defender evidence', system)
+        self.assertIn(answer, data)
+
+    def test_opening_and_timeout_requests_have_no_reasoning_to_advise_on(self):
+        session = self.session(4, 8)
+        opening = self.apply(session)
+        self.assertEqual(session.turns[0].question.lead_in, '')
+        self.assertIn('Do not offer a suggestion in lead_in', opening.calls[0]['input'][0]['content'])
+        session.time_out_current()
+        client = self.apply(session, followup=True)
+        self.assertIn('Do not offer a suggestion in lead_in', client.calls[0]['input'][0]['content'])
+        self.assertIsNone(session.answered_history()[0].answer)
+        self.assertEqual(session.coverage['topic-1']['status'], 'needs clarification')
+
+    def test_advice_validation_retry_preserves_answer_and_unassessed_coverage(self):
+        for invalid in ('too_long', 'too_many_sentences', 'citation'):
+            with self.subTest(invalid=invalid):
+                session = self.session(4, 8)
+                self.apply(session)
+                answer = 'We will retain the small pilot and limit conclusions to its participants.'
+                session.submit_answer(answer, speaker_name='Sam')
+                before = deepcopy(session.coverage)
+                output = proposal(session.context(), session.answered_history())
+                output['lead_in'] = 'One option is to narrow the claim if recruitment is limited.'
+                if invalid == 'too_long': output['lead_in'] = 'x' * 301
+                if invalid == 'too_many_sentences': output['lead_in'] = 'An option exists. It may help. It has costs.'
+                if invalid == 'citation': output['evidence_line'] = 999
+                with self.assertRaises(QuestionGenerationError):
+                    move = generate_research_move(FILES, 'offline-key', history=session.answered_history(),
+                        context=session.context(), client=Client(output))
+                    session.apply_move(move)
+                self.assertEqual(session.coverage, before)
+                self.assertEqual(len(session.turns), 1)
+                self.assertEqual(session.answered_history()[0].answer, answer)
+                self.apply(session)
+                self.assertEqual(len(session.turns), 2)
+                self.assertEqual(session.turns[0].answer, answer)
 
     def test_invalid_move_is_atomic_and_retry_keeps_answer(self):
         for change in ('unknown_topic', 'wrong_role', 'early_completion', 'wrong_assessment_turn', 'wrong_assessment_topic', 'timeout_addressed', 'repeat_question', 'double_followup'):
@@ -260,6 +312,26 @@ class CoveragePolicyTests(unittest.TestCase):
             with self.assertRaises(QuestionGenerationError):
                 generate_coaching_report(FILES, history, 'offline-key', client=Client(draft.model_copy(update={'improvements':[CoachingPoint(turn=length, text='Bad ref')]})), defense_type='research')
 
+    def test_research_coaching_distinguishes_advice_from_the_teams_explanation(self):
+        advice = 'One option is broader recruitment if access permits.'
+        answer = 'We will retain classmates and narrow the claim to this department.'
+        history = [AnsweredQuestion(RESEARCH_PANELISTS[0], 'Why this scope?', answer, lead_in=advice)]
+        draft = CoachingDraft(summary='The team explained a narrower scope.',
+            strengths=[CoachingPoint(turn=0, text='The team aligned the claim with its recruitment.')],
+            improvements=[CoachingPoint(turn=0, text='Explain the remaining limitations.')],
+            next_step='Document the chosen scope and its limits.')
+        for mode in ('research', 'mixed'):
+            with self.subTest(mode=mode):
+                client = Client(draft)
+                report = generate_coaching_report(FILES, history, 'offline-key', client=client,
+                    defense_type=mode, research_stage='completed')
+                system, data = [item['content'] for item in client.calls[0]['input']]
+                self.assertIn('conditional advice', system)
+                self.assertIn('Panelist suggestions are not team strengths', system)
+                self.assertIn(advice, data)
+                self.assertIn(answer, data)
+                self.assertEqual(report.strengths[0]['turn'], 0)
+
 
 class CoverageRoomTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -383,12 +455,17 @@ class CoverageProtocolTests(unittest.TestCase):
                     kwargs.pop('client',None)
                     output=proposal(context,history,followup=bool(history and history[-1].timed_out),mixed=mode=='mixed')
                     if output['action']=='ask':
+                        if history and not history[-1].timed_out:
+                            output['lead_in']='One option is to narrow the pilot claim if recruitment access is limited.'
                         code_citation=mode=='mixed' and len(history)%2==1
                         output['source_file']=next(i for i,f in enumerate(files,1) if f.kind.startswith('research') != code_citation)
                     return generate_research_move(files,'offline-key',history=history,context=context,client=Client(output),**kwargs)
                 def interpret(*args,submission,**kwargs):
                     return SubmissionDecision('clarify','Explain the same pilot decision, in simple terms.') if submission=='Simpler please' else SubmissionDecision('answer')
                 def coach(files,history,key,model,**kwargs):
+                    self.assertEqual(history[0].answer, None)
+                    self.assertEqual(history[2].lead_in, 'One option is to narrow the pilot claim if recruitment access is limited.')
+                    self.assertEqual(history[2].answer, 'We will compare queue times with a documented pilot method.')
                     draft=CoachingDraft(summary='The approved budget ended. Unresolved topics remain, including the missed turn.',
                         strengths=[CoachingPoint(turn=1,text='The team described a pilot comparison.')],
                         improvements=[CoachingPoint(turn=0,text='The opening question received no answer.')],next_step='Review remaining topics.')
@@ -418,6 +495,8 @@ class CoverageProtocolTests(unittest.TestCase):
                                 turn=state['turns'][-1]
                                 expected='    save_reservation(student_id)' if turn['filename']=='queue.py' else PAPER.splitlines()[turn['evidence_line']-1]
                                 self.assertEqual(turn['evidence_text'],expected)
+                                if index > 1:
+                                    self.assertEqual(turn['lead_in'], 'One option is to narrow the pilot claim if recruitment access is limited.')
                             h.send_json({'type':'cast_vote','seat':index%2})
                             for ws in(h,g):self.until(ws,'voting',index+1)
                             self.now+=game_server.VOTE_MS+1
@@ -454,9 +533,16 @@ class CoverageProtocolTests(unittest.TestCase):
 class CoverageStreamlitTests(unittest.TestCase):
     def test_twelve_turn_session_coaching_and_early_end(self):
         from streamlit.testing.v1 import AppTest
+        advice = 'One option is to narrow the claim if recruitment access is limited.'
+        def advice_move(files, key, *, history, context, **kwargs):
+            output = proposal(context, history)
+            if history and output['action'] == 'ask':
+                output['lead_in'] = advice
+            return generate_research_move(files, 'offline-key', history=history, context=context,
+                client=Client(output), **kwargs)
         with patch.dict(os.environ,{'OPENAI_API_KEY':'offline-key'}), \
              patch('research_plan.generate_research_plan',return_value=plan()), \
-             patch('defense_session.generate_research_move',side_effect=mocked_move), \
+             patch('defense_session.generate_research_move',side_effect=advice_move), \
              patch('question_generator.interpret_submission',return_value=SubmissionDecision('answer')):
             app=AppTest.from_file('app.py').run()
             app.selectbox[0].select('Research paper').run()
@@ -469,6 +555,9 @@ class CoverageStreamlitTests(unittest.TestCase):
             for i in range(12):
                 self.assertFalse(app.exception)
                 self.assertEqual(len(app.session_state['defense_session'].turns),i+1)
+                if i:
+                    self.assertIn(advice, [caption.value for caption in app.caption])
+                    self.assertNotEqual(app.session_state['defense_session'].turns[i-1].answer, advice)
                 app.text_area[0].set_value('We will compare queue times with a documented pilot method.')
                 next(b for b in app.button if b.label=='Send to panelist').click().run()
             session=app.session_state['defense_session']
