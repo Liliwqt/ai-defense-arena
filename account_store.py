@@ -35,7 +35,9 @@ def _initialize_store(db, *, postgres=False):
         checkout_id TEXT UNIQUE, checkout_url TEXT,
         amount INTEGER NOT NULL, currency TEXT NOT NULL,
         status TEXT NOT NULL, payment_id TEXT UNIQUE,
-        created_at INTEGER NOT NULL, paid_at INTEGER
+        created_at INTEGER NOT NULL, paid_at INTEGER,
+        provider TEXT NOT NULL DEFAULT 'checkout_session',
+        intent_id TEXT, qr_image_url TEXT, expires_at INTEGER
     )""")
     columns = db.columns("test_orders") if postgres else {row["name"] for row in db.execute("PRAGMA table_info(test_orders)")}
     if "account_id" not in columns:
@@ -44,7 +46,16 @@ def _initialize_store(db, *, postgres=False):
         db.execute("ALTER TABLE test_orders ADD COLUMN credits INTEGER NOT NULL DEFAULT 0")
     if "request_hash" not in columns:
         db.execute("ALTER TABLE test_orders ADD COLUMN request_hash TEXT")
+    if "provider" not in columns:
+        db.execute("ALTER TABLE test_orders ADD COLUMN provider TEXT NOT NULL DEFAULT 'checkout_session'")
+    if "intent_id" not in columns:
+        db.execute("ALTER TABLE test_orders ADD COLUMN intent_id TEXT")
+    if "qr_image_url" not in columns:
+        db.execute("ALTER TABLE test_orders ADD COLUMN qr_image_url TEXT")
+    if "expires_at" not in columns:
+        db.execute("ALTER TABLE test_orders ADD COLUMN expires_at INTEGER")
     db.execute("CREATE UNIQUE INDEX IF NOT EXISTS orders_by_request ON test_orders(request_hash)")
+    db.execute("CREATE UNIQUE INDEX IF NOT EXISTS orders_by_intent ON test_orders(intent_id)")
     db.execute("""CREATE TABLE IF NOT EXISTS test_credit_ledger (
         order_id TEXT PRIMARY KEY REFERENCES test_orders(id),
         account_id TEXT NOT NULL REFERENCES accounts(id),
