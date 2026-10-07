@@ -61,6 +61,7 @@ class AccountCreditTests(unittest.TestCase):
         self.override_claims = {}
         self.signing_key = self.key
         self.nonce = ""
+        self.intent_by_topup = {}
         self.token_requests = 0
         self.google = OAuth().register("google", client_id="offline-google-client", client_secret="offline-google-secret",
             server_metadata_url=accounts.GOOGLE_METADATA,
@@ -105,24 +106,34 @@ class AccountCreditTests(unittest.TestCase):
         client.headers.update({"Origin": self.origin, "X-CSRF-Token": csrf})
         return token, csrf
 
-    def checkout(self, client=None, **extra):
+    def topup(self, client=None, **extra):
         client = client or self.client
-        result = Mock()
-        result.json.return_value = {"data": {"id": "cs_" + os.urandom(8).hex(), "attributes": {
-            "livemode": False, "checkout_url": "https://checkout.paymongo.com/offline"}}}
+        intent = "pi_" + os.urandom(8).hex()
+        attrs = {"livemode": False, "amount": 10000, "currency": "PHP"}
+        image = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1uoAAAAASUVORK5CYII="
+        resources = [
+            {"id": intent, "type": "payment_intent", "attributes": {**attrs, "client_key": "offline-client-key", "status": "awaiting_payment_method"}},
+            {"id": "pm_offline", "type": "payment_method", "attributes": {"livemode": False, "type": "qrph"}},
+            {"id": intent, "type": "payment_intent", "attributes": {**attrs, "status": "awaiting_next_action", "next_action": {"code": {"image_url": image}}}},
+        ]
+        results = [Mock() for _ in resources]
+        for result, resource in zip(results, resources):
+            result.json.return_value = {"data": resource}
         provider = AsyncMock()
-        provider.post.return_value = result
+        provider.post.side_effect = results
         with patch.object(payments.httpx, "AsyncClient") as factory:
             factory.return_value.__aenter__.return_value = provider
-            response = client.post("/api/payments/test/checkout", json={**extra})
+            response = client.post("/api/payments/test/topups", json={"package_id": "starter", **extra},
+                headers={"Idempotency-Key": "offline-topup-" + os.urandom(8).hex()})
+        if response.status_code == 201:
+            self.intent_by_topup[response.json()["topup"]["id"]] = intent
         return response
 
     def webhook(self, order, client=None):
-        with account_store.connect_store(self.db_path) as db:
-            row = db.execute("SELECT checkout_id FROM test_orders WHERE id=?", (order["id"],)).fetchone()
-        body = {"data": {"type": "checkout_session.payment.paid", "livemode": False, "data": {
-            "id": row[0], "type": "checkout_session", "attributes": {"reference_number": order["id"],
-            "payments": [{"id": "pay_" + order["id"], "attributes": {"status": "paid", "amount": 10000, "currency": "PHP"}}]}}}}
+        body = {"data": {"type": "payment.paid", "livemode": False, "data": {
+            "id": "pay_" + order["id"], "type": "payment", "attributes": {
+                "livemode": False, "payment_intent_id": self.intent_by_topup[order["id"]],
+                "metadata": {"topup_id": order["id"]}, "status": "paid", "amount": 10000, "currency": "PHP"}}}}
         raw = json.dumps(body).encode()
         stamp = str(self.clock)
         digest = hmac.new(b"offline-webhook-secret", stamp.encode() + b"." + raw, hashlib.sha256).hexdigest()
@@ -210,20 +221,20 @@ class AccountCreditTests(unittest.TestCase):
         self.sign_in_fixture()
         self.clock += account_store.SESSION_SECONDS + 1
         self.assertFalse(self.client.get("/api/auth/me").json()["authenticated"])
-        self.assertEqual(self.checkout().status_code, 401)
+        self.assertEqual(self.topup().status_code, 401)
 
-    def test_checkout_requires_session_csrf_and_server_owned_credit_pack(self):
-        self.assertEqual(self.checkout().status_code, 401)
+    def test_topup_requires_session_csrf_and_server_owned_credit_pack(self):
+        self.assertEqual(self.topup().status_code, 401)
         self.sign_in_fixture()
-        self.assertEqual(self.client.post("/api/payments/test/checkout", json={}, headers={"X-CSRF-Token": "wrong"}).status_code, 403)
-        self.assertEqual(self.checkout(credits=99999).status_code, 422)
-        self.assertEqual(self.checkout(account_id="another").status_code, 422)
-        created = self.checkout().json()
-        self.assertEqual(created["order"]["credits"], 100)
+        self.assertEqual(self.client.post("/api/payments/test/topups", json={"package_id": "starter"}, headers={"X-CSRF-Token": "wrong"}).status_code, 403)
+        self.assertEqual(self.topup(credits=99999).status_code, 422)
+        self.assertEqual(self.topup(account_id="another").status_code, 422)
+        created = self.topup().json()
+        self.assertEqual(created["topup"]["credits"], 100)
 
     def test_signed_payment_awards_once_to_owner_without_browser(self):
         self.sign_in_fixture()
-        order = self.checkout().json()["order"]
+        order = self.topup().json()["topup"]
         owner = self.client.get("/api/auth/me").json()["user"]["id"]
         self.assertEqual(self.client.get("/api/auth/me").json()["test_credits"], 0)
         self.client.post("/api/auth/logout")
@@ -239,11 +250,11 @@ class AccountCreditTests(unittest.TestCase):
 
     def test_two_users_have_private_orders_balances_and_history(self):
         self.sign_in_fixture("alex")
-        created = self.checkout().json()
-        self.assertEqual(self.webhook(created["order"]).status_code, 200)
+        created = self.topup().json()
+        self.assertEqual(self.webhook(created["topup"]).status_code, 200)
         with TestClient(self.client.app, base_url=self.origin) as sam:
             self.sign_in_fixture("sam", sam)
-            response = sam.get("/api/payments/test/orders/" + created["order"]["id"], headers={"Authorization": "Bearer unused-legacy-token"})
+            response = sam.get("/api/payments/test/topups/" + created["topup"]["id"], headers={"Authorization": "Bearer unused-legacy-token"})
             self.assertEqual(response.status_code, 404)
             self.assertEqual(sam.get("/api/auth/me").json()["test_credits"], 0)
             self.assertEqual(sam.get("/api/auth/me").json()["orders"], [])
@@ -251,7 +262,7 @@ class AccountCreditTests(unittest.TestCase):
 
     def test_concurrent_duplicate_webhooks_do_not_duplicate_credits(self):
         self.sign_in_fixture()
-        order = self.checkout().json()["order"]
+        order = self.topup().json()["topup"]
         with ThreadPoolExecutor(max_workers=2) as pool:
             results = list(pool.map(lambda _: self.webhook(order), range(2)))
         self.assertTrue(all(result.status_code == 200 for result in results))
@@ -259,11 +270,11 @@ class AccountCreditTests(unittest.TestCase):
 
     def test_credit_failure_rolls_back_payment_until_retry(self):
         self.sign_in_fixture()
-        order = self.checkout().json()["order"]
+        order = self.topup().json()["topup"]
         with account_store.connect_store(self.db_path) as db:
             db.execute("CREATE TRIGGER reject_credit BEFORE INSERT ON test_credit_ledger BEGIN SELECT RAISE(ABORT, 'offline failure'); END")
         self.assertEqual(self.webhook(order).status_code, 400)
-        self.assertEqual(self.client.get("/api/payments/test/orders/" + order["id"]).json()["order"]["status"], "pending")
+        self.assertEqual(self.client.get("/api/payments/test/topups/" + order["id"]).json()["topup"]["status"], "pending")
         self.assertEqual(self.client.get("/api/auth/me").json()["test_credits"], 0)
         with account_store.connect_store(self.db_path) as db:
             db.execute("DROP TRIGGER reject_credit")
@@ -273,7 +284,7 @@ class AccountCreditTests(unittest.TestCase):
     def test_private_history_tracks_verified_awards_reservation_release_and_charge(self):
         token, _ = self.sign_in_fixture()
         account_id = account_store.session_account(token)['id']
-        order = self.checkout().json()['order']
+        order = self.topup().json()['topup']
         pending = self.client.get('/api/auth/me').json()
         self.assertEqual(pending['orders'][0]['awarded_credits'], 0)
         self.webhook(order)
@@ -295,7 +306,7 @@ class AccountCreditTests(unittest.TestCase):
     def test_audit_reports_consistent_totals_without_private_identifiers(self):
         token, _ = self.sign_in_fixture()
         account_id = account_store.session_account(token)['id']
-        order = self.checkout().json()['order']; self.webhook(order)
+        order = self.topup().json()['topup']; self.webhook(order)
         account_store.reserve_run(account_id, 'charged-run')
         account_store.charge_run(account_id, 'charged-run')
         result = payment_audit.audit_store()
@@ -309,7 +320,7 @@ class AccountCreditTests(unittest.TestCase):
     def test_audit_detects_inconsistent_awards_and_negative_balance_without_repair(self):
         token, _ = self.sign_in_fixture()
         account_id = account_store.session_account(token)['id']
-        order = self.checkout().json()['order']; self.webhook(order)
+        order = self.topup().json()['topup']; self.webhook(order)
         account_store.reserve_run(account_id, 'charged-run')
         account_store.charge_run(account_id, 'charged-run')
         with account_store.connect_store(self.db_path) as db:
@@ -323,7 +334,7 @@ class AccountCreditTests(unittest.TestCase):
 
     def test_audit_detects_award_mismatch(self):
         self.sign_in_fixture()
-        order = self.checkout().json()['order']; self.webhook(order)
+        order = self.topup().json()['topup']; self.webhook(order)
         with account_store.connect_store(self.db_path) as db:
             db.execute('UPDATE test_credit_ledger SET credits=50')
         self.assertEqual(payment_audit.audit_store()['problems']['awards_not_matching_paid_purchase'], 1)

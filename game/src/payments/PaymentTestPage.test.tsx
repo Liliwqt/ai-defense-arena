@@ -209,7 +209,7 @@ describe("QR-first sandbox top-up", () => {
     history.replaceState(null, "", "/?payments=test&payment_return=success");
     sessionStorage.setItem("arena-test-payment", JSON.stringify({id: "old", token: "legacy-fixture"}));
     const fetcher = fetcherFor(); vi.stubGlobal("fetch", fetcher); render(<PaymentTestPage />);
-    await screen.findByText(/A checkout redirect does not confirm payment/);
+    await screen.findByText(/Returning here does not verify payment/);
     expect(screen.queryByText("Test payment confirmed.")).toBeNull();
     expect(fetcher.mock.calls.some(([url]) => url.includes("/orders/"))).toBe(false);
     expect(sessionStorage.getItem("arena-test-payment")).toContain("old");

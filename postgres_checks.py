@@ -49,7 +49,7 @@ class LocalDatabase:
 class PostgresAccounts(LocalDatabase, test_accounts.AccountCreditTests):
     def test_credit_failure_rolls_back_payment_until_retry(self):
         self.sign_in_fixture()
-        order = self.checkout().json()['order']
+        order = self.topup().json()['topup']
         # PostgreSQL equivalent of the SQLite fault-injection trigger.
         with store.connect_store(self.db_path) as db:
             db.execute("ALTER TABLE test_credit_ledger ADD CONSTRAINT reject_credit CHECK(credits < 0)")
@@ -74,7 +74,7 @@ class PostgresAccounts(LocalDatabase, test_accounts.AccountCreditTests):
 
     def test_concurrent_signed_webhooks_award_once(self):
         self.sign_in_fixture()
-        order = self.checkout().json()['order']
+        order = self.topup().json()['topup']
         with ThreadPoolExecutor(max_workers=4) as workers:
             statuses = list(workers.map(lambda _: self.webhook(order).status_code, range(8)))
         self.assertEqual(statuses, [200] * 8)
@@ -83,7 +83,7 @@ class PostgresAccounts(LocalDatabase, test_accounts.AccountCreditTests):
     def test_new_connections_preserve_identity_voucher_and_credit_charge(self):
         token, _ = self.sign_in_fixture()
         account = store.session_account(token)
-        order = self.checkout().json()['order']
+        order = self.topup().json()['topup']
         self.webhook(order)
         store.reserve_run(account['id'], 'persisted-run')
         store.charge_run(account['id'], 'persisted-run')

@@ -1,4 +1,4 @@
-"""Account-owned, duplicate-safe PayMongo sandbox checkout and credit awards."""
+"""Account-owned sandbox QR top-ups, legacy receipts and once-only credit awards."""
 
 from dataclasses import dataclass
 import base64
@@ -17,12 +17,11 @@ from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict
 from account_store import DEFAULT_DB, connect_store, token_hash
-from purchase_store import PurchaseStore, PurchaseError, TEST_AMOUNT, TEST_CREDITS, CHECKOUT_WINDOW, CHECKOUT_LIMIT, PACKAGES, is_simulated_topup
+from purchase_store import PurchaseStore, PurchaseError, TEST_AMOUNT, TEST_CREDITS, CHECKOUT_WINDOW, PACKAGES, is_simulated_topup
 from accounts import check_csrf, require_account
 
 
 router = APIRouter(prefix="/api/payments/test", tags=["test payments"])
-CHECKOUT_API = "https://api.paymongo.com/v2/checkout_sessions"
 PAYMENT_API = "https://api.paymongo.com/v1"
 QR_EXPIRY_SECONDS = 1800
 
@@ -58,11 +57,11 @@ def public_order(row: sqlite3.Row) -> dict:
 
 def purchase_http_error(error: PurchaseError) -> HTTPException:
     errors = {
-        "creating": (409, "This checkout is still being created. Keep the same request and try again shortly."),
-        "unverified": (409, "The earlier checkout could not be verified. Check purchase history before explicitly starting a new attempt."),
-        "limited": (429, "Too many checkout attempts. Wait ten minutes before creating another."),
-        "registration_pending": (503, "Checkout registration is pending; retry the webhook."),
-        "checkout_mismatch": (400, "Test checkout does not match the order."),
+        "creating": (409, "This top-up is still being created. Keep the same request and try again shortly."),
+        "unverified": (409, "The earlier top-up could not be verified. Check purchase history before explicitly starting a new attempt."),
+        "limited": (429, "Too many top-up attempts. Wait ten minutes before creating another."),
+        "registration_pending": (503, "Payment registration is pending; retry the webhook."),
+        "checkout_mismatch": (400, "Test payment reference does not match the receipt."),
         "payment_mismatch": (400, "Test payment does not match the recorded receipt."),
         "duplicate_payment": (400, "Test payment has already been recorded for another order."),
         "topup_not_found": (404, "Test top-up not found."),
@@ -85,10 +84,6 @@ def payment_config():
         ready = False
     return response({"mode": "test", "enabled": ready, "amount": TEST_AMOUNT, "currency": "PHP", "credits": TEST_CREDITS,
                      "packages": [{"id": key, "currency": "PHP", **value} for key, value in PACKAGES.items()]})
-
-
-class CheckoutRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
 
 
 class TopupRequest(BaseModel):
@@ -202,49 +197,6 @@ def mobile_return():
 <p>If the link does not open, switch back to the app and refresh your receipt.</p>
 </body></html>""", headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer",
                           "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"})
-
-
-@router.post("/checkout", status_code=201)
-async def create_checkout(body: CheckoutRequest, request: Request, idempotency_key: str = Header(default="")):
-    account = require_account(request)
-    check_csrf(request, account)
-    config = settings()
-    if idempotency_key and not re.fullmatch(r"[A-Za-z0-9_-]{16,128}", idempotency_key):
-        raise HTTPException(400, "Use a valid checkout request ID and try again.")
-    store = PurchaseStore(config.database)
-    try:
-        row = store.begin(account["id"], idempotency_key)
-    except PurchaseError as error:
-        raise purchase_http_error(error) from None
-    if row["status"] != "creating":
-        return response({"order": public_order(row)})
-    order_id = row["id"]
-    native = request.headers.get("X-Arena-Native") == "1"
-    native_return = config.origin + "/api/payments/test/mobile-return"
-    payload = {"data": {"attributes": {
-        "line_items": [{"name": "AI Defense Arena sandbox test", "amount": TEST_AMOUNT, "currency": "PHP", "quantity": 1}],
-        "payment_method_types": ["qrph"],
-        "reference_number": order_id,
-        "success_url": native_return if native else config.origin + "/?payments=test&payment_return=success",
-        "cancel_url": native_return if native else config.origin + "/?payments=test&payment_return=cancel",
-    }}}
-    try:
-        async with httpx.AsyncClient(timeout=20) as client:
-            result = await client.post(CHECKOUT_API, auth=(config.key, ""), json=payload)
-            result.raise_for_status()
-            resource = result.json()["data"]
-        attrs = resource["attributes"]
-        checkout_id, checkout_url = resource["id"], attrs["checkout_url"]
-        url = urlsplit(checkout_url)
-        if attrs.get("livemode") is not False or not isinstance(checkout_id, str) or not checkout_id.startswith("cs_") or url.scheme != "https" or url.hostname != "checkout.paymongo.com" or url.username or url.password or url.port not in (None, 443):
-            raise ValueError("Invalid test checkout")
-    except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError):
-        # A network failure can leave a provider checkout whose result is unknown.
-        # Never automatically retry a creation request or infer payment success.
-        store.creation_failed(order_id)
-        raise HTTPException(502, "Could not create a verified test checkout. Check your test key and connection; no payment was confirmed.") from None
-    row = store.register(order_id, checkout_id, checkout_url)
-    return response({"order": public_order(row)}, 201)
 
 
 @router.get("/orders/{order_id}")

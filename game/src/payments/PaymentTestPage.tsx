@@ -171,7 +171,7 @@ export function PaymentTestPage() {
         <p className="payment-balance"><b>{account.test_credits ?? 0}</b> available test credits</p>
         <button className="button-secondary" onClick={logout} disabled={busy}>Sign out</button>
       </> : <><h2>Sign in to own your test credits</h2>{account.google_enabled
-        ? <a className="button-primary payment-checkout" href="/api/auth/google/login?return_to=%2F%3Fpayments%3Dtest">Sign in with Google</a>
+        ? <a className="button-primary payment-login" href="/api/auth/google/login?return_to=%2F%3Fpayments%3Dtest">Sign in with Google</a>
         : <p>Google sign-in needs server configuration. Follow the README’s Google account setup.</p>}</>}
       {signinError && <p role="alert">Google sign-in did not finish. Please try again; your test credits are saved.</p>}
     </section>
@@ -206,7 +206,7 @@ export function PaymentTestPage() {
         {["failed", "expired", "cancelled", "creation_failed"].includes(status ?? "") && <><p>A new attempt creates a separate QR. The old receipt stays in your history.</p>
           <button className="button-secondary" onClick={() => { void create(undefined, true); }} disabled={!enabled || busy}>Regenerate test QR</button></>}
         <p className="payment-order">Test top-up: {visibleTopup.id}</p></div>}
-      {returnState && <p>A checkout redirect does not confirm payment. Check your purchase history for earlier receipts.</p>}
+      {returnState && <p>Your earlier receipt is available in purchase history. Returning here does not verify payment.</p>}
     </section>
     {account?.authenticated && <section className="payment-account" aria-label="Your test purchases"><h2>Your test top-ups and purchases</h2>
       {account.orders?.length ? <ul className="payment-history">{account.orders.map(purchase => <li key={purchase.id}>

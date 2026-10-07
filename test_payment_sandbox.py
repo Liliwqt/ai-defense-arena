@@ -50,15 +50,62 @@ class PaymentSandboxTests(unittest.TestCase):
         self.client.cookies.set(accounts.ACCOUNT_COOKIE, self.session_token)
         self.client.headers.update({"Origin": "http://127.0.0.1:8774", "X-CSRF-Token": self.csrf})
         self.provider = AsyncMock()
-        self.result = Mock()
-        self.result.json.return_value = {"data": {"id": "cs_offline", "type": "checkout_session", "attributes": {
-            "livemode": False, "checkout_url": "https://checkout.paymongo.com/offline",
-        }}}
-        self.provider.post.return_value = self.result
         provider_patch = patch.object(payments.httpx, "AsyncClient")
         provider_class = provider_patch.start()
         provider_class.return_value.__aenter__.return_value = self.provider
         self.addCleanup(provider_patch.stop)
+
+    def test_hosted_checkout_creation_is_retired_without_provider_request_or_credit_award(self):
+        self.assertEqual(self.client.post("/api/payments/test/checkout", json={}).status_code, 404)
+        self.assertNotIn("/api/payments/test/checkout", self.client.get("/openapi.json").json()["paths"])
+        self.assertEqual(self.balance(), 0)
+        self.provider.post.assert_not_called()
+        self.client.cookies.clear()
+        with patch.dict(os.environ, {"PAYMONGO_SECRET_KEY": ""}):
+            self.assertEqual(self.client.post("/api/payments/test/checkout", json={"amount": 10000}).status_code, 404)
+        self.provider.post.assert_not_called()
+
+    def test_retired_creation_keeps_existing_pending_and_paid_receipts(self):
+        paid = self.legacy_checkout(request_id="earlier-paid-checkout")
+        self.assertEqual(self.deliver(self.event(paid)).status_code, 200)
+        paid_receipt = self.status(paid).json()
+        pending = self.legacy_checkout(request_id="earlier-pending-checkout", checkout_id="cs_pending")
+        pending_receipt = self.status(pending).json()
+        for key in ("earlier-paid-checkout", "earlier-pending-checkout"):
+            result = self.client.post("/api/payments/test/checkout", json={}, headers={"Idempotency-Key": key, "X-Arena-Native": "1"})
+            self.assertEqual(result.status_code, 404)
+        self.assertEqual(self.status(paid).json(), paid_receipt)
+        self.assertEqual(self.status(pending).json(), pending_receipt)
+        event = self.event(pending)
+        event["data"]["data"]["id"] = "cs_pending"
+        event["data"]["data"]["attributes"]["payments"][0]["id"] = "pay_pending"
+        self.assertEqual(self.deliver(event).status_code, 200)
+        self.assertEqual(self.deliver(event).status_code, 200)
+        self.assertEqual(self.balance(), 200)
+        self.assertEqual(self.status(pending).json()["order"]["status"], "paid")
+        history = account_store.account_overview(account_store.session_account(self.session_token)["id"])["orders"]
+        self.assertEqual(len(history), 2)
+        self.assertTrue(all(row["provider"] == "checkout_session" and row["awarded_credits"] == 100 for row in history))
+        self.provider.post.assert_not_called()
+
+    def test_legacy_anonymous_pending_payment_stays_token_protected_and_awards_no_account_credits(self):
+        with payments.connect_store(self.database) as db:
+            db.execute("""INSERT INTO test_orders
+                (id, token_hash, checkout_id, checkout_url, amount, currency, status, created_at, credits, provider)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                ("legacy_pending_anon", account_store.token_hash("anonymous-fixture"), "cs_offline",
+                 "https://checkout.paymongo.com/offline", 10000, "PHP", "pending", 1800000000, 0, "checkout_session"))
+        created = {"order": {"id": "legacy_pending_anon"}}
+        self.client.cookies.clear()
+        self.assertEqual(self.status(created, "wrong-token").status_code, 404)
+        self.assertEqual(self.deliver(self.event(created)).status_code, 200)
+        self.assertEqual(self.deliver(self.event(created)).status_code, 200)
+        receipt = self.status(created, "anonymous-fixture")
+        self.assertEqual(receipt.status_code, 200)
+        self.assertEqual(receipt.json()["order"]["status"], "paid")
+        self.assertEqual(receipt.json()["order"]["credits"], 0)
+        self.assertEqual(self.balance(), 0)
+        self.provider.post.assert_not_called()
 
     def test_config_advertises_server_owned_topup_packages(self):
         configured = self.client.get("/api/payments/test/config").json()
@@ -69,8 +116,13 @@ class PaymentSandboxTests(unittest.TestCase):
         self.assertEqual(disabled["packages"], configured["packages"])
         self.provider.post.assert_not_called()
 
-    def create(self, *, request_id=None, **extra):
-        return self.client.post("/api/payments/test/checkout", json={**extra}, headers={"Idempotency-Key":request_id} if request_id else {})
+    def legacy_checkout(self, request_id="", checkout_id="cs_offline"):
+        """Seed a receipt issued before retirement via the public store boundary."""
+        store = payments.PurchaseStore(self.database)
+        account_id = account_store.session_account(self.session_token)["id"]
+        row = store.begin(account_id, request_id)
+        store.register(row["id"], checkout_id, "https://checkout.paymongo.com/offline")
+        return self.client.get("/api/payments/test/orders/" + row["id"]).json()
 
     def topup(self, request_id="offline-topup-request", **extra):
         return self.client.post("/api/payments/test/topups", json={"package_id": "starter", **extra},
@@ -227,7 +279,7 @@ class PaymentSandboxTests(unittest.TestCase):
         self.assertEqual(self.balance(), 100)
 
     def test_simulation_rejects_checkout_failed_expired_and_unverified_receipts(self):
-        checkout = self.create().json()
+        checkout = self.legacy_checkout()
         self.assertEqual(self.simulate_topup({"topup": checkout["order"]}).status_code, 404)
         for kind in ("payment.failed", "qrph.expired"):
             resources = self.qr_responses()
@@ -296,7 +348,7 @@ class PaymentSandboxTests(unittest.TestCase):
             self.assertEqual(other.get(url).json()["topup"]["status"], "pending")
         self.assertEqual(self.client.get("/api/payments/test/topups/test_missing").status_code, 404)
         self.provider.post.side_effect = None
-        checkout = self.create().json()
+        checkout = self.legacy_checkout()
         self.assertEqual(self.client.get("/api/payments/test/topups/" + checkout["order"]["id"]).status_code, 404)
 
     def test_failed_qr_webhook_awards_nothing_and_is_idempotent(self):
@@ -455,7 +507,7 @@ class PaymentSandboxTests(unittest.TestCase):
         self.assertEqual(self.balance(), 100)
 
     def test_checkout_and_qr_paid_webhooks_coexist_without_double_award(self):
-        checkout = self.create().json()
+        checkout = self.legacy_checkout()
         self.assertEqual(self.deliver(self.event(checkout)).status_code, 200)
         self.qr_responses()
         topup = self.topup().json()
@@ -610,14 +662,13 @@ class PaymentSandboxTests(unittest.TestCase):
         self.provider.post.assert_not_called()
 
     def test_topup_and_checkout_request_ids_are_isolated(self):
-        checkout = self.create(request_id="shared-checkout-topup-request").json()["order"]
+        checkout = self.legacy_checkout(request_id="shared-checkout-topup-request")["order"]
         self.qr_responses()
         topup = self.topup(request_id="shared-checkout-topup-request").json()["topup"]
         self.assertNotEqual(checkout["id"], topup["id"])
         self.assertEqual(self.topup(request_id="shared-checkout-topup-request").json()["topup"], topup)
-        self.provider.post.side_effect = None
-        self.assertEqual(self.create(request_id="shared-checkout-topup-request").json()["order"], checkout)
-        self.assertEqual(self.provider.post.await_count, 4)
+        self.assertEqual(self.status({"order": checkout}).json()["order"], checkout)
+        self.assertEqual(self.provider.post.await_count, 3)
 
     def test_topup_failure_at_each_provider_step_is_safe_and_not_recreated(self):
         for stage in range(3):
@@ -747,122 +798,34 @@ class PaymentSandboxTests(unittest.TestCase):
         signature = f"t={timestamp},{signature_mode}={digest}"
         return self.client.post("/api/payments/test/webhook", content=raw, headers={"Paymongo-Signature": signature})
 
-    def test_disabled_config_and_live_keys_never_call_provider(self):
-        for key in ("", "sk_live_disallowed"):
-            with patch.dict(os.environ, {"PAYMONGO_SECRET_KEY": key}):
-                result = self.client.get("/api/payments/test/config")
-                self.assertFalse(result.json()["enabled"])
-                self.assertEqual(self.create().status_code, 503)
-        self.provider.post.assert_not_called()
-        with payments.connect_store(self.database) as db:
-            self.assertEqual(db.execute("SELECT count(*) FROM test_orders").fetchone()[0], 0)
-
-    def test_same_checkout_request_reuses_order_without_provider_call(self):
-        key = "offline-idempotency-key"
-        first = self.create(request_id=key)
-        second = self.create(request_id=key)
-        self.assertEqual(first.status_code, 201)
-        self.assertEqual(second.status_code, 200)
-        self.assertEqual(first.json(), second.json())
-        self.provider.post.assert_awaited_once()
-        with payments.connect_store(self.database) as db:
-            row = db.execute('SELECT request_hash FROM test_orders').fetchone()
-            self.assertNotEqual(row[0], key)
-            self.assertEqual(db.execute('SELECT count(*) FROM test_orders').fetchone()[0], 1)
-
-    def test_concurrent_same_key_cannot_create_duplicate_checkouts(self):
-        with ThreadPoolExecutor(max_workers=4) as workers:
-            results = list(workers.map(lambda _: self.create(request_id='concurrent-checkout-key'), range(4)))
-        self.assertEqual(sum(result.status_code == 201 for result in results), 1)
-        self.assertTrue(all(result.status_code in {200, 201, 409} for result in results))
-        self.provider.post.assert_awaited_once()
-        self.assertEqual(self.create(request_id='concurrent-checkout-key').status_code, 200)
-
-    def test_unverified_and_inflight_checkout_are_not_automatically_recreated(self):
-        key = 'inflight-checkout-key'
-        self.create(request_id=key)
-        for status in ('creating', 'creation_failed'):
-            with payments.connect_store(self.database) as db:
-                db.execute('UPDATE test_orders SET status=?', (status,))
-            self.assertEqual(self.create(request_id=key).status_code, 409)
-        self.provider.post.assert_awaited_once()
-
-    def test_idempotency_is_account_scoped_and_invalid_ids_rejected(self):
-        self.assertEqual(self.create(request_id='bad\nkey').status_code, 400)
-        first = self.create(request_id='account-scoped-checkout').json()
-        token, csrf = account_store.create_google_session('other-sub', 'other@example.test', 'Other')
-        self.client.cookies.set(accounts.ACCOUNT_COOKIE, token)
-        self.client.headers['X-CSRF-Token'] = csrf
-        self.result.json.return_value['data']['id'] = 'cs_other_account'
-        second = self.create(request_id='account-scoped-checkout').json()
-        self.assertNotEqual(first['order']['id'], second['order']['id'])
-        self.assertEqual(self.provider.post.await_count, 2)
-
-    def test_checkout_throttle_persists_and_does_not_block_existing_receipt(self):
-        for index in range(payments.CHECKOUT_LIMIT):
-            self.result.json.return_value['data']['id'] = 'cs_throttle_' + str(index)
-            self.assertEqual(self.create(request_id='throttle-request-key-' + str(index)).status_code, 201)
-        limited = self.create(request_id='new-throttle-request-key')
-        self.assertEqual(limited.status_code, 429)
-        self.assertEqual(limited.headers['Retry-After'], '600')
-        self.assertEqual(self.create(request_id='throttle-request-key-0').status_code, 200)
-        self.assertEqual(self.provider.post.await_count, payments.CHECKOUT_LIMIT)
 
     def test_paid_receipt_rejects_a_different_payment_identifier(self):
-        created = self.create().json()
+        created = self.legacy_checkout()
         self.assertEqual(self.deliver(self.event(created)).status_code, 200)
         event = self.event(created)
         event['data']['data']['attributes']['payments'][0]['id'] = 'pay_different'
         self.assertEqual(self.deliver(event).status_code, 400)
         self.assertEqual(self.status(created).json()['order']['status'], 'paid')
 
-    def test_removed_passcode_and_client_amount_rejected(self):
-        result = self.client.post("/api/payments/test/checkout", json={"host_passcode": "wrong"})
-        self.assertEqual(result.status_code, 422)
-        self.assertEqual(self.create(amount=1).status_code, 422)
-        self.provider.post.assert_not_called()
 
     def test_base_url_is_server_owned_and_validated(self):
         for origin in ("http://example.com", "https://example.com/path", "https://user:password@example.com", "https://example.com/?override=yes", "https://[invalid", "https://example.com:bad"):
             with patch.dict(os.environ, {"PAYMONGO_PUBLIC_BASE_URL": origin}):
-                self.assertEqual(self.create().status_code, 503)
+                self.assertEqual(self.topup().status_code, 503)
         self.provider.post.assert_not_called()
 
-    def test_native_checkout_returns_to_app_without_confirming_payment(self):
-        result = self.client.post("/api/payments/test/checkout", json={}, headers={"X-Arena-Native":"1"})
-        self.assertEqual(result.status_code, 201, result.text)
-        attributes = self.provider.post.call_args.kwargs["json"]["data"]["attributes"]
-        self.assertEqual(attributes["success_url"], "https://sandbox.example.com/api/payments/test/mobile-return")
-        self.assertEqual(attributes["cancel_url"], attributes["success_url"])
+    def test_legacy_mobile_return_remains_available_without_confirming_payment(self):
+        created = self.legacy_checkout()
         page = self.client.get("/api/payments/test/mobile-return?status=paid")
         self.assertEqual(page.status_code, 200)
         self.assertIn('defensearena://payment-return', page.text)
         self.assertIn('does not confirm payment', page.text)
-        order = result.json()["order"]
-        checked = self.client.get("/api/payments/test/orders/" + order["id"])
-        self.assertEqual(checked.json()["order"]["status"], "pending")
-
-    def test_checkout_server_amount_reference_and_no_secret_exposure(self):
-        result = self.create()
-        self.assertEqual(result.status_code, 201, result.text)
-        created = result.json()
-        self.assertEqual(created["order"]["status"], "pending")
-        kwargs = self.provider.post.call_args.kwargs
-        attrs = kwargs["json"]["data"]["attributes"]
-        self.assertEqual(attrs["line_items"][0]["amount"], 10000)
-        self.assertEqual(attrs["reference_number"], created["order"]["id"])
-        self.assertEqual(attrs["payment_method_types"], ["qrph"])
-        self.assertEqual(kwargs["auth"], ("sk_test_offline_fixture", ""))
-        self.assertNotIn("order_token", result.text)
-        self.assertNotIn("offline_host_passcode", result.text)
-        self.assertNotIn("sk_test", result.text)
-        self.assertEqual(result.headers["cache-control"], "no-store")
-        with payments.connect_store(self.database) as db:
-            stored = dict(db.execute("SELECT * FROM test_orders").fetchone())
-        self.assertNotIn("order_token", created)
+        self.assertEqual(self.status(created).json()["order"]["status"], "pending")
+        self.assertEqual(self.balance(), 0)
+        self.provider.post.assert_not_called()
 
     def test_owned_status_requires_account_and_survives_new_client(self):
-        created = self.create().json()
+        created = self.legacy_checkout()
         self.assertEqual(self.status(created).status_code, 200)
         self.assertEqual(self.status(created, "other-token").status_code, 200)
         url = "/api/payments/test/orders/" + created["order"]["id"]
@@ -871,28 +834,13 @@ class PaymentSandboxTests(unittest.TestCase):
             self.assertEqual(another.get(url, headers={"Authorization": "Bearer unused-legacy-token"}).status_code, 401)
             another.cookies.set(accounts.ACCOUNT_COOKIE, self.session_token)
             self.assertEqual(another.get(url).json()["order"]["status"], "pending")
+            token, _ = account_store.create_google_session("other-legacy-owner", "other@example.test", "Other")
+            another.cookies.set(accounts.ACCOUNT_COOKIE, token)
+            self.assertEqual(another.get(url, headers={"Authorization": "Bearer unused-legacy-token"}).status_code, 404)
 
-    def test_api_failure_safe_no_retry(self):
-        self.provider.post.side_effect = httpx.ReadTimeout("Secret provider diagnostic")
-        result = self.create()
-        self.assertEqual(result.status_code, 502)
-        self.assertNotIn("Secret provider diagnostic", result.text)
-        self.provider.post.assert_awaited_once()
-        with payments.connect_store(self.database) as db:
-            self.assertEqual(db.execute("SELECT status FROM test_orders").fetchone()[0], "creation_failed")
-
-    def test_live_or_untrusted_checkout_response_rejected(self):
-        for attrs in (
-            {"livemode": True, "checkout_url": "https://checkout.paymongo.com/offline"},
-            {"livemode": False, "checkout_url": "https://checkout.paymongo.com.evil.test"},
-            {"livemode": False, "checkout_url": "javascript:alert(1)"},
-            {"livemode": False, "checkout_url": "https://user:secret@checkout.paymongo.com"},
-        ):
-            self.result.json.return_value["data"]["attributes"] = attrs
-            self.assertEqual(self.create().status_code, 502)
 
     def test_signed_webhook_marks_paid_once(self):
-        created = self.create().json()
+        created = self.legacy_checkout()
         event = self.event(created)
         self.assertEqual(self.deliver(event).status_code, 200)
         self.assertEqual(self.status(created).json()["order"]["status"], "paid")
@@ -903,7 +851,7 @@ class PaymentSandboxTests(unittest.TestCase):
             self.assertEqual(db.execute("SELECT count(*) FROM test_orders WHERE status='paid'").fetchone()[0], 1)
 
     def test_classic_resource_envelope(self):
-        created = self.create().json()
+        created = self.legacy_checkout()
         current = self.event(created)["data"]
         classic = {"data": {"id": "evt_offline", "type": "event", "attributes": {
             "livemode": False, "type": current["type"], "resource": current["data"],
@@ -912,7 +860,7 @@ class PaymentSandboxTests(unittest.TestCase):
         self.assertEqual(self.status(created).json()["order"]["status"], "paid")
 
     def test_missing_invalid_stale_and_live_signatures_rejected(self):
-        created = self.create().json()
+        created = self.legacy_checkout()
         event = self.event(created)
         self.assertEqual(self.client.post("/api/payments/test/webhook", json=event).status_code, 401)
         self.assertEqual(self.deliver(event, timestamp="1799999600").status_code, 401)
@@ -920,14 +868,14 @@ class PaymentSandboxTests(unittest.TestCase):
         self.assertEqual(self.status(created).json()["order"]["status"], "pending")
 
     def test_signature_uses_exact_raw_body(self):
-        created = self.create().json()
+        created = self.legacy_checkout()
         raw = json.dumps(self.event(created)).encode()
         digest = hmac.new(b"offline_webhook_secret", b"1800000000." + raw, hashlib.sha256).hexdigest()
         result = self.client.post("/api/payments/test/webhook", content=raw + b" ", headers={"Paymongo-Signature": "t=1800000000,te=" + digest})
         self.assertEqual(result.status_code, 401)
 
     def test_live_events_and_payment_mismatches_leave_pending(self):
-        created = self.create().json()
+        created = self.legacy_checkout()
         changes = [
             lambda e: e["data"].update(livemode=True),
             lambda e: e["data"]["data"].update(id="cs_other"),
@@ -943,7 +891,7 @@ class PaymentSandboxTests(unittest.TestCase):
             self.assertEqual(self.status(created).json()["order"]["status"], "pending")
 
     def test_unrelated_event_and_other_order_do_not_fulfill(self):
-        created = self.create().json()
+        created = self.legacy_checkout()
         event = self.event(created)
         event["data"]["type"] = "payment.failed"
         self.assertEqual(self.deliver(event).status_code, 200)
@@ -953,16 +901,15 @@ class PaymentSandboxTests(unittest.TestCase):
         self.assertEqual(self.status(created).json()["order"]["status"], "pending")
 
     def test_early_delivery_requests_retry(self):
-        created = self.create().json()
+        created = self.legacy_checkout()
         with payments.connect_store(self.database) as db:
             db.execute("UPDATE test_orders SET status='creating', checkout_id=NULL")
         self.assertEqual(self.deliver(self.event(created)).status_code, 503)
 
     def test_duplicate_payment_cannot_pay_a_second_order(self):
-        first = self.create().json()
+        first = self.legacy_checkout()
         self.assertEqual(self.deliver(self.event(first)).status_code, 200)
-        self.result.json.return_value["data"]["id"] = "cs_second"
-        second = self.create().json()
+        second = self.legacy_checkout(checkout_id="cs_second")
         event = self.event(second)
         event["data"]["data"]["id"] = "cs_second"
         self.assertEqual(self.deliver(event).status_code, 400)

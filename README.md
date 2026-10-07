@@ -96,7 +96,7 @@ Open <http://127.0.0.1:8000/?preview=1>. Preview mode uses static mock state, ma
 
 For scope-preview variants, add `&budget=4` to view a smaller proposed budget, or `&planstatus=planning` / `&planstatus=failed` to inspect mapping status and failure copy. These fixtures make no AI requests and cannot confirm a real plan.
 
-For frontend development, run `npm run dev` in `game/` alongside FastAPI on port 8000. Vite proxies `/api`, `/ws`, and `/health` to the backend. Check signed-in room and checkout flows on the built app served by FastAPI, where browser origin, OAuth callback, and CSRF settings match.
+For frontend development, run `npm run dev` in `game/` alongside FastAPI on port 8000. Vite proxies `/api`, `/ws`, and `/health` to the backend. Check signed-in room and QR top-up flows on the built app served by FastAPI, where browser origin, OAuth callback, and CSRF settings match.
 
 ## Create and play a defense
 
@@ -195,8 +195,8 @@ The document panel shows **extracted text**, not a rendered original PDF. Extrac
 | `game_server.py` | FastAPI HTTP/WebSocket service, authentication, room state, task scheduling, charging, and broadcasts |
 | `timed_turn.py` | Synchronous voting, speaker selection, authoritative deadlines, interpretation, clarification and timeout transitions |
 | `accounts.py`, `account_store.py` | Google sign-in, opaque sessions, voucher grants, private balances, atomic run reservations/charges, and additive SQLite migrations |
-| `payments.py`, `game/src/payments/` | Account-authenticated PayMongo test checkout, provider/signature validation and HTTP error translation |
-| `purchase_store.py` | Transactional request reuse, checkout registration, receipts, once-only credit awards and private purchase history |
+| `payments.py`, `game/src/payments/` | Account-authenticated sandbox QR top-ups, legacy receipt reconciliation, provider/signature validation and HTTP error translation |
+| `purchase_store.py` | Transactional QR request reuse, legacy receipts, once-only credit awards and private purchase history |
 | `defense_session.py` | Code/research policies, role order, optional follow-ups, coverage, resolved turns, and retained history |
 | `defense_progression.py` | Shared isolated generation preparation and validated move application for FastAPI and Streamlit |
 | `research_plan.py` | Structured research map, exact source references, suggested budget and scope-preview validation |
@@ -250,12 +250,12 @@ Local review captures: [account setup](screenshots/account-setup-desktop.png), [
    .venv/bin/uvicorn game_server:app --host 127.0.0.1 --port 8790 --workers 1
    ```
 
-   Stop the old port-8790 server with Ctrl+C before starting the updated one. Keep your existing PayMongo variables exported if you want to test checkout too. Google-only sign-in works without PayMongo or OpenAI credentials. `run_local.sh` does not load Google values from `.env`; export them explicitly.
+   Stop the old port-8790 server with Ctrl+C before starting the updated one. Keep your existing PayMongo variables exported if you want to test QR top-ups too. Google-only sign-in works without PayMongo or OpenAI credentials. `run_local.sh` does not load Google values from `.env`; export them explicitly.
 4. Open <http://127.0.0.1:8790/?account=1>, select **Sign in with Google**, and confirm your name, email, and initial **0 test credits** appear. The main app and payment page each return to their allowlisted originating screen after login. Signing out revokes this app's session; it does not sign you out of Google or delete your balance. Reconnecting as host requires the room creator's account as well as the saved room token.
 
 `AUTH_SESSION_SECRET` must have at least 32 characters. It signs the ten-minute temporary OAuth state cookie; keep it private and stable for a server run. The application uses state, PKCE, nonce and verified ID-token checks through Authlib, then replaces provider credentials with an opaque eight-hour HttpOnly app cookie. Google access/refresh/ID tokens are not stored. HTTPS origins use Secure cookies; loopback HTTP is permitted for local testing. Google subject identifies an account even if its email or display name changes.
 
-For a separate HTTPS sandbox check, set **both** `AUTH_PUBLIC_BASE_URL` and `PAYMONGO_PUBLIC_BASE_URL` to the exact public origin you browse. Register its `/api/auth/google/callback` URI in the same Google client, and its `/api/payments/test/webhook` in PayMongo. A changed tunnel hostname needs updated settings and a server restart. Auth state and app cookies must stay on the same origin throughout login and checkout. Keep this local checkpoint separate from both live services.
+For a separate HTTPS sandbox check, set **both** `AUTH_PUBLIC_BASE_URL` and `PAYMONGO_PUBLIC_BASE_URL` to the exact public origin you browse. Register its `/api/auth/google/callback` URI in the same Google client, and its `/api/payments/test/webhook` in PayMongo. A changed tunnel hostname needs updated settings and a server restart. Auth state and app cookies must stay on the same origin throughout login and QR top-up. Keep this local checkpoint separate from both live services.
 
 References: [Google web-server OAuth setup](https://developers.google.com/identity/protocols/oauth2/web-server) and [Google OpenID Connect](https://developers.google.com/identity/openid-connect/openid-connect).
 
@@ -283,7 +283,8 @@ Register a **test-mode** webhook at:
 
 ```text
 https://YOUR-DEVELOPMENT-ORIGIN/api/payments/test/webhook
-Event: checkout_session.payment.paid
+Events: payment.paid, payment.failed, qrph.expired
+Legacy receipts: keep checkout_session.payment.paid
 ```
 
 Copy its signing secret into the server environment. These are server settings, not React/Vite settings:
@@ -333,20 +334,6 @@ Stop the earlier server on 8790 before restarting it with these settings. The re
    credits. Use **View top-up** to reopen an existing QR from your history.
    Running a defense still uses the existing flat ten-credit sandbox charge.
 
-### Legacy hosted-checkout walkthrough (backend retained until ticket 06)
-
-The following describes the earlier screen, not the current QR-first page.
-Its backend remains during the migration; ticket 06 will retire checkout
-creation. Existing purchases and their credit awards are preserved.
-
-1. Open `https://YOUR-DEVELOPMENT-ORIGIN/?payments=test`, sign in with Google, and confirm that server setup is configured. Google and payment origins must match this browser origin.
-2. Create a test checkout and open it. Complete QRPh using PayMongo's **test simulator**. **Do not scan and pay the QR code with a real bank or wallet app:** PayMongo warns that QRPh test codes can still process real transactions. If checkout does not offer a simulator, pause and inspect the provider's testing instructions instead of paying the QR.
-3. Return to this browser tab. The app refreshes status every five seconds until the signed webhook confirms payment. A success redirect alone does **not** mark it paid.
-4. Confirm **Test payment confirmed**, **100 test credits**, and a paid row in **Your test purchases**. Duplicate notifications must leave the balance unchanged. Sign out and back in to confirm the account retains its balance. If it stays pending, inspect webhook delivery in PayMongo's test dashboard and check the tunnel and signing secret.
-5. Return to the main app, create a room, and start a defense without voucher access. The balance reserves 10 credits at Start, then becomes **90 available / 0 reserved** when the first validated question appears. An opening failure restores 100 available until retry. Finish or end the run: later questions and coaching spend no additional credits. Restart requires a fresh, explicitly confirmed charge. A voucher account instead spends zero.
-
-The backend uses Hosted Checkout v2, server-owned amounts and references, HMAC verification of the exact raw body, a five-minute signature window, checkout/payment/mode/amount/currency validation, and transactional duplicate handling. New test-order lookup requires its owner's signed-in session; a receipt token cannot bypass ownership. The tab saves a receipt reference/token for returning from checkout, but never a host passcode or provider key. Earlier anonymous receipts remain token-protected and grant no account credits. Unknown provider orders are acknowledged without changing local receipts. Creation failures are shown safely and are never automatically retried.
-
 The selected account store (PostgreSQL, or a Git-ignored SQLite file locally) stores a basic Google profile (subject, name, email), hashed app sessions, minimal sandbox receipts, the once-only test-credit ledger, voucher fingerprints, and unique run reservation/charge records. Additive migrations preserve existing accounts, purchases, and awards. A signed matching paid event updates receipt and credits in one transaction. Reservations serialize concurrent starts; first-question charges and repeated messages are idempotent. Server startup releases orphaned reservations because active rooms do not survive a restart. Published questions remain charged.
 
 Private account endpoints expose only the current user's access/balance and latest 20 purchases; mutations validate origin and session CSRF. WebSocket host controls recheck account ownership and origin. Uploaded files, room dialogue, and team chat are not stored in this database. Existing anonymous paid receipts stay separate and receive no retroactive credits. Local SQLite accounts/balances survive a Python restart. For hosted Render Free, use a Neon Free PostgreSQL project through `DATABASE_URL`; configuring a URL never migrates existing SQLite data. The PostgreSQL adapter serializes account transactions and never falls back to SQLite on connection failure. See the [deployment guide](docs/ACCOUNT_DEPLOYMENT.md) for setup and the separate real-local-PostgreSQL verification gate. Hosting and database paid tiers can be upgraded later while keeping the same store. Upload-based quotes, real credit pricing/spending, and real-money enforcement remain separate checkpoints.
@@ -355,7 +342,8 @@ Integration references: [PayMongo Hosted Checkout](https://docs.paymongo.com/doc
 
 ### QR top-up creation checkpoint (local backend)
 
-Ticket 02 adds `POST /api/payments/test/topups` alongside hosted checkout.
+Ticket 02 adds `POST /api/payments/test/topups`; ticket 06 has now removed
+hosted-checkout creation. Existing checkout receipts remain supported.
 It requires a signed-in Google account, the existing Origin/CSRF headers,
 and an `Idempotency-Key` containing 16–128 letters, digits, underscores or
 hyphens. Send only `{"package_id":"starter"}`. The server fixes this sandbox
@@ -378,7 +366,7 @@ expiry or payment. Creation and deadline passage award no credits.
 
 This creation checkpoint is backend-only. Tickets 03–04 below add QR
 confirmation/status and test simulation; ticket 05 adds the QR-first screen.
-Hosted-checkout backend retirement remains ticket 06.
+Hosted-checkout creation is now retired; existing receipts still reconcile.
 No live PayMongo integration is claimed; do not scan a sandbox QR with a real
 wallet. Provider details: [QR Ph API](https://docs.paymongo.com/docs/payment-acceptance-qr-ph-api),
 [Payment Method creation](https://docs.paymongo.com/reference/create-a-paymentmethod),
@@ -444,8 +432,7 @@ remain private. A later validated signed payment can replace the fixture's
 payment evidence without adding credits, changing `simulated` to false.
 
 The QR-first screen and its simulation button are implemented in ticket 05
-below; hosted-checkout retirement remains ticket 06. Ticket 04 itself adds no
-UI. All verification used mocked providers and temporary SQLite, not a live payment. See
+below; hosted-checkout creation is now retired. Ticket 04 itself adds no UI. All verification used mocked providers and temporary SQLite, not a live payment. See
 [the simulation review](docs/QR_TOPUP_SIMULATE_REVIEW.md).
 
 ### QR-first top-up screen checkpoint (local)
@@ -480,7 +467,32 @@ See [the page review](docs/QR_TOPUP_PAGE_REVIEW.md) and
 [portrait](screenshots/qr-topup-mock-portrait.png), and
 [landscape](screenshots/qr-topup-mock-landscape.png) captures.
 These are mock fixtures, not live payments or physical-device checks. Ticket 06
-and real provider verification remain pending. No push or deployment.
+is complete locally below; real provider verification remains pending. No push or deployment.
+
+### QR top-up migration complete locally
+
+Ticket 06 removes `POST /api/payments/test/checkout`, its request schema and
+provider-creation code. The QR-first `/?payments=test` page is the only new
+purchase flow: `POST /api/payments/test/topups` creates a server-priced QR,
+owner-only reads display its status, signed notifications confirm payment,
+and the explicit test-gated simulation provides a sandbox fixture path.
+No live-money mode is enabled. The ten-credit defense charge is unchanged.
+
+Existing checkout rows, history and awards are preserved. Keep the legacy
+`checkout_session.payment.paid` webhook subscription alongside QR events so
+outstanding older purchases can still settle exactly once. Account-owned
+legacy receipts remain readable at `/api/payments/test/orders/{id}`; anonymous
+legacy receipts retain hashed-token access and gain no account credits.
+The fixed mobile return page remains available for older links and awards
+nothing. Neither it nor the receipt lookup creates a new checkout.
+
+Current gate: 272 Python tests with external providers mocked, 202 working-tree
+React tests and production build. Account/credit integration now exercises QR
+creation and signed QR payments; separate legacy fixtures verify existing
+checkout reconciliation, ownership and migration. The prior QR page's synthetic
+layout checks remain applicable. User screen review, real provider/Google,
+real PostgreSQL, native devices and hosted verification remain separate.
+See [the retirement review](docs/QR_TOPUP_RETIRE_REVIEW.md). No push or deployment.
 
 ## Streamlit fallback
 

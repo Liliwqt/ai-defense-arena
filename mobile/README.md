@@ -118,11 +118,14 @@ ordinary text-file download.
 Foregrounding refreshes the private account and keeps a healthy WebSocket open.
 A closed connection reconnects for the authoritative room snapshot. The same React
 page remains mounted so same-turn drafts survive resize/reconnect. Server timers keep running; selection may change while a player
-is offline. Native checkout uses a fixed HTTPS return page with a **Return to app** link
-(`defensearena://payment-return`). It resumes the mounted page and refreshes
-server-verified state; if the app was closed, open its payment screen to inspect
-purchase history. Browser checkouts retain their normal website return. Neither
-return path confirms payment or awards credits. Existing webhook verification remains authoritative.
+is offline. QR top-ups use the same embedded website screen as phone browsers,
+with no hosted-checkout creation or provider redirect. Foregrounding refreshes
+server-owned receipt and balance data. The fixed HTTPS **Return to app** page
+(`defensearena://payment-return`) remains for older checkout links; it resumes
+the mounted page. If the app was closed, open its payment screen to inspect
+purchase history. Legacy browser redirects remain untrusted: returning never
+confirms payment or awards credits. Signed webhooks and the explicitly labeled,
+test-key-gated sandbox simulation remain the existing confirmation paths.
 
 ## Verification checklist
 
@@ -135,7 +138,7 @@ return path confirms payment or awards credits. Existing webhook verification re
   speaker, clarification, timeout, retry, reconnect, identical transcript/coaching.
 - Installed Android/iOS: **pending**. Test initial load/failure/retry, hostile
   navigation/TLS, picker cancellation/multiple PDF/DOCX/ZIP, summary save/share,
-  Google sign-in/out/expiry, sandbox checkout return, keyboard/rotation draft,
+  Google sign-in/out/expiry, QR top-up/resume and legacy checkout return, keyboard/rotation draft,
   chosen-speaker reassignment and same room with a browser teammate.
 - Live Google/PayMongo, hosted deployment, physical second device and user visual
   approval are **not** established by offline tests or the APK build.

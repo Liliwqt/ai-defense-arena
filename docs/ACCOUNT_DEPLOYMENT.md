@@ -9,6 +9,11 @@ The account release is prepared for manual deployment. Its commit uses
 `[skip render]` until persistent storage and host authentication are configured.
 Publishing the source is separate from completing the rollout.
 
+The QR migration (tickets 01–06) is implemented and checked locally; its
+publication/deployment is still pending. The new screen creates QR top-ups
+only. See [the retirement review](QR_TOPUP_RETIRE_REVIEW.md) for evidence and
+legacy compatibility. Do not infer deployment from these updated instructions.
+
 ## Storage: free now, paid when needed
 
 The user selected Render Free with an external PostgreSQL database. The local
@@ -105,7 +110,7 @@ browser code, chat, or Git:
 The former `GAME_HOST_PASSCODE` is unused by this release. Google configuration
 is required to create or control a host room; missing settings intentionally
 deny anonymous host access. PayMongo settings are needed for sandbox purchases;
-configured Google plus voucher access can run defenses without checkout.
+configured Google plus voucher access can run defenses without a top-up.
 
 Register the exact Google redirect URI:
 
@@ -117,8 +122,10 @@ While the Google application is in Testing, add the intended host accounts as
 test users. Login returns only to allowlisted same-app screens.
 [Google OpenID Connect](https://developers.google.com/identity/openid-connect/openid-connect)
 
-Register a **test-mode** PayMongo webhook for
-`checkout_session.payment.paid` at:
+For the local QR migration release, register a **test-mode** PayMongo webhook
+for `payment.paid`, `payment.failed` and `qrph.expired`. Keep
+`checkout_session.payment.paid` subscribed for outstanding legacy receipts.
+The shared endpoint is:
 
 ```text
 https://defense-simulator.onrender.com/api/payments/test/webhook
@@ -126,7 +133,8 @@ https://defense-simulator.onrender.com/api/payments/test/webhook
 
 Use PayMongo's simulator for QRPh tests; do not pay a test QR code with a real
 wallet or bank app. Redirects do not award credits; a verified matching webhook
-does, once.
+does, once. The explicit test-key-gated simulation is a separately labeled
+sandbox fixture; it does not prove a provider payment.
 [PayMongo testing](https://docs.paymongo.com/docs/payment-acceptance-testing),
 [webhook verification](https://docs.paymongo.com/docs/developer-tools-webhook-setup-management)
 
@@ -151,7 +159,10 @@ Confirm:
 - Health returns ok and served JavaScript/CSS matches the tested release.
 - Google sign-in/out returns to the main app; an anonymous visitor cannot host.
 - Voucher redemption grants free runs and exposes no account details to guests.
-- A simulator checkout awards 100 test credits once after its signed webhook.
+- A QR top-up awards 100 test credits once after its verified signed test
+  notification. Check explicit fixture labels separately if using simulation.
+- Retired `/api/payments/test/checkout` cannot create new purchases; existing
+  checkout receipts and valid legacy paid notifications remain supported.
 - A paid opening failure releases its reservation; successful retry charges 10
   once. Later questions and coaching spend no additional credits.
 - Guest joining, host reconnection, votes, answers, transcript, and coaching work
