@@ -31,13 +31,23 @@ class PurchaseError(ValueError):
         super().__init__(kind)
 
 
+def is_simulated_topup(row) -> bool:
+    return row["provider"] == "payment_intent" and row["payment_id"] == "sim_" + row["id"]
+
+
 def purchase_history(db, account_id: str) -> list[dict]:
     """Use the caller's transaction so balance and receipts share a snapshot."""
-    rows = db.execute("""SELECT o.id, o.provider, o.amount, o.currency, o.credits, o.status,
+    rows = db.execute("""SELECT o.id, o.provider, o.amount, o.currency, o.credits, o.status, o.payment_id,
         o.created_at, o.paid_at, COALESCE(l.credits,0) AS awarded_credits
         FROM test_orders o LEFT JOIN test_credit_ledger l ON l.order_id=o.id
         WHERE o.account_id=? ORDER BY o.created_at DESC, o.id DESC LIMIT 20""", (account_id,)).fetchall()
-    return [dict(row) for row in rows]
+    history = []
+    for row in rows:
+        item = dict(row)
+        item["simulated"] = is_simulated_topup(row)
+        del item["payment_id"]
+        history.append(item)
+    return history
 
 
 class PurchaseStore:
@@ -133,6 +143,22 @@ class PurchaseStore:
         """Reconcile a verified QR top-up payment, atomically with its once-only award."""
         self._reconcile(order_id, "intent_id", intent_id, amount, currency, payment_ids, now)
 
+    def simulate_topup_paid(self, order_id: str, account_id: str, *, now: int | None = None) -> dict:
+        """Local sandbox fixture; callers must enforce test configuration/CSRF."""
+        now = int(time.time()) if now is None else now
+        with connect_store(self.database) as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT * FROM test_orders WHERE id=?", (order_id,)).fetchone()
+            if row is None or row["provider"] != "payment_intent" or row["account_id"] != account_id:
+                raise PurchaseError("topup_not_found")
+            if row["status"] == "paid":
+                return dict(row)
+            if (row["status"] != "pending" or not row["intent_id"] or not row["qr_image_url"]
+                    or row["expires_at"] is None or row["expires_at"] <= now):
+                raise PurchaseError("simulation_unavailable")
+            self._award(db, row, ["sim_" + row["id"]], now)
+            return dict(db.execute("SELECT * FROM test_orders WHERE id=?", (order_id,)).fetchone())
+
     def _reconcile(self, order_id: str, reference_field: str, reference: str, amount: int, currency: str,
                    payment_ids: list[str], now: int | None) -> None:
         now = int(time.time()) if now is None else now
@@ -161,7 +187,13 @@ class PurchaseStore:
                 db.execute("UPDATE test_orders SET status='paid', payment_id=?, paid_at=? WHERE id=? AND status=?",
                            (payment_ids[0], now, row["id"], row["status"]))
             elif row["status"] == "paid" and row["payment_id"] not in payment_ids:
-                raise PurchaseError("payment_mismatch")
+                if is_simulated_topup(row) and all(isinstance(value, str) and value.startswith("pay_") for value in payment_ids):
+                    # Replace a local fixture with verified provider evidence;
+                    # the existing ledger award remains unchanged.
+                    db.execute("UPDATE test_orders SET payment_id=? WHERE id=? AND payment_id=?",
+                               (payment_ids[0], row["id"], row["payment_id"]))
+                else:
+                    raise PurchaseError("payment_mismatch")
             if row["account_id"] is not None and row["credits"] > 0 and (can_settle or row["status"] == "paid"):
                 db.execute("INSERT INTO test_credit_ledger VALUES (?, ?, ?, ?) ON CONFLICT(order_id) DO NOTHING",
                            (row["id"], row["account_id"], row["credits"], now))

@@ -46,6 +46,11 @@ _Avoid_: Real-money purchase, defense charge.
 **Credit award**:
 Test credits granted once for a verified sandbox purchase. A pending purchase has no credit award.
 
+The authenticated, test-key-gated top-up simulation is an explicitly labeled
+sandbox fixture exception. It uses the same once-only ledger but is not
+evidence of provider payment; ordinary payment confirmation still requires
+a verified webhook.
+
 **Run reservation**:
 Test credits held for a defense run before its first validated question appears. The reservation is charged on that question or released on opening failure.
 

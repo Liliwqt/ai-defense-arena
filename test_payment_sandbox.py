@@ -101,6 +101,162 @@ class PaymentSandboxTests(unittest.TestCase):
     def balance(self):
         return account_store.account_overview(account_store.session_account(self.session_token)["id"])["test_credits"]
 
+    def simulate_topup(self, created, **body):
+        return self.client.post("/api/payments/test/topups/" + created["topup"]["id"] + "/simulate", json=body)
+
+    def test_simulation_awards_owned_test_topup_once_without_provider_call(self):
+        self.qr_responses()
+        created = self.topup().json()
+        self.provider.post.reset_mock()
+        first = self.simulate_topup(created)
+        self.assertEqual(first.status_code, 200, first.text)
+        self.assertEqual(first.json()["topup"]["status"], "paid")
+        self.assertTrue(first.json()["topup"]["simulated"])
+        self.assertIn("Sandbox simulation", first.json()["message"])
+        self.assertEqual(first.json()["mode"], "test")
+        self.assertEqual(first.headers["Cache-Control"], "no-store")
+        self.assertEqual(self.balance(), 100)
+        second = self.simulate_topup(created)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(second.json()["topup"], first.json()["topup"])
+        self.assertEqual(self.balance(), 100)
+        self.assertTrue(self.topup_status(created).json()["topup"]["simulated"])
+        self.provider.post.assert_not_awaited()
+
+    def test_simulation_is_labeled_in_private_purchase_history(self):
+        self.qr_responses()
+        created = self.topup().json()
+        self.assertFalse(created["topup"]["simulated"])
+        self.assertEqual(self.simulate_topup(created).status_code, 200)
+        overview = account_store.account_overview(account_store.session_account(self.session_token)["id"])
+        receipt = overview["orders"][0]
+        self.assertTrue(receipt["simulated"])
+        self.assertEqual(receipt["awarded_credits"], 100)
+        self.assertNotIn("payment_id", receipt)
+
+    def test_simulation_then_signed_payment_is_acknowledged_without_second_award(self):
+        self.qr_responses()
+        created = self.topup().json()
+        self.assertEqual(self.simulate_topup(created).status_code, 200)
+        event = self.qr_event(created)
+        self.assertEqual(self.deliver(event).status_code, 200)
+        self.assertEqual(self.deliver(event).status_code, 200)
+        self.assertEqual(self.balance(), 100)
+        self.assertFalse(self.topup_status(created).json()["topup"]["simulated"])
+        self.assertEqual(self.simulate_topup(created).status_code, 200)
+        self.assertEqual(self.balance(), 100)
+
+    def test_simulation_live_or_missing_configuration_never_awards(self):
+        self.qr_responses()
+        created = self.topup().json()
+        self.provider.post.reset_mock()
+        for name, value in (("PAYMONGO_SECRET_KEY", "sk_live_disallowed"), ("PAYMONGO_SECRET_KEY", ""),
+                            ("PAYMONGO_SECRET_KEY", "pk_test_not_a_secret"), ("PAYMONGO_WEBHOOK_SECRET", ""),
+                            ("PAYMONGO_PUBLIC_BASE_URL", "")):
+            with self.subTest(setting=name, value=value), patch.dict(os.environ, {name: value}):
+                result = self.simulate_topup(created)
+                self.assertEqual(result.status_code, 503)
+                self.assertEqual(self.balance(), 0)
+        self.assertEqual(self.topup_status(created).json()["topup"]["status"], "pending")
+        self.provider.post.assert_not_awaited()
+
+    def test_simulation_requires_owner_and_csrf(self):
+        self.qr_responses()
+        created = self.topup().json()
+        self.provider.post.reset_mock()
+        self.client.cookies.clear()
+        self.assertEqual(self.simulate_topup(created).status_code, 401)
+        self.client.cookies.set(accounts.ACCOUNT_COOKIE, self.session_token)
+        del self.client.headers["X-CSRF-Token"]
+        self.assertEqual(self.simulate_topup(created).status_code, 403)
+        self.client.headers["X-CSRF-Token"] = self.csrf
+        self.client.headers["Origin"] = "https://another.example"
+        self.assertEqual(self.simulate_topup(created).status_code, 403)
+        self.client.headers["Origin"] = "http://127.0.0.1:8774"
+        token, csrf = account_store.create_google_session("other-simulator-sub", "other@example.test", "Other")
+        self.client.cookies.set(accounts.ACCOUNT_COOKIE, token)
+        self.client.headers["X-CSRF-Token"] = csrf
+        self.assertEqual(self.simulate_topup(created).status_code, 404)
+        self.assertEqual(self.simulate_topup({"topup": {"id": "test_unknown"}}).status_code, 404)
+        self.assertEqual(self.balance(), 0)
+        self.provider.post.assert_not_awaited()
+
+    def test_simulation_rejects_client_financial_and_identity_fields(self):
+        self.qr_responses()
+        created = self.topup().json()
+        self.provider.post.reset_mock()
+        for field, value in (("amount", 1), ("credits", 100000), ("currency", "USD"),
+                             ("account_id", "another"), ("payment_id", "pay_forged"), ("intent_id", "pi_forged")):
+            self.assertEqual(self.simulate_topup(created, **{field: value}).status_code, 422)
+        url = "/api/payments/test/topups/" + created["topup"]["id"] + "/simulate"
+        self.assertEqual(self.client.get(url).status_code, 405)
+        self.assertEqual(self.balance(), 0)
+        self.provider.post.assert_not_awaited()
+
+    def test_concurrent_simulations_and_signed_payment_award_once(self):
+        self.qr_responses()
+        created = self.topup().json()
+        event = self.qr_event(created)
+        with ThreadPoolExecutor(max_workers=4) as workers:
+            futures = [workers.submit(self.simulate_topup, created), workers.submit(self.deliver, event),
+                       workers.submit(self.simulate_topup, created), workers.submit(self.deliver, event)]
+            results = [future.result() for future in futures]
+        self.assertTrue(all(result.status_code == 200 for result in results))
+        self.assertEqual(self.balance(), 100)
+        self.assertFalse(self.topup_status(created).json()["topup"]["simulated"])
+
+    def test_paid_provider_receipt_is_unchanged_by_simulation(self):
+        self.qr_responses()
+        created = self.topup().json()
+        self.assertEqual(self.deliver(self.qr_event(created)).status_code, 200)
+        paid = self.topup_status(created).json()["topup"]
+        result = self.simulate_topup(created)
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json()["topup"], paid)
+        self.assertIn("no additional credits", result.json()["message"])
+        self.assertFalse(result.json()["topup"]["simulated"])
+        self.assertEqual(self.balance(), 100)
+
+    def test_simulation_rejects_checkout_failed_expired_and_unverified_receipts(self):
+        checkout = self.create().json()
+        self.assertEqual(self.simulate_topup({"topup": checkout["order"]}).status_code, 404)
+        for kind in ("payment.failed", "qrph.expired"):
+            resources = self.qr_responses()
+            created = self.topup(request_id="simulation-reject-" + kind.replace(".", "-")).json()
+            self.assertEqual(self.deliver(self.qr_event(created, kind, intent_id=resources[0]["id"])).status_code, 200)
+            self.assertEqual(self.simulate_topup(created).status_code, 409)
+        self.qr_responses()
+        results = list(self.provider.post.side_effect)
+        results[2] = httpx.ReadTimeout("attachment response lost")
+        self.provider.post.side_effect = results
+        self.assertEqual(self.topup(request_id="simulation-unverified-request").status_code, 502)
+        overview = account_store.account_overview(account_store.session_account(self.session_token)["id"])
+        failed = next(row for row in overview["orders"] if row["status"] == "creation_failed")
+        self.assertEqual(self.simulate_topup({"topup": failed}).status_code, 409)
+        self.assertEqual(self.balance(), 0)
+
+    def test_simulation_past_deadline_does_not_award_or_change_stored_expiry(self):
+        self.qr_responses()
+        created = self.topup().json()
+        with patch.object(payments.time, "time", return_value=1_800_001_800):
+            self.assertEqual(self.simulate_topup(created).status_code, 409)
+        self.assertEqual(self.topup_status(created).json()["topup"], created["topup"])
+        self.assertEqual(self.balance(), 0)
+
+    def test_provider_confirmation_cannot_reuse_payment_id_on_simulated_receipt(self):
+        self.qr_responses()
+        first = self.topup().json()
+        self.assertEqual(self.deliver(self.qr_event(first)).status_code, 200)
+        resources = self.qr_responses()
+        second = self.topup(request_id="simulated-second-topup").json()
+        self.assertEqual(self.simulate_topup(second).status_code, 200)
+        before = self.topup_status(second).json()
+        event = self.qr_event(second, intent_id=resources[0]["id"])
+        self.assertEqual(self.deliver(event).status_code, 400)
+        self.assertEqual(self.topup_status(second).json(), before)
+        self.assertTrue(before["topup"]["simulated"])
+        self.assertEqual(self.balance(), 200)
+
     def test_signed_qr_paid_webhook_awards_once(self):
         self.qr_responses()
         created = self.topup().json()

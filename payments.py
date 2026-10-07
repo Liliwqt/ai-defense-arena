@@ -17,7 +17,7 @@ from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict
 from account_store import DEFAULT_DB, connect_store, token_hash
-from purchase_store import PurchaseStore, PurchaseError, TEST_AMOUNT, TEST_CREDITS, CHECKOUT_WINDOW, CHECKOUT_LIMIT
+from purchase_store import PurchaseStore, PurchaseError, TEST_AMOUNT, TEST_CREDITS, CHECKOUT_WINDOW, CHECKOUT_LIMIT, is_simulated_topup
 from accounts import check_csrf, require_account
 
 
@@ -65,6 +65,8 @@ def purchase_http_error(error: PurchaseError) -> HTTPException:
         "checkout_mismatch": (400, "Test checkout does not match the order."),
         "payment_mismatch": (400, "Test payment does not match the recorded receipt."),
         "duplicate_payment": (400, "Test payment has already been recorded for another order."),
+        "topup_not_found": (404, "Test top-up not found."),
+        "simulation_unavailable": (409, "Sandbox simulation requires an active, fully created test QR. Create a new top-up to try again."),
     }
     status, message = errors[error.kind]
     return HTTPException(status, message, headers={"Retry-After": str(CHECKOUT_WINDOW)} if error.kind == "limited" else None)
@@ -93,9 +95,13 @@ class TopupRequest(BaseModel):
     package_id: str
 
 
+class SimulateTopupRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
 def public_topup(row: dict) -> dict:
     return {key: row[key] for key in ("id", "amount", "currency", "credits", "status",
-                                    "qr_image_url", "expires_at", "created_at", "paid_at")} | {"mode": "test"}
+                                    "qr_image_url", "expires_at", "created_at", "paid_at")} | {"mode": "test", "simulated": is_simulated_topup(row)}
 
 
 def validated_test_intent(resource: dict, row: dict) -> dict:
@@ -264,6 +270,20 @@ def get_topup(topup_id: str, request: Request):
         raise HTTPException(404, "Test top-up not found.")
     # Reads never contact PayMongo or reconcile expiry/payment/credit awards.
     return response({"topup": public_topup(row)})
+
+
+@router.post("/topups/{topup_id}/simulate")
+def simulate_topup(topup_id: str, body: SimulateTopupRequest, request: Request):
+    account = require_account(request)
+    check_csrf(request, account)
+    config = settings()  # Reject missing/non-test keys before any award.
+    try:
+        row = PurchaseStore(config.database).simulate_topup_paid(topup_id, account["id"])
+    except PurchaseError as error:
+        raise purchase_http_error(error) from None
+    message = ("Sandbox simulation only: test credits applied; no provider payment was processed."
+               if is_simulated_topup(row) else "This test top-up is already paid; no additional credits were awarded.")
+    return response({"topup": public_topup(row), "mode": "test", "message": message})
 
 
 def verify_signature(raw: bytes, signature: str, secret: str, now: float) -> None:

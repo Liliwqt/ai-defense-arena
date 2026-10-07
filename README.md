@@ -349,10 +349,9 @@ The requested QR lifetime is 1800 seconds. `expires_at` is a conservative local
 display deadline measured before attachment, not confirmation of provider
 expiry or payment. Creation and deadline passage award no credits.
 
-This checkpoint is backend-only: QR confirmation and status are implemented
-in ticket 03 below; test simulation and the QR-first screen remain tickets
-04–05, and hosted-checkout
-retirement remains ticket 06. The existing checkout screen still works.
+This checkpoint is backend-only: QR confirmation/status and test simulation
+are implemented in tickets 03–04 below. The QR-first screen remains ticket 05,
+and hosted-checkout retirement remains ticket 06. The existing checkout screen still works.
 No live PayMongo integration is claimed; do not scan a sandbox QR with a real
 wallet. Provider details: [QR Ph API](https://docs.paymongo.com/docs/payment-acceptance-qr-ph-api),
 [Payment Method creation](https://docs.paymongo.com/reference/create-a-paymentmethod),
@@ -390,11 +389,37 @@ cannot mark a receipt paid. Responses are not cached.
 Offline tests cover signed payment resources and intent/QR-resource expiry
 variants. PayMongo's public guides describe the expiry event but do not show
 its complete resource payload; real sandbox delivery compatibility is still
-unverified. The QR screen and test simulation remain separate checkpoints.
+unverified. Test simulation is implemented below; the QR screen remains ticket 05.
 See [the confirmation review](docs/QR_TOPUP_CONFIRM_REVIEW.md).
 Provider references: [webhook event structure](https://docs.paymongo.com/docs/developer-tools-webhooks-events),
 [QR Ph events](https://docs.paymongo.com/docs/payment-acceptance-qr-ph),
 and [signature verification](https://docs.paymongo.com/docs/developer-tools-webhook-setup-management).
+
+### QR top-up simulation checkpoint (local backend)
+
+Ticket 04 adds `POST /api/payments/test/topups/{id}/simulate` with an empty
+JSON body `{}`. It requires the owning Google account, the existing Origin/CSRF
+headers, and configured server-only PayMongo test settings. Live keys and
+missing settings disable the action. Client-supplied amounts, credits, account
+IDs and payment IDs are rejected.
+
+Simulation awards the server-priced credits once using the same transactional
+ledger as payment confirmation. It requires a fully created, pending QR whose
+stored deadline has not passed. Failed, expired, incomplete and checkout
+receipts cannot be simulated. Repeating an already paid top-up returns its
+receipt without another award.
+
+This is an explicitly labeled sandbox fixture exception to ordinary signed
+webhook confirmation: no provider request or real payment is made. The response
+includes `mode: "test"`, a written sandbox message and `topup.simulated`.
+Private purchase history also includes that flag; provider payment identifiers
+remain private. A later validated signed payment can replace the fixture's
+payment evidence without adding credits, changing `simulated` to false.
+
+The QR-first screen and its simulation button are ticket 05; hosted-checkout
+retirement remains ticket 06. This checkpoint adds no UI. All verification used
+mocked providers and temporary SQLite, not a live payment. See
+[the simulation review](docs/QR_TOPUP_SIMULATE_REVIEW.md).
 
 ## Streamlit fallback
 
