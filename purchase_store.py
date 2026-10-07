@@ -1,6 +1,7 @@
 """Transactional sandbox purchases, independent of HTTP and the payment provider."""
 
 from pathlib import Path
+import json
 import secrets
 import sqlite3
 import time
@@ -52,11 +53,16 @@ class PurchaseStore:
 
     def _begin(self, account_id: str, request_id: str, amount: int, credits: int, provider: str, *, now: int | None) -> dict:
         now = int(time.time()) if now is None else now
-        fingerprint = token_hash(account_id + ":" + request_id) if request_id else None
+        fingerprint = token_hash(json.dumps([provider, account_id, request_id])) if request_id else None
         with connect_store(self.database) as db:
             db.execute("BEGIN IMMEDIATE")
             if fingerprint:
                 previous = db.execute("SELECT * FROM test_orders WHERE request_hash=?", (fingerprint,)).fetchone()
+                if previous is None:
+                    # Preserve retries for pre-namespace receipts, without crossing providers or owners.
+                    legacy_fingerprint = token_hash(account_id + ":" + request_id)
+                    previous = db.execute("SELECT * FROM test_orders WHERE request_hash=? AND account_id=? AND provider=?",
+                                          (legacy_fingerprint, account_id, provider)).fetchone()
                 if previous:
                     if previous["status"] in {"pending", "paid"}:
                         return dict(previous)
@@ -82,7 +88,8 @@ class PurchaseStore:
 
     def register_topup(self, order_id: str, intent_id: str, qr_image_url: str, expires_at: int) -> dict:
         with connect_store(self.database) as db:
-            db.execute("UPDATE test_orders SET intent_id=?, qr_image_url=?, expires_at=?, status='pending' WHERE id=?",
+            # Late registration retries must not reopen a settled top-up or rebind its receipt.
+            db.execute("UPDATE test_orders SET intent_id=?, qr_image_url=?, expires_at=?, status='pending' WHERE id=? AND status IN ('creating', 'pending')",
                        (intent_id, qr_image_url, expires_at, order_id))
             return dict(db.execute("SELECT * FROM test_orders WHERE id=?", (order_id,)).fetchone())
 

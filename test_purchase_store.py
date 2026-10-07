@@ -1,6 +1,7 @@
 """Persisted purchase behavior; no provider, HTTP, or browser calls."""
 
 from concurrent.futures import ThreadPoolExecutor
+import hashlib
 from pathlib import Path
 import tempfile
 import unittest
@@ -72,6 +73,71 @@ class PurchaseStoreTests(unittest.TestCase):
             self.store.record_topup_paid(topup["id"], "pi_x", [], 10000, now=2002)
         self.assertEqual(self.store.get(topup["id"])["status"], "pending")
         self.assertEqual(sum(item["awarded_credits"] for item in self.store.history("owner")), 0)
+
+    def test_registration_retry_preserves_paid_topup_and_once_only_award(self):
+        topup = self.store.begin_topup("owner", "starter", "paid-registration-retry", now=2000)
+        self.store.register_topup(topup["id"], "pi_paid", "original-image", 3000)
+        self.store.record_topup_paid(topup["id"], "pi_paid", ["pay_paid"], 10000, now=2010)
+        paid = self.store.get(topup["id"])
+        retried = self.store.register_topup(topup["id"], "pi_replacement", "replacement-image", 4000)
+        self.assertEqual(retried, paid)
+        self.store.mark_topup_expired(topup["id"])
+        self.store.mark_topup_failed(topup["id"])
+        self.store.record_topup_paid(topup["id"], "pi_paid", ["pay_paid"], 10000, now=2020)
+        self.assertEqual(self.store.get(topup["id"]), paid)
+        self.assertEqual(self.store.history("owner")[0]["awarded_credits"], 100)
+
+    def test_checkout_and_qr_with_same_request_id_are_distinct_and_reuse_their_own_receipts(self):
+        for first in ("checkout", "qr"):
+            with self.subTest(first=first):
+                request_id = f"shared-request-{first}"
+                if first == "checkout":
+                    checkout = self.store.begin("owner", request_id, now=1000)
+                    self.store.register(checkout["id"], f"cs_{first}", "https://checkout.paymongo.com/fixture")
+                    topup = self.store.begin_topup("owner", "starter", request_id, now=1001)
+                else:
+                    topup = self.store.begin_topup("owner", "starter", request_id, now=1000)
+                    self.store.register_topup(topup["id"], f"pi_{first}", "image", 3000)
+                    checkout = self.store.begin("owner", request_id, now=1001)
+                self.assertNotEqual(checkout["id"], topup["id"])
+                self.assertEqual(checkout["provider"], "checkout_session")
+                self.assertEqual(topup["provider"], "payment_intent")
+                self.store.register(checkout["id"], f"cs_{first}", "https://checkout.paymongo.com/fixture")
+                self.store.register_topup(topup["id"], f"pi_{first}", "image", 3000)
+                self.assertEqual(self.store.begin("owner", request_id, now=1002)["id"], checkout["id"])
+                self.assertEqual(self.store.begin_topup("owner", "starter", request_id, now=1002)["id"], topup["id"])
+
+    def test_legacy_requests_reuse_only_the_matching_provider_without_new_awards(self):
+        for index, (provider, status) in enumerate((provider, status)
+                for provider in ("checkout", "qr") for status in ("creating", "pending", "paid")):
+            with self.subTest(provider=provider, status=status):
+                now = 1000 + index * 1000
+                request_id = f"legacy-{provider}-{status}"
+                begin = (lambda: self.store.begin("owner", request_id, now=now)) if provider == "checkout" else (
+                    lambda: self.store.begin_topup("owner", "starter", request_id, now=now))
+                order = begin()
+                if status != "creating":
+                    if provider == "checkout":
+                        self.store.register(order["id"], f"cs_{index}", "https://checkout.paymongo.com/fixture")
+                        if status == "paid": self.store.record_paid(order["id"], f"cs_{index}", [f"pay_{index}"], now=now)
+                    else:
+                        self.store.register_topup(order["id"], f"pi_{index}", "image", now + 1800)
+                        if status == "paid": self.store.record_topup_paid(order["id"], f"pi_{index}", [f"pay_{index}"], 10000, now=now)
+                # Fixture for the hash format stored before provider-scoped keys existed.
+                legacy_hash = hashlib.sha256(f"owner:{request_id}".encode()).hexdigest()
+                with connect_store(self.store.database) as db:
+                    db.execute("UPDATE test_orders SET request_hash=? WHERE id=?", (legacy_hash, order["id"]))
+                saved = self.store.get(order["id"])
+                credits = sum(item["awarded_credits"] for item in self.store.history("owner"))
+                if status == "creating":
+                    with self.assertRaises(PurchaseError) as inflight: begin()
+                    self.assertEqual(inflight.exception.kind, "creating")
+                else:
+                    self.assertEqual(begin(), saved)
+                other = self.store.begin_topup("owner", "starter", request_id, now=now) if provider == "checkout" else (
+                    self.store.begin("owner", request_id, now=now))
+                self.assertNotEqual(other["id"], order["id"])
+                self.assertEqual(sum(item["awarded_credits"] for item in self.store.history("owner")), credits)
 
     def test_failed_or_expired_topup_awards_nothing_and_paid_is_terminal(self):
         failed = self.store.begin_topup("owner", "starter", "topup-fail", now=2000)
