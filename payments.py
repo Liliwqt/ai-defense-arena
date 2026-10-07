@@ -17,7 +17,7 @@ from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict
 from account_store import DEFAULT_DB, connect_store, token_hash
-from purchase_store import PurchaseStore, PurchaseError, TEST_AMOUNT, TEST_CREDITS, CHECKOUT_WINDOW, CHECKOUT_LIMIT, is_simulated_topup
+from purchase_store import PurchaseStore, PurchaseError, TEST_AMOUNT, TEST_CREDITS, CHECKOUT_WINDOW, CHECKOUT_LIMIT, PACKAGES, is_simulated_topup
 from accounts import check_csrf, require_account
 
 
@@ -83,7 +83,8 @@ def payment_config():
         ready = True
     except HTTPException:
         ready = False
-    return response({"mode": "test", "enabled": ready, "amount": TEST_AMOUNT, "currency": "PHP", "credits": TEST_CREDITS})
+    return response({"mode": "test", "enabled": ready, "amount": TEST_AMOUNT, "currency": "PHP", "credits": TEST_CREDITS,
+                     "packages": [{"id": key, "currency": "PHP", **value} for key, value in PACKAGES.items()]})
 
 
 class CheckoutRequest(BaseModel):

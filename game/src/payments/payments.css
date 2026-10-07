@@ -17,3 +17,16 @@
 .payment-history { list-style: none; padding: 0; }
 .payment-history li { display: grid; gap: 4px; padding: 12px 0; border-bottom: 1px solid var(--line); }
 @media (max-width: 600px) { .payment-page { padding: 20px 14px; } .payment-steps li { padding: 18px; } }
+
+.payment-package { display: grid; gap: 14px; margin: 20px 0; }
+.payment-package label { font-weight: 700; }
+.payment-package select { width: 100%; min-width: 0; min-height: 44px; padding: 10px; color: var(--ink); background: var(--base); border: 1px solid var(--line); border-radius: 8px; }
+.payment-qr { display: block; width: min(100%, 280px); height: auto; aspect-ratio: 1; object-fit: contain; background: white; padding: 12px; margin: 18px auto; border: 1px solid var(--line); border-radius: 12px; }
+.payment-warning { padding: 12px; border-left: 3px solid var(--ink); }
+.payment-receipt time { font-variant-numeric: tabular-nums; font-weight: 800; }
+.payment-receipt h3 { font-size: 1.15rem; font-weight: 800; margin-top: 16px; }
+.payment-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.payment-actions button { flex: 1 1 180px; }
+.payment-page button, .payment-page select { min-height: 44px; }
+.payment-page :is(button, a, select):focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+@media (max-width: 600px) { .payment-account { padding: 18px; } .payment-actions { flex-direction: column; } .payment-actions button { flex-basis: auto; width: 100%; } }

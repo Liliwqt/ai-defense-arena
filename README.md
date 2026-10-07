@@ -212,7 +212,7 @@ Rooms, accepted text, chat, and coaching live in process memory. There is no sto
 
 The main app's **Account** drawer shows Google sign-in/sign-out, available and reserved test credits, voucher redemption, and purchase history. Hosts sign in; teammates do not. Account data stays private to the host. A voucher covers unlimited free runs; otherwise each defense costs **10 test credits**, regardless of its question budget. These are sandbox fixtures, not final pricing or a paper-cost estimate. Streamlit keeps its separate single-browser behavior without account charging.
 
-The **Get sandbox test credits** link opens `/?payments=test`. A simulated **PHP 100.00 → 100 test credits** pack is awarded only by a verified matching test-mode PayMongo webhook. Browser redirects never award credits; duplicate notifications award once. No host passcode is required for either checkout or room creation.
+The **Get sandbox test credits** link opens the QR-first `/?payments=test` page locally. The **PHP 100.00 → 100 test credits** package is a sandbox fixture. Verified matching test-mode PayMongo webhooks award once; the explicitly labeled, authenticated test-key-gated simulation is a separate fixture path. Browser redirects never award credits. No host passcode is required for top-ups or room creation.
 
 ### Step 1: view the local screen
 
@@ -310,7 +310,34 @@ export PAYMONGO_PUBLIC_BASE_URL=https://YOUR-DEVELOPMENT-ORIGIN
 
 Stop the earlier server on 8790 before restarting it with these settings. The regular `run_local.sh` does not load PayMongo values from `.env`; explicitly exported values are inherited. No secret value belongs in Git, browser code, screenshots, or the handoff log.
 
-### Step 5: complete one simulated account purchase and defense
+### Step 5: try the QR sandbox top-up
+
+1. Rebuild React (`cd game && npm run build`) and restart FastAPI to load the
+   new payment config. Open `/?payments=test` on the same origin used for
+   Google sign-in and sign in to your account.
+2. Choose **100 test credits · ₱100.00** to generate the QR immediately. The
+   **Generate test QR** button also chooses that default package and retries
+   a retained request after a lost response. The browser sends only its package
+   ID; prices and awards are server-owned.
+3. **Do not scan the test QR with a real wallet.** For a single-device fixture
+   check, use **Simulate paid top-up**. It uses the authenticated test-only
+   server route and explicitly labels the award as simulation. Testing actual
+   provider notifications through PayMongo's test tools is a separate check.
+4. Watch the server-derived countdown and automatic receipt/balance refresh.
+   Expiry hides the QR without awarding credits. **Cancel top-up** hides it on
+   this device, including after reload; it does not cancel a provider payment.
+   Both states still monitor the receipt for later verified payment. Regenerate
+   explicitly creates a separate QR; earlier receipts remain in account history.
+5. Confirm the refreshed balance and actual credits added in history. A later
+   signed provider payment can replace simulated evidence without adding more
+   credits. Use **View top-up** to reopen an existing QR from your history.
+   Running a defense still uses the existing flat ten-credit sandbox charge.
+
+### Legacy hosted-checkout walkthrough (backend retained until ticket 06)
+
+The following describes the earlier screen, not the current QR-first page.
+Its backend remains during the migration; ticket 06 will retire checkout
+creation. Existing purchases and their credit awards are preserved.
 
 1. Open `https://YOUR-DEVELOPMENT-ORIGIN/?payments=test`, sign in with Google, and confirm that server setup is configured. Google and payment origins must match this browser origin.
 2. Create a test checkout and open it. Complete QRPh using PayMongo's **test simulator**. **Do not scan and pay the QR code with a real bank or wallet app:** PayMongo warns that QRPh test codes can still process real transactions. If checkout does not offer a simulator, pause and inspect the provider's testing instructions instead of paying the QR.
@@ -349,9 +376,9 @@ The requested QR lifetime is 1800 seconds. `expires_at` is a conservative local
 display deadline measured before attachment, not confirmation of provider
 expiry or payment. Creation and deadline passage award no credits.
 
-This checkpoint is backend-only: QR confirmation/status and test simulation
-are implemented in tickets 03–04 below. The QR-first screen remains ticket 05,
-and hosted-checkout retirement remains ticket 06. The existing checkout screen still works.
+This creation checkpoint is backend-only. Tickets 03–04 below add QR
+confirmation/status and test simulation; ticket 05 adds the QR-first screen.
+Hosted-checkout backend retirement remains ticket 06.
 No live PayMongo integration is claimed; do not scan a sandbox QR with a real
 wallet. Provider details: [QR Ph API](https://docs.paymongo.com/docs/payment-acceptance-qr-ph-api),
 [Payment Method creation](https://docs.paymongo.com/reference/create-a-paymentmethod),
@@ -389,7 +416,7 @@ cannot mark a receipt paid. Responses are not cached.
 Offline tests cover signed payment resources and intent/QR-resource expiry
 variants. PayMongo's public guides describe the expiry event but do not show
 its complete resource payload; real sandbox delivery compatibility is still
-unverified. Test simulation is implemented below; the QR screen remains ticket 05.
+unverified. Test simulation is implemented below; the QR screen is implemented below.
 See [the confirmation review](docs/QR_TOPUP_CONFIRM_REVIEW.md).
 Provider references: [webhook event structure](https://docs.paymongo.com/docs/developer-tools-webhooks-events),
 [QR Ph events](https://docs.paymongo.com/docs/payment-acceptance-qr-ph),
@@ -416,10 +443,44 @@ Private purchase history also includes that flag; provider payment identifiers
 remain private. A later validated signed payment can replace the fixture's
 payment evidence without adding credits, changing `simulated` to false.
 
-The QR-first screen and its simulation button are ticket 05; hosted-checkout
-retirement remains ticket 06. This checkpoint adds no UI. All verification used
-mocked providers and temporary SQLite, not a live payment. See
+The QR-first screen and its simulation button are implemented in ticket 05
+below; hosted-checkout retirement remains ticket 06. Ticket 04 itself adds no
+UI. All verification used mocked providers and temporary SQLite, not a live payment. See
 [the simulation review](docs/QR_TOPUP_SIMULATE_REVIEW.md).
+
+### QR-first top-up screen checkpoint (local)
+
+Ticket 05 connects `/?payments=test` to the QR endpoints above. The public
+config advertises server-owned packages; the page lets a signed-in host choose
+one and immediately generate its QR. It shows the amount, countdown,
+simulation, cancellation and regeneration, plus account balance and history.
+The existing **Get sandbox test credits** link opens this screen.
+
+Creation, checking and confirmation are distinct. The request key is saved
+before creation and reused after a lost response. Pending, failed, expired and
+locally cancelled receipts remain monitored for later authoritative payment.
+A paid receipt refreshes the balance automatically; simulated evidence keeps
+refreshing until replaced by provider confirmation. A balance-refresh failure
+retains the paid receipt and provides a manual retry. QR receipt references are
+account-scoped locally; the server still enforces ownership on every request.
+Only normalized PNG data images are displayed. Native resume and browser focus
+refresh receipt/account data without trusting a redirect.
+
+Cancel is a local display action, not provider cancellation or refund. Local
+expiry and cancellation award nothing; history reflects server states and
+actual `awarded_credits`, with explicit simulation labels. Regeneration starts
+a new request; earlier receipts remain in the account's bounded history.
+
+Local checks: 279 Python tests (external providers mocked), 202 working-tree
+React tests and build; the isolated selected frontend passes 195 tests and
+build. A synthetic browser walkthrough checked desktop, portrait and landscape,
+keyboard focus, QR lifecycle/retry, automatic balance and later provider evidence.
+See [the page review](docs/QR_TOPUP_PAGE_REVIEW.md) and
+[desktop](screenshots/qr-topup-mock-desktop.png),
+[portrait](screenshots/qr-topup-mock-portrait.png), and
+[landscape](screenshots/qr-topup-mock-landscape.png) captures.
+These are mock fixtures, not live payments or physical-device checks. Ticket 06
+and real provider verification remain pending. No push or deployment.
 
 ## Streamlit fallback
 

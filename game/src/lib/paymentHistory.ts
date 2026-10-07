@@ -1,5 +1,7 @@
 export interface TestPurchase {
   id: string;
+  provider?: "payment_intent" | "checkout_session";
+  simulated?: boolean;
   status: string;
   credits: number;
   awarded_credits?: number;
@@ -17,7 +19,10 @@ export interface DefenseRunReceipt {
 }
 
 export function purchaseLabel(order: TestPurchase): string {
-  const labels: Record<string, string> = { creating: "Creating checkout", creation_failed: "Checkout unverified", pending: "Awaiting payment verification", paid: "Payment recorded" };
+  const qr = order.provider === "payment_intent";
+  const labels: Record<string, string> = { creating: qr ? "Generating QR" : "Creating checkout",
+    creation_failed: qr ? "QR creation unverified" : "Checkout unverified", pending: "Awaiting payment verification",
+    paid: order.simulated ? "Sandbox simulation applied" : "Payment recorded", failed: "Payment failed", expired: "QR expired", cancelled: "Cancelled" };
   const label = labels[order.status] ?? "Unknown purchase status";
   return `${label} · ${order.awarded_credits ?? 0} test credits added`;
 }

@@ -60,6 +60,15 @@ class PaymentSandboxTests(unittest.TestCase):
         provider_class.return_value.__aenter__.return_value = self.provider
         self.addCleanup(provider_patch.stop)
 
+    def test_config_advertises_server_owned_topup_packages(self):
+        configured = self.client.get("/api/payments/test/config").json()
+        self.assertEqual(configured["packages"], [{"id": "starter", "amount": 10000, "currency": "PHP", "credits": 100}])
+        with patch.dict(os.environ, {"PAYMONGO_SECRET_KEY": "sk_live_offline"}):
+            disabled = self.client.get("/api/payments/test/config").json()
+        self.assertFalse(disabled["enabled"])
+        self.assertEqual(disabled["packages"], configured["packages"])
+        self.provider.post.assert_not_called()
+
     def create(self, *, request_id=None, **extra):
         return self.client.post("/api/payments/test/checkout", json={**extra}, headers={"Idempotency-Key":request_id} if request_id else {})
 
