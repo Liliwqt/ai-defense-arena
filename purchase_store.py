@@ -93,6 +93,12 @@ class PurchaseStore:
                        (intent_id, qr_image_url, expires_at, order_id))
             return dict(db.execute("SELECT * FROM test_orders WHERE id=?", (order_id,)).fetchone())
 
+    def bind_topup_intent(self, order_id: str, intent_id: str) -> None:
+        """Map early notifications before attachment can publish a payment."""
+        with connect_store(self.database) as db:
+            db.execute("UPDATE test_orders SET intent_id=? WHERE id=? AND provider='payment_intent' AND status='creating'",
+                       (intent_id, order_id))
+
     def mark_topup_failed(self, order_id: str) -> None:
         self._set_topup_status(order_id, "failed")
 
@@ -107,6 +113,12 @@ class PurchaseStore:
     def get(self, order_id: str) -> dict | None:
         with connect_store(self.database) as db:
             row = db.execute("SELECT * FROM test_orders WHERE id=?", (order_id,)).fetchone()
+            return dict(row) if row is not None else None
+
+    def get_topup_by_intent(self, intent_id: str) -> dict | None:
+        with connect_store(self.database) as db:
+            row = db.execute("SELECT * FROM test_orders WHERE intent_id=? AND provider='payment_intent'",
+                             (intent_id,)).fetchone()
             return dict(row) if row is not None else None
 
     def history(self, account_id: str) -> list[dict]:
@@ -139,13 +151,18 @@ class PurchaseStore:
     def _award(db, row, payment_ids: list[str], now: int) -> None:
         if not payment_ids:
             raise PurchaseError("checkout_mismatch")
+        # A verified QR payment is authoritative even when its delivery follows
+        # an expiry/failure or a lost attachment response. Checkout rules stay
+        # unchanged; all settlement and ledger changes share this transaction.
+        can_settle = row["status"] == "pending" or (
+            row["provider"] == "payment_intent" and row["status"] in {"creation_failed", "failed", "expired"})
         try:
-            if row["status"] == "pending":
-                db.execute("UPDATE test_orders SET status='paid', payment_id=?, paid_at=? WHERE id=? AND status='pending'",
-                           (payment_ids[0], now, row["id"]))
+            if can_settle:
+                db.execute("UPDATE test_orders SET status='paid', payment_id=?, paid_at=? WHERE id=? AND status=?",
+                           (payment_ids[0], now, row["id"], row["status"]))
             elif row["status"] == "paid" and row["payment_id"] not in payment_ids:
                 raise PurchaseError("payment_mismatch")
-            if row["account_id"] is not None and row["credits"] > 0 and row["status"] in ("paid", "pending"):
+            if row["account_id"] is not None and row["credits"] > 0 and (can_settle or row["status"] == "paid"):
                 db.execute("INSERT INTO test_credit_ledger VALUES (?, ?, ?, ?) ON CONFLICT(order_id) DO NOTHING",
                            (row["id"], row["account_id"], row["credits"], now))
         except sqlite3.IntegrityError:

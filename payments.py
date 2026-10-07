@@ -122,6 +122,7 @@ async def create_qr(client: httpx.AsyncClient, config: Settings, row: dict) -> t
     if (attrs.get("status") != "awaiting_payment_method"
             or not isinstance(client_key, str) or not client_key):
         raise ValueError("Invalid test intent")
+    PurchaseStore(config.database).bind_topup_intent(row["id"], intent_id)
     result = await client.post(PAYMENT_API + "/payment_methods", auth=(config.key, ""), json={"data": {"attributes": {
         "type": "qrph", "expiry_seconds": QR_EXPIRY_SECONDS,
     }}})
@@ -173,7 +174,7 @@ async def create_topup(body: TopupRequest, request: Request, idempotency_key: st
     try:
         async with httpx.AsyncClient(timeout=20) as client:
             intent_id, image, expires_at = await create_qr(client, config, row)
-    except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError):
+    except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError, sqlite3.IntegrityError):
         # A partial provider request can exist even when its response is lost.
         # Preserve this attempt and refuse automatic re-creation on replay.
         store.creation_failed(row["id"])
@@ -255,6 +256,16 @@ def get_order(order_id: str, request: Request, authorization: str = Header(defau
     return response({"order": public_order(row)})
 
 
+@router.get("/topups/{topup_id}")
+def get_topup(topup_id: str, request: Request):
+    account = require_account(request)
+    row = PurchaseStore(settings().database).get(topup_id)
+    if row is None or row["provider"] != "payment_intent" or row["account_id"] != account["id"]:
+        raise HTTPException(404, "Test top-up not found.")
+    # Reads never contact PayMongo or reconcile expiry/payment/credit awards.
+    return response({"topup": public_topup(row)})
+
+
 def verify_signature(raw: bytes, signature: str, secret: str, now: float) -> None:
     try:
         fields = {}
@@ -290,6 +301,75 @@ def paid_session(body: dict) -> dict | None:
         raise HTTPException(400, "Invalid test payment event.") from None
 
 
+def reconcile_topup_event(body: dict, store: PurchaseStore) -> bool:
+    """Return whether this is a QR event, after validating its signed resource."""
+    try:
+        event = body["data"]
+        envelope = event["attributes"] if event.get("type") == "event" else event
+        event_type = envelope["type"]
+        if event_type not in {"payment.paid", "payment.failed", "qrph.expired"}:
+            return False
+        if envelope.get("livemode") is not False:
+            raise ValueError("Only test events are accepted")
+        resource = envelope.get("data") or envelope.get("resource")
+        # Checkout resources retain their existing separate handler.
+        if isinstance(resource, dict) and resource.get("type") == "checkout_session":
+            return False
+        attrs = resource["attributes"]
+        if attrs.get("livemode") is not False:
+            raise ValueError("Only test resources are accepted")
+        payment_id = None
+        qr_expiry = event_type == "qrph.expired" and resource.get("type") == "qrph"
+        if event_type == "qrph.expired":
+            if qr_expiry:
+                if (not isinstance(resource.get("id"), str) or not re.fullmatch(r"qrph_[A-Za-z0-9_]+", resource["id"])
+                        or attrs.get("status", "expired") != "expired"):
+                    raise ValueError("Invalid expired QR")
+                intent_id = attrs["payment_intent_id"]
+            else:
+                if resource.get("type") != "payment_intent" or attrs.get("status") != "awaiting_payment_method":
+                    raise ValueError("Invalid expired intent")
+                intent_id = resource["id"]
+        else:
+            if resource.get("type") != "payment" or attrs.get("status") != event_type.split(".")[1]:
+                raise ValueError("Invalid payment resource")
+            intent_id, payment_id = attrs["payment_intent_id"], resource["id"]
+            if not isinstance(payment_id, str) or not re.fullmatch(r"pay_[A-Za-z0-9_]+", payment_id):
+                raise ValueError("Invalid payment ID")
+        if (not isinstance(intent_id, str) or not re.fullmatch(r"pi_[A-Za-z0-9_]+", intent_id)
+                or (not qr_expiry or "amount" in attrs) and type(attrs.get("amount")) is not int
+                or (not qr_expiry or "currency" in attrs) and not isinstance(attrs.get("currency"), str)):
+            raise ValueError("Invalid payment fields")
+        metadata = attrs.get("metadata")
+        if metadata is None:
+            metadata = {}
+        if not isinstance(metadata, dict):
+            raise ValueError("Invalid payment metadata")
+        row = store.get_topup_by_intent(intent_id)
+        if row is None:
+            if "topup_id" in metadata:
+                if not isinstance(metadata["topup_id"], str):
+                    raise ValueError("Invalid top-up reference")
+                if store.get(metadata["topup_id"]) is not None:
+                    raise ValueError("Intent does not match the referenced receipt")
+            return True  # A payment from another integration on this provider account.
+        if ("topup_id" in metadata and metadata["topup_id"] != row["id"]
+                or "amount" in attrs and attrs["amount"] != row["amount"]
+                or "currency" in attrs and attrs["currency"] != row["currency"]):
+            raise ValueError("Payment does not match the receipt")
+    except (KeyError, TypeError, AttributeError, ValueError):
+        raise HTTPException(400, "Test payment details do not match the recorded top-up.") from None
+    if row["status"] == "creating":
+        raise PurchaseError("registration_pending")
+    if event_type == "payment.paid":
+        store.record_topup_paid(row["id"], intent_id, [payment_id], attrs["amount"], attrs["currency"])
+    elif event_type == "payment.failed":
+        store.mark_topup_failed(row["id"])
+    else:
+        store.mark_topup_expired(row["id"])
+    return True
+
+
 @router.post("/webhook")
 async def receive_webhook(request: Request, paymongo_signature: str = Header(default="")):
     config = settings()
@@ -300,7 +380,12 @@ async def receive_webhook(request: Request, paymongo_signature: str = Header(def
             raise HTTPException(413, "Webhook is too large.")
     verify_signature(bytes(raw), paymongo_signature, config.webhook_secret, time.time())
     try:
-        session = paid_session(json.loads(raw))
+        body = json.loads(raw)
+        if reconcile_topup_event(body, PurchaseStore(config.database)):
+            return response({"received": True})
+        session = paid_session(body)
+    except PurchaseError as error:
+        raise purchase_http_error(error) from None
     except (ValueError, UnicodeDecodeError):
         raise HTTPException(400, "Invalid test payment event.") from None
     if session is None:

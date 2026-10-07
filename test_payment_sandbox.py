@@ -1,6 +1,7 @@
 """Offline payment checks. PayMongo calls and webhook deliveries are mocked."""
 
 import hashlib
+import asyncio
 import hmac
 import json
 import os
@@ -67,18 +68,301 @@ class PaymentSandboxTests(unittest.TestCase):
                                 headers={"Idempotency-Key": request_id} if request_id else {})
 
     def qr_responses(self):
+        self.qr_fixture_count = getattr(self, "qr_fixture_count", 0) + 1
+        intent_id = "pi_offline" if self.qr_fixture_count == 1 else "pi_offline_" + str(self.qr_fixture_count)
         image = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1uoAAAAASUVORK5CYII="
         attrs = {"livemode": False, "amount": 10000, "currency": "PHP"}
         resources = [
-            {"id": "pi_offline", "type": "payment_intent", "attributes": {**attrs, "client_key": "pi_offline_client_secret", "status": "awaiting_payment_method"}},
+            {"id": intent_id, "type": "payment_intent", "attributes": {**attrs, "client_key": "pi_offline_client_secret", "status": "awaiting_payment_method"}},
             {"id": "pm_offline", "type": "payment_method", "attributes": {"livemode": False, "type": "qrph"}},
-            {"id": "pi_offline", "type": "payment_intent", "attributes": {**attrs, "status": "awaiting_next_action", "next_action": {"code": {"image_url": image}}}},
+            {"id": intent_id, "type": "payment_intent", "attributes": {**attrs, "status": "awaiting_next_action", "next_action": {"code": {"image_url": image}}}},
         ]
         results = [Mock() for _ in resources]
         for result, resource in zip(results, resources):
             result.json.return_value = {"data": resource}
         self.provider.post.side_effect = results
         return resources
+
+    def qr_event(self, created, event_type="payment.paid", intent_id="pi_offline", payment_id="pay_qr_offline"):
+        attrs = {"livemode": False, "amount": 10000, "currency": "PHP",
+                 "metadata": {"topup_id": created["topup"]["id"]}}
+        if event_type == "qrph.expired":
+            resource = {"id": intent_id, "type": "payment_intent", "attributes": {
+                **attrs, "status": "awaiting_payment_method"}}
+        else:
+            resource = {"id": payment_id, "type": "payment", "attributes": {
+                **attrs, "payment_intent_id": intent_id, "status": event_type.split(".")[1]}}
+        return {"data": {"id": "evt_qr_offline", "type": "event", "attributes": {
+            "livemode": False, "type": event_type, "data": resource}}}
+
+    def topup_status(self, created):
+        return self.client.get("/api/payments/test/topups/" + created["topup"]["id"])
+
+    def balance(self):
+        return account_store.account_overview(account_store.session_account(self.session_token)["id"])["test_credits"]
+
+    def test_signed_qr_paid_webhook_awards_once(self):
+        self.qr_responses()
+        created = self.topup().json()
+        event = self.qr_event(created)
+        self.assertEqual(self.deliver(event).status_code, 200)
+        self.assertEqual(self.balance(), 100)
+        self.assertEqual(self.deliver(event).status_code, 200)
+        self.assertEqual(self.balance(), 100)
+        self.assertEqual(self.topup_status(created).json()["topup"]["status"], "paid")
+
+    def test_topup_status_is_owner_only_and_display_only(self):
+        self.qr_responses()
+        created = self.topup().json()
+        url = "/api/payments/test/topups/" + created["topup"]["id"]
+        with patch.object(payments.time, "time", return_value=1_800_002_000):
+            for _ in range(3):
+                result = self.client.get(url + "?status=paid")
+                self.assertEqual(result.status_code, 200, result.text)
+                self.assertEqual(result.json()["topup"], created["topup"])
+        self.assertEqual(result.headers["Cache-Control"], "no-store")
+        self.assertEqual(self.balance(), 0)
+        with TestClient(self.client.app, base_url="http://127.0.0.1:8774") as other:
+            self.assertEqual(other.get(url).status_code, 401)
+            token, _ = account_store.create_google_session("other-status-sub", "other@example.test", "Other")
+            other.cookies.set(accounts.ACCOUNT_COOKIE, token)
+            self.assertEqual(other.get(url).status_code, 404)
+            other.cookies.set(accounts.ACCOUNT_COOKIE, self.session_token)
+            self.assertEqual(other.get(url).json()["topup"]["status"], "pending")
+        self.assertEqual(self.client.get("/api/payments/test/topups/test_missing").status_code, 404)
+        self.provider.post.side_effect = None
+        checkout = self.create().json()
+        self.assertEqual(self.client.get("/api/payments/test/topups/" + checkout["order"]["id"]).status_code, 404)
+
+    def test_failed_qr_webhook_awards_nothing_and_is_idempotent(self):
+        self.qr_responses()
+        created = self.topup().json()
+        event = self.qr_event(created, "payment.failed")
+        self.assertEqual(self.deliver(event).status_code, 200)
+        self.assertEqual(self.topup_status(created).json()["topup"]["status"], "failed")
+        self.assertEqual(self.deliver(event).status_code, 200)
+        self.assertEqual(self.balance(), 0)
+
+    def test_expired_qr_webhook_awards_nothing_and_is_idempotent(self):
+        self.qr_responses()
+        created = self.topup().json()
+        event = self.qr_event(created, "qrph.expired")
+        self.assertEqual(self.deliver(event).status_code, 200)
+        self.assertEqual(self.topup_status(created).json()["topup"]["status"], "expired")
+        self.assertEqual(self.deliver(event).status_code, 200)
+        self.assertEqual(self.balance(), 0)
+
+    def test_qr_payment_during_attachment_requests_retry_then_awards_once(self):
+        self.qr_responses()
+        results = list(self.provider.post.side_effect)
+        early_statuses = []
+
+        async def provider_call(url, **kwargs):
+            if url.endswith("/payment_intents"):
+                provider_call.topup_id = kwargs["json"]["data"]["attributes"]["metadata"]["topup_id"]
+                return results[0]
+            if url.endswith("/payment_methods"):
+                return results[1]
+            event = self.qr_event({"topup": {"id": provider_call.topup_id}})
+            del event["data"]["attributes"]["data"]["attributes"]["metadata"]
+            delivered = await asyncio.to_thread(self.deliver, event)
+            early_statuses.append(delivered.status_code)
+            return results[2]
+
+        self.provider.post.side_effect = provider_call
+        created = self.topup().json()
+        self.assertEqual(early_statuses, [503])
+        self.assertEqual(self.balance(), 0)
+        event = self.qr_event(created)
+        del event["data"]["attributes"]["data"]["attributes"]["metadata"]
+        self.assertEqual(self.deliver(event).status_code, 200)
+        self.assertEqual(self.balance(), 100)
+        self.assertEqual(self.deliver(event).status_code, 200)
+        self.assertEqual(self.balance(), 100)
+
+    def test_qr_webhook_rejects_amount_currency_and_reference_mismatches(self):
+        self.qr_responses()
+        created = self.topup().json()
+        changes = [
+            lambda a: a.update(amount=1), lambda a: a.update(amount="10000"),
+            lambda a: a.update(currency="USD"), lambda a: a.update(payment_intent_id="pi_other"),
+            lambda a: a.update(metadata={"topup_id": "test_other"}), lambda a: a.update(metadata=["topup_id"]),
+        ]
+        for change in changes:
+            event = self.qr_event(created)
+            change(event["data"]["attributes"]["data"]["attributes"])
+            self.assertEqual(self.deliver(event).status_code, 400)
+            self.assertEqual(self.topup_status(created).json()["topup"]["status"], "pending")
+        self.assertEqual(self.balance(), 0)
+
+    def test_qrph_resource_expiry_maps_to_registered_intent(self):
+        self.qr_responses()
+        created = self.topup().json()
+        event = self.qr_event(created, "qrph.expired")
+        event["data"]["attributes"]["data"] = {"id": "qrph_offline", "type": "qrph", "attributes": {
+            "livemode": False, "payment_intent_id": "pi_offline"}}
+        self.assertEqual(self.deliver(event).status_code, 200)
+        self.assertEqual(self.topup_status(created).json()["topup"]["status"], "expired")
+        self.assertEqual(self.balance(), 0)
+
+    def test_topup_duplicate_provider_intent_is_a_safe_creation_failure(self):
+        self.qr_responses()
+        first = self.topup().json()
+        resources = self.qr_responses()
+        resources[0]["id"] = resources[2]["id"] = "pi_offline"
+        result = self.topup(request_id="duplicate-provider-intent-request")
+        self.assertEqual(result.status_code, 502)
+        self.assertNotIn("UNIQUE", result.text)
+        self.assertEqual(self.topup_status(first).json()["topup"]["status"], "pending")
+
+    def test_concurrent_signed_qr_payments_award_one_receipt(self):
+        self.qr_responses()
+        created = self.topup().json()
+        event = self.qr_event(created)
+        with ThreadPoolExecutor(max_workers=4) as workers:
+            results = list(workers.map(lambda _: self.deliver(event), range(4)))
+        self.assertTrue(all(result.status_code == 200 for result in results))
+        self.assertEqual(self.balance(), 100)
+        self.assertEqual(self.topup_status(created).json()["topup"]["status"], "paid")
+
+    def test_paid_qr_receipt_is_not_reopened_by_failure_or_expiry(self):
+        self.qr_responses()
+        created = self.topup().json()
+        self.assertEqual(self.deliver(self.qr_event(created)).status_code, 200)
+        paid = self.topup_status(created).json()
+        for kind in ("payment.failed", "qrph.expired", "payment.paid"):
+            self.assertEqual(self.deliver(self.qr_event(created, kind)).status_code, 200)
+            self.assertEqual(self.topup_status(created).json(), paid)
+        self.assertEqual(self.balance(), 100)
+
+    def test_verified_paid_qr_event_supersedes_an_earlier_failure_or_expiry(self):
+        for kind in ("payment.failed", "qrph.expired"):
+            with self.subTest(kind=kind):
+                resources = self.qr_responses()
+                intent_id = resources[0]["id"]
+                created = self.topup(request_id="settled-after-" + kind.replace(".", "-")).json()
+                self.assertEqual(self.deliver(self.qr_event(created, kind, intent_id=intent_id)).status_code, 200)
+                event = self.qr_event(created, intent_id=intent_id, payment_id="pay_after_" + kind.replace(".", "_"))
+                self.assertEqual(self.deliver(event).status_code, 200)
+                self.assertEqual(self.topup_status(created).json()["topup"]["status"], "paid")
+                self.assertEqual(self.deliver(event).status_code, 200)
+        self.assertEqual(self.balance(), 200)
+
+    def test_verified_paid_qr_after_lost_attach_response_recovers_once(self):
+        self.qr_responses()
+        results = list(self.provider.post.side_effect)
+        results[2] = httpx.ReadTimeout("attachment response lost")
+        self.provider.post.side_effect = results
+        self.assertEqual(self.topup().status_code, 502)
+        overview = account_store.account_overview(account_store.session_account(self.session_token)["id"])
+        created = {"topup": {"id": overview["orders"][0]["id"]}}
+        self.assertEqual(self.topup_status(created).json()["topup"]["status"], "creation_failed")
+        self.assertEqual(self.balance(), 0)
+        event = self.qr_event(created)
+        self.assertEqual(self.deliver(event).status_code, 200)
+        self.assertEqual(self.topup_status(created).json()["topup"]["status"], "paid")
+        self.assertEqual(self.deliver(event).status_code, 200)
+        self.assertEqual(self.balance(), 100)
+        self.assertEqual(self.topup().status_code, 200)
+
+    def test_concurrent_qr_paid_failure_and_expiry_leave_one_paid_award(self):
+        self.qr_responses()
+        created = self.topup().json()
+        events = [self.qr_event(created, kind) for kind in ("payment.paid", "payment.failed", "qrph.expired", "payment.paid")]
+        with ThreadPoolExecutor(max_workers=4) as workers:
+            results = list(workers.map(self.deliver, events))
+        self.assertTrue(all(result.status_code == 200 for result in results))
+        self.assertEqual(self.topup_status(created).json()["topup"]["status"], "paid")
+        self.assertEqual(self.balance(), 100)
+
+    def test_qr_duplicate_payment_identifier_cannot_fund_another_receipt(self):
+        self.qr_responses()
+        first = self.topup().json()
+        self.assertEqual(self.deliver(self.qr_event(first)).status_code, 200)
+        resources = self.qr_responses()
+        second = self.topup(request_id="second-qr-topup-request").json()
+        event = self.qr_event(second, intent_id=resources[0]["id"])
+        self.assertEqual(self.deliver(event).status_code, 400)
+        self.assertEqual(self.topup_status(second).json()["topup"]["status"], "pending")
+        self.assertEqual(self.balance(), 100)
+        wrong_payment = self.qr_event(first, payment_id="pay_different")
+        self.assertEqual(self.deliver(wrong_payment).status_code, 400)
+        self.assertEqual(self.balance(), 100)
+
+    def test_checkout_and_qr_paid_webhooks_coexist_without_double_award(self):
+        checkout = self.create().json()
+        self.assertEqual(self.deliver(self.event(checkout)).status_code, 200)
+        self.qr_responses()
+        topup = self.topup().json()
+        self.assertEqual(self.deliver(self.qr_event(topup)).status_code, 200)
+        self.assertEqual(self.balance(), 200)
+        self.assertEqual(self.deliver(self.event(checkout)).status_code, 200)
+        self.assertEqual(self.deliver(self.qr_event(topup)).status_code, 200)
+        self.assertEqual(self.balance(), 200)
+
+    def test_qr_resource_and_flat_envelopes_map_without_metadata(self):
+        self.qr_responses()
+        created = self.topup().json()
+        attrs = self.qr_event(created)["data"]["attributes"]
+        del attrs["data"]["attributes"]["metadata"]
+        for event in ({"data": {"type": "event", "attributes": {"type": attrs["type"], "livemode": False, "resource": attrs["data"]}}},
+                      {"data": attrs}):
+            self.assertEqual(self.deliver(event).status_code, 200)
+            self.assertEqual(self.balance(), 100)
+
+    def test_qr_signature_and_test_mode_rejections_leave_credits_unchanged(self):
+        self.qr_responses()
+        created = self.topup().json()
+        for kind in ("payment.paid", "payment.failed", "qrph.expired"):
+            event = self.qr_event(created, kind)
+            for timestamp, mode in (("1799999400", "te"), ("1800000000", "li")):
+                self.assertEqual(self.deliver(event, timestamp=timestamp, signature_mode=mode).status_code, 401)
+            event["data"]["attributes"]["livemode"] = True
+            self.assertEqual(self.deliver(event).status_code, 400)
+            event = self.qr_event(created, kind)
+            event["data"]["attributes"]["data"]["attributes"]["livemode"] = True
+            self.assertEqual(self.deliver(event).status_code, 400)
+            del event["data"]["attributes"]["data"]["attributes"]["livemode"]
+            self.assertEqual(self.deliver(event).status_code, 400)
+        self.assertEqual(self.topup_status(created).json()["topup"]["status"], "pending")
+        self.assertEqual(self.balance(), 0)
+
+    def test_qr_failed_expired_financial_mismatches_do_not_change_state(self):
+        self.qr_responses()
+        created = self.topup().json()
+        for kind in ("payment.failed", "qrph.expired"):
+            for field, value in (("amount", 1), ("currency", "USD"), ("metadata", {"topup_id": "test_wrong"})):
+                event = self.qr_event(created, kind)
+                event["data"]["attributes"]["data"]["attributes"][field] = value
+                self.assertEqual(self.deliver(event).status_code, 400)
+                self.assertEqual(self.topup_status(created).json()["topup"]["status"], "pending")
+        self.assertEqual(self.balance(), 0)
+
+    def test_qr_unrelated_events_are_acknowledged_without_awards(self):
+        self.qr_responses()
+        created = self.topup().json()
+        for kind in ("payment.paid", "payment.failed", "qrph.expired"):
+            event = self.qr_event(created, kind, intent_id="pi_unrelated")
+            del event["data"]["attributes"]["data"]["attributes"]["metadata"]
+            self.assertEqual(self.deliver(event).status_code, 200)
+        self.assertEqual(self.topup_status(created).json()["topup"]["status"], "pending")
+        self.assertEqual(self.balance(), 0)
+
+    def test_qr_invalid_resource_and_json_fields_are_safe_rejections(self):
+        self.qr_responses()
+        created = self.topup().json()
+        changes = [lambda r: r.update(id="invalid"), lambda r: r.update(type="unknown"),
+                   lambda r: r["attributes"].update(status="pending"),
+                   lambda r: r["attributes"].update(amount=True),
+                   lambda r: r["attributes"].update(payment_intent_id=None),
+                   lambda r: r.update(attributes=None)]
+        for change in changes:
+            event = self.qr_event(created)
+            change(event["data"]["attributes"]["data"])
+            self.assertEqual(self.deliver(event).status_code, 400)
+        for body in ([], None, {}, {"data": {"type": "event", "attributes": []}}):
+            self.assertEqual(self.deliver(body).status_code, 400)
+        self.assertEqual(self.balance(), 0)
 
     def test_topup_returns_qr_for_server_package_without_awarding_credits(self):
         resources = self.qr_responses()

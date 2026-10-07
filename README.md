@@ -349,13 +349,52 @@ The requested QR lifetime is 1800 seconds. `expires_at` is a conservative local
 display deadline measured before attachment, not confirmation of provider
 expiry or payment. Creation and deadline passage award no credits.
 
-This checkpoint is backend-only: the QR confirmation/status webhook, test
-simulation and QR-first screen remain tickets 03–05, and hosted-checkout
+This checkpoint is backend-only: QR confirmation and status are implemented
+in ticket 03 below; test simulation and the QR-first screen remain tickets
+04–05, and hosted-checkout
 retirement remains ticket 06. The existing checkout screen still works.
 No live PayMongo integration is claimed; do not scan a sandbox QR with a real
 wallet. Provider details: [QR Ph API](https://docs.paymongo.com/docs/payment-acceptance-qr-ph-api),
 [Payment Method creation](https://docs.paymongo.com/reference/create-a-paymentmethod),
 and [QR troubleshooting](https://docs.paymongo.com/docs/payment-acceptance-troubleshooting).
+
+### QR top-up confirmation checkpoint (local backend)
+
+Ticket 03 handles `payment.paid`, `payment.failed` and `qrph.expired` on the
+existing `POST /api/payments/test/webhook`. Keep the earlier
+`checkout_session.payment.paid` subscription and add these three test events
+to your test webhook when exercising QR top-ups. No additional secret setting
+is required. Configure the server with that endpoint's signing secret.
+
+The server verifies the raw-body HMAC and its five-minute timestamp window
+before parsing. QR events and resources must explicitly be in test mode.
+Payments are matched by their stored Payment Intent ID; supplied top-up
+metadata must agree. Paid and failed payments require an integer amount and
+currency matching the receipt. A valid paid event marks the receipt paid and
+awards its credits once, in one transaction. A later valid payment may recover
+an earlier failure, expiry or lost creation response; later failure/expiry
+events cannot reverse a paid receipt. Duplicate or concurrent deliveries
+cannot add a second award, and a payment ID cannot fund another receipt.
+
+The intent ID is saved before QR attachment. Events arriving while creation
+is incomplete receive 503 for retry. Valid unrelated intents are acknowledged
+without changing local accounts; conflicting references to a known receipt
+are rejected. Failure and expiry events alone award nothing.
+
+`GET /api/payments/test/topups/{id}` returns `topup` with the same public receipt
+fields as creation, restricted to its owning signed-in account. It reads stored
+state only: no provider request, time-based expiry transition or credit award.
+No CSRF token is needed for this read. A query parameter or browser return
+cannot mark a receipt paid. Responses are not cached.
+
+Offline tests cover signed payment resources and intent/QR-resource expiry
+variants. PayMongo's public guides describe the expiry event but do not show
+its complete resource payload; real sandbox delivery compatibility is still
+unverified. The QR screen and test simulation remain separate checkpoints.
+See [the confirmation review](docs/QR_TOPUP_CONFIRM_REVIEW.md).
+Provider references: [webhook event structure](https://docs.paymongo.com/docs/developer-tools-webhooks-events),
+[QR Ph events](https://docs.paymongo.com/docs/payment-acceptance-qr-ph),
+and [signature verification](https://docs.paymongo.com/docs/developer-tools-webhook-setup-management).
 
 ## Streamlit fallback
 
