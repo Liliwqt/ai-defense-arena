@@ -62,6 +62,223 @@ class PaymentSandboxTests(unittest.TestCase):
     def create(self, *, request_id=None, **extra):
         return self.client.post("/api/payments/test/checkout", json={**extra}, headers={"Idempotency-Key":request_id} if request_id else {})
 
+    def topup(self, request_id="offline-topup-request", **extra):
+        return self.client.post("/api/payments/test/topups", json={"package_id": "starter", **extra},
+                                headers={"Idempotency-Key": request_id} if request_id else {})
+
+    def qr_responses(self):
+        image = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1uoAAAAASUVORK5CYII="
+        attrs = {"livemode": False, "amount": 10000, "currency": "PHP"}
+        resources = [
+            {"id": "pi_offline", "type": "payment_intent", "attributes": {**attrs, "client_key": "pi_offline_client_secret", "status": "awaiting_payment_method"}},
+            {"id": "pm_offline", "type": "payment_method", "attributes": {"livemode": False, "type": "qrph"}},
+            {"id": "pi_offline", "type": "payment_intent", "attributes": {**attrs, "status": "awaiting_next_action", "next_action": {"code": {"image_url": image}}}},
+        ]
+        results = [Mock() for _ in resources]
+        for result, resource in zip(results, resources):
+            result.json.return_value = {"data": resource}
+        self.provider.post.side_effect = results
+        return resources
+
+    def test_topup_returns_qr_for_server_package_without_awarding_credits(self):
+        resources = self.qr_responses()
+        result = self.topup()
+        self.assertEqual(result.status_code, 201, result.text)
+        topup = result.json()["topup"]
+        self.assertTrue(topup["id"].startswith("test_"))
+        self.assertEqual((topup["amount"], topup["currency"], topup["credits"]), (10000, "PHP", 100))
+        self.assertEqual(topup["qr_image_url"], resources[2]["attributes"]["next_action"]["code"]["image_url"])
+        self.assertEqual(topup["expires_at"], 1800001800)
+        self.assertEqual(topup["status"], "pending")
+        self.assertEqual(result.headers["Cache-Control"], "no-store")
+        self.assertEqual(self.provider.post.await_count, 3)
+        calls = self.provider.post.await_args_list
+        self.assertEqual(calls[0].args[0], "https://api.paymongo.com/v1/payment_intents")
+        attributes = calls[0].kwargs["json"]["data"]["attributes"]
+        self.assertEqual((attributes["amount"], attributes["currency"], attributes["payment_method_allowed"]), (10000, "PHP", ["qrph"]))
+        self.assertEqual(attributes["metadata"]["topup_id"], topup["id"])
+        self.assertIn(topup["id"], attributes["description"])
+        self.assertEqual(calls[1].args[0], "https://api.paymongo.com/v1/payment_methods")
+        self.assertEqual(calls[1].kwargs["json"]["data"]["attributes"], {"type": "qrph", "expiry_seconds": 1800})
+        self.assertEqual(calls[2].args[0], "https://api.paymongo.com/v1/payment_intents/pi_offline/attach")
+        self.assertEqual(calls[2].kwargs["json"]["data"]["attributes"], {"payment_method": "pm_offline", "client_key": "pi_offline_client_secret"})
+        for call in calls:
+            self.assertEqual(call.kwargs["auth"], ("sk_test_offline_fixture", ""))
+        self.assertNotIn("client_key", result.text)
+        self.assertNotIn("pi_offline_client_secret", result.text)
+        self.assertNotIn("sk_test_", result.text)
+        overview = account_store.account_overview(account_store.session_account(self.session_token)["id"])
+        self.assertEqual(overview["test_credits"], 0)
+
+    def test_topup_replay_reuses_qr_without_more_provider_calls(self):
+        self.qr_responses()
+        first = self.topup()
+        second = self.topup()
+        self.assertEqual((first.status_code, second.status_code), (201, 200))
+        self.assertEqual(first.json(), second.json())
+        self.assertEqual(self.provider.post.await_count, 3)
+
+    def test_topup_normalizes_plain_base64_png_for_display(self):
+        resources = self.qr_responses()
+        image = resources[2]["attributes"]["next_action"]["code"]["image_url"]
+        resources[2]["attributes"]["next_action"]["code"]["image_url"] = image.split(",", 1)[1]
+        result = self.topup()
+        self.assertEqual(result.status_code, 201, result.text)
+        self.assertEqual(result.json()["topup"]["qr_image_url"], image)
+
+    def test_topup_creation_concurrent_request_is_once_only(self):
+        self.qr_responses()
+        with ThreadPoolExecutor(max_workers=4) as workers:
+            results = list(workers.map(lambda _: self.topup(), range(4)))
+        self.assertEqual(sum(result.status_code == 201 for result in results), 1)
+        self.assertTrue(all(result.status_code in {200, 201, 409} for result in results))
+        self.assertEqual(self.provider.post.await_count, 3)
+        self.assertEqual(self.topup().status_code, 200)
+
+    def test_topup_rejects_client_financial_fields_and_unknown_package(self):
+        for field in ("amount", "currency", "credits", "account_id"):
+            with self.subTest(field=field):
+                self.assertEqual(self.topup(**{field: 1}).status_code, 422)
+        for package in ("missing", "", 1, None):
+            with self.subTest(package=package):
+                self.assertIn(self.topup(package_id=package).status_code, {400, 422})
+        self.provider.post.assert_not_called()
+
+    def test_topup_requires_request_id_and_authenticated_csrf(self):
+        for request_id in ("", "short", "invalid request key", "x" * 129):
+            self.assertEqual(self.topup(request_id=request_id).status_code, 400)
+        del self.client.headers["X-CSRF-Token"]
+        self.assertEqual(self.topup().status_code, 403)
+        self.client.cookies.clear()
+        self.assertEqual(self.topup().status_code, 401)
+        self.provider.post.assert_not_called()
+
+    def test_topup_disabled_configuration_makes_no_provider_requests(self):
+        for name, value in (("PAYMONGO_SECRET_KEY", ""), ("PAYMONGO_SECRET_KEY", "sk_live_disallowed"),
+                            ("PAYMONGO_WEBHOOK_SECRET", ""), ("PAYMONGO_PUBLIC_BASE_URL", "")):
+            with self.subTest(setting=name, value=value), patch.dict(os.environ, {name: value}):
+                self.assertEqual(self.topup().status_code, 503)
+        self.provider.post.assert_not_called()
+
+    def test_topup_and_checkout_request_ids_are_isolated(self):
+        checkout = self.create(request_id="shared-checkout-topup-request").json()["order"]
+        self.qr_responses()
+        topup = self.topup(request_id="shared-checkout-topup-request").json()["topup"]
+        self.assertNotEqual(checkout["id"], topup["id"])
+        self.assertEqual(self.topup(request_id="shared-checkout-topup-request").json()["topup"], topup)
+        self.provider.post.side_effect = None
+        self.assertEqual(self.create(request_id="shared-checkout-topup-request").json()["order"], checkout)
+        self.assertEqual(self.provider.post.await_count, 4)
+
+    def test_topup_failure_at_each_provider_step_is_safe_and_not_recreated(self):
+        for stage in range(3):
+            with self.subTest(stage=stage):
+                self.qr_responses()
+                results = list(self.provider.post.side_effect)
+                results[stage] = httpx.ConnectError("private provider details")
+                self.provider.post.side_effect = results
+                before = self.provider.post.await_count
+                request_id = "failed-topup-step-" + str(stage)
+                failed = self.topup(request_id=request_id)
+                self.assertEqual(failed.status_code, 502)
+                self.assertNotIn("private provider details", failed.text)
+                self.assertEqual(self.topup(request_id=request_id).status_code, 409)
+                self.assertEqual(self.provider.post.await_count - before, stage + 1)
+        overview = account_store.account_overview(account_store.session_account(self.session_token)["id"])
+        self.assertEqual(overview["test_credits"], 0)
+        self.assertTrue(all(order["status"] == "creation_failed" for order in overview["orders"]))
+
+    def test_topup_rejects_live_provider_resources_at_each_step(self):
+        for stage in range(3):
+            with self.subTest(stage=stage):
+                resources = self.qr_responses()
+                resources[stage]["attributes"]["livemode"] = True
+                before = self.provider.post.await_count
+                self.assertEqual(self.topup(request_id="live-response-step-" + str(stage)).status_code, 502)
+                self.assertEqual(self.provider.post.await_count - before, stage + 1)
+
+    def test_topup_expired_local_deadline_does_not_confirm_payment(self):
+        self.qr_responses()
+        created = self.topup().json()["topup"]
+        with patch.object(payments.time, "time", return_value=1_800_002_000):
+            replay = self.topup().json()["topup"]
+        self.assertEqual(replay, created)
+        self.assertEqual(replay["status"], "pending")
+        self.assertEqual(self.provider.post.await_count, 3)
+
+    def test_topup_request_reuse_is_account_owned(self):
+        self.qr_responses()
+        first = self.topup().json()["topup"]
+        token, csrf = account_store.create_google_session("other-qr-sub", "other@example.test", "Other")
+        self.client.cookies.set(accounts.ACCOUNT_COOKIE, token)
+        self.client.headers["X-CSRF-Token"] = csrf
+        resources = self.qr_responses()
+        resources[0]["id"] = resources[2]["id"] = "pi_other"
+        second = self.topup().json()["topup"]
+        self.assertNotEqual(first["id"], second["id"])
+        self.assertEqual(self.provider.post.await_count, 6)
+        overview = account_store.account_overview(account_store.session_account(token)["id"])
+        self.assertEqual([order["id"] for order in overview["orders"]], [second["id"]])
+
+    def test_topup_rejects_unsafe_or_invalid_qr_images(self):
+        images = ["https://attacker.example/qr.png", "data:image/svg+xml;base64,PHN2Zy8+",
+                  "data:image/png;base64,not-base64!", "data:image/png;base64,aGVsbG8=", "A" * 1_000_001]
+        for index, image in enumerate(images):
+            with self.subTest(image=index):
+                resources = self.qr_responses()
+                resources[2]["attributes"]["next_action"]["code"]["image_url"] = image
+                result = self.topup(request_id="invalid-qr-image-" + str(index))
+                self.assertEqual(result.status_code, 502)
+                self.assertNotIn(image, result.text)
+
+    def test_topup_rejects_wrong_intent_amount_currency_and_identity(self):
+        changes = [(0, "amount", 1), (0, "currency", "USD"), (2, "amount", "10000"),
+                   (2, "currency", "USD"), (2, "status", "succeeded")]
+        for index, (stage, field, value) in enumerate(changes):
+            with self.subTest(stage=stage, field=field):
+                resources = self.qr_responses()
+                resources[stage]["attributes"][field] = value
+                result = self.topup(request_id="invalid-intent-fields-" + str(index))
+                self.assertEqual(result.status_code, 502)
+        overview = account_store.account_overview(account_store.session_account(self.session_token)["id"])
+        self.assertEqual(overview["test_credits"], 0)
+
+    def test_topup_rejects_malformed_resources_and_invalid_attachment(self):
+        for index in range(5):
+            with self.subTest(case=index):
+                resources = self.qr_responses()
+                if index == 0:
+                    resources[0]["id"] = "pi_bad/../../outside"
+                elif index == 1:
+                    resources[0]["attributes"]["client_key"] = ""
+                elif index == 2:
+                    resources[1]["attributes"]["type"] = "card"
+                elif index == 3:
+                    resources[2]["id"] = "pi_unrelated"
+                else:
+                    resources[2]["attributes"]["next_action"] = None
+                self.assertEqual(self.topup(request_id="malformed-qr-response-" + str(index)).status_code, 502)
+
+    def test_topup_http_error_is_sanitized_and_throttle_preserves_replay(self):
+        self.qr_responses()
+        created = self.topup().json()
+        for index in range(4):
+            resources = self.qr_responses()
+            results = list(self.provider.post.side_effect)
+            results[0].raise_for_status.side_effect = httpx.HTTPStatusError(
+                "private provider diagnostic", request=httpx.Request("POST", "https://api.paymongo.com"),
+                response=httpx.Response(400))
+            self.provider.post.side_effect = results
+            failed = self.topup(request_id="qr-provider-http-error-" + str(index))
+            self.assertEqual(failed.status_code, 502)
+            self.assertNotIn("private provider diagnostic", failed.text)
+        before = self.provider.post.await_count
+        result = self.topup(request_id="qr-over-throttle-limit")
+        self.assertEqual(result.status_code, 429)
+        self.assertEqual(result.headers["Retry-After"], "600")
+        self.assertEqual(self.topup().json(), created)
+        self.assertEqual(self.provider.post.await_count, before)
+
     def status(self, created, token=None):
         return self.client.get("/api/payments/test/orders/" + created["order"]["id"],
                                headers={"Authorization": "Bearer " + (token or "unused-legacy-token")})

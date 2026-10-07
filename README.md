@@ -326,6 +326,37 @@ Private account endpoints expose only the current user's access/balance and late
 
 Integration references: [PayMongo Hosted Checkout](https://docs.paymongo.com/docs/payment-channels-hosted-checkout), [test checkout quick start](https://docs.paymongo.com/docs/payment-channels-hosted-checkout-quick-start), [QRPh simulator guidance](https://docs.paymongo.com/docs/payment-acceptance-testing), and [webhook signatures](https://docs.paymongo.com/docs/developer-tools-webhook-setup-management).
 
+### QR top-up creation checkpoint (local backend)
+
+Ticket 02 adds `POST /api/payments/test/topups` alongside hosted checkout.
+It requires a signed-in Google account, the existing Origin/CSRF headers,
+and an `Idempotency-Key` containing 16–128 letters, digits, underscores or
+hyphens. Send only `{"package_id":"starter"}`. The server fixes this sandbox
+package at PHP 100 (`10000` centavos) for 100 test credits; client amounts,
+currencies and credit counts are rejected.
+
+The response contains `topup` with its ID, amount, currency, credits, pending
+status, PNG `qr_image_url`, creation time and `expires_at`. A first creation
+returns 201; a replay returns 200 with the stored receipt and makes no further
+provider requests. Concurrent/incomplete requests return 409 instead of
+creating another QR. Creation errors are retained for inspection and cannot
+be automatically recreated using the same request ID.
+
+Reuse the server-only PayMongo test settings above. Missing settings or a live
+key disable creation. The backend creates a Payment Intent, a QR Ph Payment
+Method and an attachment; it keeps provider credentials out of the response.
+The requested QR lifetime is 1800 seconds. `expires_at` is a conservative local
+display deadline measured before attachment, not confirmation of provider
+expiry or payment. Creation and deadline passage award no credits.
+
+This checkpoint is backend-only: the QR confirmation/status webhook, test
+simulation and QR-first screen remain tickets 03–05, and hosted-checkout
+retirement remains ticket 06. The existing checkout screen still works.
+No live PayMongo integration is claimed; do not scan a sandbox QR with a real
+wallet. Provider details: [QR Ph API](https://docs.paymongo.com/docs/payment-acceptance-qr-ph-api),
+[Payment Method creation](https://docs.paymongo.com/reference/create-a-paymentmethod),
+and [QR troubleshooting](https://docs.paymongo.com/docs/payment-acceptance-troubleshooting).
+
 ## Streamlit fallback
 
 Configure `OPENAI_API_KEY` in the launching terminal, optionally set `OPENAI_MODEL`, then run:

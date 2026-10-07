@@ -1,6 +1,7 @@
 """Account-owned, duplicate-safe PayMongo sandbox checkout and credit awards."""
 
 from dataclasses import dataclass
+import base64
 import hashlib
 import hmac
 import json
@@ -22,6 +23,8 @@ from accounts import check_csrf, require_account
 
 router = APIRouter(prefix="/api/payments/test", tags=["test payments"])
 CHECKOUT_API = "https://api.paymongo.com/v2/checkout_sessions"
+PAYMENT_API = "https://api.paymongo.com/v1"
+QR_EXPIRY_SECONDS = 1800
 
 
 @dataclass(frozen=True)
@@ -83,6 +86,100 @@ def payment_config():
 
 class CheckoutRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class TopupRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    package_id: str
+
+
+def public_topup(row: dict) -> dict:
+    return {key: row[key] for key in ("id", "amount", "currency", "credits", "status",
+                                    "qr_image_url", "expires_at", "created_at", "paid_at")} | {"mode": "test"}
+
+
+def validated_test_intent(resource: dict, row: dict) -> dict:
+    attrs = resource["attributes"]
+    intent_id = resource["id"]
+    if (resource.get("type") != "payment_intent" or not isinstance(intent_id, str)
+            or not re.fullmatch(r"pi_[A-Za-z0-9_]+", intent_id) or attrs.get("livemode") is not False
+            or type(attrs.get("amount")) is not int or attrs["amount"] != row["amount"]
+            or attrs.get("currency") != row["currency"]):
+        raise ValueError("Invalid test intent")
+    return attrs
+
+
+async def create_qr(client: httpx.AsyncClient, config: Settings, row: dict) -> tuple[str, str, int]:
+    """Keep provider resources and credentials inside the payment boundary."""
+    result = await client.post(PAYMENT_API + "/payment_intents", auth=(config.key, ""), json={"data": {"attributes": {
+        "amount": row["amount"], "currency": row["currency"], "payment_method_allowed": ["qrph"],
+        "description": "AI Defense Arena sandbox top-up " + row["id"], "metadata": {"topup_id": row["id"]},
+    }}})
+    result.raise_for_status()
+    intent = result.json()["data"]
+    attrs = validated_test_intent(intent, row)
+    intent_id, client_key = intent["id"], attrs["client_key"]
+    if (attrs.get("status") != "awaiting_payment_method"
+            or not isinstance(client_key, str) or not client_key):
+        raise ValueError("Invalid test intent")
+    result = await client.post(PAYMENT_API + "/payment_methods", auth=(config.key, ""), json={"data": {"attributes": {
+        "type": "qrph", "expiry_seconds": QR_EXPIRY_SECONDS,
+    }}})
+    result.raise_for_status()
+    method = result.json()["data"]
+    method_id = method["id"]
+    if (method.get("type") != "payment_method" or not isinstance(method_id, str)
+            or not re.fullmatch(r"pm_[A-Za-z0-9_]+", method_id)
+            or method["attributes"].get("livemode") is not False or method["attributes"].get("type") != "qrph"):
+        raise ValueError("Invalid test method")
+    # Conservative local display deadline: attachment activates the QR. This
+    # does not mark the receipt expired; the signed event will do that later.
+    expires_at = int(time.time()) + QR_EXPIRY_SECONDS
+    result = await client.post(PAYMENT_API + "/payment_intents/" + intent_id + "/attach", auth=(config.key, ""), json={"data": {"attributes": {
+        "payment_method": method_id, "client_key": client_key,
+    }}})
+    result.raise_for_status()
+    attached = result.json()["data"]
+    attrs = validated_test_intent(attached, row)
+    if (attached["id"] != intent_id
+            or attrs.get("status") != "awaiting_next_action"):
+        raise ValueError("Invalid attached test intent")
+    image = attrs["next_action"]["code"]["image_url"]
+    if not isinstance(image, str) or len(image) > 1_000_000:
+        raise ValueError("Invalid QR image")
+    encoded = image.removeprefix("data:image/png;base64,")
+    decoded = base64.b64decode(encoded, validate=True)
+    if not decoded.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise ValueError("Invalid QR image")
+    return intent_id, "data:image/png;base64," + encoded, expires_at
+
+
+@router.post("/topups", status_code=201)
+async def create_topup(body: TopupRequest, request: Request, idempotency_key: str = Header(default="")):
+    account = require_account(request)
+    check_csrf(request, account)
+    config = settings()
+    if not re.fullmatch(r"[A-Za-z0-9_-]{16,128}", idempotency_key):
+        raise HTTPException(400, "Use a valid top-up request ID and try again.")
+    store = PurchaseStore(config.database)
+    try:
+        row = store.begin_topup(account["id"], body.package_id, idempotency_key)
+    except PurchaseError as error:
+        if error.kind == "unknown_package":
+            raise HTTPException(400, "Choose an available test-credit package.") from None
+        raise purchase_http_error(error) from None
+    if row["status"] != "creating":
+        return response({"topup": public_topup(row)})
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            intent_id, image, expires_at = await create_qr(client, config, row)
+    except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError):
+        # A partial provider request can exist even when its response is lost.
+        # Preserve this attempt and refuse automatic re-creation on replay.
+        store.creation_failed(row["id"])
+        raise HTTPException(502, "Could not create a verified test QR. Check your test key and connection; no payment was confirmed.") from None
+    row = store.register_topup(row["id"], intent_id, image, expires_at)
+    return response({"topup": public_topup(row)}, 201)
 
 
 @router.get("/mobile-return", response_class=HTMLResponse)
