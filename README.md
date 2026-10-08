@@ -573,13 +573,22 @@ AI, Google, and PayMongo calls are mocked in the Python suite. Tests confirm beh
 
 Coaching is qualitative practice guidance: strengths, improvements, and a next step tied to actual resolved turns. It supplies no numeric score and must not treat missed answers as responses.
 
-## Live tester payments (local release candidate)
+## Live tester payments
 
 The normal live flow is `/?payments=live`: PHP 1/5/10 purchases provide 10/50/100 credits;
 starting a defense reserves 10 credits and its first validated question finalizes the
 charge. Later questions, clarifications, retries and coaching are included. A valid
 voucher takes precedence and spends zero credits. Demo credits remain separate and
-visible in Earlier test history. This implementation has not enabled hosted payments.
+visible in Earlier test history. Hosted configuration and verification are recorded
+in `PROJECT_LOG.md`; environment switches control live availability.
+
+The refreshed `/?payments=live` page provides a balance summary,
+selectable credit packages, and recent purchases with amount, credits, date, status,
+and a **View receipt** action. An active, unexpired payment offers **Download QR code**
+to save the exact server-issued PNG. Saving or hiding the QR does not confirm or
+cancel payment; server verification still controls credit awards. QR downloads are
+hidden once paid, failed, or expired. Installed Android/iOS WebView PNG downloads
+remain a separate device check.
 
 Read [the local release and operator checklist](docs/LIVE_TESTER_PAYMENTS.md) before
 configuring live credentials. The purchase invitation list controls only new top-ups;
