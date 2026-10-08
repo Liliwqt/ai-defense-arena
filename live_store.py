@@ -57,6 +57,10 @@ def initialize(db):
     db.execute('CREATE TABLE IF NOT EXISTS live_ai_requests (account_id TEXT NOT NULL REFERENCES accounts(id), created_at INTEGER NOT NULL)')
 
 
+class ServiceAlreadyActive(AccessError):
+    """A healthy incarnation still owns the exclusive room-service lease."""
+
+
 class LiveStore:
     @contextmanager
     def transaction(self):
@@ -331,7 +335,7 @@ class LiveStore:
         with self.transaction() as db:
             alive=db.execute("SELECT id FROM live_services WHERE status='running' AND heartbeat>? AND id<>?",(now-60,service_id)).fetchone()
             if alive:
-                raise AccessError('Another room service is active. Use one worker and one instance.')
+                raise ServiceAlreadyActive('Another room service is active. Use one worker and one instance.')
             old=db.execute("SELECT r.* FROM live_runs r JOIN live_services s ON s.id=r.service_id WHERE r.service_id<>? AND r.outcome IN ('opening','opening_failed','active','coaching','unavailable') AND (s.status IN ('stopped','lost') OR s.heartbeat<=?)",(service_id,now-60)).fetchall()
             for row in old:
                 self._return_run(db,row,'server_interruption')

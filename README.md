@@ -587,6 +587,14 @@ non-invited signed-in accounts can still redeem a voucher, join, or use existing
 Financial records use the existing durable account database. Rooms still disappear on
 restart; unfinished eligible charges receive one recorded credit return, not a money refund.
 
+On Render, a live-mode replacement can briefly report
+`{"status":"ok","room_service":"starting"}` at `/health` while its predecessor
+shuts down. The website, sign-in and payment callbacks stay available, but room
+requests return a retry message until the exclusive lease is acquired. This avoids
+Render's rolling-deploy startup conflict without allowing two room services to
+charge defenses. Normal readiness returns `{"status":"ok"}`. Keep one worker
+and one instance; do not delete lease or financial records to unblock a deploy.
+
 Review: [independent implementation review](docs/LIVE_TESTER_REVIEW.md), with local
 mocked payment/account/defense screenshots under `screenshots/live-tester-*`. User visual
 acceptance and actual provider/hosted/native verification remain separate rollout gates.

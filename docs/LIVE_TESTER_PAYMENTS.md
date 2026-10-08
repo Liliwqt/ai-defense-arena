@@ -31,6 +31,21 @@ overlapping room services and fences an old incarnation after takeover. Startup 
 only eligible unfinished runs from a recorded lost/stopped incarnation; unknown ownership
 stays held for review. Provider recovery and the heartbeat run independently.
 
+Render starts a replacement before stopping the previous instance. During that
+overlap, the replacement binds HTTP and returns `/health` with
+`room_service: starting`, allowing Render to complete its traffic switch and
+shutdown. Room HTTP requests return 503 with Retry-After, and WebSockets report
+the restart then close with 1013. Sign-in and signed payment callbacks remain
+available. The replacement polls for the exclusive lease; it cannot reserve or
+charge runs, run AI, recover payments or compensate interrupted runs before the
+previous process stops or its 60-second heartbeat lease expires. After ownership
+is acquired, normal health and room access resume. A failed heartbeat reports
+503 health and pauses room access rather than silently reacquiring ownership.
+This is a brief room interruption, not preserved in-memory defense state. Do not
+delete lease records or permit multiple workers to bypass this guard.
+
+See [Render's zero-downtime deployment sequence](https://render.com/docs/deploys#zero-downtime-deploys).
+
 ## What hosts see
 
 Upload and guest joining are free. Research preparation requires access without spending

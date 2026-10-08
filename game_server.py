@@ -4,6 +4,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 import json
+import logging
 import os
 from pathlib import Path
 import secrets
@@ -22,7 +23,7 @@ from accounts import configure_auth, require_account, check_csrf, auth_settings
 from account_store import (AccessError, require_run_access, reserve_run, charge_run,
                            release_run, release_orphaned_reservations)
 from financial_policy import live_mode
-from live_store import LiveStore
+from live_store import LiveStore, ServiceAlreadyActive
 from timed_turn import TimedTurn, PendingSubmission, DeadlineExpired, VOTE_MS, ANSWER_MS
 from payments import router as test_payment_router
 from payments_live import router as live_payment_router
@@ -43,6 +44,9 @@ from question_generator import (
 
 
 SERVICE_ID = secrets.token_hex(24)
+SERVICE_POLL_SECONDS = 2
+SERVICE_HEARTBEAT_SECONDS = 10
+SERVICE_STARTING_MESSAGE = "The room service is restarting. Please retry shortly."
 MAX_PLAYERS = 4
 MAX_CHAT_MESSAGES = 100
 MAX_CHAT_CHARS = 500
@@ -241,23 +245,54 @@ async def _observe_absence(room):
 async def lifespan(app):
     global SERVICE_ID
     if not live_mode():
+        app.state.room_service_status = "ready"
         release_orphaned_reservations()
         yield
         return
     SERVICE_ID=secrets.token_hex(24)
-    LiveStore().start_service(SERVICE_ID)
     service=SERVICE_ID
+    app.state.room_service_status = "starting"
+    owns_lease = False
+    try:
+        LiveStore().start_service(service)
+    except ServiceAlreadyActive:
+        if os.environ.get("RENDER") != "true":
+            raise
+        # Render waits for this instance's health before stopping its predecessor.
+        # Bind HTTP now, but do not run rooms or recovery until the lease is free.
+        logging.getLogger(__name__).info("Waiting for previous room service to stop.")
+    else:
+        owns_lease = True
+        app.state.room_service_status = "ready"
+
     async def maintain():
-        while True:
-            LiveStore().heartbeat(service)
-            for room in list(rooms.values()):
-                await _observe_absence(room)
-            await asyncio.sleep(10)
+        nonlocal owns_lease
+        try:
+            while True:
+                if not owns_lease:
+                    try:
+                        LiveStore().start_service(service)
+                    except ServiceAlreadyActive:
+                        await asyncio.sleep(SERVICE_POLL_SECONDS)
+                        continue
+                    owns_lease = True
+                    app.state.room_service_status = "ready"
+                    logging.getLogger(__name__).info("Room service lease acquired.")
+                LiveStore().heartbeat(service)
+                for room in list(rooms.values()):
+                    await _observe_absence(room)
+                await asyncio.sleep(SERVICE_HEARTBEAT_SECONDS)
+        except Exception:
+            # Never reacquire after losing ownership or advertise a dead heartbeat.
+            app.state.room_service_status = "failed"
+            logging.getLogger(__name__).error("Room service maintenance failed; room access paused.")
+
     async def recover():
         from payments_live import recover_payments
         while True:
-            await recover_payments()
-            await asyncio.sleep(10)
+            if app.state.room_service_status == "ready":
+                await recover_payments()
+            await asyncio.sleep(SERVICE_POLL_SECONDS if not owns_lease else SERVICE_HEARTBEAT_SECONDS)
     # Provider latency cannot starve the service heartbeat or abandonment observations.
     tasks=[asyncio.create_task(maintain()),asyncio.create_task(recover())]
     try:
@@ -265,15 +300,22 @@ async def lifespan(app):
     finally:
         for task in tasks:task.cancel()
         await asyncio.gather(*tasks,return_exceptions=True)
-        LiveStore().stop_service(service)
+        app.state.room_service_status = "stopped"
+        if owns_lease:
+            LiveStore().stop_service(service)
 
 
 app = FastAPI(title="AI Defense Arena", lifespan=lifespan)
+app.state.room_service_status = "ready"
 configure_auth(app)
 
 
 @app.middleware("http")
 async def reject_large_uploads(request, call_next):
+    if (live_mode() and app.state.room_service_status != "ready"
+            and (request.url.path == "/api/rooms" or request.url.path.startswith("/api/rooms/"))):
+        return JSONResponse({"detail": SERVICE_STARTING_MESSAGE}, status_code=503,
+                            headers={"Retry-After": str(SERVICE_POLL_SECONDS)})
     if request.url.path == "/api/rooms":
         length = request.headers.get("content-length")
         if length and length.isdigit() and int(length) > MAX_REQUEST_BYTES:
@@ -600,6 +642,10 @@ def _schedule_coaching(room: Room, feedback_generation_id: int) -> None:
 
 @app.get("/health")
 async def health() -> dict[str, str]:
+    if live_mode() and app.state.room_service_status != "ready":
+        status = app.state.room_service_status
+        return JSONResponse({"status": "ok" if status == "starting" else "unavailable",
+                             "room_service": status}, status_code=200 if status == "starting" else 503)
     return {"status": "ok"}
 
 
@@ -727,6 +773,9 @@ def _reserve_room_run(room: Room, account_id: str, confirmed: bool, retry: bool 
 
 
 async def _handle_action(room: Room, player: Player, socket: WebSocket, message: dict) -> None:
+    if live_mode() and app.state.room_service_status != "ready":
+        await _send_error(socket, SERVICE_STARTING_MESSAGE)
+        return
     account = None
     if player.is_host:
         try:
@@ -974,6 +1023,10 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
 @app.websocket("/ws/{code}")
 async def room_socket(socket: WebSocket, code: str) -> None:
     await socket.accept()
+    if live_mode() and app.state.room_service_status != "ready":
+        await _send_error(socket, SERVICE_STARTING_MESSAGE)
+        await socket.close(code=1013)
+        return
     room = rooms.get(code.upper())
     if room is None:
         await _send_error(socket, "Room not found. Check the invite code.")

@@ -28,6 +28,7 @@ import test_live_payments
 import test_live_runs
 import test_live_refunds
 import test_management
+import test_service_handoff
 
 
 class LocalDatabase:
@@ -49,6 +50,10 @@ class LocalDatabase:
         env.start()
         self.addCleanup(env.stop)
         super().setUp()
+
+
+class PostgresServiceHandoff(LocalDatabase, test_service_handoff.ServiceHandoffTests):
+    pass
 
 
 class PostgresManagement(LocalDatabase, test_management.ManagementTests):
