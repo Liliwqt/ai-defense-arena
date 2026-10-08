@@ -155,3 +155,15 @@ describe("Host account controls", () => {
     fireEvent.click(screen.getByRole("button",{name:"Confirm restart · 10 test credits"}));expect(onSendEvent).toHaveBeenCalledWith({type:"restart",confirm_cost:true});
   });
 });
+
+it("uses live credits for paid starts and exposes unavailable-service recovery",()=>{
+ const onSendEvent=vi.fn(()=>true);
+ const account={authenticated:true,google_enabled:true,payment_mode:"live" as const,live_credits:10,test_credits:999};
+ const props={...defaultProps,account,onSendEvent};
+ const view=render(<ControlsPanel {...props} roomState={{...baseState,phase:"lobby"}}/>);
+ fireEvent.click(screen.getByRole("button",{name:"Start defense · 10 credits"}));
+ expect(onSendEvent).toHaveBeenCalledWith({type:"start",confirm_cost:true});
+ view.rerender(<ControlsPanel {...props} account={{...account,live_credits:0}} roomState={{...baseState,phase:"retry"}}/>);
+ expect(screen.getByRole("button",{name:"End unavailable defense · return credits"})).toBeTruthy();
+ expect(screen.getByRole("button",{name:"Restart defense"})).toBeDisabled();
+});

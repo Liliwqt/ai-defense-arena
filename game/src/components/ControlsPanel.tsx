@@ -61,7 +61,10 @@ export function ControlsPanel({
   const [nameEdited, setNameEdited] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
   useEffect(() => { if (!nameEdited && account?.user?.name) setHostName(account.user.name.slice(0, 24)); }, [account?.user?.name, nameEdited]);
-  const canRun = !!account?.authenticated && (!!account.free_access || (account.test_credits ?? 0) >= 10);
+  const liveAccess = account?.payment_mode === "live";
+  const creditLabel = liveAccess ? "credits" : "test credits";
+  const availableCredits = liveAccess ? account?.live_credits : account?.test_credits;
+  const canRun = !!account?.authenticated && (!!account.free_access || (availableCredits ?? 0) >= 10);
 
   const inRoom = roomState !== null || !!connected;
   const phase = roomState?.phase ?? "none";
@@ -290,7 +293,7 @@ export function ControlsPanel({
           {roomState?.defense_type && roomState.defense_type !== "code" && <ResearchPlanPanel
             roomState={roomState} connected={connected} previewMode={previewMode} onSendEvent={onSendEvent} onBudgetDraftChange={setBudgetDirty} />}
 
-          {isHost && !previewMode && <div className="account-access-card"><strong>{account?.free_access ? "Free access active" : "10 test credits per defense run"}</strong><p>{account?.authenticated ? `${account.test_credits ?? 0} available · ${account.reserved_credits ?? 0} reserved test credits` : "Sign in with the room owner’s Google account to use host controls."}</p><button type="button" className={secondaryBtn} onClick={onOpenAccount}>Open Account</button></div>}
+          {isHost && !previewMode && <div className="account-access-card"><strong>{account?.free_access ? "Free access active" : `10 ${creditLabel} per defense run`}</strong><p>{account?.authenticated ? `${availableCredits ?? 0} available · ${liveAccess ? account.live_reserved_credits ?? 0 : account.reserved_credits ?? 0} reserved ${creditLabel}` : "Sign in with the room owner’s Google account to use host controls."}</p><button type="button" className={secondaryBtn} onClick={onOpenAccount}>Open Account</button></div>}
 
           {/* Host-only controls */}
           {!previewMode && isHost && (
@@ -302,7 +305,7 @@ export function ControlsPanel({
                   onClick={handleStart}
                   className={primaryBtn}
                 >
-                  {account?.free_access ? "Start defense · free access" : "Start defense · 10 test credits"}
+                  {account?.free_access ? "Start defense · free access" : `Start defense · 10 ${creditLabel}`}
                 </button>
               )}
               {roomState?.defense_type && roomState.defense_type !== "code" && phase === "lobby" && !roomState.research_plan_approved && <p className="control-help">Prepare and confirm the research map and question budget to enable Start.</p>}
@@ -331,6 +334,7 @@ export function ControlsPanel({
                   Retry coaching report
                 </button>
               )}
+              {liveAccess && (phase === "retry" || (phase === "complete" && feedbackStatus === "failed")) && <button type="button" className={secondaryBtn} disabled={!connected} onClick={() => { if(onSendEvent({type:"end_unavailable"})) onCloseDrawer(); }}>End unavailable defense{account?.free_access ? "" : " · return credits"}</button>}
               {phase !== "lobby" && (
                 <button
                   type="button"
@@ -338,13 +342,13 @@ export function ControlsPanel({
                   onClick={handleRestart}
                   className={secondaryBtn}
                 >
-                  {confirmRestart ? "Confirm restart · 10 test credits" : "Restart defense"}
+                  {confirmRestart ? `Confirm restart · 10 ${creditLabel}` : "Restart defense"}
                 </button>
               )}
             </div>
           )}
 
-          {confirmRestart && <p role="status" className="control-help">Restart begins a new run for 10 test credits. Your previous transcript will be replaced. <button type="button" className={secondaryBtn} onClick={() => setConfirmRestart(false)}>Cancel restart</button></p>}
+          {confirmRestart && <p role="status" className="control-help">Restart begins a new run for 10 {creditLabel}. Your previous transcript will be replaced. <button type="button" className={secondaryBtn} onClick={() => setConfirmRestart(false)}>Cancel restart</button></p>}
 
           {waitText && (
             <p className="control-help">

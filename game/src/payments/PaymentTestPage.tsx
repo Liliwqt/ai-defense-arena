@@ -25,10 +25,10 @@ function savedReceipt(): Receipt | null {
     return value && typeof value.id === "string" && typeof value.account_id === "string" ? value : null;
   } catch { return null; }
 }
-function validateTopup(value: Topup, packages: Package[], expectedId?: string): Topup {
+function validateTopup(value: Topup, expectedId?: string): Topup {
   if (!value || value.mode !== "test" || typeof value.id !== "string" || !value.id || (expectedId && value.id !== expectedId)
       || !["creating", "creation_failed", "pending", "paid", "failed", "expired"].includes(value.status)
-      || !packages.some(pack => pack.amount === value.amount && pack.credits === value.credits && pack.currency === value.currency)
+      || !(Number.isSafeInteger(value.amount) && value.amount > 0 && Number.isSafeInteger(value.credits) && value.credits > 0 && value.currency === "PHP")
       || typeof value.simulated !== "boolean"
       || (value.qr_image_url !== null && (typeof value.qr_image_url !== "string" || !/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(value.qr_image_url)))
       || (value.expires_at !== null && (!Number.isSafeInteger(value.expires_at) || value.expires_at <= 0))
@@ -97,7 +97,7 @@ export function PaymentTestPage() {
       try {
         const body = await readResponse(await fetch(`/api/payments/test/topups/${encodeURIComponent(receipt!.id)}`, { cache: "no-store" }));
         if (active && request === version.current) {
-          const verified = validateTopup(body.topup, packages, receipt!.id);
+          const verified = validateTopup(body.topup, receipt!.id);
           setTopup(verified); setError("");
           if (verified.status === "paid") await refreshAfterPayment(request);
         }
@@ -125,7 +125,11 @@ export function PaymentTestPage() {
         headers: { "Content-Type": "application/json", "X-CSRF-Token": account.csrf_token, "Idempotency-Key": requestId },
         body: JSON.stringify({ package_id: chosenPackage }) }));
       if (request !== version.current) return;
-      const verified = validateTopup(body.topup, packages); const next = { id: verified.id, account_id: account.user.id };
+      const verified = validateTopup(body.topup);
+      const selected = packages.find(pack => pack.id === chosenPackage);
+      if (!selected || selected.amount !== verified.amount || selected.credits !== verified.credits || selected.currency !== verified.currency)
+        throw new Error("The server did not return the selected package. Your request is retained.");
+      const next = { id: verified.id, account_id: account.user.id };
       sessionStorage.setItem(RECEIPT_KEY, JSON.stringify(next)); setReceipt(next); setTopup(verified);
       if (verified.status === "paid") await refreshAfterPayment(request);
     } catch (failure) { if (request === version.current) setError(failure instanceof Error ? failure.message : "Could not generate a test QR."); }
@@ -138,7 +142,7 @@ export function PaymentTestPage() {
       const body = await readResponse(await fetch(`/api/payments/test/topups/${encodeURIComponent(topup.id)}/simulate`, {
         method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": account.csrf_token }, body: "{}" }));
       if (request !== version.current) return;
-      setTopup(validateTopup(body.topup, packages, topup.id)); await refreshAfterPayment(request);
+      setTopup(validateTopup(body.topup, topup.id)); await refreshAfterPayment(request);
     } catch (failure) { if (request === version.current) setError(failure instanceof Error ? failure.message : "Could not simulate this top-up."); }
     finally { mutating.current = false; setBusy(false); }
   }

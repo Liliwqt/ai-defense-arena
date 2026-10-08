@@ -23,6 +23,10 @@ import test_accounts
 import test_room_access
 import test_payment_sandbox
 import test_purchase_store
+import test_live_access
+import test_live_payments
+import test_live_runs
+import test_live_refunds
 
 
 class LocalDatabase:
@@ -108,6 +112,22 @@ class PostgresPayments(LocalDatabase, test_payment_sandbox.PaymentSandboxTests):
 
 
 class PostgresPurchases(LocalDatabase, test_purchase_store.PurchaseStoreTests):
+    pass
+
+
+class PostgresLiveAccess(LocalDatabase,test_live_access.LiveAccessTests):
+    pass
+
+
+class PostgresLivePayments(LocalDatabase,test_live_payments.LivePaymentTests):
+    pass
+
+
+class PostgresLiveRuns(LocalDatabase,test_live_runs.LiveRunTests):
+    pass
+
+
+class PostgresLiveRefunds(LocalDatabase,test_live_refunds.LiveRefundTests):
     pass
 
 

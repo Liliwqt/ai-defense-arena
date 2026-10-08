@@ -19,6 +19,14 @@ async function createQR() {
 }
 
 describe("QR-first sandbox top-up", () => {
+  it("restores frozen receipt terms after the package catalog changes", async () => {
+    sessionStorage.setItem(RECEIPT_KEY, JSON.stringify({id: topup.id, account_id: signedIn.user.id}));
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => url === "/api/auth/me" ? json(signedIn)
+      : url.endsWith("/config") ? json({...config, packages: [{id: "new", amount: 50000, currency: "PHP", credits: 250}]})
+      : json({topup})));
+    render(<PaymentTestPage />);
+    expect(await screen.findByRole("img", {name: "Sandbox QR Ph code"})).toBeTruthy();
+  });
   it("creates a QR using only a server package id, session CSRF and a retained request key", async () => {
     const fetcher = fetcherFor(); vi.stubGlobal("fetch", fetcher);
     render(<PaymentTestPage />); await createQR();

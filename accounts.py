@@ -128,7 +128,7 @@ def voucher(body: VoucherRequest, request: Request):
 
 
 def destination(value: str) -> str:
-    return value if value in {"/", "/?payments=test", "/?account=1"} else "/"
+    return value if value in {"/", "/?payments=test", "/?payments=live", "/?account=1"} else "/"
 
 
 def failed_destination(target: str, reason: str) -> str:

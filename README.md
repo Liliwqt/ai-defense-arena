@@ -538,3 +538,17 @@ AI, Google, and PayMongo calls are mocked in the Python suite. Tests confirm beh
 - **Room missing:** a process restart erased it. Create a fresh room and share its new code.
 
 Coaching is qualitative practice guidance: strengths, improvements, and a next step tied to actual resolved turns. It supplies no numeric score and must not treat missed answers as responses.
+
+## Live tester payments (local release candidate)
+
+The normal live flow is `/?payments=live`: PHP 1/5/10 purchases provide 10/50/100 credits;
+starting a defense reserves 10 credits and its first validated question finalizes the
+charge. Later questions, clarifications, retries and coaching are included. A valid
+voucher takes precedence and spends zero credits. Demo credits remain separate and
+visible in Earlier test history. This implementation has not enabled hosted payments.
+
+Read [the local release and operator checklist](docs/LIVE_TESTER_PAYMENTS.md) before
+configuring live credentials. The purchase invitation list controls only new top-ups;
+non-invited signed-in accounts can still redeem a voucher, join, or use existing credits.
+Financial records use the existing durable account database. Rooms still disappear on
+restart; unfinished eligible charges receive one recorded credit return, not a money refund.

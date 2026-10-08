@@ -79,6 +79,8 @@ def _initialize_store(db, *, postgres=False):
         created_at INTEGER NOT NULL, charged_at INTEGER
     )""")
     db.execute("CREATE INDEX IF NOT EXISTS runs_by_account ON defense_runs(account_id)")
+    from live_store import initialize
+    initialize(db)
 
 
 @contextmanager
@@ -166,11 +168,23 @@ def account_overview(account_id: str) -> dict:
         orders = purchase_history(db, account_id)
         runs = db.execute("""SELECT id, mode, cost, status, created_at, charged_at
             FROM defense_runs WHERE account_id=? ORDER BY created_at DESC, id DESC LIMIT 20""", (account_id,)).fetchall()
-    return {**access, "orders": orders, "runs": [dict(row) for row in runs]}
+        from financial_policy import live_mode
+        result = {**access, "orders": orders, "runs": [dict(row) for row in runs], "payment_mode": "live" if live_mode() else "test"}
+        if live_mode():
+            from live_store import LiveStore
+            result.update(LiveStore().snapshot(db,account_id))
+    return result
 
 
 def require_run_access(account_id: str) -> dict:
     access = account_access(account_id)
+    from financial_policy import live_mode
+    if live_mode():
+        from live_store import LiveStore
+        access.update(LiveStore().overview(account_id))
+        if not access["free_access"] and access["live_credits"] < RUN_COST:
+            raise AccessError("This defense needs 10 available credits or a free-access voucher.")
+        return access
     if not access["free_access"] and access["test_credits"] < RUN_COST:
         raise AccessError("Redeem a free-access voucher or obtain at least 10 available test credits before preparing or starting a defense.")
     return access
@@ -222,6 +236,10 @@ def reserve_run(account_id: str, run_id: str) -> dict:
 
 
 def charge_run(account_id: str, run_id: str) -> None:
+    from financial_policy import live_mode
+    if live_mode():
+        from live_store import LiveStore
+        return LiveStore().charge_run(account_id,run_id)
     with connect_store(database_path()) as db:
         db.execute("BEGIN IMMEDIATE")
         row = db.execute("SELECT * FROM defense_runs WHERE id=? AND account_id=?", (run_id, account_id)).fetchone()
@@ -231,6 +249,10 @@ def charge_run(account_id: str, run_id: str) -> None:
 
 
 def release_run(run_id: str | None) -> None:
+    from financial_policy import live_mode
+    if live_mode() and run_id:
+        from live_store import LiveStore
+        return LiveStore().release_run(run_id)
     if run_id:
         with connect_store(database_path()) as db:
             db.execute("UPDATE defense_runs SET status='released' WHERE id=? AND status='reserved'", (run_id,))

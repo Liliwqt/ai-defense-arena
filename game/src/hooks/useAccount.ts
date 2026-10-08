@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { DefenseRunReceipt, TestPurchase } from "../lib/paymentHistory";
 
 export interface Account {
   authenticated: boolean;
@@ -9,8 +10,19 @@ export interface Account {
   voucher_enabled?: boolean;
   test_credits?: number;
   reserved_credits?: number;
+  spent_credits?: number;
   run_cost?: number;
-  orders?: { id: string; status: string; credits: number; amount: number; currency: string }[];
+  payment_mode?: "test" | "live";
+  live_credits?: number;
+  live_reserved_credits?: number;
+  live_held_credits?: number;
+  topup_invited?: boolean;
+  active_run?: string | null;
+  live_orders?: {id:string;status:string;amount:number;credits:number;refund_status?:string|null}[];
+  live_runs?: {id:string;status:string;outcome:string;cost:number}[];
+  credit_returns?: {id:string;credits:number;reason:string}[];
+  orders?: TestPurchase[];
+  runs?: DefenseRunReceipt[];
 }
 
 export async function accountResponse(response: Response) {

@@ -21,8 +21,11 @@ from defense_progression import prepare_progression, commit_progression
 from accounts import configure_auth, require_account, check_csrf, auth_settings
 from account_store import (AccessError, require_run_access, reserve_run, charge_run,
                            release_run, release_orphaned_reservations)
+from financial_policy import live_mode
+from live_store import LiveStore
 from timed_turn import TimedTurn, PendingSubmission, DeadlineExpired, VOTE_MS, ANSWER_MS
 from payments import router as test_payment_router
+from payments_live import router as live_payment_router
 from project_files import MAX_ARCHIVE_BYTES, MAX_FILE_BYTES, ProjectFile, read_project_files
 from research_files import MAX_RESEARCH_BYTES, read_research_files, combine_sources
 from research_plan import ResearchPlan, generate_research_plan, validate_question_budget
@@ -39,6 +42,7 @@ from question_generator import (
 )
 
 
+SERVICE_ID = secrets.token_hex(24)
 MAX_PLAYERS = 4
 MAX_CHAT_MESSAGES = 100
 MAX_CHAT_CHARS = 500
@@ -92,6 +96,7 @@ class Room(TimedTurn):
     broadcast_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     owner_account_id: str | None = None
     run_id: str | None = None
+    absent_since_ms: int | None = None
 
     def snapshot(self, recipient: Player | None = None) -> dict[str, Any]:
         turns = []
@@ -194,11 +199,65 @@ def _now_ms() -> int:
 
 rooms: dict[str, Room] = {}
 registry_lock = asyncio.Lock()
+async def _observe_absence(room):
+    if not live_mode() or not room.run_id:
+        return
+    changed=False
+    async with room.lock:
+        if room.phase == "complete" and room.feedback_status not in {"generating","failed"}:
+            return
+        if any(player.sockets for player in room.players.values()):
+            room.absent_since_ms=None
+            return
+        now=_now_ms()
+        if room.absent_since_ms is None:
+            room.absent_since_ms=now
+        elif now-room.absent_since_ms>=600_000:
+            LiveStore().finish_run(room.run_id,"abandoned")
+            room.generation_id+=1
+            room.feedback_generation_id+=1
+            room.discard_pending()
+            _clear_clock_locked(room)
+            if isinstance(room.defense,ResearchDefenseSession) and not room.defense.completed:
+                room.defense.end()
+            room.phase="complete"
+            room.feedback_status="none"
+            room.error="This defense was abandoned after everyone disconnected for ten minutes."
+            room.revision+=1
+            changed=True
+    if changed:
+        await publish(room)
+
+
 @asynccontextmanager
 async def lifespan(app):
-    # One process/worker owns all rooms; no in-memory run survives startup.
-    release_orphaned_reservations()
-    yield
+    global SERVICE_ID
+    if not live_mode():
+        release_orphaned_reservations()
+        yield
+        return
+    SERVICE_ID=secrets.token_hex(24)
+    LiveStore().start_service(SERVICE_ID)
+    service=SERVICE_ID
+    async def maintain():
+        while True:
+            LiveStore().heartbeat(service)
+            for room in list(rooms.values()):
+                await _observe_absence(room)
+            await asyncio.sleep(10)
+    async def recover():
+        from payments_live import recover_payments
+        while True:
+            await recover_payments()
+            await asyncio.sleep(10)
+    # Provider latency cannot starve the service heartbeat or abandonment observations.
+    tasks=[asyncio.create_task(maintain()),asyncio.create_task(recover())]
+    try:
+        yield
+    finally:
+        for task in tasks:task.cancel()
+        await asyncio.gather(*tasks,return_exceptions=True)
+        LiveStore().stop_service(service)
 
 
 app = FastAPI(title="AI Defense Arena", lifespan=lifespan)
@@ -288,6 +347,8 @@ def _resolve_turn_locked(room: Room) -> tuple[int | None, int | None]:
     _cancel_clock_task(room)
     assert room.defense is not None
     if room.phase == "complete":
+        if live_mode() and room.run_id:
+            LiveStore().service_state(room.run_id,"coaching")
         room.feedback_status = "generating"
         room.feedback_generation_id += 1
         return None, room.feedback_generation_id
@@ -353,6 +414,8 @@ async def _generate_question(room: Room, generation_id: int, first: bool) -> Non
             if room.run_id and (room.defense is None or not room.defense.turns) and session.turns:
                 charge_run(room.owner_account_id, room.run_id)
             room.defense = commit_progression(room.defense, session)
+            if live_mode() and room.run_id:
+                LiveStore().service_state(room.run_id,"coaching" if room.defense.completed else "active")
             if room.defense.completed:
                 room.phase = "complete"
                 room.feedback_status = "generating"
@@ -371,6 +434,8 @@ async def _generate_question(room: Room, generation_id: int, first: bool) -> Non
             if room.defense is None or not room.defense.turns:
                 release_run(room.run_id)
             room.error = _safe_generation_error(error)
+            if live_mode() and room.run_id and room.defense and room.defense.turns:
+                LiveStore().service_state(room.run_id,"unavailable","question")
             room.revision += 1
         await publish(room)
         return
@@ -495,6 +560,8 @@ async def _generate_coaching(room: Room, feedback_generation_id: int) -> None:
             if room.feedback_generation_id != feedback_generation_id:
                 return
             room.feedback_status = "failed"
+            if live_mode() and room.run_id:
+                LiveStore().service_state(room.run_id,"unavailable","coaching")
             room.error = _safe_generation_error(error)
             room.revision += 1
         await publish(room)
@@ -505,6 +572,8 @@ async def _generate_coaching(room: Room, feedback_generation_id: int) -> None:
             return
         room.feedback = report
         room.feedback_status = "ready"
+        if live_mode() and room.run_id:
+            LiveStore().finish_run(room.run_id,"completed")
         room.error = None
         room.revision += 1
     await publish(room)
@@ -617,14 +686,29 @@ def _host_account(room: Room, socket: WebSocket):
 
 def _reserve_room_run(room: Room, account_id: str, confirmed: bool, retry: bool = False) -> None:
     if not retry:
-        access = require_run_access(account_id)
+        if live_mode():
+            from account_store import account_access
+            access=account_access(account_id)
+        else:
+            access = require_run_access(account_id)
         if not access["free_access"] and not confirmed:
-            raise AccessError("Confirm the 10-test-credit cost before starting or restarting this run.")
+            raise AccessError("Confirm the 10-credit cost before starting or restarting this run.")
     run_id = room.run_id if retry and room.run_id else secrets.token_hex(24)
-    reserve_run(account_id, run_id)
-    if run_id != room.run_id:
+    if live_mode():
+        from account_store import account_access
+        if not account_access(account_id)['free_access']:
+            from payments_live import settings
+            try:settings()
+            except HTTPException:
+                raise AccessError('Paid defenses are temporarily unavailable. Your credits are retained.') from None
+        LiveStore().reserve_run(account_id,run_id,SERVICE_ID,room.code,
+                                replace_id=room.run_id if run_id!=room.run_id else None)
+    else:
+        reserve_run(account_id, run_id)
+    if not live_mode() and run_id != room.run_id:
         release_run(room.run_id)
     room.run_id = run_id
+    room.absent_since_ms = None
 
 
 async def _handle_action(room: Room, player: Player, socket: WebSocket, message: dict) -> None:
@@ -647,6 +731,8 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
     async with room.lock:
         # Authorize before mutation or scheduling any paid AI work.
         try:
+            if live_mode() and player.is_host and action in {'start','restart','retry','retry_coaching','prepare_research_plan','retry_research_plan'}:
+                LiveStore().allow_ai_request(account['id'])
             if player.is_host and action in {"prepare_research_plan", "retry_research_plan"}:
                 require_run_access(account["id"])
             if player.is_host and action == "start" and room.phase == "lobby" and room.defense is None:
@@ -663,7 +749,7 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
         except AccessError as failure:
             await _send_error(socket, str(failure))
             return
-        if action in {"start", "restart", "retry", "retry_coaching", "prepare_research_plan", "retry_research_plan", "approve_research_plan", "end_defense"} and not player.is_host:
+        if action in {"start", "restart", "retry", "retry_coaching", "prepare_research_plan", "retry_research_plan", "approve_research_plan", "end_defense", "end_unavailable"} and not player.is_host:
             error = "Only the host can control the defense."
         elif action in {"prepare_research_plan", "retry_research_plan"}:
             if room.defense_type == "code":
@@ -717,6 +803,25 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
                 generation_id = room.generation_id
                 room.revision += 1
                 generate_first = True
+        elif action == "end_unavailable":
+            if not live_mode() or not room.run_id:
+                error = "There is no unavailable live defense to end."
+            else:
+                try:
+                    LiveStore().end_unavailable(account["id"],room.run_id)
+                except AccessError as failure:
+                    error = str(failure)
+                else:
+                    room.generation_id += 1
+                    room.feedback_generation_id += 1
+                    room.discard_pending()
+                    _clear_clock_locked(room)
+                    if isinstance(room.defense,ResearchDefenseSession) and not room.defense.completed:
+                        room.defense.end()
+                    room.phase = "complete"
+                    room.feedback_status = "none"
+                    room.error = "The unavailable defense was ended. Check Account for any returned credits."
+                    room.revision += 1
         elif action == "end_defense":
             if room.defense_type == "code" or not isinstance(room.defense, ResearchDefenseSession):
                 error = "Ending early is available for an active research defense."
@@ -728,6 +833,8 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
                 _clear_clock_locked(room)
                 room.defense.end()
                 release_run(room.run_id)
+                if live_mode() and room.run_id:
+                    LiveStore().finish_run(room.run_id,"ended")
                 room.phase = "complete"
                 room.error = None
                 room.feedback_status = "generating"
@@ -868,6 +975,7 @@ async def room_socket(socket: WebSocket, code: str) -> None:
         return
     except (asyncio.TimeoutError, json.JSONDecodeError):
         token = None
+    await _observe_absence(room)
     async with room.lock:
         player = room.players.get(token) if isinstance(token, str) else None
         if player is not None and player.is_host:
@@ -879,6 +987,7 @@ async def room_socket(socket: WebSocket, code: str) -> None:
                 return
         if player is not None:
             player.sockets.add(socket)
+            room.absent_since_ms = None
             _reassign_if_offline_locked(room)
             room.revision += 1
     if player is None:
@@ -912,8 +1021,10 @@ async def room_socket(socket: WebSocket, code: str) -> None:
             player.sockets.discard(socket)
             _reassign_if_offline_locked(room)
             room.revision += 1
+        await _observe_absence(room)
         await publish(room)
 
 
 app.include_router(test_payment_router)
+app.include_router(live_payment_router)
 app.mount("/", StaticFiles(directory=GAME_DIR, html=True), name="game")

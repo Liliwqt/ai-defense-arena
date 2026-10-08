@@ -32,6 +32,7 @@ class Settings:
     webhook_secret: str
     origin: str
     database: Path
+    livemode: bool = False
 
 
 def settings() -> Settings:
@@ -100,31 +101,31 @@ def public_topup(row: dict) -> dict:
                                     "qr_image_url", "expires_at", "created_at", "paid_at")} | {"mode": "test", "simulated": is_simulated_topup(row)}
 
 
-def validated_test_intent(resource: dict, row: dict) -> dict:
+def validated_test_intent(resource: dict, row: dict, *, livemode: bool = False) -> dict:
     attrs = resource["attributes"]
     intent_id = resource["id"]
     if (resource.get("type") != "payment_intent" or not isinstance(intent_id, str)
-            or not re.fullmatch(r"pi_[A-Za-z0-9_]+", intent_id) or attrs.get("livemode") is not False
+            or not re.fullmatch(r"pi_[A-Za-z0-9_]+", intent_id) or attrs.get("livemode") is not livemode
             or type(attrs.get("amount")) is not int or attrs["amount"] != row["amount"]
             or attrs.get("currency") != row["currency"]):
         raise ValueError("Invalid test intent")
     return attrs
 
 
-async def create_qr(client: httpx.AsyncClient, config: Settings, row: dict) -> tuple[str, str, int]:
+async def create_qr(client: httpx.AsyncClient, config: Settings, row: dict, *, store=None) -> tuple[str, str, int]:
     """Keep provider resources and credentials inside the payment boundary."""
     result = await client.post(PAYMENT_API + "/payment_intents", auth=(config.key, ""), json={"data": {"attributes": {
         "amount": row["amount"], "currency": row["currency"], "payment_method_allowed": ["qrph"],
-        "description": "AI Defense Arena sandbox top-up " + row["id"], "metadata": {"topup_id": row["id"]},
+        "description": ("AI Defense Arena live top-up " if row["id"].startswith("live_") else "AI Defense Arena one-peso live trial " if config.livemode else "AI Defense Arena sandbox top-up ") + row["id"], "metadata": {"topup_id": row["id"]},
     }}})
     result.raise_for_status()
     intent = result.json()["data"]
-    attrs = validated_test_intent(intent, row)
+    attrs = validated_test_intent(intent, row, livemode=config.livemode)
     intent_id, client_key = intent["id"], attrs["client_key"]
     if (attrs.get("status") != "awaiting_payment_method"
             or not isinstance(client_key, str) or not client_key):
         raise ValueError("Invalid test intent")
-    PurchaseStore(config.database).bind_topup_intent(row["id"], intent_id)
+    (store or PurchaseStore(config.database)).bind_topup_intent(row["id"], intent_id)
     result = await client.post(PAYMENT_API + "/payment_methods", auth=(config.key, ""), json={"data": {"attributes": {
         "type": "qrph", "expiry_seconds": QR_EXPIRY_SECONDS,
     }}})
@@ -133,7 +134,7 @@ async def create_qr(client: httpx.AsyncClient, config: Settings, row: dict) -> t
     method_id = method["id"]
     if (method.get("type") != "payment_method" or not isinstance(method_id, str)
             or not re.fullmatch(r"pm_[A-Za-z0-9_]+", method_id)
-            or method["attributes"].get("livemode") is not False or method["attributes"].get("type") != "qrph"):
+            or method["attributes"].get("livemode") is not config.livemode or method["attributes"].get("type") != "qrph"):
         raise ValueError("Invalid test method")
     # Conservative local display deadline: attachment activates the QR. This
     # does not mark the receipt expired; the signed event will do that later.
@@ -143,7 +144,7 @@ async def create_qr(client: httpx.AsyncClient, config: Settings, row: dict) -> t
     }}})
     result.raise_for_status()
     attached = result.json()["data"]
-    attrs = validated_test_intent(attached, row)
+    attrs = validated_test_intent(attached, row, livemode=config.livemode)
     if (attached["id"] != intent_id
             or attrs.get("status") != "awaiting_next_action"):
         raise ValueError("Invalid attached test intent")
@@ -239,7 +240,7 @@ def simulate_topup(topup_id: str, body: SimulateTopupRequest, request: Request):
     return response({"topup": public_topup(row), "mode": "test", "message": message})
 
 
-def verify_signature(raw: bytes, signature: str, secret: str, now: float) -> None:
+def verify_signature(raw: bytes, signature: str, secret: str, now: float, *, livemode: bool = False) -> None:
     try:
         fields = {}
         for part in signature.split(","):
@@ -251,7 +252,7 @@ def verify_signature(raw: bytes, signature: str, secret: str, now: float) -> Non
         if abs(now - int(timestamp)) > 300:
             raise ValueError("Stale signature")
         computed = hmac.new(secret.encode(), timestamp.encode() + b"." + raw, hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(computed, fields.get("te", "")):
+        if not hmac.compare_digest(computed, fields.get("li" if livemode else "te", "")):
             raise ValueError("Invalid test signature")
     except (KeyError, TypeError, ValueError):
         raise HTTPException(401, "Invalid or expired test webhook signature.") from None
@@ -274,7 +275,7 @@ def paid_session(body: dict) -> dict | None:
         raise HTTPException(400, "Invalid test payment event.") from None
 
 
-def reconcile_topup_event(body: dict, store: PurchaseStore) -> bool:
+def reconcile_topup_event(body: dict, store: PurchaseStore, *, livemode: bool = False) -> bool:
     """Return whether this is a QR event, after validating its signed resource."""
     try:
         event = body["data"]
@@ -282,14 +283,14 @@ def reconcile_topup_event(body: dict, store: PurchaseStore) -> bool:
         event_type = envelope["type"]
         if event_type not in {"payment.paid", "payment.failed", "qrph.expired"}:
             return False
-        if envelope.get("livemode") is not False:
+        if envelope.get("livemode") is not livemode:
             raise ValueError("Only test events are accepted")
         resource = envelope.get("data") or envelope.get("resource")
         # Checkout resources retain their existing separate handler.
         if isinstance(resource, dict) and resource.get("type") == "checkout_session":
             return False
         attrs = resource["attributes"]
-        if attrs.get("livemode") is not False:
+        if attrs.get("livemode") is not livemode:
             raise ValueError("Only test resources are accepted")
         payment_id = None
         qr_expiry = event_type == "qrph.expired" and resource.get("type") == "qrph"

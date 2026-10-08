@@ -5,6 +5,13 @@ import type { Account } from "../hooks/useAccount";
 const account: Account = { authenticated: true, google_enabled: true, user: {id:"private-id",name:"Alex",email:"alex@example.test"}, csrf_token:"csrf",test_credits:90,reserved_credits:10,voucher_enabled:true,free_access:false,orders:[] };
 afterEach(()=>vi.unstubAllGlobals());
 describe("Account access",()=>{
+ it("shows live credits separately and retains voucher access without a top-up invitation",()=>{
+  render(<AccountPanel account={{authenticated:true,google_enabled:true,payment_mode:"live",user:{id:"live-owner",name:"Owner",email:"owner@example.test"},live_credits:50,live_reserved_credits:10,topup_invited:false,voucher_enabled:true}} refresh={vi.fn()} error=""/>);
+  expect(screen.getByText(/50 available credits/)).toBeTruthy();
+  expect(screen.getByText(/Top-ups are temporarily unavailable/)).toBeTruthy();
+  expect(screen.getByLabelText("Free-access voucher")).toBeTruthy();
+  expect(screen.queryByRole("link",{name:"Top up credits"})).toBeNull();
+ });
  it("explains unconfigured login and guest access",()=>{
   render(<AccountPanel account={{authenticated:false,google_enabled:false}} refresh={vi.fn()} error=""/>);
   expect(screen.getByText(/Google sign-in needs server configuration/)).toBeTruthy();
@@ -43,5 +50,18 @@ describe("Account access",()=>{
  it("explains free access and removes the redeemed voucher field",()=>{
   render(<AccountPanel account={{...account,free_access:true}} refresh={vi.fn()} error=""/>);
   expect(screen.getByText("Free access active")).toBeTruthy();expect(screen.queryByLabelText("Free-access voucher")).toBeNull();
+ });
+ it("shows credits actually awarded and distinguishes charges from released reservations",()=>{
+  render(<AccountPanel account={{...account,spent_credits:10,orders:[{id:"pending-order",status:"pending",credits:100,awarded_credits:0}],runs:[
+   {id:"run-reserved",mode:"credits",status:"reserved",cost:10,created_at:1,charged_at:null},
+   {id:"run-charged",mode:"credits",status:"charged",cost:10,created_at:1,charged_at:2},
+   {id:"run-released",mode:"credits",status:"released",cost:10,created_at:1,charged_at:null},
+   {id:"run-free",mode:"voucher",status:"charged",cost:0,created_at:1,charged_at:null},
+  ]}} refresh={vi.fn()} error=""/>);
+  expect(screen.getByText("Awaiting payment verification · 0 test credits added")).toBeTruthy();
+  expect(screen.getByText("Reserved · 10 test credits")).toBeTruthy();
+  expect(screen.getByText("Charged · 10 test credits")).toBeTruthy();
+  expect(screen.getByText("Reservation released · no credits charged")).toBeTruthy();
+  expect(screen.getByText("Voucher run · no credits used")).toBeTruthy();
  });
 });
