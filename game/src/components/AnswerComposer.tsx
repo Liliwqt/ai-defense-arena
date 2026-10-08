@@ -7,6 +7,7 @@ interface AnswerComposerProps {
   previewMode: boolean;
   waitingForAnswerAck: boolean;
   actionError: string | null;
+  actionErrorReason?: string | null;
   onSendEvent: (payload: Record<string, unknown>) => boolean;
 }
 
@@ -40,7 +41,7 @@ function waitingText(state: RoomState | null): string {
   return "Waiting for the next question…";
 }
 
-export function AnswerComposer({ roomState, connected, previewMode, waitingForAnswerAck, actionError, onSendEvent }: AnswerComposerProps) {
+export function AnswerComposer({ roomState, connected, previewMode, waitingForAnswerAck, actionError, actionErrorReason, onSendEvent }: AnswerComposerProps) {
   const [draft, setDraft] = useState("");
   const [localError, setLocalError] = useState("");
   const [writeRecovery, setWriteRecovery] = useState(false);
@@ -55,8 +56,8 @@ export function AnswerComposer({ roomState, connected, previewMode, waitingForAn
 
   useEffect(() => { setDraft(""); setLocalError(""); setWriteRecovery(false); setInterpretationLimited(false); }, [turnKey]);
   useEffect(() => {
-    if (actionError?.startsWith("Request allowance used.") || actionError?.startsWith("AI retry allowance used.")) setInterpretationLimited(true);
-  }, [actionError]);
+    if (actionErrorReason === "ai_admission") setInterpretationLimited(true);
+  }, [actionErrorReason]);
   useEffect(() => { if (clarifications > 0) { setDraft(""); setLocalError(""); } }, [clarifications, turnKey]);
   useEffect(() => { if (roomState?.my_pending_submission) setDraft(roomState.my_pending_submission); }, [roomState?.my_pending_submission]);
 

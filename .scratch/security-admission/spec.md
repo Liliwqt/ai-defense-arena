@@ -1,6 +1,6 @@
 # Fair room access, mobile sign-in and bounded AI work
 
-Status: ready-for-agent
+Status: ready-for-human
 Created: 2026-10-08
 
 Basis: the completed Codex Security functional review at feature HEAD dd037d5 and the local security-admission design note. The user requested To Spec before answering the three policy questions. The limits below are explicit proposed defaults synthesized for implementation, not approved interview answers. The user confirmed the proposed test boundaries on 2026-10-08. This specification authorizes no publication, deployment, provider attack test, or financial mutation.
@@ -142,3 +142,7 @@ The previous interview was superseded by the user's specification request, not c
 Use domain terms consistently: a room may contain successive defense runs; clarification is not a new turn; a credit return is not a payment refund. Existing compensation decisions take precedence over cleanup shortcuts. Clarification/spending limits apply equally to voucher and paid runs.
 
 Implementation should deliver three independently reviewable protections with a final integration gate. Use the local ticket workflow for a later breakdown. After fixes, explicitly verify the original security findings and report residual distributed-abuse and hosted-configuration limitations. No fixes, tests, live walkthrough or deployment are claimed by writing this spec.
+
+## Implementation handoff
+
+2026-10-09: Implemented locally and code-reviewed against dd037d5. See docs/SECURITY_ADMISSION_REVIEW.md and PROJECT_LOG.md for fixes, isolated-release gates and remaining user/hosted/native verification. No push or deployment.

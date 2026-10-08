@@ -4,7 +4,9 @@ Local implementation on `feature/question-first-room`, reviewed against `dd037d5
 The Implement request authorizes the synthesized policy defaults and a local commit;
 no push, deployment or frozen-main change is part of this checkpoint. The spec and
 seven tickets live under [.scratch/security-admission](../.scratch/security-admission/spec.md).
-User visual review is pending.
+User visual review is pending. The final isolated selected release passed **384 Python
+tests (external providers mocked), 226 React tests and the production build**. The
+full working-tree counts below also include preserved unrelated local tests.
 
 ## Behavior
 
@@ -83,8 +85,8 @@ networks or many authenticated accounts remain residual abuse risks.
 
 ## Evidence
 
-- Full working-tree Python suite: 395 passing tests, offline with AI, Google and
-  PayMongo mocked. Full React suite: 231 tests and production build passed. Pre-existing local
+- Full working-tree Python suite: 396 passing tests, offline with AI, Google and
+  PayMongo mocked. Full React suite: 232 tests and production build passed. Pre-existing local
   tests are distinguished from the selected release in the final handoff.
 - New authenticated HTTP/WS and fake-clock cases exercise account quotas before
   extraction, concurrent creation, validation recovery, owner controls, exact idle
@@ -115,6 +117,12 @@ Screenshots, all synthetic:
 - [Recovery clock running, portrait](../screenshots/security-admission-running-clock-mock-portrait.png)
 - [Burst rejection/direct answer](../screenshots/security-admission-burst-recovery-mock-desktop.png)
 - [Unavailable-room notice](../screenshots/security-admission-expiry-notice-mock-portrait.png)
+- [Test-credit run completed](../screenshots/security-admission-test-credit-complete-mock-desktop.png)
+
+A final synthetic test-credit two-browser code defense completed four answers,
+reconnect and shared coaching. Its available balance changed from 100 to 90 test
+credits, reservations returned to zero, and exactly one charged run was recorded.
+This fixture seeded an isolated local ledger; it made no PayMongo call or payment.
 
 The portrait recovery browser check also exhausted the four-minute pause, displayed
 the running answer clock, accepted a newly written direct answer and keyboard-resumed
@@ -163,6 +171,10 @@ Two low-priority heuristic suggestions remain:
 - Possible repeated recovery-phase selectors across timer, status and composer:
   shared selectors could reduce future drift.
 
-These maintenance suggestions do not block the behavioral fixes. No broad refactor
+A follow-up also identified message-text coupling in AI recovery. That heuristic
+was resolved with the additive `ai_admission` WebSocket error reason, passed through
+the socket hook and room dock. All interpretation-admission rejections, including
+the full limiter-map backstop, now enable explicit direct answers without parsing
+user-facing wording. The two remaining maintenance suggestions do not block the behavioral fixes. No broad refactor
 was included. Final review follow-up and selected-release results are recorded in
 PROJECT_LOG.md; neither axis claims complete hosted security or live provider proof.

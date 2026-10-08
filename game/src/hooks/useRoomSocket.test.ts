@@ -53,6 +53,13 @@ afterEach(() => {
 });
 
 describe("useRoomSocket", () => {
+  it("retains a structured AI admission reason independent of message wording", () => {
+    const { result } = renderHook(() => useRoomSocket(false));
+    act(() => result.current.useRoom("ABCD12", "tok", false));
+    act(() => allSockets[0].emit("open", {}));
+    act(() => allSockets[0].emit("message", { data: JSON.stringify({ type: "error", reason: "ai_admission", message: "The service is busy. Retry shortly." }) }));
+    expect(result.current.actionErrorReason).toBe("ai_admission");
+  });
   it("keeps a healthy socket and chosen defender when the native app resumes", () => {
     const { result } = renderHook(() => useRoomSocket(false));
     act(() => result.current.useRoom("ABCD12", "same-token", false));

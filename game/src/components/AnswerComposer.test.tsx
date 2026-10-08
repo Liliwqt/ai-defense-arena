@@ -23,7 +23,7 @@ describe("AnswerComposer", () => {
     const send = vi.fn(() => true);
     const { rerender } = render(<AnswerComposer {...defaults} roomState={questionState} onSendEvent={send} />);
     await userEvent.type(screen.getByRole("textbox"), "The queue preserves arrival order.");
-    rerender(<AnswerComposer {...defaults} roomState={questionState} onSendEvent={send} actionError="Request allowance used. Retry shortly." />);
+    rerender(<AnswerComposer {...defaults} roomState={questionState} onSendEvent={send} actionError="The service is busy. Retry shortly." actionErrorReason="ai_admission" />);
     expect(screen.getByRole("textbox")).toHaveValue("The queue preserves arrival order.");
     await userEvent.click(screen.getByRole("button", { name: "Submit answer directly" }));
     expect(send).toHaveBeenCalledWith({ type: "submit_direct_answer", turn: 0, answer: "The queue preserves arrival order." });

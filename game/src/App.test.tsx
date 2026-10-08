@@ -31,7 +31,7 @@ const room = (turns: Turn[], phase: RoomState["phase"] = "question"): RoomState 
 });
 const socket = (state: RoomState | null): RoomSocketState => ({
   roomState: state, connected: true, roomCode: "ROOM1", knownHost: true,
-  waitingForAnswerAck: false, actionError: null, sendEvent: vi.fn(() => true),
+  waitingForAnswerAck: false, actionError: null, actionErrorReason: null, sendEvent: vi.fn(() => true),
   useRoom: vi.fn(), leaveRoom: vi.fn(), playerToken: "token",
 });
 const setSocket = (state: RoomState | null) => vi.mocked(useRoomSocket).mockReturnValue(socket(state));

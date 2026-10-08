@@ -21,7 +21,7 @@ export function App() {
   const viewport = useRoomViewport();
   const {
     roomState: liveRoomState, connected, roomCode, waitingForAnswerAck,
-    actionError, sendEvent, useRoom, leaveRoom,
+    actionError, actionErrorReason, sendEvent, useRoom, leaveRoom,
   } = useRoomSocket(previewMode);
   const [drawerOpen, setDrawerOpen] = useState(!previewMode || new URLSearchParams(window.location.search).get("plan") === "1");
   const [drawerMode, setDrawerMode] = useState<DrawerMode>(new URLSearchParams(location.search).get("account") === "1" ? "account" : "controls");
@@ -158,7 +158,7 @@ export function App() {
         <DefenderSeats roomState={roomState} presenterMoment={presenterMoment} />
       </div>
       <RoomDock roomState={roomState} connected={connected} previewMode={previewMode}
-        waitingForAnswerAck={waitingForAnswerAck} actionError={actionError} onSendEvent={sendEvent} />
+        waitingForAnswerAck={waitingForAnswerAck} actionError={actionError} actionErrorReason={actionErrorReason} onSendEvent={sendEvent} />
       <Drawer open={drawerOpen} mode={drawerMode} title={title} onClose={closeDrawer}>
         {drawerMode === "controls" ? (
           <>

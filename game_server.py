@@ -958,9 +958,9 @@ async def join_room(code: str, request: JoinRequest) -> dict[str, str]:
     return {"room_code": room.code, "player_token": token}
 
 
-async def _send_error(socket: WebSocket, message: str) -> None:
+async def _send_error(socket: WebSocket, message: str, reason: str | None = None) -> None:
     try:
-        await socket.send_json({"type": "error", "message": message})
+        await socket.send_json({"type": "error", "message": message, **({"reason": reason} if reason else {})})
     except (RuntimeError, OSError, WebSocketDisconnect):
         # The peer may close while the server is preparing its reply.
         pass
@@ -1022,6 +1022,7 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
     await _expire_deadline(room)
     action = message.get("type")
     error = None
+    error_reason = None
     expired_action = False
     generate_first = None
     generation_id = None
@@ -1226,6 +1227,8 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
                 room.retry_interpretation(is_host=player.is_host, seat=player.seat)
             except HTTPException as failure:
                 error = str(failure.detail)
+                if failure.status_code == 429:
+                    error_reason = "ai_admission"
             except ValueError as failure:
                 error = str(failure)
             else:
@@ -1264,6 +1267,8 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
                             room.defense, _now_ms())
             except HTTPException as failure:
                 error = str(failure.detail)
+                if failure.status_code == 429:
+                    error_reason = "ai_admission"
             except ValueError as failure:
                 error = str(failure)
                 expired_action = isinstance(failure, DeadlineExpired)
@@ -1277,7 +1282,7 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
     if expired_action:
         await _expire_deadline(room)
     if error:
-        await _send_error(socket, error)
+        await _send_error(socket, error, error_reason)
         return
     await publish(room)
     if plan_generation_id is not None:

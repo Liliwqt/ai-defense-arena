@@ -45,6 +45,7 @@ export interface RoomSocketState {
   knownHost: boolean;
   waitingForAnswerAck: boolean;
   actionError: string | null;
+  actionErrorReason: string | null;
   sendEvent: (payload: Record<string, unknown>) => boolean;
   useRoom: (code: string, token: string, host: boolean) => void;
   leaveRoom: () => void;
@@ -58,6 +59,7 @@ export function useRoomSocket(previewMode: boolean): RoomSocketState {
   const [knownHost, setKnownHost] = useState(false);
   const [waitingForAnswerAck, setWaitingForAnswerAck] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionErrorReason, setActionErrorReason] = useState<string | null>(null);
 
   const playerTokenRef = useRef<string | null>(null);
   const websocketRef = useRef<WebSocket | null>(null);
@@ -112,6 +114,7 @@ export function useRoomSocket(previewMode: boolean): RoomSocketState {
         const snapshot = message.state as RoomState;
         setRoomState(snapshot);
         setActionError(null);
+        setActionErrorReason(null);
         const pendingTurn = pendingAnswerTurnRef.current;
         if (pendingTurn !== null && (snapshot.turns[pendingTurn]?.answer != null || snapshot.phase !== "question")) {
           pendingAnswerTurnRef.current = null;
@@ -122,6 +125,7 @@ export function useRoomSocket(previewMode: boolean): RoomSocketState {
         pendingAnswerTurnRef.current = null;
         setWaitingForAnswerAck(false);
         setActionError(errMsg);
+        setActionErrorReason(typeof message.reason === "string" ? message.reason : null);
         if (
           errMsg.startsWith("Room not found.") ||
           errMsg.startsWith("This room link is no longer valid.")
@@ -179,6 +183,7 @@ export function useRoomSocket(previewMode: boolean): RoomSocketState {
       pendingAnswerTurnRef.current = null;
       setWaitingForAnswerAck(false);
       setActionError(null);
+      setActionErrorReason(null);
       safeStore(upperCode, token);
       connectSocket();
     },
@@ -200,6 +205,7 @@ export function useRoomSocket(previewMode: boolean): RoomSocketState {
     pendingAnswerTurnRef.current = null;
     setWaitingForAnswerAck(false);
     setActionError(null);
+    setActionErrorReason(null);
     clearStoredRoom();
   }, []);
 
@@ -213,6 +219,7 @@ export function useRoomSocket(previewMode: boolean): RoomSocketState {
         setWaitingForAnswerAck(true);
       }
       setActionError(null);
+      setActionErrorReason(null);
       try {
         ws.send(JSON.stringify(payload));
         return true;
@@ -252,6 +259,7 @@ export function useRoomSocket(previewMode: boolean): RoomSocketState {
     knownHost,
     waitingForAnswerAck,
     actionError,
+    actionErrorReason,
     sendEvent,
     useRoom,
     leaveRoom,

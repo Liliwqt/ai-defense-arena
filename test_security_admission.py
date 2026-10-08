@@ -196,6 +196,26 @@ class RoomAdmissionTests(unittest.TestCase):
         self.assertEqual(room.phase, 'retry')
         self.assertIn('allowance', room.error)
 
+    def test_global_ai_admission_pressure_preserves_answer_and_tags_recovery(self):
+        from fastapi import HTTPException
+        from defense_session import DefenseSession
+        room, host, _ = self.create()
+        room.defense = DefenseSession.start(self.question)
+        room.phase = 'question'
+        room.selected_seat = host.seat
+        room.answer_deadline_ms = server._now_ms() + 120_000
+        with patch.object(room.ai_budget, 'admit', side_effect=HTTPException(429, 'The service is busy. Retry shortly.')), patch.object(server, '_schedule_interpretation') as provider:
+            self.client.portal.call(server._handle_action, room, host, self.socket,
+                {'type': 'submit_answer', 'turn': 0, 'answer': 'We store arrivals in order.'})
+        self.assertEqual(self.events[-1]['reason'], 'ai_admission')
+        self.assertEqual(room.phase, 'question')
+        self.assertIsNone(room.pending_submission)
+        self.assertEqual(room.interpretation_attempts, 0)
+        provider.assert_not_called()
+        self.client.portal.call(server._handle_action, room, host, self.socket,
+            {'type': 'submit_direct_answer', 'turn': 0, 'answer': 'We store arrivals in order.'})
+        self.assertEqual(room.defense.turns[0].answer, 'We store arrivals in order.')
+
     def test_idle_expiry_frees_slots_but_active_run_is_protected(self):
         with patch.object(server, '_now_ms', return_value=1000):
             room, _, credentials = self.create()

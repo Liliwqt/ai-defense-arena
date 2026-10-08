@@ -8,6 +8,7 @@ interface RoomDockProps {
   previewMode: boolean;
   waitingForAnswerAck: boolean;
   actionError: string | null;
+  actionErrorReason?: string | null;
   onSendEvent: (payload: Record<string, unknown>) => boolean;
 }
 
@@ -84,7 +85,7 @@ function TeamChat({ state, connected, previewMode, actionError, onSendEvent, vis
   );
 }
 
-export function RoomDock({ roomState, connected, previewMode, waitingForAnswerAck, actionError, onSendEvent }: RoomDockProps) {
+export function RoomDock({ roomState, connected, previewMode, waitingForAnswerAck, actionError, actionErrorReason, onSendEvent }: RoomDockProps) {
   const [tab, setTab] = useState<"action" | "chat">("action");
   const [seenChatId, setSeenChatId] = useState(0);
   const latestChatId = roomState?.chat?.at(-1)?.id ?? 0;
@@ -113,7 +114,7 @@ export function RoomDock({ roomState, connected, previewMode, waitingForAnswerAc
         {roomState?.phase === "voting" ? <VotePanel state={roomState} connected={connected} previewMode={previewMode}
           actionError={actionError} onSendEvent={onSendEvent} /> :
           <AnswerComposer roomState={roomState} connected={connected} previewMode={previewMode}
-            waitingForAnswerAck={waitingForAnswerAck} actionError={actionError} onSendEvent={onSendEvent} />}
+            waitingForAnswerAck={waitingForAnswerAck} actionError={actionError} actionErrorReason={actionErrorReason} onSendEvent={onSendEvent} />}
       </div>
       <div id="dock-chat" role="tabpanel" hidden={tab !== "chat"} className="dock-content">
         <TeamChat state={roomState} connected={connected} previewMode={previewMode} actionError={actionError}
