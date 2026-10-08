@@ -5,6 +5,12 @@ import type { Account } from "../hooks/useAccount";
 const account: Account = { authenticated: true, google_enabled: true, user: {id:"private-id",name:"Alex",email:"alex@example.test"}, csrf_token:"csrf",test_credits:90,reserved_credits:10,voucher_enabled:true,free_access:false,orders:[] };
 afterEach(()=>vi.unstubAllGlobals());
 describe("Account access",()=>{
+ it("offers the dashboard only when the server confirms owner access",()=>{
+  const {rerender}=render(<AccountPanel account={{...account,manager_enabled:true}} refresh={vi.fn()} error=""/>);
+  expect(screen.getByRole("link",{name:"Owner dashboard"}).getAttribute("href")).toBe("/?manager=1");
+  rerender(<AccountPanel account={account} refresh={vi.fn()} error=""/>);
+  expect(screen.queryByRole("link",{name:"Owner dashboard"})).toBeNull();
+ });
  it("shows live credits separately and retains voucher access without a top-up invitation",()=>{
   render(<AccountPanel account={{authenticated:true,google_enabled:true,payment_mode:"live",user:{id:"live-owner",name:"Owner",email:"owner@example.test"},live_credits:50,live_reserved_credits:10,topup_invited:false,voucher_enabled:true}} refresh={vi.fn()} error=""/>);
   expect(screen.getByText(/50 available credits/)).toBeTruthy();

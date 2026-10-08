@@ -69,6 +69,40 @@ Open <http://127.0.0.1:8000/>. The launcher installs frontend packages when need
 
 The launcher does not load `.env`. Export configuration in the launching terminal; keep secrets out of Git and `VITE_` variables. The former host passcode is no longer used by this local version. Only hosts sign in; teammates join with a room code and display name. The OpenAI key and voucher configuration stay on the server.
 
+### Owner dashboard
+
+Open **Account → Owner dashboard**, or `/?manager=1`, to manage top-up
+invitations, search/page through registered Google accounts, and add or remove
+live credits with a required reason. The dashboard shows available, reserved,
+held and test balances separately, plus recent audited changes. It lists accounts
+that have signed in; room-only guests do not create account records. You may
+invite a Google email before its first sign-in.
+
+Configure `PAYMENT_OPERATOR_GOOGLE_SUB` to your server-verified Google subject
+on the server. This is the existing payment-operator identity, not an email,
+display name or browser-selected account. Missing configuration disables owner
+access. Every management endpoint checks ownership; changes also require the
+existing authenticated session and same-origin CSRF token. No owner identifier
+or user list is sent to teammates' room snapshots.
+
+Invitations are stored in the account database and take effect without a
+redeploy. `LIVE_TOPUP_INVITED_EMAILS` remains an optional seed list; a dashboard
+disable overrides a seeded invitation. Removing an invitation blocks new top-ups
+without deleting purchased credits or changing public signed-in voucher access.
+
+Credit edits are signed adjustments to available **live** credits. They cannot
+remove reserved/held credits or produce a negative available balance. Grants
+are separate from payment receipts and test balances, fund defenses before
+purchased credits, and participate in existing once-only reservations, charges
+and service-failure returns. Purchased receipts retain their original terms;
+manual edits do not mark a payment paid, trigger money refunds, or award test
+credits. The audit records the owner account, target account, reason and change.
+
+For a synthetic local preview, use
+<http://127.0.0.1:8768/__fixture/login> while the private preview process is
+running. Its users, identity and balances are fixtures, not real accounts or
+payments. Hosted availability requires deploying this feature-branch release and configuring the owner identity.
+
 ### Preview without AI calls
 
 Build the frontend before starting FastAPI directly:

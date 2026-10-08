@@ -17,6 +17,7 @@ export interface Account {
   live_reserved_credits?: number;
   live_held_credits?: number;
   topup_invited?: boolean;
+  manager_enabled?: boolean;
   active_run?: string | null;
   paid_starts_enabled?: boolean;
   ai_service_available?: boolean;

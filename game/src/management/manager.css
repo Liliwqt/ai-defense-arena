@@ -1,0 +1,21 @@
+.manager-page { height: 100%; overflow-y: auto; max-width: 1080px; margin: 0 auto; padding: 24px; overflow-wrap: anywhere; }
+.manager-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 20px; }
+.manager-header > div { flex: 1; min-width: 0; }
+.manager-page .button-primary, .manager-page .button-secondary { width: auto; flex: 0 0 auto; }
+.manager-page a:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+.manager-page h1 { font-size: clamp(1.4rem, 3vw, 2rem); }
+.manager-card { padding: 24px; margin: 20px 0; background: var(--base); border-radius: 16px; box-shadow: var(--raise-md); }
+.manager-card h2 { font-size: 1.25rem; margin-bottom: 16px; }
+.manager-card form { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin: 16px 0; }
+.manager-card label { display: flex; flex: 1 1 220px; flex-direction: column; gap: 6px; }
+.manager-card input, .manager-card select, .manager-card textarea { width: 100%; padding: 10px; background: var(--base-deep); border: 1px solid var(--line); border-radius: 8px; }
+.manager-card button, .manager-actions button { min-height: 44px; padding: 10px 16px; }
+.manager-list li { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.manager-list li > div { flex: 1; min-width: 0; }
+.manager-list p { margin: 4px 0; }
+.manager-list time { font-size: .8rem; color: var(--muted); }
+.manager-actions { display: flex; gap: 12px; margin-top: 16px; }
+.manager-adjustment { padding-top: 18px; border-top: 1px solid var(--line); }
+.manager-adjustment h3, .manager-adjustment p { flex-basis: 100%; }
+.manager-feedback { position: sticky; bottom: 12px; padding: 12px 16px; border-radius: 12px; background: var(--page-paper); box-shadow: var(--raise-sm); }
+@media (max-width: 600px) { .manager-page { padding: 16px; } .manager-header { align-items: start; } .manager-card { padding: 16px; } .manager-list li { align-items: start; flex-direction: column; } .manager-card form button { flex: 1; } }

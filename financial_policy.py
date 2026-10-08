@@ -28,9 +28,13 @@ def live_mode():
     return mode == "live"
 
 
-def invited(email):
-    allowed = {value.strip().casefold() for value in os.environ.get("LIVE_TOPUP_INVITED_EMAILS", "").split(",") if value.strip()}
-    return email.casefold() in allowed
+def invited(email, *, db=None):
+    from management_store import invitation
+    if db is not None:
+        return invitation(db, email)
+    from account_store import connect_store, database_path
+    with connect_store(database_path()) as connection:
+        return invitation(connection, email)
 
 
 def support_email():

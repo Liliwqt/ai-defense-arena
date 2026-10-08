@@ -70,7 +70,9 @@ class LiveStore:
 
     def snapshot(self,db,account_id):
         lots = db.execute('SELECT COALESCE(SUM(available),0), COALESCE(SUM(held),0) FROM live_lots WHERE account_id=?', (account_id,)).fetchone()
+        grants = db.execute('SELECT COALESCE(SUM(available),0) FROM live_grants WHERE account_id=?', (account_id,)).fetchone()[0]
         reserved = db.execute("SELECT COALESCE(SUM(a.credits),0) FROM live_allocations a JOIN live_runs r ON r.id=a.run_id WHERE r.account_id=? AND a.status='reserved'",(account_id,)).fetchone()[0]
+        reserved += db.execute("SELECT COALESCE(SUM(a.credits),0) FROM live_grant_allocations a JOIN live_runs r ON r.id=a.run_id WHERE r.account_id=? AND a.status='reserved'",(account_id,)).fetchone()[0]
         rows = db.execute('SELECT * FROM live_topups WHERE account_id=? ORDER BY created_at DESC,id DESC LIMIT 20',(account_id,)).fetchall()
         orders = [self.public(row) for row in rows]
         refunds = db.execute('SELECT f.* FROM live_refunds f JOIN live_topups t ON t.id=f.topup_id WHERE t.account_id=?',(account_id,)).fetchall()
@@ -85,9 +87,9 @@ class LiveStore:
         account = db.execute('SELECT email FROM accounts WHERE id=?',(account_id,)).fetchone()
         service=db.execute("SELECT id FROM live_services WHERE status='running' AND heartbeat>?",(int(time.time())-60,)).fetchone()
         paid_enabled=live_payment_setup_valid() and os.environ.get('LIVE_PAID_STARTS_ENABLED')=='1'
-        return dict(live_credits=lots[0],live_reserved_credits=reserved,live_held_credits=lots[1],
+        return dict(live_credits=lots[0]+grants,live_reserved_credits=reserved,live_held_credits=lots[1],
                     live_orders=orders,live_runs=runs,credit_returns=changes,
-                    active_run=active['id'] if active else None,topup_invited=bool(account and invited(account['email'])),
+                    active_run=active['id'] if active else None,topup_invited=bool(account and invited(account['email'],db=db)),
                     paid_starts_enabled=paid_enabled,ai_service_available=service is not None)
 
     @staticmethod
@@ -124,7 +126,7 @@ class LiveStore:
                     raise AccessError('This QR is being created. Keep this request and retry shortly.')
                 return dict(previous),False
             account=db.execute('SELECT email FROM accounts WHERE id=?',(account_id,)).fetchone()
-            if not account or not invited(account['email']):
+            if not account or not invited(account['email'],db=db):
                 raise PermissionError('Top-ups are temporarily unavailable for your account.')
             attempts=db.execute('SELECT COUNT(*) FROM live_topups WHERE account_id=? AND created_at>?',(account_id,now-600)).fetchone()[0]
             if attempts>=5:
@@ -199,21 +201,31 @@ class LiveStore:
             if not free and os.environ.get('LIVE_PAID_STARTS_ENABLED')!='1':
                 raise AccessError('Paid defenses are temporarily unavailable. Voucher access remains available.')
             lots=db.execute('SELECT * FROM live_lots WHERE account_id=? AND available>0 ORDER BY created_at,topup_id',(account_id,)).fetchall()
+            grants=db.execute('SELECT * FROM live_grants WHERE account_id=? AND available>0 ORDER BY created_at,id',(account_id,)).fetchall()
             releasable=db.execute("SELECT COALESCE(SUM(credits),0) FROM live_allocations WHERE run_id=? AND status='reserved'",(replace_id,)).fetchone()[0] if replace_id else 0
-            if not free and sum(row['available'] for row in lots)+releasable<10:
+            releasable += db.execute("SELECT COALESCE(SUM(credits),0) FROM live_grant_allocations WHERE run_id=? AND status='reserved'",(replace_id,)).fetchone()[0] if replace_id else 0
+            if not free and sum(row['available'] for row in lots)+sum(row['available'] for row in grants)+releasable<10:
                 raise AccessError('This defense needs 10 available credits or a free-access voucher.')
             # Release an old opening's reservation only after all preconditions pass.
             if replace_id:
                 self._release(db,replace_id)
                 db.execute("UPDATE live_runs SET outcome='ended',error_kind=NULL,updated_at=? WHERE id=? AND outcome IN ('opening','opening_failed','active','coaching','unavailable')",(now,replace_id))
                 lots=db.execute('SELECT * FROM live_lots WHERE account_id=? AND available>0 ORDER BY created_at,topup_id',(account_id,)).fetchall()
+                grants=db.execute('SELECT * FROM live_grants WHERE account_id=? AND available>0 ORDER BY created_at,id',(account_id,)).fetchall()
             mode,cost,status=('voucher',0,'charged') if free else ('credits',10,'reserved')
             if previous:
                 db.execute('DELETE FROM live_allocations WHERE run_id=?',(run_id,))
+                db.execute('DELETE FROM live_grant_allocations WHERE run_id=?',(run_id,))
                 db.execute("UPDATE live_runs SET mode=?,cost=?,status=?,outcome='opening',error_kind=NULL,updated_at=? WHERE id=?",(mode,cost,status,now,run_id))
             else:
                 db.execute("INSERT INTO live_runs(id,account_id,mode,cost,status,outcome,service_id,room_code,created_at,updated_at) VALUES(?,?,?,?,?,'opening',?,?,?,?)",(run_id,account_id,mode,cost,status,service_id,room_code,now,now))
             remaining=cost
+            # Owner grants fund runs first without altering paid receipts or refund history.
+            for grant in grants:
+                if not remaining:break
+                take=min(remaining,grant['available'])
+                db.execute('UPDATE live_grants SET available=available-? WHERE id=?',(take,grant['id']))
+                db.execute("INSERT INTO live_grant_allocations VALUES(?,?,?,'reserved')",(run_id,grant['id'],take));remaining-=take
             for lot in lots:
                 if not remaining:break
                 take=min(remaining,lot['available'])
@@ -234,11 +246,18 @@ class LiveStore:
 
     @staticmethod
     def _release(db,run_id):
+        LiveStore._restore_grants(db,run_id,'reserved','released')
         allocations=db.execute("SELECT * FROM live_allocations WHERE run_id=? AND status='reserved'",(run_id,)).fetchall()
         for item in allocations:
             db.execute('UPDATE live_lots SET available=available+? WHERE topup_id=?',(item['credits'],item['topup_id']))
         db.execute("UPDATE live_allocations SET status='released' WHERE run_id=? AND status='reserved'",(run_id,))
         db.execute("UPDATE live_runs SET status='released' WHERE id=? AND status='reserved'",(run_id,))
+
+    @staticmethod
+    def _restore_grants(db,run_id,status,outcome):
+        for item in db.execute('SELECT * FROM live_grant_allocations WHERE run_id=? AND status=?',(run_id,status)).fetchall():
+            db.execute('UPDATE live_grants SET available=available+? WHERE id=?',(item['credits'],item['grant_id']))
+        db.execute('UPDATE live_grant_allocations SET status=? WHERE run_id=? AND status=?',(outcome,run_id,status))
 
     def release_run(self,run_id):
         with self.transaction() as db:
@@ -255,6 +274,7 @@ class LiveStore:
             for item in db.execute("SELECT * FROM live_allocations WHERE run_id=? AND status='reserved'",(run_id,)).fetchall():
                 db.execute('UPDATE live_lots SET ever_spent=ever_spent+? WHERE topup_id=?',(item['credits'],item['topup_id']))
             db.execute("UPDATE live_allocations SET status='charged' WHERE run_id=? AND status='reserved'",(run_id,))
+            db.execute("UPDATE live_grant_allocations SET status='charged' WHERE run_id=? AND status='reserved'",(run_id,))
             db.execute("UPDATE live_runs SET status='charged',outcome='active',charged_at=COALESCE(charged_at,?),updated_at=? WHERE id=?",(int(time.time()),int(time.time()),run_id))
 
     def finish_run(self,run_id,outcome):
@@ -287,6 +307,7 @@ class LiveStore:
     def _return_run(db,row,reason):
         now=int(time.time())
         if row['status']=='charged' and row['cost']==10:
+            LiveStore._restore_grants(db,row['id'],'charged','returned')
             for item in db.execute("SELECT * FROM live_allocations WHERE run_id=? AND status='charged'",(row['id'],)).fetchall():
                 db.execute('UPDATE live_lots SET available=available+? WHERE topup_id=?',(item['credits'],item['topup_id']))
             db.execute("UPDATE live_allocations SET status='returned' WHERE run_id=? AND status='charged'",(row['id'],))

@@ -27,14 +27,8 @@ class RefundReconcile(BaseModel):
 
 
 def operator(request):
-    from account_store import connect_store
-    account=require_account(request);check_csrf(request,account)
-    subject=os.environ.get('PAYMENT_OPERATOR_GOOGLE_SUB','').strip()
-    with connect_store(database_path()) as db:
-        row=db.execute('SELECT google_sub FROM accounts WHERE id=?',(account['id'],)).fetchone()
-    if not subject or not row or row['google_sub']!=subject:
-        raise HTTPException(403,'This operation requires the configured payment operator.')
-    return account['id']
+    from accounts import require_owner
+    return require_owner(request, mutation=True)['id']
 
 
 @router.post('/operator/refunds')

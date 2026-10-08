@@ -40,6 +40,7 @@ export function AccountPanel({ account, refresh, error, previewMode = false }: {
         : <p role="status">Google sign-in needs server configuration. Follow the README’s local account setup.</p>}
     </> : <>
       <div className="account-profile"><h2>{account.user?.name}</h2><p>{account.user?.email}</p></div>
+      {account.manager_enabled && <a className="button-secondary account-login" href="/?manager=1">Owner dashboard</a>}
       {account.payment_mode === "live" ? <>
         <div className="account-access-card"><strong>{account.free_access ? "Free access active" : "10 credits per defense"}</strong>
         <p>{account.live_credits ?? 0} available credits · {account.live_reserved_credits ?? 0} reserved</p>

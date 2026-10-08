@@ -81,6 +81,8 @@ def _initialize_store(db, *, postgres=False):
     db.execute("CREATE INDEX IF NOT EXISTS runs_by_account ON defense_runs(account_id)")
     from live_store import initialize
     initialize(db)
+    from management_store import initialize as initialize_management
+    initialize_management(db)
 
 
 @contextmanager

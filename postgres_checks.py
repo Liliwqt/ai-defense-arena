@@ -27,6 +27,7 @@ import test_live_access
 import test_live_payments
 import test_live_runs
 import test_live_refunds
+import test_management
 
 
 class LocalDatabase:
@@ -48,6 +49,10 @@ class LocalDatabase:
         env.start()
         self.addCleanup(env.stop)
         super().setUp()
+
+
+class PostgresManagement(LocalDatabase, test_management.ManagementTests):
+    pass
 
 
 class PostgresAccounts(LocalDatabase, test_accounts.AccountCreditTests):

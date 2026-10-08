@@ -75,6 +75,8 @@ def configure_auth(app):
                        session_cookie="arena_oauth", max_age=600, same_site="lax",
                        https_only=os.environ.get("AUTH_PUBLIC_BASE_URL", "").startswith("https://"))
     app.include_router(router)
+    from management import router as manager_router
+    app.include_router(manager_router)
     access_log = logging.getLogger("uvicorn.access")
     if not any(isinstance(f, HideGoogleCallbackQuery) for f in access_log.filters):
         access_log.addFilter(HideGoogleCallbackQuery())
@@ -99,6 +101,25 @@ def account_response(body):
     return JSONResponse(body, headers={"Cache-Control": "no-store"})
 
 
+def is_owner(account):
+    from account_store import connect_store, database_path
+    subject = os.environ.get('PAYMENT_OPERATOR_GOOGLE_SUB', '').strip()
+    if not subject or not account:
+        return False
+    with connect_store(database_path()) as db:
+        row = db.execute('SELECT google_sub FROM accounts WHERE id=?', (account['id'],)).fetchone()
+    return bool(row and hmac.compare_digest(row['google_sub'].encode(), subject.encode()))
+
+
+def require_owner(request, *, mutation=False):
+    account = require_account(request)
+    if not is_owner(account):
+        raise HTTPException(403, 'This operation requires the configured owner account.')
+    if mutation:
+        check_csrf(request, account)
+    return account
+
+
 @router.get("/me")
 def me(request: Request):
     enabled = google_enabled()
@@ -107,7 +128,7 @@ def me(request: Request):
         return account_response({"authenticated": False, "google_enabled": enabled})
     return account_response({"authenticated": True, "google_enabled": enabled,
                              "user": {key: account[key] for key in ("id", "email", "name")},
-                             "csrf_token": account["csrf_token"], **account_overview(account["id"])})
+                             "csrf_token": account["csrf_token"], "manager_enabled": is_owner(account), **account_overview(account["id"])})
 
 
 class VoucherRequest(BaseModel):
@@ -128,7 +149,7 @@ def voucher(body: VoucherRequest, request: Request):
 
 
 def destination(value: str) -> str:
-    return value if value in {"/", "/?payments=test", "/?payments=live", "/?account=1"} else "/"
+    return value if value in {"/", "/?payments=test", "/?payments=live", "/?account=1", "/?manager=1"} else "/"
 
 
 def failed_destination(target: str, reason: str) -> str:
