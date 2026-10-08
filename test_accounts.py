@@ -34,6 +34,10 @@ provider_http = importlib.import_module(next(base.__module__ for base in AsyncOA
 
 class AccountCreditTests(unittest.TestCase):
     def setUp(self):
+        import mobile_auth
+        handoff_patch = patch.object(accounts, 'handoffs', mobile_auth.MobileHandoffs())
+        handoff_patch.start()
+        self.addCleanup(handoff_patch.stop)
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
         self.db_path = Path(folder.name) / "sandbox.sqlite3"
@@ -453,7 +457,10 @@ class AccountCreditTests(unittest.TestCase):
 
     def test_mobile_authenticated_host_and_guests_use_existing_room_permissions(self):
         import game_server
-        self.client.app.router.routes.extend(route for route in game_server.app.router.routes if getattr(route, "path", "") in {"/api/rooms", "/api/rooms/{code}/join", "/ws/{code}"})
+        # Exercise the full app, including pre-upload admission middleware.
+        self.client.__exit__(None, None, None)
+        game_server.rooms.clear()
+        self.client = TestClient(game_server.app, base_url=self.origin).__enter__()
         body = self.mobile_fixture_return()
         self.assertEqual(self.client.post("/api/auth/mobile/complete", json=body).status_code, 200)
         account = self.client.get("/api/auth/me").json()

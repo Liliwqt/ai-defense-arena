@@ -23,6 +23,8 @@ def authenticate(test, client=None, *, unit_server=None):
         'AUTH_PUBLIC_BASE_URL': 'http://127.0.0.1:8000',
         'PAYMONGO_TEST_DB_PATH': str(Path(folder.name) / 'accounts.sqlite3'),
         'FREE_ACCESS_VOUCHER': 'offline-shareable-voucher',
+        # General flow fixtures skip burst timing; admission tests exercise the real default.
+        'AI_OWNER_PER_MINUTE': '1000',
     })
     env.start(); test.addCleanup(env.stop)
     token, csrf = account_store.create_google_session('offline-host', 'host@example.test', 'Host')

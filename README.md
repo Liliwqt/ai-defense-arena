@@ -48,6 +48,28 @@ providers mocked, 156 React tests, and the production build**. Separate Account
 UI and upload-progress changes remain local. Hosted health and assets match the tested release. Evidence and limitations are
 tracked in [PROJECT_LOG.md](PROJECT_LOG.md); main remains frozen.
 
+## Local security admission checkpoint
+
+The feature branch now limits each signed-in host to two retained rooms and three
+creation attempts per minute, before upload parsing. In Controls, **Manage my
+rooms** lists only your rooms and lets you resume host access or close an unused
+room. Idle lobbies and settled completed rooms expire after 30 minutes; the room
+shows a warning in the final two minutes. Active or unsettled defenses are protected.
+
+Mobile login reuses an unexpired attempt without extending its five-minute lifetime.
+New allocations are limited per client network; an already-open attempt must finish
+in its existing browser window. Interpretation is limited to two successful
+clarifications and six attempts per question. The chosen defender can explicitly
+submit an answer without interpretation when clarification/retry capacity is used,
+or write a new answer during recovery. AI-related clock pauses total at most four
+minutes per question; the saved answer clock then resumes even while recovery is
+pending. Host and guest requests share owner/run AI budgets. SDK automatic retries
+are disabled. Existing access, pricing, citations and billing rules stay in force.
+
+This checkpoint is **local, not deployed**. See [limits and verification](docs/SECURITY_ADMISSION_REVIEW.md)
+for configuration, mocked browser screenshots and remaining hosted/native checks.
+Do not configure trusted forwarding headers until the actual proxy path is verified.
+
 ## Run locally
 
 Install Python with virtual-environment support, Node.js, and npm, then run from the repository root:

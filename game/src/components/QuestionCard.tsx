@@ -58,7 +58,7 @@ function deriveContent(state: RoomState | null): CardContent {
       number: `QUESTION ${currentIndex + 1}${state?.question_budget ? ` OF ${state.question_budget}` : ""}`,
       ...sourceContent(current),
       clarifications: current.clarifications,
-      reviewStatus: phase === "interpreting" ? "Reading your submission… Answer clock paused." : phase === "interpretation_retry" ? "Could not interpret the submission. Answer clock paused." : undefined,
+      reviewStatus: phase === "interpreting" ? state?.clock_paused === false ? "Reading your submission… Answer clock running." : "Reading your submission… Answer clock paused." : phase === "interpretation_retry" ? state?.clock_paused === false ? "Could not interpret the submission. Answer clock running." : "Could not interpret the submission. Answer clock paused." : undefined,
     };
   }
   if (phase === "generating") {

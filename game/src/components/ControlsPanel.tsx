@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { RoomState } from "../types";
 import type { Account } from "../hooks/useAccount";
+import { OwnedRooms } from "./OwnedRooms";
 import { ResearchPlanPanel } from "./ResearchPlanPanel";
 
 interface ControlsPanelProps {
@@ -262,6 +263,10 @@ export function ControlsPanel({
         </div>
       )}
 
+      {!previewMode && account?.authenticated && account.csrf_token && <OwnedRooms csrf={account.csrf_token}
+        onResume={(code, token) => { onUseRoom(code, token, true); onCloseDrawer(); }}
+        onClosed={code => { if (code === roomCode) onLeaveRoom(); }} />}
+      {roomState?.expires_at_ms && <p role="status" className="control-help">This room expires at {new Date(roomState.expires_at_ms).toLocaleTimeString()}. Save the transcript before expiry.</p>}
       {/* In-room controls */}
       {(inRoom || previewMode) && (
         <div className="grid gap-[15px]">
@@ -320,7 +325,7 @@ export function ControlsPanel({
               {phase === "retry" && (
                 <button
                   type="button"
-                  disabled={!connected}
+                  disabled={!connected || roomState?.question_attempts_left === 0}
                   onClick={handleRetry}
                   className={primaryBtn}
                 >
@@ -330,7 +335,7 @@ export function ControlsPanel({
               {phase === "complete" && feedbackStatus === "failed" && (
                 <button
                   type="button"
-                  disabled={!connected}
+                  disabled={!connected || roomState?.coaching_attempts_left === 0}
                   onClick={handleRetryCoaching}
                   className={primaryBtn}
                 >

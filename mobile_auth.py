@@ -10,6 +10,7 @@ import time
 from urllib.parse import urlencode
 
 from fastapi import HTTPException
+from resource_limits import RateLimit, limit
 
 RETURN_URL = "defensearena://auth"
 TTL_SECONDS = 300
@@ -31,12 +32,15 @@ class Handoff:
     opened: bool = False
     identity: VerifiedGoogleIdentity | None = None
     code_hash: str | None = None
+    network: str = "unknown"
 
 
 class MobileHandoffs:
     def __init__(self):
         self._pending: dict[str, Handoff] = {}
         self._lock = threading.Lock()
+        self._new_rate = RateLimit()
+        self._start_rate = RateLimit()
 
     def _get(self, flow: str) -> Handoff:
         now = time.monotonic()
@@ -46,15 +50,26 @@ class MobileHandoffs:
             raise HTTPException(400, "Sign-in expired or unavailable. Start sign-in again in the app.")
         return value
 
-    def start(self, challenge: str, target: str) -> str:
+    def start(self, challenge: str, target: str, network: str = "unknown") -> str:
         with self._lock:
             now = time.monotonic()
             self._pending = {key: value for key, value in self._pending.items() if value.expires > now}
+            self._start_rate.admit(network, limit('MOBILE_START_PER_MINUTE', 60))
+            for flow, pending in self._pending.items():
+                if pending.challenge == challenge and pending.target == target:
+                    return flow
+            if sum(p.network == network for p in self._pending.values()) >= limit('MOBILE_PENDING_PER_NETWORK', 16, 128):
+                raise HTTPException(429, 'Sign-in is busy on this network. Retry shortly.', headers={'Retry-After': '60'})
+            self._new_rate.admit(network, limit('MOBILE_NEW_PER_MINUTE', 12))
             if len(self._pending) >= MAX_PENDING:
-                raise HTTPException(429, "Sign-in is busy. Try again shortly.")
+                raise HTTPException(429, "Sign-in is busy. Try again shortly.", headers={"Retry-After":"60"})
             flow = secrets.token_urlsafe(32)
-            self._pending[flow] = Handoff(challenge, target, now + TTL_SECONDS)
+            self._pending[flow] = Handoff(challenge, target, now + TTL_SECONDS, network=network)
             return flow
+
+    def is_open(self, flow: str) -> bool:
+        with self._lock:
+            return self._get(flow).opened
 
     def open(self, flow: str):
         with self._lock:

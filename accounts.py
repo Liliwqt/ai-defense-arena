@@ -233,11 +233,14 @@ class MobileComplete(BaseModel):
 
 
 @router.post("/mobile/start")
-def mobile_start(body: MobileStart):
+def mobile_start(body: MobileStart, request: Request):
     origin = auth_settings()[2]
     if destination(body.return_to) != body.return_to:
         raise HTTPException(400, "Choose an app screen for sign-in.")
-    flow = handoffs.start(body.challenge, body.return_to)
+    from resource_limits import client_network
+    flow = handoffs.start(body.challenge, body.return_to, client_network(request))
+    if handoffs.is_open(flow):
+        raise HTTPException(409, "Sign-in is already open. Finish it in your existing browser window, or start a new attempt after it expires.")
     return account_response({"flow": flow, "login_url": origin + "/api/auth/google/login?mobile_flow=" + flow})
 
 

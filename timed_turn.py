@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 import secrets
 
 from defense_session import DefenseSession, MAX_ANSWER_CHARS
+from resource_limits import limit
 from question_generator import ClarificationExchange, SubmissionDecision
 
 VOTE_MS = 15_000
@@ -39,7 +40,16 @@ class TimedTurn:
     answered_by: dict[int, str] = field(default_factory=dict)
     answered_by_seat: dict[int, int] = field(default_factory=dict)
 
+    interpretation_attempts: int = 0
+    pause_used_ms: int = 0
+    pause_started_ms: int | None = None
+    pause_deadline_ms: int | None = None
+
     def begin_vote(self, now: int) -> None:
+        self.interpretation_attempts = 0
+        self.pause_used_ms = 0
+        self.pause_started_ms = None
+        self.pause_deadline_ms = None
         self.phase = "voting"
         self.votes.clear()
         self.selected_seat = None
@@ -62,7 +72,7 @@ class TimedTurn:
             session.assign_current_defender(seat)
 
     def reassign(self, online: dict[str, int], session: DefenseSession | None, choose=None) -> bool:
-        if self.phase != "question" or self.selected_seat in online.values():
+        if self.phase not in {"question", "interpreting", "interpretation_retry"} or self.selected_seat in online.values():
             return False
         seats = sorted(online.values())
         replacement = (choose or secrets.choice)(seats) if seats else None
@@ -89,16 +99,24 @@ class TimedTurn:
             self.answer_deadline_ms = now + ANSWER_MS
             self.clock_id += 1
             return "voting_closed"
-        if self.phase == "question" and self.answer_deadline_ms is not None and now >= self.answer_deadline_ms:
+        if self.phase in {'question', 'interpreting', 'interpretation_retry'} and self.answer_deadline_ms is not None and now >= self.answer_deadline_ms:
+            self.discard_pending()
             session.time_out_current()
             self.resolve(session)
             return "timed_out"
+        if self.phase in {'interpreting', 'interpretation_retry'} and self.pause_deadline_ms is not None and now >= self.pause_deadline_ms:
+            self.pause_deadline_ms = None
+            self.clock_id += 1
+            self.reassign(online, session)
+            return 'pause_ended'
         return None
 
     def clear_clock(self) -> None:
         self.clock_id += 1
         self.vote_deadline_ms = None
         self.answer_deadline_ms = None
+        self.pause_started_ms = None
+        self.pause_deadline_ms = None
         self.selected_seat = None
         self.votes.clear()
 
@@ -106,9 +124,10 @@ class TimedTurn:
         self.clear_clock()
         self.phase = "complete" if session.completed else "generating"
 
-    def submit(self, token: str, name: str, seat: int, turn: object, answer: object,
-               session: DefenseSession | None, now: int) -> None:
-        if self.phase != "question" or session is None:
+    def validate_submit(self, seat: int, turn: object, answer: object,
+                        session: DefenseSession | None, now: int, direct=False) -> None:
+        phases = {'question', 'interpretation_retry', 'interpreting'} if direct else {'question'}
+        if self.phase not in phases or session is None:
             raise ValueError("There is no question awaiting an answer.")
         if self.answer_deadline_ms is None or now >= self.answer_deadline_ms:
             raise DeadlineExpired("Answer time is over.")
@@ -122,10 +141,30 @@ class TimedTurn:
             raise ValueError(f"Keep your answer under {MAX_ANSWER_CHARS:,} characters.")
         if not answer.strip():
             raise ValueError("Write an answer or clarification request before continuing.")
+        if not direct:
+            if len(session.turns[-1].clarifications) >= 2:
+                raise ValueError('Both clarifications are used. Choose Submit answer directly.')
+            if self.interpretation_attempts >= limit('AI_INTERPRETATION_ATTEMPTS', 6, 20):
+                raise ValueError('Interpretation allowance used. Choose Submit answer directly.')
+
+    def submit_direct(self, token, name, seat, turn, answer, session, now):
+        self.validate_submit(seat, turn, answer, session, now, direct=True)
+        self.discard_pending()
+        self.pending_submission = PendingSubmission(turn, token, name, seat, answer.strip(), 0)
+        self.accept_pending(session)
+
+    def submit(self, token: str, name: str, seat: int, turn: object, answer: object,
+               session: DefenseSession | None, now: int) -> None:
+        self.validate_submit(seat, turn, answer, session, now)
+        self.interpretation_attempts += 1
+        self.pause_started_ms = now
+        pause_remaining = max(0, limit('AI_PAUSE_SECONDS', 240, 600) * 1000 - self.pause_used_ms)
+        self.pause_deadline_ms = now + pause_remaining if pause_remaining else None
+        remaining = max(0, self.answer_deadline_ms - now)
         self.pending_submission = PendingSubmission(turn, token, name, seat, answer.strip(),
                                                     max(0, self.answer_deadline_ms - now))
         self.clock_id += 1
-        self.answer_deadline_ms = None
+        self.answer_deadline_ms = now + remaining + pause_remaining
         self.phase = "interpreting"
         self.error = None
         self.interpretation_id += 1
@@ -140,9 +179,14 @@ class TimedTurn:
                 self.error = None
             except ValueError as error:
                 self.error = str(error)
+            elapsed = max(0, now - (self.pause_started_ms if self.pause_started_ms is not None else now))
+            paused = min(elapsed, max(0, limit('AI_PAUSE_SECONDS', 240, 600)*1000 - self.pause_used_ms))
+            self.pause_used_ms += paused
+            self.pause_started_ms = None
+            self.pause_deadline_ms = None
             self.pending_submission = None
             self.phase = "question"
-            self.answer_deadline_ms = now + pending.remaining_ms
+            self.answer_deadline_ms = now + max(0, pending.remaining_ms - (elapsed - paused))
             self.clock_id += 1
             self.reassign(online, session)
             return "clarified"
@@ -162,6 +206,8 @@ class TimedTurn:
     def discard_pending(self) -> None:
         self.interpretation_id += 1
         self.pending_submission = None
+        self.pause_started_ms = None
+        self.pause_deadline_ms = None
 
     def interpretation_failed(self, expected_id: int, pending: PendingSubmission, error: str) -> bool:
         if self.interpretation_id != expected_id or self.pending_submission is not pending:
@@ -175,6 +221,9 @@ class TimedTurn:
             raise ValueError("There is no failed submission to retry.")
         if not (is_host or self.selected_seat == seat):
             raise ValueError("Only the host or chosen defender can retry.")
+        if self.interpretation_attempts >= limit('AI_INTERPRETATION_ATTEMPTS', 6, 20):
+            raise ValueError('Interpretation allowance used. Use the saved submission as an answer.')
+        self.interpretation_attempts += 1
         self.phase = "interpreting"
         self.error = None
         self.interpretation_id += 1

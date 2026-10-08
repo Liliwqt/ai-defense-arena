@@ -114,6 +114,13 @@ export interface RoomState {
   vote_deadline_ms?: number | null;
   answer_deadline_ms?: number | null;
   remaining_answer_ms?: number | null;
+  expires_at_ms?: number | null;
+  clock_paused?: boolean;
+  pause_deadline_ms?: number | null;
+  interpretation_attempts_left?: number;
+  question_attempts_left?: number;
+  coaching_attempts_left?: number;
+  plan_attempts_left?: number;
   my_pending_submission?: string | null;
   selected_seat?: number | null;
   vote_counts?: Record<string, number>;

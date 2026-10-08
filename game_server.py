@@ -2,6 +2,7 @@
 
 import asyncio
 from contextlib import asynccontextmanager
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 import json
 import logging
@@ -24,6 +25,7 @@ from account_store import (AccessError, require_run_access, reserve_run, charge_
                            release_run, release_orphaned_reservations)
 from financial_policy import live_mode
 from live_store import LiveStore, ServiceAlreadyActive
+from resource_limits import limit, creation_rate, ai_rate, AIBudget
 from timed_turn import TimedTurn, PendingSubmission, DeadlineExpired, VOTE_MS, ANSWER_MS
 from payments import router as test_payment_router
 from payments_live import router as live_payment_router
@@ -103,6 +105,22 @@ class Room(TimedTurn):
     absent_since_ms: int | None = None
     absence_elapsed_ms: int = 0
 
+    created_ms: int = field(default_factory=lambda: _now_ms())
+    activity_ms: int = field(default_factory=lambda: _now_ms())
+    terminal_ms: int | None = None
+    settled: bool = True
+    closed: bool = False
+    ai_budget: AIBudget = field(default_factory=AIBudget)
+
+    def expires_at(self):
+        if self.closed or not self.settled or self.phase not in {'lobby', 'retry', 'complete'} or self.research_planning_status == 'planning' or self.feedback_status in {'generating', 'failed'}:
+            return None
+        if self.phase == 'complete':
+            return (self.terminal_ms or self.activity_ms) + limit('ROOM_RETENTION_SECONDS', 1800, 86400) * 1000
+        if self.defense and self.defense.turns:
+            return None
+        return self.activity_ms + limit('ROOM_IDLE_SECONDS', 1800, 86400) * 1000
+
     def snapshot(self, recipient: Player | None = None) -> dict[str, Any]:
         turns = []
         if self.defense:
@@ -148,6 +166,13 @@ class Room(TimedTurn):
             }
         return {
             "room_code": self.code,
+            "expires_at_ms": self.expires_at(),
+            "interpretation_attempts_left": max(0, limit('AI_INTERPRETATION_ATTEMPTS', 6, 20) - self.interpretation_attempts),
+            "clock_paused": self.pause_deadline_ms is not None and _now_ms() < self.pause_deadline_ms,
+            "pause_deadline_ms": self.pause_deadline_ms,
+            "question_attempts_left": self.ai_budget.remaining(f'question:{len(self.defense.turns) if self.defense else 0}', limit('AI_QUESTION_ATTEMPTS', 3, 10)),
+            "coaching_attempts_left": self.ai_budget.remaining('coaching', limit('AI_COACHING_ATTEMPTS', 3, 10)),
+            "plan_attempts_left": self.ai_budget.remaining('plan', limit('AI_PLAN_ATTEMPTS', 3, 10)),
             "self_seat": recipient.seat if recipient is not None else None,
             "self_is_host": recipient.is_host if recipient is not None else False,
             "phase": self.phase,
@@ -204,8 +229,56 @@ def _now_ms() -> int:
 
 rooms: dict[str, Room] = {}
 registry_lock = asyncio.Lock()
+creation_pending = {}
+parser_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix='room-parser')
+parser_slots = asyncio.Semaphore(2)
+
+async def _remove_room(room, expired_only=False):
+    # Registry then room is the only nested lock order used for reclamation.
+    async with registry_lock:
+        async with room.lock:
+            if rooms.get(room.code) is not room or not room.settled or room.expires_at() is None:
+                return False
+            if expired_only and _now_ms() < room.expires_at():
+                return False
+            room.closed = True
+            room.generation_id += 1
+            room.feedback_generation_id += 1
+            room.research_plan_generation_id += 1
+            room.discard_pending()
+            _clear_clock_locked(room)
+            del rooms[room.code]
+            sockets = [socket for player in room.players.values() for socket in player.sockets]
+    for socket in sockets:
+        await _send_error(socket, 'Room not found. This room was closed or expired; create a fresh room.')
+        try:
+            await socket.close(code=1000)
+        except (RuntimeError, OSError, WebSocketDisconnect):
+            pass
+    room.files.clear()
+    room.chat.clear()
+    room.players.clear()
+    room.defense = None
+    return True
+
+async def _cleanup_rooms():
+    for room in list(rooms.values()):
+        async with room.lock:
+            expiry = room.expires_at()
+            due = expiry is not None and _now_ms() >= expiry
+        if due:
+            await _remove_room(room, expired_only=True)
+
+async def _room_maintenance():
+    while True:
+        if not live_mode():
+            for room in list(rooms.values()):
+                await _observe_absence(room)
+        await _cleanup_rooms()
+        await asyncio.sleep(5)
+
 async def _observe_absence(room):
-    if not live_mode() or not room.run_id:
+    if not room.run_id:
         return
     changed=False
     async with room.lock:
@@ -225,7 +298,10 @@ async def _observe_absence(room):
                 room.absence_elapsed_ms+=elapsed
             room.absent_since_ms=now
         if room.absence_elapsed_ms>=600_000:
-            LiveStore().finish_run(room.run_id,"abandoned")
+            if live_mode():
+                LiveStore().finish_run(room.run_id,"abandoned")
+            else:
+                release_run(room.run_id)
             room.generation_id+=1
             room.feedback_generation_id+=1
             room.discard_pending()
@@ -233,6 +309,8 @@ async def _observe_absence(room):
             if isinstance(room.defense,ResearchDefenseSession) and not room.defense.completed:
                 room.defense.end()
             room.phase="complete"
+            room.settled=True
+            room.terminal_ms=now
             room.feedback_status="none"
             room.error="This defense was abandoned after everyone disconnected for ten minutes."
             room.revision+=1
@@ -243,11 +321,30 @@ async def _observe_absence(room):
 
 @asynccontextmanager
 async def lifespan(app):
-    global SERVICE_ID
+    global SERVICE_ID, parser_slots
+    parser_slots = asyncio.Semaphore(2)
+    for name, default, maximum in [('ROOM_HOST_LIMIT',2,20), ('ROOM_CREATE_PER_MINUTE',3,10000),
+            ('ROOM_PROCESS_SECONDS',120,600), ('ROOM_IDLE_SECONDS',1800,86400), ('ROOM_RETENTION_SECONDS',1800,86400),
+            ('MOBILE_START_PER_MINUTE',60,10000), ('MOBILE_NEW_PER_MINUTE',12,10000), ('MOBILE_PENDING_PER_NETWORK',16,128),
+            ('AI_INTERPRETATION_ATTEMPTS',6,20), ('AI_OWNER_PER_MINUTE',12,10000), ('AI_QUESTION_ATTEMPTS',3,10),
+            ('AI_COACHING_ATTEMPTS',3,10), ('AI_PLAN_ATTEMPTS',3,10), ('AI_PAUSE_SECONDS',240,600)]:
+        limit(name, default, maximum)
+    from ipaddress import ip_network
+    for network in os.getenv('TRUSTED_PROXY_NETWORKS','').split(','):
+        if network.strip():
+            ip_network(network.strip())
+    creation_pending.clear()
+    creation_rate.__init__()
+    ai_rate.__init__()
     if not live_mode():
         app.state.room_service_status = "ready"
         release_orphaned_reservations()
-        yield
+        maintenance = asyncio.create_task(_room_maintenance())
+        try:
+            yield
+        finally:
+            maintenance.cancel()
+            await asyncio.gather(maintenance, return_exceptions=True)
         return
     SERVICE_ID=secrets.token_hex(24)
     service=SERVICE_ID
@@ -294,7 +391,7 @@ async def lifespan(app):
                 await recover_payments()
             await asyncio.sleep(SERVICE_POLL_SECONDS if not owns_lease else SERVICE_HEARTBEAT_SECONDS)
     # Provider latency cannot starve the service heartbeat or abandonment observations.
-    tasks=[asyncio.create_task(maintain()),asyncio.create_task(recover())]
+    tasks=[asyncio.create_task(maintain()),asyncio.create_task(recover()),asyncio.create_task(_room_maintenance())]
     try:
         yield
     finally:
@@ -320,7 +417,44 @@ async def reject_large_uploads(request, call_next):
         length = request.headers.get("content-length")
         if length and length.isdigit() and int(length) > MAX_REQUEST_BYTES:
             return JSONResponse({"detail": "Upload request is too large."}, status_code=413)
-    return await call_next(request)
+    if request.url.path != '/api/rooms' or request.method != 'POST':
+        return await call_next(request)
+    admission = None
+    try:
+        account = require_account(request)
+        check_csrf(request, account)
+        await _cleanup_rooms()
+        async with registry_lock:
+            owner = account['id']
+            retained = sum(room.owner_account_id == owner for room in rooms.values())
+            pending = sum(value == owner for value in creation_pending.values())
+            if retained + pending >= limit('ROOM_HOST_LIMIT', 2, 20):
+                raise HTTPException(429, 'Your room allowance is full. Close an unused room in Controls.', headers={'Retry-After':'60'})
+            if len(rooms) + len(creation_pending) >= MAX_ROOMS:
+                raise HTTPException(503, 'Room capacity reached. Try again later.')
+            creation_rate.admit(owner, limit('ROOM_CREATE_PER_MINUTE', 3))
+            admission = secrets.token_hex(16)
+            creation_pending[admission] = owner
+            request.state.room_admission = admission
+        original_receive = request._receive
+        received = 0
+        async def bounded_receive():
+            nonlocal received
+            message = await original_receive()
+            received += len(message.get('body', b''))
+            if received > MAX_REQUEST_BYTES:
+                raise HTTPException(413, 'Upload request is too large.')
+            return message
+        request._receive = bounded_receive
+        return await asyncio.wait_for(call_next(request), limit('ROOM_PROCESS_SECONDS', 120, 600))
+    except asyncio.TimeoutError:
+        return JSONResponse({'detail':'Room processing took too long. Retry shortly.'}, status_code=408)
+    except HTTPException as error:
+        return JSONResponse({'detail': error.detail}, status_code=error.status_code, headers=error.headers)
+    finally:
+        if admission is not None:
+            async with registry_lock:
+                creation_pending.pop(admission, None)
 
 
 def _player_name(value: str) -> str:
@@ -339,6 +473,8 @@ def _new_token() -> str:
 
 
 def _safe_generation_error(error: Exception) -> str:
+    if isinstance(error, HTTPException):
+        return str(error.detail)
     if isinstance(error, QuestionGenerationError):
         return str(error)
     if isinstance(error, OpenAIError):
@@ -407,6 +543,7 @@ def _resolve_turn_locked(room: Room) -> tuple[int | None, int | None]:
 
 
 def _schedule_clock(room: Room, clock_id: int, deadline_ms: int) -> None:
+    _cancel_clock_task(room)
     async def wait_then_advance() -> None:
         try:
             await asyncio.sleep(max(0, (deadline_ms - _now_ms()) / 1000))
@@ -428,6 +565,10 @@ async def _expire_deadline(room: Room, expected_id: int | None = None) -> None:
             room.revision += 1
             changed = True
             next_clock = (room.clock_id, room.answer_deadline_ms)
+        elif outcome == "pause_ended":
+            next_clock = (room.clock_id, room.answer_deadline_ms)
+            room.revision += 1
+            changed = True
         elif outcome == "timed_out":
             generation_id, feedback_id = _resolve_turn_locked(room)
             room.revision += 1
@@ -450,8 +591,9 @@ async def _generate_question(room: Room, generation_id: int, first: bool) -> Non
     feedback_id = None
     try:
         async with room.lock:
-            if room.generation_id != generation_id:
+            if room.closed or room.generation_id != generation_id:
                 return
+            room.ai_budget.admit(f'question:{len(room.defense.turns) if room.defense else 0}', limit('AI_QUESTION_ATTEMPTS', 3, 10), room.owner_account_id or room.code)
             request = prepare_progression(room.defense, defense_type=room.defense_type,
                                           research_stage=room.research_stage)
         result = await asyncio.to_thread(request.generate, room.files, api_key, model,
@@ -486,7 +628,8 @@ async def _generate_question(room: Room, generation_id: int, first: bool) -> Non
             try:
                 if room.defense is None or not room.defense.turns:
                     release_run(room.run_id)
-                elif live_mode() and room.run_id:
+                    room.settled = True
+                elif live_mode() and room.run_id and not isinstance(error, HTTPException):
                     LiveStore().service_state(room.run_id,"unavailable","question")
             except Exception:
                 room.error="The defense state could not be saved. Your answers are retained; retry when the service recovers."
@@ -527,6 +670,7 @@ async def _interpret_pending(room: Room, interpretation_id: int) -> None:
     next_clock = None
     generation_id = None
     feedback_id = None
+    await _expire_deadline(room)
     async with room.lock:
         if room.defense is None:
             return
@@ -559,10 +703,12 @@ def _schedule_generation(room: Room, generation_id: int, first: bool) -> None:
 
 async def _prepare_research_plan(room: Room, plan_generation_id: int) -> None:
     async with room.lock:
-        if room.research_plan_generation_id != plan_generation_id or room.phase != "lobby":
+        if room.closed or room.research_plan_generation_id != plan_generation_id or room.phase != "lobby":
             return
         files, mode, stage = list(room.files), room.defense_type, room.research_stage
     try:
+        async with room.lock:
+            room.ai_budget.admit('plan', limit('AI_PLAN_ATTEMPTS', 3, 10), room.owner_account_id or room.code)
         plan = await asyncio.to_thread(generate_research_plan, files, os.getenv("OPENAI_API_KEY"),
                                        os.getenv("OPENAI_MODEL") or DEFAULT_MODEL,
                                        defense_type=mode, research_stage=stage)
@@ -604,6 +750,10 @@ async def _generate_coaching(room: Room, feedback_generation_id: int) -> None:
         if not history:
             report = CoachingReport("The host ended the defense before any answer or timeout was recorded. No discussion coverage was confirmed.", [], [], "Review the paper map and start a new defense when the team is ready.")
         else:
+            async with room.lock:
+                if room.closed or room.feedback_generation_id != feedback_generation_id:
+                    return
+                room.ai_budget.admit('coaching', limit('AI_COACHING_ATTEMPTS', 3, 10), room.owner_account_id or room.code)
             report = await asyncio.to_thread(
                 generate_coaching_report, room.files, history, api_key, model,
                 defense_type=room.defense_type, research_stage=room.research_stage,
@@ -614,6 +764,8 @@ async def _generate_coaching(room: Room, feedback_generation_id: int) -> None:
                 return
             if live_mode() and room.run_id:
                 LiveStore().finish_run(room.run_id,"completed")
+            room.settled = True
+            room.terminal_ms = _now_ms()
             room.feedback = report
             room.feedback_status = "ready"
             room.error = None
@@ -624,7 +776,7 @@ async def _generate_coaching(room: Room, feedback_generation_id: int) -> None:
                 return
             room.feedback_status = "failed"
             room.error = _safe_generation_error(error)
-            if live_mode() and room.run_id:
+            if live_mode() and room.run_id and not isinstance(error, HTTPException):
                 try:LiveStore().service_state(room.run_id,"unavailable","coaching")
                 except Exception:
                     room.error="The coaching state could not be saved. Your answers are retained; retry when the service recovers."
@@ -679,9 +831,7 @@ async def create_room(
         if len(data) > limit:
             raise HTTPException(413, f"{filename or 'File'} exceeds the upload size limit.")
         uploads.append(UploadedBytes(filename, data))
-    project_files, errors = read_project_files(uploads) if uploads else ([], [])
-    if errors:
-        raise HTTPException(422, errors[0])
+
     research_uploads = []
     for upload in paper_uploads:
         filename = upload.filename or ""
@@ -689,15 +839,22 @@ async def create_room(
         if len(data) > MAX_RESEARCH_BYTES:
             raise HTTPException(413, f"{filename or 'Research document'} exceeds the 10 MB limit.")
         research_uploads.append(UploadedBytes(filename, data))
-    papers, errors = await asyncio.to_thread(read_research_files, research_uploads) if research_uploads else ([], [])
-    if errors:
-        raise HTTPException(422, errors[0])
-    project_files, errors = combine_sources(project_files, papers)
+    def extract():
+        project_files, errors = read_project_files(uploads) if uploads else ([], [])
+        if errors:
+            return [], errors
+        papers, errors = read_research_files(research_uploads) if research_uploads else ([], [])
+        return ([], errors) if errors else combine_sources(project_files, papers)
+    await parser_slots.acquire()
+    future = asyncio.get_running_loop().run_in_executor(parser_pool, extract)
+    slots = parser_slots
+    future.add_done_callback(lambda _: slots.release())
+    project_files, errors = await asyncio.shield(future)
     if errors:
         raise HTTPException(422, errors[0])
     async with registry_lock:
-        if len(rooms) >= MAX_ROOMS:
-            raise HTTPException(503, "Room capacity reached. Try again later.")
+        if creation_pending.get(getattr(request.state, 'room_admission', None)) != account['id']:
+            raise HTTPException(408, 'Room creation expired. Please retry.')
         code = _room_code()
         while code in rooms:
             code = _room_code()
@@ -705,6 +862,45 @@ async def create_room(
         rooms[code] = Room(code, project_files, {token: Player(token, name, 0, True)}, defense_type, research_stage,
                            owner_account_id=account["id"])
     return {"room_code": code, "player_token": token}
+
+
+@app.get('/api/rooms')
+async def list_owned_rooms(request: Request):
+    account = require_account(request)
+    await _cleanup_rooms()
+    return {'limit': limit('ROOM_HOST_LIMIT', 2, 20), 'rooms': [
+        {'room_code': room.code, 'phase': room.phase, 'expires_at_ms': room.expires_at(),
+         'can_close': room.expires_at() is not None}
+        for room in rooms.values() if room.owner_account_id == account['id']]}
+
+
+@app.post('/api/rooms/{code}/resume')
+async def resume_owned_room(code: str, request: Request):
+    account = require_account(request)
+    check_csrf(request, account)
+    await _cleanup_rooms()
+    room = rooms.get(code.upper())
+    if room is None:
+        raise HTTPException(404, 'Room not found. Create a fresh room.')
+    async with room.lock:
+        if room.closed or room.owner_account_id != account['id']:
+            raise HTTPException(403, 'Only the room owner can resume host access.')
+        host = next(player for player in room.players.values() if player.is_host)
+        return {'room_code': room.code, 'player_token': host.token}
+
+
+@app.delete('/api/rooms/{code}')
+async def close_owned_room(code: str, request: Request):
+    account = require_account(request)
+    check_csrf(request, account)
+    room = rooms.get(code.upper())
+    if room is None:
+        raise HTTPException(404, 'Room not found. Create a fresh room.')
+    if room.owner_account_id != account['id']:
+        raise HTTPException(403, 'Only the room owner can close it.')
+    if not await _remove_room(room):
+        raise HTTPException(409, 'End or recover the active defense before closing this room.')
+    return {'closed': True}
 
 
 class JoinRequest(BaseModel):
@@ -718,11 +914,14 @@ async def join_room(code: str, request: JoinRequest) -> dict[str, str]:
     if room is None:
         raise HTTPException(404, "Room not found. Check the invite code.")
     async with room.lock:
+        if room.closed:
+            raise HTTPException(404, "Room not found. Create a fresh room.")
         if len(room.players) >= MAX_PLAYERS:
             raise HTTPException(409, "This room already has four defenders.")
         occupied = {player.seat for player in room.players.values()}
         seat = next(index for index in range(MAX_PLAYERS) if index not in occupied)
         token = _new_token()
+        room.activity_ms = _now_ms()
         room.players[token] = Player(token, name, seat)
         room.revision += 1
     await publish(room)
@@ -768,6 +967,10 @@ def _reserve_room_run(room: Room, account_id: str, confirmed: bool, retry: bool 
     if not live_mode() and run_id != room.run_id:
         release_run(room.run_id)
     room.run_id = run_id
+    room.settled = False
+    room.terminal_ms = None
+    if not retry:
+        room.ai_budget.reset_run(room.research_budget_preview or 8)
     room.absent_since_ms = None
     room.absence_elapsed_ms = 0
 
@@ -783,6 +986,9 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
         except HTTPException as failure:
             await _send_error(socket, failure.detail)
             return
+    if room.closed:
+        await _send_error(socket, "Room not found. Create a fresh room.")
+        return
     await _expire_deadline(room)
     action = message.get("type")
     error = None
@@ -793,10 +999,11 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
     interpretation_id = None
     plan_generation_id = None
     async with room.lock:
+        if room.closed:
+            await _send_error(socket, "Room not found. Create a fresh room.")
+            return
         # Authorize before mutation or scheduling any paid AI work.
         try:
-            if live_mode() and player.is_host and action in {'start','restart','retry','retry_coaching','prepare_research_plan','retry_research_plan'}:
-                LiveStore().allow_ai_request(account['id'])
             if player.is_host and action in {"prepare_research_plan", "retry_research_plan"}:
                 require_run_access(account["id"])
             if player.is_host and action == "start" and room.phase == "lobby" and room.defense is None:
@@ -825,6 +1032,7 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
             elif action == "retry_research_plan" and room.research_planning_status != "failed":
                 error = "There is no failed research map to retry."
             else:
+                room.activity_ms = _now_ms()
                 room.research_planning_status = "planning"
                 room.research_plan_error = None
                 room.research_plan = None
@@ -844,6 +1052,7 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
                 except ValueError as exc:
                     error = str(exc)
                 else:
+                    room.activity_ms = _now_ms()
                     room.research_plan_approved = True
                     room.revision += 1
         elif action == "start":
@@ -883,6 +1092,8 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
                     if isinstance(room.defense,ResearchDefenseSession) and not room.defense.completed:
                         room.defense.end()
                     room.phase = "complete"
+                    room.settled = True
+                    room.terminal_ms = _now_ms()
                     room.feedback_status = "none"
                     room.error = "The unavailable defense was ended. Check Account for any returned credits."
                     room.revision += 1
@@ -956,6 +1167,8 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
         elif action == "cast_vote":
             try:
                 room.cast_vote(player.token, message.get("seat"), _online_players(room), _now_ms())
+            except HTTPException as failure:
+                error = str(failure.detail)
             except ValueError as failure:
                 error = str(failure)
                 expired_action = isinstance(failure, DeadlineExpired)
@@ -975,7 +1188,14 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
                 room.revision += 1
         elif action == "retry_interpretation":
             try:
+                if room.phase != 'interpretation_retry' or room.pending_submission is None or not (player.is_host or room.selected_seat == player.seat):
+                    raise ValueError('Only the host or chosen defender can retry a failed submission.')
+                if room.interpretation_attempts >= limit('AI_INTERPRETATION_ATTEMPTS', 6, 20):
+                    raise ValueError('Interpretation allowance used. Use the saved submission as an answer.')
+                room.ai_budget.admit(f'interpret:{len(room.defense.turns)-1}', limit('AI_INTERPRETATION_ATTEMPTS', 6, 20), room.owner_account_id or room.code)
                 room.retry_interpretation(is_host=player.is_host, seat=player.seat)
+            except HTTPException as failure:
+                error = str(failure.detail)
             except ValueError as failure:
                 error = str(failure)
             else:
@@ -984,6 +1204,8 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
         elif action == "use_pending_as_answer":
             try:
                 room.accept_saved_answer(room.defense, player.token, player.seat)
+            except HTTPException as failure:
+                error = str(failure.detail)
             except ValueError as failure:
                 error = str(failure)
             else:
@@ -991,15 +1213,33 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
                 if generation_id is not None:
                     generate_first = False
                 room.revision += 1
+        elif action == 'submit_direct_answer':
+            try:
+                room.submit_direct(player.token, player.name, player.seat, message.get('turn'), message.get('answer'), room.defense, _now_ms())
+            except HTTPException as failure:
+                error = str(failure.detail)
+            except ValueError as failure:
+                error = str(failure)
+                expired_action = isinstance(failure, DeadlineExpired)
+            else:
+                generation_id, feedback_generation_id = _resolve_turn_locked(room)
+                if generation_id is not None:
+                    generate_first = False
+                room.revision += 1
         elif action == "submit_answer":
             try:
+                room.validate_submit(player.seat, message.get('turn'), message.get('answer'), room.defense, _now_ms())
+                room.ai_budget.admit(f'interpret:{len(room.defense.turns)-1}', limit('AI_INTERPRETATION_ATTEMPTS', 6, 20), room.owner_account_id or room.code)
                 room.submit(player.token, player.name, player.seat, message.get("turn"), message.get("answer"),
                             room.defense, _now_ms())
+            except HTTPException as failure:
+                error = str(failure.detail)
             except ValueError as failure:
                 error = str(failure)
                 expired_action = isinstance(failure, DeadlineExpired)
             else:
                 _cancel_clock_task(room)
+                _schedule_clock(room, room.clock_id, room.pause_deadline_ms or room.answer_deadline_ms)
                 interpretation_id = room.interpretation_id
                 room.revision += 1
         else:

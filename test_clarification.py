@@ -68,7 +68,27 @@ class InterpretationTests(unittest.TestCase):
 
 
 class ClarificationRoomTests(unittest.IsolatedAsyncioTestCase):
+    async def test_six_failed_interpretations_then_direct_answer_never_calls_ai_again(self):
+        await self.send(self.guest, self.guest_socket, type='submit_answer', turn=0, answer='Explain?')
+        with patch.object(server, 'interpret_submission', side_effect=QuestionGenerationError('offline failure')) as provider:
+            for index in range(6):
+                if index:
+                    await self.send(self.guest, self.guest_socket, type='retry_interpretation')
+                await server._interpret_pending(self.room, self.room.interpretation_id)
+            self.assertEqual(provider.call_count, 6)
+            await self.send(self.guest, self.guest_socket, type='retry_interpretation')
+            self.assertEqual(self.room.phase, 'interpretation_retry')
+            self.assertIn('allowance', self.guest_socket.messages[-1]['message'])
+            await self.send(self.guest, self.guest_socket, type='submit_direct_answer', turn=0, answer='We will measure arrivals.')
+            self.assertEqual(provider.call_count, 6)
+        self.assertEqual(self.room.defense.turns[0].answer, 'We will measure arrivals.')
+        self.assertEqual(self.room.snapshot(self.host)['turns'][0]['answered_by'], 'Sam')
+
     async def asyncSetUp(self):
+        for name in ['_schedule_generation', '_schedule_coaching']:
+            mocked = patch.object(server, name)
+            mocked.start()
+            self.addCleanup(mocked.stop)
         authenticate(self, unit_server=server)
         self.now = 1_000_000
         self.clock = patch.object(server, "_now_ms", side_effect=lambda: self.now)
@@ -129,12 +149,12 @@ class ClarificationRoomTests(unittest.IsolatedAsyncioTestCase):
             await self.resolve(SubmissionDecision("clarify", f"Example {index}: run a small trial."))
         await self.send(self.guest, self.guest_socket, type="submit_answer", turn=0,
                         answer="Can you explain more?")
-        await self.resolve(SubmissionDecision("clarify", "Another explanation."))
+
         self.assertEqual(len(self.room.defense.turns[0].clarifications), 2)
-        self.assertIn("both clarifications", self.room.error)
-        await self.send(self.guest, self.guest_socket, type="submit_answer", turn=0,
+        self.assertEqual(self.room.phase, "question")
+        self.assertIn("clarifications", self.guest_socket.messages[-1]["message"])
+        await self.send(self.guest, self.guest_socket, type="submit_direct_answer", turn=0,
                         answer="We will recruit ten volunteers and observe use.")
-        await self.resolve(SubmissionDecision("answer"))
         self.assertEqual(self.room.phase, "generating")
         history = self.room.defense.answered_history()
         self.assertEqual(len(history), 1)
@@ -170,7 +190,7 @@ class ClarificationRoomTests(unittest.IsolatedAsyncioTestCase):
                         answer="We will test with volunteers.")
         await self.resolve(QuestionGenerationError("Temporary interpretation failure."))
         self.assertEqual(self.room.phase, "interpretation_retry")
-        self.assertIsNone(self.room.answer_deadline_ms)
+        self.assertIsNotNone(self.room.pause_deadline_ms)
         self.assertEqual(self.room.snapshot(self.guest)["my_pending_submission"], "We will test with volunteers.")
         await self.send(self.host, self.host_socket, type="use_pending_as_answer")
         self.assertIn("Only the chosen defender", self.host_socket.messages[-1]["message"])

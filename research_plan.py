@@ -95,7 +95,7 @@ def generate_research_plan(
         raise QuestionGenerationError("Upload an accepted research document before preparing a defense.")
     eligible = set(lookup) if defense_type == "mixed" else research_ids
     if client is None:
-        client = OpenAI(api_key=key, timeout=90.0, max_retries=1)
+        client = OpenAI(api_key=key, timeout=90.0, max_retries=0)
     response = client.responses.parse(
         model=model, reasoning={"effort": "low"}, store=False,
         input=[

@@ -1,3 +1,4 @@
+import { RoomExpiryNotice } from "./RoomExpiryNotice";
 import type { DrawerMode, RoomState } from "../types";
 import { formatCountdown, useRoomCountdown } from "../hooks/useRoomCountdown";
 
@@ -55,6 +56,7 @@ export function HUD({ roomState, roomCode, previewMode, onOpenDrawer, onPreviewM
         </div>
       </div>
       <div className="hud-actions">
+        <RoomExpiryNotice state={roomState} />
         {!timed && <span className="hud-mobile-status" role="status" aria-label="Room status" aria-live="polite">{status}</span>}
         <span
           id="room-pill"
@@ -69,8 +71,8 @@ export function HUD({ roomState, roomCode, previewMode, onOpenDrawer, onPreviewM
           <span aria-hidden="true">▥</span> {pillProgress}
         </span>
         {!!roomState?.question_budget && <span className="hud-pill hud-coverage hud-desktop-only">{addressed} of {topicCount} topics addressed</span>}
-        {(phase === "interpreting" || phase === "interpretation_retry") && <span id="room-countdown" className="hud-pill hud-timer" role="status" aria-label="Answer timer paused">PAUSED {formatCountdown(Math.ceil((roomState?.remaining_answer_ms ?? 0) / 1000))}</span>}
-        {(phase === "voting" || phase === "question") && (
+        {(phase === "interpreting" || phase === "interpretation_retry") && roomState?.clock_paused !== false && <span id="room-countdown" className="hud-pill hud-timer" role="status" aria-label="Answer timer paused">PAUSED {formatCountdown(Math.ceil((roomState?.remaining_answer_ms ?? 0) / 1000))}</span>}
+        {(phase === "voting" || phase === "question" || ((phase === "interpreting" || phase === "interpretation_retry") && roomState?.clock_paused === false)) && (
           <span id="room-countdown" className={`hud-pill hud-timer${seconds !== null && seconds <= (phase === "voting" ? 5 : 15) ? " is-urgent" : ""}`} role="timer" aria-label={`${phase === "voting" ? "Vote" : "Answer"} time remaining`}>
             {phase === "voting" ? "VOTE" : "ANSWER"} {formatCountdown(seconds)}
           </span>

@@ -244,7 +244,7 @@ def interpret_submission(
         raise ValueError("A current panelist and submitted text are required.")
     source, _lookup, _eligible = build_project_source(project_files)
     if client is None:
-        client = OpenAI(api_key=key, timeout=90.0, max_retries=1)
+        client = OpenAI(api_key=key, timeout=90.0, max_retries=0)
     response = client.responses.parse(
         model=model, reasoning={"effort": "low"}, store=False,
         input=[
@@ -671,7 +671,7 @@ def generate_panel_question(
     source, lookup, code_ids = build_project_source(project_files)
     eligible_ids = _eligible_ids(panelist, lookup, code_ids, defense_type)
     if client is None:
-        client = OpenAI(api_key=api_key, timeout=90.0, max_retries=1)
+        client = OpenAI(api_key=api_key, timeout=90.0, max_retries=0)
 
     role_guidance = _role_guidance(panelist)
     research_guidance = _research_guidance(defense_type, research_stage)
@@ -747,7 +747,7 @@ def generate_next_move(
         raise QuestionGenerationError("OPENAI_API_KEY contains whitespace. Set a clean key and restart the app.")
     source, lookup, code_ids = build_project_source(project_files)
     if client is None:
-        client = OpenAI(api_key=key, timeout=90.0, max_retries=1)
+        client = OpenAI(api_key=key, timeout=90.0, max_retries=0)
     previous = history[-1]
     language_guidance = _language_guidance(history)
     role_guidance = " ".join(_role_guidance(role) for role in allowed)
@@ -824,7 +824,7 @@ def generate_research_move(
         raise QuestionGenerationError("Set a clean OPENAI_API_KEY and restart the app to generate a question.")
     source, lookup, _ = build_project_source(project_files)
     if client is None:
-        client = OpenAI(api_key=key, timeout=90.0, max_retries=1)
+        client = OpenAI(api_key=key, timeout=90.0, max_retries=0)
     response = client.responses.parse(
         model=model, reasoning={"effort": "low"}, store=False,
         input=[{"role": "system", "content": (
@@ -909,7 +909,7 @@ def generate_coaching_report(
     source, _lookup, _eligible = build_project_source(project_files)
 
     if client is None:
-        client = OpenAI(api_key=api_key, timeout=90.0, max_retries=1)
+        client = OpenAI(api_key=api_key, timeout=90.0, max_retries=0)
 
     transcript_data = serialize_transcript(history)
     response = client.responses.parse(

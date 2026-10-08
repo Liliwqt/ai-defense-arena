@@ -19,6 +19,34 @@ const defaults = {
 };
 
 describe("AnswerComposer", () => {
+  it("sends a direct answer after two clarifications without interpretation", async () => {
+    const send = vi.fn(() => true);
+    const state = { ...questionState, turns: [{ ...questionState.turns[0], clarifications: [
+      { request: "Simplify", reply: "Explain the choice." }, { request: "Example", reply: "Consider the queue." },
+    ] }] };
+    render(<AnswerComposer {...defaults} roomState={state} onSendEvent={send} />);
+    await userEvent.type(screen.getByRole("textbox"), "It fits our small pilot.");
+    await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+    expect(send).toHaveBeenCalledWith({ type: "submit_direct_answer", turn: 0, answer: "It fits our small pilot." });
+  });
+
+  it("disables another interpretation retry when attempts are exhausted", () => {
+    render(<AnswerComposer {...defaults} roomState={{ ...questionState, phase: "interpretation_retry", interpretation_attempts_left: 0, my_pending_submission: "Our answer" }} />);
+    expect(screen.getByRole("button", { name: "Retry panelist" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Use this as my answer" })).not.toBeDisabled();
+  });
+
+  it("lets the chosen defender write a different direct answer during recovery", async () => {
+    const send = vi.fn(() => true);
+    render(<AnswerComposer {...defaults} onSendEvent={send} roomState={{ ...questionState,
+      phase: "interpretation_retry", interpretation_attempts_left: 5, my_pending_submission: "Explain?" }} />);
+    await userEvent.click(screen.getByRole("button", { name: "Write a new answer" }));
+    await userEvent.clear(screen.getByRole("textbox"));
+    await userEvent.type(screen.getByRole("textbox"), "Our actual explanation.");
+    await userEvent.click(screen.getByRole("button", { name: "Submit answer directly" }));
+    expect(send).toHaveBeenCalledWith({ type: "submit_direct_answer", turn: 0, answer: "Our actual explanation." });
+  });
+
   it("submits the active turn from the bottom composer", async () => {
     const send = vi.fn(() => true);
     render(<AnswerComposer {...defaults} roomState={questionState} onSendEvent={send} />);

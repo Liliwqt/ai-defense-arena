@@ -8,6 +8,31 @@ from timed_turn import TimedTurn
 
 
 class TimedTurnTests(unittest.TestCase):
+    def test_exhausted_clarification_requires_explicit_direct_answer(self):
+        session = DefenseSession.start(GroundedQuestion('Why?', 'queue.py', 1, 'queue = []'))
+        turn = TimedTurn()
+        turn.begin_vote(0)
+        turn.expire(15000, {'alex':0}, session)
+        for now in [16000, 17000]:
+            turn.submit('alex', 'Alex', 0, 0, 'Explain?', session, now)
+            turn.interpret(session, SubmissionDecision('clarify', 'Explain the queue.'), turn.interpretation_id, turn.pending_submission, {'alex':0}, now+100)
+        with self.assertRaisesRegex(ValueError, 'clarification'):
+            turn.submit('alex', 'Alex', 0, 0, 'Explain again?', session, 18000)
+        turn.submit_direct('alex', 'Alex', 0, 0, 'We store arrivals.', session, 18000)
+        self.assertEqual(session.turns[0].answer, 'We store arrivals.')
+        self.assertEqual(turn.phase, 'generating')
+
+    def test_total_pause_is_bounded_even_while_waiting_for_retry(self):
+        session = DefenseSession.start(GroundedQuestion('Why?', 'queue.py', 1, 'queue = []'))
+        turn = TimedTurn()
+        turn.begin_vote(0)
+        turn.expire(15000, {'alex':0}, session)
+        turn.submit('alex', 'Alex', 0, 0, 'Explain?', session, 16000)
+        turn.interpretation_failed(turn.interpretation_id, turn.pending_submission, 'Offline failure')
+        self.assertEqual(turn.expire(375000, {'alex':0}, session), 'timed_out')
+        self.assertTrue(session.turns[0].timed_out)
+        self.assertIsNone(turn.pending_submission)
+
     def test_expiry_is_idempotent_and_disconnect_never_resets_deadline(self):
         session = DefenseSession.start(GroundedQuestion("Why?", "queue.py", 1, "queue = []"))
         turn = TimedTurn()
@@ -68,7 +93,7 @@ class TimedTurnTests(unittest.TestCase):
         turn.submit("sam", "Sam", 1, 0, "Please simplify", session, 36000)
         pending = turn.pending_submission
         self.assertEqual(pending.remaining_ms, 100000)
-        self.assertIsNone(turn.answer_deadline_ms)
+        self.assertEqual(turn.pause_deadline_ms, 276000)
         self.assertIsNone(turn.expire(200000, online, session, expected_id=old_clock))
         self.assertEqual(turn.interpret(session, SubmissionDecision("clarify", "Explain the design."),
                                         turn.interpretation_id, pending, online, 200000), "clarified")

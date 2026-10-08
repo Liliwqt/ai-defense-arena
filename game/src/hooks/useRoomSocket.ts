@@ -208,7 +208,7 @@ export function useRoomSocket(previewMode: boolean): RoomSocketState {
     (payload: Record<string, unknown>): boolean => {
       const ws = websocketRef.current;
       if (!ws || ws.readyState !== WebSocket.OPEN) return false;
-      if (payload.type === "submit_answer") {
+      if ((payload.type === "submit_answer" || payload.type === "submit_direct_answer")) {
         if (pendingAnswerTurnRef.current !== null) return false;
         pendingAnswerTurnRef.current = Number(payload.turn);
         setWaitingForAnswerAck(true);
@@ -218,7 +218,7 @@ export function useRoomSocket(previewMode: boolean): RoomSocketState {
         ws.send(JSON.stringify(payload));
         return true;
       } catch {
-        if (payload.type === "submit_answer") {
+        if ((payload.type === "submit_answer" || payload.type === "submit_direct_answer")) {
           pendingAnswerTurnRef.current = null;
           setWaitingForAnswerAck(false);
         }

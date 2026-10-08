@@ -53,7 +53,7 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
     {status === "none" && <p className="control-help">{state.self_is_host ? "Prepare an AI map of the accepted papers and any accompanying code." : "The host can prepare the research map. It will appear here for the whole team."}</p>}
     {status === "planning" && <p role="status" aria-live="polite">Mapping the uploaded research… No defense question has started.</p>}
     {status === "failed" && <p role="alert" className="drawer-error">{state.research_plan_error ?? "The research map could not be prepared."} Your uploads are retained. {state.self_is_host ? "Retry when ready." : "The host can retry."}</p>}
-    {editable && status !== "planning" && <button type="button" className="button-secondary"
+    {editable && status !== "planning" && <button type="button" disabled={state.plan_attempts_left === 0} className="button-secondary"
       onClick={() => onSendEvent({ type: status === "failed" ? "retry_research_plan" : "prepare_research_plan" })}>
       {status === "failed" ? "Retry research map" : plan ? "Prepare map again" : "Prepare defense"}
     </button>}
