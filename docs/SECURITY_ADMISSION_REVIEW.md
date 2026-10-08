@@ -83,8 +83,8 @@ networks or many authenticated accounts remain residual abuse risks.
 
 ## Evidence
 
-- Full working-tree Python suite: 387 passing tests, offline with AI, Google and
-  PayMongo mocked. Full React suite: 229 tests and production build passed. Pre-existing local
+- Full working-tree Python suite: 395 passing tests, offline with AI, Google and
+  PayMongo mocked. Full React suite: 231 tests and production build passed. Pre-existing local
   tests are distinguished from the selected release in the final handoff.
 - New authenticated HTTP/WS and fake-clock cases exercise account quotas before
   extraction, concurrent creation, validation recovery, owner controls, exact idle
@@ -113,6 +113,8 @@ Screenshots, all synthetic:
 - [Research transcript](../screenshots/security-admission-research-mock-transcript.png)
 - [Mixed transcript](../screenshots/security-admission-mixed-mock-transcript.png)
 - [Recovery clock running, portrait](../screenshots/security-admission-running-clock-mock-portrait.png)
+- [Burst rejection/direct answer](../screenshots/security-admission-burst-recovery-mock-desktop.png)
+- [Unavailable-room notice](../screenshots/security-admission-expiry-notice-mock-portrait.png)
 
 The portrait recovery browser check also exhausted the four-minute pause, displayed
 the running answer clock, accepted a newly written direct answer and keyboard-resumed
@@ -127,3 +129,40 @@ Pending: user visual review, actual hosted proxy configuration/shared-network ch
 installed Android/iOS OAuth recovery, a separately requested formal security fix
 verification, and any future publication. Passing mocked tests is not a guarantee of
 security or live AI quality. Production remains on its existing release.
+
+## Spec review
+
+Independent committed-diff review of `742ca0a`, using `git diff dd037d5...HEAD`,
+found four issues; all have subsequent fixes and regression evidence:
+
+1. Timed-out creation cancelled only Starlette's response waiter, leaving the
+   downstream upload/parser queue alive. Admission now owns the downstream ASGI
+   task, cancels it on timeout, and checks admission/deadline before extraction.
+   A blocked-parser reproduction failed before the fix and passes afterward;
+   queued-worker and cancelled-body regressions show no late publication/work.
+2. Owner burst rejection left an ordinary question with no visible AI-free answer
+   path. The composer retains its draft and presents **Submit answer directly**
+   after an interpretation allowance rejection. It still requires an explicit click.
+3. Expiry cleared its own explanation while stopping reconnect. The hook now
+   retains the unavailable-room notice while clearing credentials/room state.
+4. Cancellation, timeout, global-cap and cleanup/start-race evidence was missing.
+   Added authenticated/global concurrent admission, body cancellation, worker
+   timeout, queued-worker cancellation and cleanup/start/restart race cases.
+
+Further regressions verify terminal eviction's final notice and memory cleanup,
+and completing an existing proof-bound mobile login while new starts are throttled.
+These are offline/mocked tests, not hosted attack or native-device evidence.
+
+## Standards review
+
+Independent committed-diff review found **zero hard documented-standard violations**.
+Two low-priority heuristic suggestions remain:
+
+- Possible duplicated policy/guard logic: named policy accessors and a shared retry
+  validation method would reduce repeated defaults and interpretation checks.
+- Possible repeated recovery-phase selectors across timer, status and composer:
+  shared selectors could reduce future drift.
+
+These maintenance suggestions do not block the behavioral fixes. No broad refactor
+was included. Final review follow-up and selected-release results are recorded in
+PROJECT_LOG.md; neither axis claims complete hosted security or live provider proof.

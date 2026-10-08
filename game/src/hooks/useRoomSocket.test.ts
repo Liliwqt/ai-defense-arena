@@ -133,6 +133,20 @@ describe("useRoomSocket", () => {
     expect(result.current.roomState).toBeNull();
   });
 
+  it("retains an expiry explanation while stopping reconnect and clearing credentials", () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useRoomSocket(false));
+    act(() => result.current.useRoom("ABCD12", "tok", false));
+    act(() => allSockets[0].emit("open", {}));
+    const message = "Room not found. This room was closed or expired; create a fresh room.";
+    act(() => allSockets[0].emit("message", { data: JSON.stringify({ type: "error", message }) }));
+    expect(result.current.actionError).toBe(message);
+    expect(result.current.roomCode).toBeNull();
+    expect(localStorage.getItem("defense_player_token")).toBeNull();
+    act(() => vi.advanceTimersByTime(6000));
+    expect(allSockets).toHaveLength(1);
+  });
+
   it("schedules reconnect after socket closes", async () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useRoomSocket(false));

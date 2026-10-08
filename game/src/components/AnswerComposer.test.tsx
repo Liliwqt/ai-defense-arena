@@ -19,6 +19,15 @@ const defaults = {
 };
 
 describe("AnswerComposer", () => {
+  it("retains a throttled draft and offers an explicit AI-free answer", async () => {
+    const send = vi.fn(() => true);
+    const { rerender } = render(<AnswerComposer {...defaults} roomState={questionState} onSendEvent={send} />);
+    await userEvent.type(screen.getByRole("textbox"), "The queue preserves arrival order.");
+    rerender(<AnswerComposer {...defaults} roomState={questionState} onSendEvent={send} actionError="Request allowance used. Retry shortly." />);
+    expect(screen.getByRole("textbox")).toHaveValue("The queue preserves arrival order.");
+    await userEvent.click(screen.getByRole("button", { name: "Submit answer directly" }));
+    expect(send).toHaveBeenCalledWith({ type: "submit_direct_answer", turn: 0, answer: "The queue preserves arrival order." });
+  });
   it("sends a direct answer after two clarifications without interpretation", async () => {
     const send = vi.fn(() => true);
     const state = { ...questionState, turns: [{ ...questionState.turns[0], clarifications: [

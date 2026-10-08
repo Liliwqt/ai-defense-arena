@@ -417,44 +417,69 @@ async def reject_large_uploads(request, call_next):
         length = request.headers.get("content-length")
         if length and length.isdigit() and int(length) > MAX_REQUEST_BYTES:
             return JSONResponse({"detail": "Upload request is too large."}, status_code=413)
-    if request.url.path != '/api/rooms' or request.method != 'POST':
-        return await call_next(request)
-    admission = None
-    try:
-        account = require_account(request)
-        check_csrf(request, account)
-        await _cleanup_rooms()
-        async with registry_lock:
-            owner = account['id']
-            retained = sum(room.owner_account_id == owner for room in rooms.values())
-            pending = sum(value == owner for value in creation_pending.values())
-            if retained + pending >= limit('ROOM_HOST_LIMIT', 2, 20):
-                raise HTTPException(429, 'Your room allowance is full. Close an unused room in Controls.', headers={'Retry-After':'60'})
-            if len(rooms) + len(creation_pending) >= MAX_ROOMS:
-                raise HTTPException(503, 'Room capacity reached. Try again later.')
-            creation_rate.admit(owner, limit('ROOM_CREATE_PER_MINUTE', 3))
-            admission = secrets.token_hex(16)
-            creation_pending[admission] = owner
-            request.state.room_admission = admission
-        original_receive = request._receive
-        received = 0
-        async def bounded_receive():
-            nonlocal received
-            message = await original_receive()
-            received += len(message.get('body', b''))
-            if received > MAX_REQUEST_BYTES:
-                raise HTTPException(413, 'Upload request is too large.')
-            return message
-        request._receive = bounded_receive
-        return await asyncio.wait_for(call_next(request), limit('ROOM_PROCESS_SECONDS', 120, 600))
-    except asyncio.TimeoutError:
-        return JSONResponse({'detail':'Room processing took too long. Retry shortly.'}, status_code=408)
-    except HTTPException as error:
-        return JSONResponse({'detail': error.detail}, status_code=error.status_code, headers=error.headers)
-    finally:
-        if admission is not None:
+    return await call_next(request)
+
+
+class RoomAdmissionMiddleware:
+    """Own the downstream ASGI task so timeout cancels parsing and its waiters."""
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope['type'] != 'http' or scope['path'] != '/api/rooms' or scope['method'] != 'POST':
+            await self.app(scope, receive, send)
+            return
+        request = Request(scope)
+        admission = None
+        response_started = False
+        try:
+            account = require_account(request)
+            check_csrf(request, account)
+            await _cleanup_rooms()
             async with registry_lock:
-                creation_pending.pop(admission, None)
+                owner = account['id']
+                retained = sum(room.owner_account_id == owner for room in rooms.values())
+                pending = sum(value == owner for value in creation_pending.values())
+                if retained + pending >= limit('ROOM_HOST_LIMIT', 2, 20):
+                    raise HTTPException(429, 'Your room allowance is full. Close an unused room in Controls.', headers={'Retry-After': '60'})
+                if len(rooms) + len(creation_pending) >= MAX_ROOMS:
+                    raise HTTPException(503, 'Room capacity reached. Try again later.')
+                creation_rate.admit(owner, limit('ROOM_CREATE_PER_MINUTE', 3))
+                admission = secrets.token_hex(16)
+                creation_pending[admission] = owner
+                request.state.room_admission = admission
+                request.state.room_deadline = asyncio.get_running_loop().time() + limit('ROOM_PROCESS_SECONDS', 120, 600)
+            received = 0
+
+            async def bounded_receive():
+                nonlocal received
+                message = await receive()
+                received += len(message.get('body', b''))
+                if received > MAX_REQUEST_BYTES:
+                    raise HTTPException(413, 'Upload request is too large.')
+                return message
+
+            async def tracked_send(message):
+                nonlocal response_started
+                if message['type'] == 'http.response.start':
+                    response_started = True
+                await send(message)
+
+            await asyncio.wait_for(self.app(scope, bounded_receive, tracked_send), limit('ROOM_PROCESS_SECONDS', 120, 600))
+        except asyncio.TimeoutError:
+            if not response_started:
+                await JSONResponse({'detail': 'Room processing took too long. Retry shortly.'}, status_code=408)(scope, receive, send)
+        except HTTPException as error:
+            if response_started:
+                raise
+            await JSONResponse({'detail': error.detail}, status_code=error.status_code, headers=error.headers)(scope, receive, send)
+        finally:
+            if admission is not None:
+                async with registry_lock:
+                    creation_pending.pop(admission, None)
+
+
+app.add_middleware(RoomAdmissionMiddleware)
 
 
 def _player_name(value: str) -> str:
@@ -846,6 +871,10 @@ async def create_room(
         papers, errors = read_research_files(research_uploads) if research_uploads else ([], [])
         return ([], errors) if errors else combine_sources(project_files, papers)
     await parser_slots.acquire()
+    if (creation_pending.get(getattr(request.state, 'room_admission', None)) != account['id']
+            or asyncio.get_running_loop().time() >= request.state.room_deadline):
+        parser_slots.release()
+        raise HTTPException(408, 'Room creation expired. Please retry.')
     future = asyncio.get_running_loop().run_in_executor(parser_pool, extract)
     slots = parser_slots
     future.add_done_callback(lambda _: slots.release())
@@ -853,7 +882,8 @@ async def create_room(
     if errors:
         raise HTTPException(422, errors[0])
     async with registry_lock:
-        if creation_pending.get(getattr(request.state, 'room_admission', None)) != account['id']:
+        if (creation_pending.get(getattr(request.state, 'room_admission', None)) != account['id']
+                or asyncio.get_running_loop().time() >= request.state.room_deadline):
             raise HTTPException(408, 'Room creation expired. Please retry.')
         code = _room_code()
         while code in rooms:

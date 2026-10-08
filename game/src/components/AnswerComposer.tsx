@@ -44,15 +44,19 @@ export function AnswerComposer({ roomState, connected, previewMode, waitingForAn
   const [draft, setDraft] = useState("");
   const [localError, setLocalError] = useState("");
   const [writeRecovery, setWriteRecovery] = useState(false);
+  const [interpretationLimited, setInterpretationLimited] = useState(false);
   const turnIndex = currentQuestionIndex(roomState);
   const turnKey = `${roomState?.room_code ?? ""}:${turnIndex}:${turnIndex >= 0 ? roomState?.turns[turnIndex]?.question ?? "" : ""}`;
   const chosen = turnIndex >= 0 && roomState?.selected_seat != null && roomState.selected_seat === roomState.self_seat;
   const canWrite = chosen && (roomState?.phase === "question" || (roomState?.phase === "interpretation_retry" && writeRecovery) || (roomState?.phase === "interpreting" && roomState.clock_paused === false));
   const clarifications = turnIndex >= 0 ? roomState?.turns[turnIndex]?.clarifications?.length ?? 0 : 0;
-  const direct = clarifications >= 2 || roomState?.interpretation_attempts_left === 0 || roomState?.phase === "interpretation_retry" || roomState?.phase === "interpreting";
+  const direct = interpretationLimited || clarifications >= 2 || roomState?.interpretation_attempts_left === 0 || roomState?.phase === "interpretation_retry" || roomState?.phase === "interpreting";
   const chosenName = roomState?.players.find((player) => player.seat === roomState.selected_seat)?.name;
 
-  useEffect(() => { setDraft(""); setLocalError(""); setWriteRecovery(false); }, [turnKey]);
+  useEffect(() => { setDraft(""); setLocalError(""); setWriteRecovery(false); setInterpretationLimited(false); }, [turnKey]);
+  useEffect(() => {
+    if (actionError?.startsWith("Request allowance used.") || actionError?.startsWith("AI retry allowance used.")) setInterpretationLimited(true);
+  }, [actionError]);
   useEffect(() => { if (clarifications > 0) { setDraft(""); setLocalError(""); } }, [clarifications, turnKey]);
   useEffect(() => { if (roomState?.my_pending_submission) setDraft(roomState.my_pending_submission); }, [roomState?.my_pending_submission]);
 
@@ -91,7 +95,7 @@ export function AnswerComposer({ roomState, connected, previewMode, waitingForAn
                   event.preventDefault(); event.currentTarget.form?.requestSubmit();
                 }
               }}
-              placeholder={direct ? "Write your defense answer. Clarifications are no longer available." : "Answer, or ask this panelist to repeat, simplify, or give an example…"} aria-describedby="answer-status" />
+              placeholder={direct ? "Write your defense answer. This submission will not request clarification." : "Answer, or ask this panelist to repeat, simplify, or give an example…"} aria-describedby="answer-status" />
             <button type="submit" disabled={previewMode || !connected || waitingForAnswerAck}>
               {previewMode ? "Preview only" : waitingForAnswerAck ? "Sending…" : direct ? "Submit answer directly" : "Submit answer"}
             </button>

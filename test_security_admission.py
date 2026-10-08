@@ -1,5 +1,7 @@
 """Resource admission through authenticated HTTP; providers remain mocked."""
 import unittest
+import asyncio
+import os
 from unittest.mock import patch
 import test_room_access as room_fixture
 import game_server as server
@@ -39,11 +41,141 @@ class RoomAdmissionTests(unittest.TestCase):
         self.assertEqual(self.client.post('/api/rooms/'+room.code+'/resume').json(), credentials)
         self.assertEqual(self.client.post('/api/rooms/'+room.code+'/resume', headers={'X-CSRF-Token':'bad'}).status_code, 403)
 
+    def test_terminal_expiry_warns_and_invalidates_connected_tokens(self):
+        with patch.object(server, '_now_ms', return_value=1000):
+            room, _, credentials = self.create()
+            room.phase = 'complete'
+            room.terminal_ms = 1000
+            with self.client.websocket_connect('/ws/'+room.code) as socket:
+                socket.send_json({'type': 'hello', 'token': credentials['player_token']})
+                snapshot = socket.receive_json()['state']
+                self.assertEqual(snapshot['expires_at_ms'], 1_801_000)
+                with patch.object(server, '_now_ms', return_value=1_801_000):
+                    self.assertEqual(self.client.get('/api/rooms').json()['rooms'], [])
+                notice = socket.receive_json()
+                self.assertEqual(notice['type'], 'error')
+                self.assertIn('expired', notice['message'])
+        self.assertIsNone(room.defense)
+        self.assertEqual(room.players, {})
+        self.assertEqual(room.files, [])
+
     def test_invalid_upload_releases_capacity(self):
         response = self.client.post('/api/rooms', data={'host_name':'Owner'}, files=[('files', ('bad.exe', b'bad'))])
         self.assertEqual(response.status_code, 422)
         self.create()
         self.create()
+
+    def test_processing_timeout_returns_promptly_and_drops_late_result(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Event
+        entered, release = Event(), Event()
+        original = server.read_project_files
+
+        def blocked(uploads):
+            entered.set()
+            release.wait(5)
+            return original(uploads)
+
+        with patch.dict('os.environ', {'ROOM_PROCESS_SECONDS': '1'}), patch.object(server, 'read_project_files', side_effect=blocked), ThreadPoolExecutor(max_workers=1) as pool:
+            request = pool.submit(self.client.post, '/api/rooms', data={'host_name': 'Owner'}, files=self.files)
+            try:
+                self.assertTrue(entered.wait(3))
+                self.assertEqual(request.result(timeout=2).status_code, 408)
+                self.assertEqual(self.client.get('/api/rooms').json()['rooms'], [])
+            finally:
+                release.set()
+        self.assertEqual(self.client.get('/api/rooms').json()['rooms'], [])
+
+    def test_waiting_parser_is_cancelled_without_dispatch(self):
+        async def occupy():
+            await server.parser_slots.acquire()
+            await server.parser_slots.acquire()
+        async def free():
+            server.parser_slots.release()
+            server.parser_slots.release()
+        with patch.dict('os.environ', {'ROOM_PROCESS_SECONDS': '1'}), patch.object(server, 'read_project_files') as extract:
+            self.client.portal.call(occupy)
+            try:
+                response = self.client.post('/api/rooms', data={'host_name': 'Owner'}, files=self.files)
+                self.assertEqual(response.status_code, 408)
+            finally:
+                self.client.portal.call(free)
+            self.client.portal.call(asyncio.sleep, .05)
+            extract.assert_not_called()
+            self.assertEqual(self.client.get('/api/rooms').json()['rooms'], [])
+
+    def test_cancelled_upload_releases_admission_before_body_finishes(self):
+        async def cancel():
+            entered = asyncio.Event()
+            async def receive():
+                entered.set()
+                await asyncio.Event().wait()
+            async def send(message):
+                pass
+            scope = {'type': 'http', 'asgi': {'version': '3.0'}, 'http_version': '1.1',
+                'scheme': 'http', 'method': 'POST', 'path': '/api/rooms', 'raw_path': b'/api/rooms',
+                'query_string': b'', 'root_path': '', 'state': {}, 'client': ('127.0.0.1', 123),
+                'server': ('127.0.0.1', 8000), 'headers': [
+                    (b'cookie', (accounts.ACCOUNT_COOKIE+'='+self.token).encode()),
+                    (b'origin', self.origin.encode()), (b'x-csrf-token', self.csrf.encode()),
+                    (b'content-type', b'multipart/form-data; boundary=offline')]}
+            task = asyncio.create_task(server.app(scope, receive, send))
+            await asyncio.wait_for(entered.wait(), 2)
+            task.cancel()
+            result = await asyncio.gather(task, return_exceptions=True)
+            self.assertIsInstance(result[0], asyncio.CancelledError)
+        self.client.portal.call(cancel)
+        self.create()
+        self.create()
+
+    def test_concurrent_accounts_cannot_exceed_global_capacity(self):
+        from concurrent.futures import ThreadPoolExecutor
+        import account_store
+        for index in range(server.MAX_ROOMS-2):
+            code = f'EXISTING{index}'
+            server.rooms[code] = server.Room(code, [], {}, owner_account_id=f'other-{index}')
+        identities = [account_store.create_google_session(f'parallel-{index}', f'parallel-{index}@example.test', 'Host') for index in range(6)]
+        def create(identity):
+            token, csrf = identity
+            return self.client.post('/api/rooms', data={'host_name': 'Owner'}, files=self.files,
+                headers={'Cookie': accounts.ACCOUNT_COOKIE+'='+token, 'X-CSRF-Token': csrf}).status_code
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            statuses = list(pool.map(create, identities))
+        self.assertEqual(statuses.count(201), 2)
+        self.assertEqual(statuses.count(503), 4)
+        self.assertEqual(len(server.rooms), server.MAX_ROOMS)
+
+    def cleanup_race(self, action):
+        with patch.object(server, '_now_ms', return_value=1000):
+            room, host, _ = self.create()
+        if action == 'restart':
+            room.phase = 'complete'
+            room.terminal_ms = 1000
+        self.client.post('/api/auth/voucher', json={'voucher': os.environ['FREE_ACCESS_VOUCHER']})
+        original = server._remove_room
+        async def scenario():
+            removing, proceed = asyncio.Event(), asyncio.Event()
+            async def paused_remove(candidate, **kwargs):
+                removing.set()
+                await proceed.wait()
+                return await original(candidate, **kwargs)
+            with patch.object(server, '_remove_room', side_effect=paused_remove):
+                task = asyncio.create_task(server._cleanup_rooms())
+                await asyncio.wait_for(removing.wait(), 2)
+                await server._handle_action(room, host, self.socket, {'type': action})
+                proceed.set()
+                await task
+            self.assertIs(server.rooms.get(room.code), room)
+            self.assertEqual(room.phase, 'generating')
+            self.assertFalse(room.closed)
+        with patch.object(server, '_now_ms', return_value=1_801_000):
+            self.client.portal.call(scenario)
+
+    def test_start_wins_cleanup_recheck_without_losing_room(self):
+        self.cleanup_race('start')
+
+    def test_restart_wins_cleanup_recheck_without_losing_room(self):
+        self.cleanup_race('restart')
 
     def test_concurrent_creation_cannot_exceed_account_capacity(self):
         from concurrent.futures import ThreadPoolExecutor
@@ -120,6 +252,25 @@ class MobileAdmissionTests(unittest.TestCase):
         response = self.start()
         self.assertEqual(response.status_code, 409)
         self.assertIn('existing browser', response.json()['detail'])
+
+    def test_existing_signin_can_complete_while_new_starts_are_throttled(self):
+        import base64
+        import hashlib
+        from urllib.parse import parse_qs, urlsplit
+        verifier = 'A' * 64
+        challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip('=')
+        first = self.client.post('/api/auth/mobile/start', json={'challenge': challenge}).json()
+        for index in range(1, 12):
+            self.assertEqual(self.start(index).status_code, 200)
+        self.assertEqual(self.start(12).status_code, 429)
+        login = self.client.get(first['login_url'], follow_redirects=False)
+        params = parse_qs(urlsplit(login.headers['location']).query)
+        self.nonce = params['nonce'][0]
+        returned = self.client.get('/api/auth/google/callback', params={'code': 'offline-code', 'state': params['state'][0]}, follow_redirects=False)
+        code = parse_qs(urlsplit(returned.headers['location']).query)['code'][0]
+        exchanged = self.client.post('/api/auth/mobile/complete', json={'flow': first['flow'], 'code': code, 'verifier': verifier})
+        self.assertEqual(exchanged.status_code, 200)
+        self.assertTrue(self.client.get('/api/auth/me').json()['authenticated'])
 
     def test_independent_network_can_sign_in_after_first_is_full(self):
         from resource_limits import client_network

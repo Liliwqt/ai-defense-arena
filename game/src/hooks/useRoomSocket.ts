@@ -139,7 +139,6 @@ export function useRoomSocket(previewMode: boolean): RoomSocketState {
           setRoomState(null);
           setKnownHost(false);
           setWaitingForAnswerAck(false);
-          setActionError(null);
           clearStoredRoom();
         }
       }
