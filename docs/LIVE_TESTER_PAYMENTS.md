@@ -41,7 +41,11 @@ ten-minute abandonment do not return credits. An unresolved question/coaching se
 error allows free retry or End unavailable defense with a once-only credit return.
 
 Private Account shows available/reserved/held credits, purchases, defense outcomes and
-credit returns. Payment history restores original receipt terms, even after catalog changes.
+credit returns. Payment history restores original receipt terms, even after catalog changes. Retained
+creation attempts lock their selected package so a retry cannot show a different price.
+Controls distinguish a paid-start pause from an unavailable room service; vouchers may
+still start during a paid pause when the room service is available. Private receipt and
+account history label unused-purchase review, spent-credit complaint review and holds.
 The browser countdown cannot determine whether payment occurred. Signed notifications
 are primary; a bounded server sweep independently checks exact bound payment intents
 for missed paid notifications. Browser redirects, button clicks and customer screenshots
@@ -92,3 +96,24 @@ restart recovery separately. Check actual Google sign-in, GCash and installed An
 WebViews; browser-sized previews do not prove those integrations. Pause switches must
 leave issued receipts recoverable. No deployment or actual provider mutation occurs
 merely by implementing or running the mocked local checks.
+
+## Verification recorded locally
+
+The complete working-tree gate passed 352 Python tests (Google, payment and AI mocked),
+211 React tests and a production build. The isolated selected release passed 340
+Python tests (providers mocked), 205 React tests and build. The real disposable-local-PostgreSQL gate
+passed 148 checks, including migration compatibility, concurrent awards/starts, lots,
+holds, refund reconciliation and interrupted-run compensation. A separate real local
+database stop/start and fresh Python process retained a 50-credit purchase and restored
+one unfinished 10-credit charge exactly once. No provider requests were used.
+
+Mocked two-client WebSocket checks cover four/eight-turn code and twelve-turn research/
+mixed defenses through paid and voucher paths, clarification, timeout, retry, reconnect
+and coaching. A separate two-browser four-answer paid defense verified chat, voted
+speaker enforcement, reconnection, shared coaching and a single 10-credit charge.
+Synthetic desktop, portrait and landscape payment/account captures and completed-room
+captures are under `screenshots/live-tester-*`. These are local mock review artifacts,
+not Google authentication, GCash payment, hosted service or installed-device evidence.
+
+User visual review and the actual provider/hosted gates above remain pending. The
+independent review record is [LIVE_TESTER_REVIEW.md](LIVE_TESTER_REVIEW.md).

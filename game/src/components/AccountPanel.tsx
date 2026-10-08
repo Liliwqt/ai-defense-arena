@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { accountResponse, type Account } from "../hooks/useAccount";
-import { purchaseLabel, runLabel } from "../lib/paymentHistory";
+import { purchaseLabel, runLabel, refundReviewLabel } from "../lib/paymentHistory";
 
 export function AccountPanel({ account, refresh, error, previewMode = false }: {
   account: Account | null; refresh: () => Promise<void>; error: string; previewMode?: boolean;
@@ -47,7 +47,7 @@ export function AccountPanel({ account, refresh, error, previewMode = false }: {
         <p>{account.free_access ? "Your voucher covers this run. Purchased credits stay available." : "Credits are charged when the first question appears. Questions, clarifications and coaching are included."}</p>
         {account.active_run && <p>You have an active defense. Finish or end it before starting another.</p>}</div>
         {account.topup_invited ? <a className="button-secondary account-login" href="/?payments=live">Top up credits</a> : <p>Top-ups are temporarily unavailable for your account. You can redeem a voucher for free access.</p>}
-        <div><h3>Your purchases</h3>{account.live_orders?.length ? <ul className="account-orders">{account.live_orders.map(order => <li key={order.id}><span>₱{(order.amount/100).toFixed(2)} · {order.credits} credits · {order.status}{order.refund_status ? ` · refund ${order.refund_status}` : ""}</span><small>{order.id}</small></li>)}</ul> : <p>No purchases yet.</p>}</div>
+        <div><h3>Your purchases</h3>{account.live_orders?.length ? <ul className="account-orders">{account.live_orders.map(order => <li key={order.id}><span>₱{(order.amount/100).toFixed(2)} · {order.credits} credits · {order.status}{order.refund_status ? ` · refund ${order.refund_status}` : ""}</span><small>{order.id}</small><small>{refundReviewLabel(order.refund_eligibility)}</small></li>)}</ul> : <p>No purchases yet.</p>}</div>
         <details><summary>Your defenses and credit returns</summary>{account.live_runs?.map(run => <p key={run.id}>{run.outcome} · {run.cost} credits · {run.status}</p>)}{account.credit_returns?.map(item => <p key={item.id}>{item.credits} credits returned · {item.reason.replaceAll("_", " ")}</p>)}</details>
         <details><summary>Earlier test history</summary><p>{account.test_credits ?? 0} available test credits. These do not fund live defenses.</p>
           {account.orders?.map(order=><p key={order.id}>{purchaseLabel(order)} <small>{order.id}</small></p>)}

@@ -32,3 +32,14 @@ export function runLabel(run: DefenseRunReceipt): string {
   if (run.status === "released") return "Reservation released · no credits charged";
   return `${run.status === "reserved" ? "Reserved" : "Charged"} · ${run.cost} test credits`;
 }
+
+const refundReviewLabels: Record<string,string> = {
+  unused_review: "Unused purchase · contact support for refund review",
+  used_review: "Previously used credits · contact support for complaint review",
+  held: "Credits held during refund review",
+  refunded: "Refund processed by provider",
+  unavailable: "Refund eligibility needs review",
+};
+export function refundReviewLabel(state?:string):string {
+  return refundReviewLabels[state ?? ""] ?? "";
+}

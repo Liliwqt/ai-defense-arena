@@ -7,15 +7,15 @@ reservation is released or its ten-credit charge returned once, visibly in Accou
 
 **Status:** ready-for-human
 
-- [ ] Reuse run-return semantics and durable lifecycle evidence to recover only a
+- [x] Reuse run-return semantics and durable lifecycle evidence to recover only a
   verifiably lost service incarnation, never a healthy overlapping process.
-- [ ] Exclude completed, ordinary-ended and observed-abandoned outcomes; legacy rows
+- [x] Exclude completed, ordinary-ended and observed-abandoned outcomes; legacy rows
   without evidence stay reviewable rather than presumed interrupted.
-- [ ] Crash windows before/after charge/publication and during coaching are handled;
+- [x] Crash windows before/after charge/publication and during coaching are handled;
   repeated startup cannot produce duplicate compensation or credits for vouchers.
-- [ ] Treat downtime as server interruption, not disconnected-user abandonment. Retain
+- [x] Treat downtime as server interruption, not disconnected-user abandonment. Retain
   financial records while the UI acknowledges that in-memory room data is gone.
-- [ ] Verify durable receipts/balances/history and active-slot cleanup through a real
+- [x] Verify durable receipts/balances/history and active-slot cleanup through a real
   local PostgreSQL process/restart check, with external providers mocked.
 
 ## Comments

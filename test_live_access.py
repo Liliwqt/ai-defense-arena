@@ -39,3 +39,23 @@ class LiveAccessTests(unittest.TestCase):
             self.assertTrue(view['free_access'])
             self.assertFalse(view['topup_invited'])
             self.assertEqual(view['live_credits'],0)
+
+    def test_private_account_reports_paid_pause_and_service_availability(self):
+        from live_store import LiveStore
+        with patch.dict(os.environ, {'LIVE_PAID_STARTS_ENABLED':'0'}):
+            view=self.client.get('/api/auth/me').json()
+            self.assertFalse(view['paid_starts_enabled'])
+            self.assertFalse(view['ai_service_available'])
+            LiveStore().start_service('availability-check')
+            view=self.client.get('/api/auth/me').json()
+            self.assertTrue(view['ai_service_available'])
+            self.assertFalse(view['paid_starts_enabled'])
+            self.assertNotIn('service_id',view)
+
+    def test_hosted_origin_mismatch_never_reports_paid_start_readiness(self):
+        with patch.dict(os.environ, {'LIVE_PAID_STARTS_ENABLED':'1',
+                'PAYMONGO_LIVE_SECRET_KEY':'sk_live_offline', 'PAYMONGO_LIVE_WEBHOOK_SECRET':'offline',
+                'PAYMONGO_PUBLIC_BASE_URL':'https://payments.example.test',
+                'AUTH_PUBLIC_BASE_URL':'https://room.example.test'}):
+            view=self.client.get('/api/auth/me').json()
+            self.assertFalse(view['paid_starts_enabled'])

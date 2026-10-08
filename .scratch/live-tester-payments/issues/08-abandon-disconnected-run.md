@@ -7,15 +7,15 @@ releases its active slot and permits a later run without refunding the old charg
 
 **Status:** ready-for-human
 
-- [ ] All defenders and their multiple connections are considered; any connected defender
+- [x] All defenders and their multiple connections are considered; any connected defender
   resets absence, and brief disconnects permit normal reconnect.
-- [ ] Ten minutes must elapse while the owning service operates; expired host sign-in,
+- [x] Ten minutes must elapse while the owning service operates; expired host sign-in,
   one closed tab or server downtime does not prove abandonment.
-- [ ] Persist the terminal noncompensable outcome, cancel generation/timers and release
+- [x] Persist the terminal noncompensable outcome, cancel generation/timers and release
   the active claim; stale results cannot reopen the abandoned run.
-- [ ] Reconnection/account history explains abandonment; no invented transcript restore
+- [x] Reconnection/account history explains abandonment; no invented transcript restore
   or ten-credit return. Voucher outcomes remain zero-cost.
-- [ ] Fake-clock tests cover the boundary, reconnect/disconnect races, idle AI/report
+- [x] Fake-clock tests cover the boundary, reconnect/disconnect races, idle AI/report
   work, multi-tab presence and PostgreSQL outcome/claim persistence.
 
 ## Comments

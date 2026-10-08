@@ -7,15 +7,15 @@ when its webhook was missed, even if the host closed the browser.
 
 **Status:** ready-for-human
 
-- [ ] Bounded startup/periodic server recovery retrieves the exact stored provider intent
+- [x] Bounded startup/periodic server recovery retrieves the exact stored provider intent
   and validates the same binding/mode/amount/currency/payment evidence as settlement.
-- [ ] Share the existing transactional once-only award with webhooks; their race cannot
+- [x] Share the existing transactional once-only award with webhooks; their race cannot
   award twice. Browser status reads and redirects remain display-only.
-- [ ] Persist retry/backoff and retain uncertainty on outage or unknown payment state;
+- [x] Persist retry/backoff and retain uncertainty on outage or unknown payment state;
   polling cannot create unlimited provider work or a new purchase.
-- [ ] Recovery still honors issued receipts after invitation removal/purchase pause;
+- [x] Recovery still honors issued receipts after invitation removal/purchase pause;
   current receipt/history/balance UI reveals its verified result.
-- [ ] Test unknown/partial creation, missed/delayed notification, worker restart,
+- [x] Test unknown/partial creation, missed/delayed notification, worker restart,
   wrong-evidence rejection and concurrent webhook/recovery against real local
   PostgreSQL with provider fixtures.
 

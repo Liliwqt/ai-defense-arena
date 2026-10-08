@@ -1,9 +1,9 @@
 # Live tester payments and reliable paid defenses
 
-Status: ready-for-agent
+Status: ready-for-human
 Created: 2026-10-08
 Branch: feature/question-first-room
-Publication: local Markdown tracker only; implementation and hosted release remain later checkpoints.
+Publication: implemented locally for review; hosted release remains a later checkpoint.
 
 ## Problem Statement
 

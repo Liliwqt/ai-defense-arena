@@ -18,6 +18,7 @@ class LiveRefundTests(LiveRunTests):
             self.assertEqual(self.hold(row).json()['refund']['id'],first.json()['refund']['id'])
         view=LiveStore().overview(self.account_id)
         self.assertEqual((view['live_credits'],view['live_held_credits']),(0,10))
+        self.assertEqual(view['live_orders'][0]['refund_eligibility'],'held')
         with self.assertRaises(account_store.AccessError):LiveStore().reserve_run(self.account_id,'held-run','service-one','ROOM')
 
     def test_reservation_or_historical_spending_requires_review_without_hold(self):
@@ -27,6 +28,7 @@ class LiveRefundTests(LiveRunTests):
             store.charge_run(self.account_id,'used');store.service_state('used','unavailable','question');store.end_unavailable(self.account_id,'used')
             self.assertEqual(self.hold(row).status_code,409)
         self.assertEqual(store.overview(self.account_id)['live_credits'],10)
+        self.assertEqual(store.overview(self.account_id)['live_orders'][0]['refund_eligibility'],'used_review')
 
     def test_verified_refund_success_is_terminal_and_paid_replay_cannot_reaward(self):
         row=self.fund()
@@ -47,6 +49,7 @@ class LiveRefundTests(LiveRunTests):
         view=LiveStore().overview(self.account_id)
         self.assertEqual((view['live_credits'],view['live_held_credits']),(0,0))
         self.assertEqual(view['live_orders'][0]['refund_status'],'succeeded')
+        self.assertEqual(view['live_orders'][0]['refund_eligibility'],'refunded')
 
     def test_wrong_provider_evidence_retains_hold_and_verified_failure_releases_once(self):
         row=self.fund()
@@ -63,3 +66,4 @@ class LiveRefundTests(LiveRunTests):
             self.assertEqual(self.client.post(url,json={'provider_id':'ref_fixture'}).status_code,200)
             self.assertEqual(self.client.post(url,json={'provider_id':'ref_fixture'}).status_code,200)
         self.assertEqual(LiveStore().overview(self.account_id)['live_credits'],10)
+        self.assertEqual(LiveStore().overview(self.account_id)['live_orders'][0]['refund_eligibility'],'unused_review')

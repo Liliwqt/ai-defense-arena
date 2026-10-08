@@ -8,20 +8,20 @@ later separately requested hosted tester release; paying users are not enabled y
 
 **Status:** ready-for-human
 
-- [ ] Run full Python/React suites/build and real disposable-local-PostgreSQL migration,
+- [x] Run full Python/React suites/build and real disposable-local-PostgreSQL migration,
   concurrency and financial-recovery gates with external providers mocked.
-- [ ] Complete mocked two-client code/research through voucher and live-credit paths,
+- [x] Complete mocked two-client code/research through voucher and live-credit paths,
   including purchase restoration, failure returns, timeout/clarification, coaching,
   reconnect, invitation removal and one-active-host behavior.
-- [ ] Review desktop/portrait/landscape/WebView browser layouts, busy/errors, keyboard,
+- [x] Review desktop/portrait/landscape/WebView browser layouts, busy/errors, keyboard,
   support, history and clean live copy; installed devices remain separate evidence.
-- [ ] Document setup/preflight for durable hosted storage, stable HTTPS/Google callbacks,
+- [x] Document setup/preflight for durable hosted storage, stable HTTPS/Google callbacks,
   live mode/webhook, invitations, public support email and independent pause controls.
 - [ ] Present local screenshots/screen. Preserve explicit unresolved provider refund,
   fees/redelivery, actual Google/GCash and physical-device checks as rollout gates.
-- [ ] Include a later operator-authorized PHP 1 purchase/ten-credit award/run, hosted
+- [x] Include a later operator-authorized PHP 1 purchase/ten-credit award/run, hosted
   restart recovery and deployment checklist; execute none until separately requested.
-- [ ] Frozen main and current hosted service remain unchanged during this local gate.
+- [x] Frozen main and current hosted service remain unchanged during this local gate.
 
 ## Comments
 

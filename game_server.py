@@ -97,6 +97,7 @@ class Room(TimedTurn):
     owner_account_id: str | None = None
     run_id: str | None = None
     absent_since_ms: int | None = None
+    absence_elapsed_ms: int = 0
 
     def snapshot(self, recipient: Player | None = None) -> dict[str, Any]:
         turns = []
@@ -208,11 +209,18 @@ async def _observe_absence(room):
             return
         if any(player.sockets for player in room.players.values()):
             room.absent_since_ms=None
+            room.absence_elapsed_ms=0
             return
         now=_now_ms()
         if room.absent_since_ms is None:
             room.absent_since_ms=now
-        elif now-room.absent_since_ms>=600_000:
+        else:
+            elapsed=now-room.absent_since_ms
+            # Unobserved process stalls/suspension are not defender abandonment.
+            if 0<=elapsed<=30_000:
+                room.absence_elapsed_ms+=elapsed
+            room.absent_since_ms=now
+        if room.absence_elapsed_ms>=600_000:
             LiveStore().finish_run(room.run_id,"abandoned")
             room.generation_id+=1
             room.feedback_generation_id+=1
@@ -411,11 +419,12 @@ async def _generate_question(room: Room, generation_id: int, first: bool) -> Non
             if room.generation_id != generation_id:
                 return
             session = request.apply(result)
-            if room.run_id and (room.defense is None or not room.defense.turns) and session.turns:
+            opening=room.defense is None or not room.defense.turns
+            if room.run_id and opening and session.turns:
                 charge_run(room.owner_account_id, room.run_id)
+            elif live_mode() and room.run_id:
+                LiveStore().service_state(room.run_id,"coaching" if session.completed else "active")
             room.defense = commit_progression(room.defense, session)
-            if live_mode() and room.run_id:
-                LiveStore().service_state(room.run_id,"coaching" if room.defense.completed else "active")
             if room.defense.completed:
                 room.phase = "complete"
                 room.feedback_status = "generating"
@@ -431,11 +440,14 @@ async def _generate_question(room: Room, generation_id: int, first: bool) -> Non
             if room.generation_id != generation_id:
                 return
             room.phase = "retry"
-            if room.defense is None or not room.defense.turns:
-                release_run(room.run_id)
             room.error = _safe_generation_error(error)
-            if live_mode() and room.run_id and room.defense and room.defense.turns:
-                LiveStore().service_state(room.run_id,"unavailable","question")
+            try:
+                if room.defense is None or not room.defense.turns:
+                    release_run(room.run_id)
+                elif live_mode() and room.run_id:
+                    LiveStore().service_state(room.run_id,"unavailable","question")
+            except Exception:
+                room.error="The defense state could not be saved. Your answers are retained; retry when the service recovers."
             room.revision += 1
         await publish(room)
         return
@@ -555,27 +567,29 @@ async def _generate_coaching(room: Room, feedback_generation_id: int) -> None:
                 defense_type=room.defense_type, research_stage=room.research_stage,
                 **({"research_context": research_context} if research_context else {}),
             )
+        async with room.lock:
+            if room.feedback_generation_id != feedback_generation_id:
+                return
+            if live_mode() and room.run_id:
+                LiveStore().finish_run(room.run_id,"completed")
+            room.feedback = report
+            room.feedback_status = "ready"
+            room.error = None
+            room.revision += 1
     except Exception as error:
         async with room.lock:
             if room.feedback_generation_id != feedback_generation_id:
                 return
             room.feedback_status = "failed"
-            if live_mode() and room.run_id:
-                LiveStore().service_state(room.run_id,"unavailable","coaching")
             room.error = _safe_generation_error(error)
+            if live_mode() and room.run_id:
+                try:LiveStore().service_state(room.run_id,"unavailable","coaching")
+                except Exception:
+                    room.error="The coaching state could not be saved. Your answers are retained; retry when the service recovers."
             room.revision += 1
         await publish(room)
         return
 
-    async with room.lock:
-        if room.feedback_generation_id != feedback_generation_id:
-            return
-        room.feedback = report
-        room.feedback_status = "ready"
-        if live_mode() and room.run_id:
-            LiveStore().finish_run(room.run_id,"completed")
-        room.error = None
-        room.revision += 1
     await publish(room)
 
 
@@ -709,6 +723,7 @@ def _reserve_room_run(room: Room, account_id: str, confirmed: bool, retry: bool 
         release_run(room.run_id)
     room.run_id = run_id
     room.absent_since_ms = None
+    room.absence_elapsed_ms = 0
 
 
 async def _handle_action(room: Room, player: Player, socket: WebSocket, message: dict) -> None:
@@ -988,6 +1003,7 @@ async def room_socket(socket: WebSocket, code: str) -> None:
         if player is not None:
             player.sockets.add(socket)
             room.absent_since_ms = None
+            room.absence_elapsed_ms = 0
             _reassign_if_offline_locked(room)
             room.revision += 1
     if player is None:

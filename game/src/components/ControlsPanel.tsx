@@ -64,7 +64,8 @@ export function ControlsPanel({
   const liveAccess = account?.payment_mode === "live";
   const creditLabel = liveAccess ? "credits" : "test credits";
   const availableCredits = liveAccess ? account?.live_credits : account?.test_credits;
-  const canRun = !!account?.authenticated && (!!account.free_access || (availableCredits ?? 0) >= 10);
+  const canRun = !!account?.authenticated && (!liveAccess || account.ai_service_available !== false)
+    && (!!account.free_access || ((!liveAccess || account.paid_starts_enabled !== false) && (availableCredits ?? 0) >= 10));
 
   const inRoom = roomState !== null || !!connected;
   const phase = roomState?.phase ?? "none";
@@ -296,6 +297,8 @@ export function ControlsPanel({
           {isHost && !previewMode && <div className="account-access-card"><strong>{account?.free_access ? "Free access active" : `10 ${creditLabel} per defense run`}</strong><p>{account?.authenticated ? `${availableCredits ?? 0} available · ${liveAccess ? account.live_reserved_credits ?? 0 : account.reserved_credits ?? 0} reserved ${creditLabel}` : "Sign in with the room owner’s Google account to use host controls."}</p><button type="button" className={secondaryBtn} onClick={onOpenAccount}>Open Account</button></div>}
 
           {/* Host-only controls */}
+          {isHost && liveAccess && account?.ai_service_available === false && <p role="status">The defense service is temporarily unavailable. Your credits are retained.</p>}
+          {isHost && liveAccess && account?.ai_service_available !== false && account?.paid_starts_enabled === false && !account.free_access && <p role="status">Paid starts are temporarily paused. Voucher access remains available.</p>}
           {!previewMode && isHost && (
             <div className="grid gap-[9px]">
               {phase === "lobby" && (

@@ -3,9 +3,20 @@ from contextlib import contextmanager
 import json
 import secrets
 import time
+import os
 
 from account_store import AccessError, connect_store, database_path, token_hash
-from financial_policy import LIVE_PACKAGES, invited
+from financial_policy import LIVE_PACKAGES, invited, live_payment_setup_valid
+
+TERMINAL_OUTCOMES=frozenset({'completed','ended','abandoned','interrupted','ended_unavailable'})
+
+
+def refund_eligibility(lot,refund):
+    if refund and refund['status'] in {'held','pending','processing'}:return 'held'
+    if refund and refund['status']=='succeeded':return 'refunded'
+    if lot and lot['ever_spent']:return 'used_review'
+    if lot and lot['available']==lot['credits']:return 'unused_review'
+    return 'unavailable'
 
 
 def initialize(db):
@@ -63,16 +74,21 @@ class LiveStore:
         rows = db.execute('SELECT * FROM live_topups WHERE account_id=? ORDER BY created_at DESC,id DESC LIMIT 20',(account_id,)).fetchall()
         orders = [self.public(row) for row in rows]
         refunds = db.execute('SELECT f.* FROM live_refunds f JOIN live_topups t ON t.id=f.topup_id WHERE t.account_id=?',(account_id,)).fetchall()
+        owned_lots={row['topup_id']:row for row in db.execute('SELECT * FROM live_lots WHERE account_id=?',(account_id,)).fetchall()}
         for order in orders:
             refund = next((r for r in refunds if r['topup_id']==order['id']),None)
             order['refund_status'] = refund['status'] if refund else None
+            order['refund_eligibility']=refund_eligibility(owned_lots.get(order['id']),refund)
         runs = [dict(row) for row in db.execute('SELECT id,mode,cost,status,outcome,error_kind,created_at,charged_at FROM live_runs WHERE account_id=? ORDER BY created_at DESC,id DESC LIMIT 20',(account_id,))]
         changes = [dict(row) for row in db.execute('SELECT id,credits,reason,created_at FROM live_adjustments WHERE account_id=? AND credits>0 ORDER BY created_at DESC,id DESC LIMIT 20',(account_id,))]
         active = db.execute("SELECT id FROM live_runs WHERE account_id=? AND outcome IN ('opening','active','coaching','unavailable')",(account_id,)).fetchone()
         account = db.execute('SELECT email FROM accounts WHERE id=?',(account_id,)).fetchone()
+        service=db.execute("SELECT id FROM live_services WHERE status='running' AND heartbeat>?",(int(time.time())-60,)).fetchone()
+        paid_enabled=live_payment_setup_valid() and os.environ.get('LIVE_PAID_STARTS_ENABLED')=='1'
         return dict(live_credits=lots[0],live_reserved_credits=reserved,live_held_credits=lots[1],
                     live_orders=orders,live_runs=runs,credit_returns=changes,
-                    active_run=active['id'] if active else None,topup_invited=bool(account and invited(account['email'])))
+                    active_run=active['id'] if active else None,topup_invited=bool(account and invited(account['email'])),
+                    paid_starts_enabled=paid_enabled,ai_service_available=service is not None)
 
     @staticmethod
     def public(row):
@@ -88,8 +104,7 @@ class LiveStore:
             refund=db.execute('SELECT status FROM live_refunds WHERE topup_id=?',(topup_id,)).fetchone()
             lot=db.execute('SELECT * FROM live_lots WHERE topup_id=?',(topup_id,)).fetchone()
             return dict(row)|{'refund_status':refund['status'] if refund else None,
-                'refund_eligibility':'held' if refund and refund['status'] in {'held','pending','processing'} else
-                    'used_review' if lot and lot['ever_spent'] else 'unused_review' if lot and lot['available']==lot['credits'] else 'unavailable'}
+                'refund_eligibility':refund_eligibility(lot,refund)}
 
     def get_topup_by_intent(self, intent_id):
         with self.transaction() as db:
@@ -169,7 +184,7 @@ class LiveStore:
             previous=db.execute('SELECT * FROM live_runs WHERE id=?',(run_id,)).fetchone()
             if previous and (previous['account_id']!=account_id or previous['room_code']!=room_code or previous['service_id']!=service_id):
                 raise AccessError('This defense belongs to another room or service.')
-            if previous and previous['outcome'] in {'completed','ended','abandoned','interrupted','ended_unavailable'}:
+            if previous and previous['outcome'] in TERMINAL_OUTCOMES:
                 raise AccessError('This defense has ended. Start a new run.')
             if previous and previous['status'] in {'reserved','charged'} and previous['outcome']!='opening_failed':
                 return dict(previous)
@@ -248,7 +263,7 @@ class LiveStore:
         with self.transaction() as db:
             self._check_run_service(db,run_id)
             row=db.execute('SELECT outcome FROM live_runs WHERE id=?',(run_id,)).fetchone()
-            if row and row['outcome'] not in {'completed','ended','abandoned','interrupted','ended_unavailable'}:
+            if row and row['outcome'] not in TERMINAL_OUTCOMES:
                 self._release(db,run_id)
                 db.execute('UPDATE live_runs SET outcome=?,error_kind=NULL,updated_at=? WHERE id=?',(outcome,int(time.time()),run_id))
 

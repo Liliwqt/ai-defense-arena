@@ -552,3 +552,7 @@ configuring live credentials. The purchase invitation list controls only new top
 non-invited signed-in accounts can still redeem a voucher, join, or use existing credits.
 Financial records use the existing durable account database. Rooms still disappear on
 restart; unfinished eligible charges receive one recorded credit return, not a money refund.
+
+Review: [independent implementation review](docs/LIVE_TESTER_REVIEW.md), with local
+mocked payment/account/defense screenshots under `screenshots/live-tester-*`. User visual
+acceptance and actual provider/hosted/native verification remain separate rollout gates.

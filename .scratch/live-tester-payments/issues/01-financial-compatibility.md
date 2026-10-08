@@ -8,13 +8,13 @@ safely through storage, API responses and receipt presentation.
 
 **Status:** ready-for-human
 
-- [ ] Add explicit environment and immutable purchase-term representation beside
+- [x] Add explicit environment and immutable purchase-term representation beside
   existing contracts; legacy receipts keep original amount/credits and test status.
-- [ ] Read old receipts independently of today's package catalog, including in the UI.
-- [ ] Preserve sandbox creation, simulation, legacy receipt reads and verified settlement.
-- [ ] Unknown/mismatched live configuration cannot enable a live payment or silently
+- [x] Read old receipts independently of today's package catalog, including in the UI.
+- [x] Preserve sandbox creation, simulation, legacy receipt reads and verified settlement.
+- [x] Unknown/mismatched live configuration cannot enable a live payment or silently
   select local hosted storage; no live purchase/award is exposed by this slice.
-- [ ] Prove additive migration/history retention and compatible HTTP/React behavior;
+- [x] Prove additive migration/history retention and compatible HTTP/React behavior;
   include actual local PostgreSQL migration evidence with providers mocked.
 
 ## Comments

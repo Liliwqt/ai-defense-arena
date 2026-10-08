@@ -7,16 +7,16 @@ an unresolved unavailable run, restoring its ten credits once.
 
 **Status:** ready-for-human
 
-- [ ] Only server-recorded unresolved question/coaching failure enables the recovery
+- [x] Only server-recorded unresolved question/coaching failure enables the recovery
   action; ordinary ending, timeouts and successful service do not qualify.
-- [ ] Persist the error and run epoch; atomically end service, release the active claim
+- [x] Persist the error and run epoch; atomically end service, release the active claim
   and restore original paid allocations once. An uncharged opening releases only
   its reservation; voucher runs never manufacture a credit award.
-- [ ] Revalidate under concurrency with retry success; invalidate timers/pending AI
+- [x] Revalidate under concurrency with retry success; invalidate timers/pending AI
   results so stale completion cannot revive or recharge the ended run.
-- [ ] Provide host-only recovery controls for code and research, private adjustment
+- [x] Provide host-only recovery controls for code and research, private adjustment
   history and clear distinction between credits returned and a cash refund.
-- [ ] Test repeated actions/reconnect, coaching failure, accepted-answer preservation,
+- [x] Test repeated actions/reconnect, coaching failure, accepted-answer preservation,
   unauthorized recovery and race outcomes at WebSocket/React/PostgreSQL boundaries.
 
 ## Comments

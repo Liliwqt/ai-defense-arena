@@ -7,15 +7,15 @@ amount-specific live QR, and restores the same owned attempt after reload.
 
 **Status:** ready-for-human
 
-- [ ] Account/CSRF/origin/eligibility checks precede provider work; freeze terms on a
+- [x] Account/CSRF/origin/eligibility checks precede provider work; freeze terms on a
   durable receipt and bind the known provider intent as soon as possible.
-- [ ] Replays reuse an account/provider/environment-scoped attempt; ambiguous responses
+- [x] Replays reuse an account/provider/environment-scoped attempt; ambiguous responses
   preserve it instead of automatically creating another payable QR.
-- [ ] Show exact amount/credits, generating/pending/uncertain state, expiry cue and a
+- [x] Show exact amount/credits, generating/pending/uncertain state, expiry cue and a
   readable QR with short payment copy; no simulation or developer setup prose.
-- [ ] Owner history and restoration work across clients/account changes, including an
+- [x] Owner history and restoration work across clients/account changes, including an
   issued receipt whose owner later loses their top-up invitation.
-- [ ] Creation awards no credits. Browser countdown/hiding/redirect cannot settle or
+- [x] Creation awards no credits. Browser countdown/hiding/redirect cannot settle or
   promise cancellation. Test provider-response validation, replay/races, sign-out,
   privacy and desktop/phone QR readability with providers mocked.
 

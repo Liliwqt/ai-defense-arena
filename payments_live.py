@@ -2,14 +2,13 @@
 import os
 import re
 import sqlite3
-from urllib.parse import urlsplit
 
 import httpx
 from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
-from accounts import require_account, check_csrf, auth_settings
+from accounts import require_account, check_csrf
 from account_store import AccessError, database_path
-from financial_policy import LIVE_PACKAGES, live_mode, support_email
+from financial_policy import LIVE_PACKAGES, live_mode, support_email, live_payment_setup_valid
 from live_store import LiveStore
 from payments import Settings, TopupRequest, create_qr, response
 
@@ -72,16 +71,7 @@ def settings(*,creation=False):
     key=os.environ.get('PAYMONGO_LIVE_SECRET_KEY','').strip()
     secret=os.environ.get('PAYMONGO_LIVE_WEBHOOK_SECRET','').strip()
     origin=os.environ.get('PAYMONGO_PUBLIC_BASE_URL','').strip().rstrip('/')
-    try:
-        parsed=urlsplit(origin); parsed.port
-        enabled=live_mode()
-    except ValueError:
-        enabled=False; parsed=urlsplit('')
-    if (not enabled or not key.startswith('sk_live_') or not secret or parsed.scheme!='https'
-            or not parsed.hostname or parsed.username or parsed.password or parsed.path or parsed.query or parsed.fragment):
-        raise HTTPException(503,'Payments are temporarily unavailable.')
-    local=urlsplit(auth_settings()[2]).hostname in {'localhost','127.0.0.1','::1'}
-    if not os.environ.get('DATABASE_URL','').strip() and not local:
+    if not live_payment_setup_valid():
         raise HTTPException(503,'Payments are temporarily unavailable.')
     if creation and (os.environ.get('LIVE_PAYMENTS_ENABLED')!='1' or not support_email()):
         raise HTTPException(503,'Top-ups are temporarily unavailable.')
@@ -157,7 +147,7 @@ async def webhook(request:Request,paymongo_signature:str=Header(default='')):
 async def recover_payments():
     """A bounded durable recovery sweep. A browser never supplies settlement evidence."""
     import time
-    from payments import PAYMENT_API,validated_test_intent,reconcile_topup_event
+    from payments import PAYMENT_API,validated_payment_intent,reconcile_topup_event
     from purchase_store import PurchaseError
     try:
         config=settings()
@@ -172,7 +162,7 @@ async def recover_payments():
             try:
                 result=await client.get(PAYMENT_API+'/payment_intents/'+row['intent_id'],auth=(config.key,''))
                 result.raise_for_status();resource=result.json()['data']
-                attrs=validated_test_intent(resource,row,livemode=True)
+                attrs=validated_payment_intent(resource,row,livemode=True)
                 if resource['id']!=row['intent_id'] or attrs.get('status')!='succeeded':
                     continue
                 paid=[payment for payment in attrs.get('payments',[]) if payment.get('attributes',{}).get('status')=='paid']

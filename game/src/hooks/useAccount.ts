@@ -18,7 +18,9 @@ export interface Account {
   live_held_credits?: number;
   topup_invited?: boolean;
   active_run?: string | null;
-  live_orders?: {id:string;status:string;amount:number;credits:number;refund_status?:string|null}[];
+  paid_starts_enabled?: boolean;
+  ai_service_available?: boolean;
+  live_orders?: {id:string;status:string;amount:number;credits:number;refund_status?:string|null;refund_eligibility?:string}[];
   live_runs?: {id:string;status:string;outcome:string;cost:number}[];
   credit_returns?: {id:string;credits:number;reason:string}[];
   orders?: TestPurchase[];

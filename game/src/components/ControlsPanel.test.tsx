@@ -167,3 +167,24 @@ it("uses live credits for paid starts and exposes unavailable-service recovery",
  expect(screen.getByRole("button",{name:"End unavailable defense · return credits"})).toBeTruthy();
  expect(screen.getByRole("button",{name:"Restart defense"})).toBeDisabled();
 });
+
+it("explains a paid pause while allowing voucher starts when the service is available",()=>{
+ const account={authenticated:true,google_enabled:true,payment_mode:"live" as const,live_credits:10,paid_starts_enabled:false,ai_service_available:true};
+ const props={...defaultProps,account,roomState:{...baseState,phase:"lobby" as const}};
+ const view=render(<ControlsPanel {...props}/>);
+ expect(screen.getByRole("button",{name:"Start defense · 10 credits"})).toBeDisabled();
+ expect(screen.getByText(/Paid starts are temporarily paused/)).toBeTruthy();
+ view.rerender(<ControlsPanel {...props} account={{...account,free_access:true}}/>);
+ expect(screen.getByRole("button",{name:"Start defense · free access"})).not.toBeDisabled();
+ expect(screen.queryByText(/Paid starts are temporarily paused/)).toBeNull();
+});
+
+it("explains service unavailability and blocks new voucher or paid runs",()=>{
+ const account={authenticated:true,google_enabled:true,payment_mode:"live" as const,live_credits:10,paid_starts_enabled:true,ai_service_available:false};
+ const props={...defaultProps,account,roomState:{...baseState,phase:"lobby" as const}};
+ const view=render(<ControlsPanel {...props}/>);
+ expect(screen.getByRole("button",{name:"Start defense · 10 credits"})).toBeDisabled();
+ expect(screen.getByText(/defense service is temporarily unavailable/)).toBeTruthy();
+ view.rerender(<ControlsPanel {...props} account={{...account,free_access:true}}/>);
+ expect(screen.getByRole("button",{name:"Start defense · free access"})).toBeDisabled();
+});

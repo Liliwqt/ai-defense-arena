@@ -8,15 +8,15 @@ retain voucher redemption and guests retain joining.
 
 **Status:** ready-for-human
 
-- [ ] Add live wallet/credit-lot representation without transferring existing test/demo
+- [x] Add live wallet/credit-lot representation without transferring existing test/demo
   awards; normal migrated accounts initially have no purchased live credits.
-- [ ] Derive identity from Google subject and invitation eligibility from verified email
+- [x] Derive identity from Google subject and invitation eligibility from verified email
   matched against the private server list, never client-submitted values.
-- [ ] Display PHP 1/5/10 → 10/50/100 credits and ten-credit run cost; hide purchase actions
+- [x] Display PHP 1/5/10 → 10/50/100 credits and ten-credit run cost; hide purchase actions
   for non-invited accounts with a brief explanation and visible voucher access.
-- [ ] Voucher precedence/lifecycle, private account data and free uploads/joining remain
+- [x] Voucher precedence/lifecycle, private account data and free uploads/joining remain
   intact; new-purchase and paid-start switches report truthful availability.
-- [ ] Test identities, invitation removal, privacy, missing setup and migration balances
+- [x] Test identities, invitation removal, privacy, missing setup and migration balances
   through account/room boundaries, React and disposable local PostgreSQL.
 
 ## Comments

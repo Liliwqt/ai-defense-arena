@@ -101,16 +101,19 @@ def public_topup(row: dict) -> dict:
                                     "qr_image_url", "expires_at", "created_at", "paid_at")} | {"mode": "test", "simulated": is_simulated_topup(row)}
 
 
-def validated_test_intent(resource: dict, row: dict, *, livemode: bool = False) -> dict:
+def validated_payment_intent(resource: dict, row: dict, *, livemode: bool = False) -> dict:
     attrs = resource["attributes"]
     intent_id = resource["id"]
     if (resource.get("type") != "payment_intent" or not isinstance(intent_id, str)
             or not re.fullmatch(r"pi_[A-Za-z0-9_]+", intent_id) or attrs.get("livemode") is not livemode
             or type(attrs.get("amount")) is not int or attrs["amount"] != row["amount"]
             or attrs.get("currency") != row["currency"]):
-        raise ValueError("Invalid test intent")
+        raise ValueError("Invalid payment intent")
     return attrs
 
+
+# Compatibility for existing sandbox and isolated trial callers.
+validated_test_intent = validated_payment_intent
 
 async def create_qr(client: httpx.AsyncClient, config: Settings, row: dict, *, store=None) -> tuple[str, str, int]:
     """Keep provider resources and credentials inside the payment boundary."""
@@ -120,11 +123,11 @@ async def create_qr(client: httpx.AsyncClient, config: Settings, row: dict, *, s
     }}})
     result.raise_for_status()
     intent = result.json()["data"]
-    attrs = validated_test_intent(intent, row, livemode=config.livemode)
+    attrs = validated_payment_intent(intent, row, livemode=config.livemode)
     intent_id, client_key = intent["id"], attrs["client_key"]
     if (attrs.get("status") != "awaiting_payment_method"
             or not isinstance(client_key, str) or not client_key):
-        raise ValueError("Invalid test intent")
+        raise ValueError("Invalid payment intent")
     (store or PurchaseStore(config.database)).bind_topup_intent(row["id"], intent_id)
     result = await client.post(PAYMENT_API + "/payment_methods", auth=(config.key, ""), json={"data": {"attributes": {
         "type": "qrph", "expiry_seconds": QR_EXPIRY_SECONDS,
@@ -144,10 +147,10 @@ async def create_qr(client: httpx.AsyncClient, config: Settings, row: dict, *, s
     }}})
     result.raise_for_status()
     attached = result.json()["data"]
-    attrs = validated_test_intent(attached, row, livemode=config.livemode)
+    attrs = validated_payment_intent(attached, row, livemode=config.livemode)
     if (attached["id"] != intent_id
             or attrs.get("status") != "awaiting_next_action"):
-        raise ValueError("Invalid attached test intent")
+        raise ValueError("Invalid attached payment intent")
     image = attrs["next_action"]["code"]["image_url"]
     if not isinstance(image, str) or len(image) > 1_000_000:
         raise ValueError("Invalid QR image")

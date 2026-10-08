@@ -32,10 +32,19 @@ it("keeps an ambiguous attempt's key and freezes its package when retrying",asyn
  vi.stubGlobal("fetch",fetcher);render(<LivePaymentPage/>);
  fireEvent.click(await screen.findByRole("button",{name:"Pay ₱1.00"}));
  await screen.findByRole("alert");
- fireEvent.change(screen.getByLabelText("Credit package"),{target:{value:"credits-50"}});
- fireEvent.click(screen.getByRole("button",{name:"Pay ₱5.00"}));
+ expect(screen.getByLabelText("Credit package")).toBeDisabled();
+ expect(screen.getByText(/original package/)).toBeTruthy();
+ fireEvent.click(screen.getByRole("button",{name:"Pay ₱1.00"}));
  await waitFor(()=>expect(fetcher.mock.calls.filter(([url])=>url==="/api/payments/live/topups")).toHaveLength(2));
  const calls=(fetcher.mock.calls as unknown as [string,RequestInit][]).filter(([url])=>url==="/api/payments/live/topups");
  expect(calls[0][1].body).toBe(calls[1][1].body);
  expect(calls[0][1].headers).toEqual(calls[1][1].headers);
+});
+
+it("shows the owned receipt's refund-review state without implying an automatic money refund",async()=>{
+ sessionStorage.setItem("arena-live-attempt",JSON.stringify({owner:"owner",receipt:topup.id}));
+ const fetcher=vi.fn(async(url:string)=>({ok:true,json:async()=>url==="/api/auth/me"?account:url.endsWith("/config")?{mode:"live",enabled:true,packages,support_email:"support@example.test"}:{topup:{...topup,status:"paid",refund_eligibility:"unused_review"}}}));
+ vi.stubGlobal("fetch",fetcher);render(<LivePaymentPage/>);
+ expect(await screen.findByText("Unused purchase · contact support for refund review")).toBeTruthy();
+ expect(screen.queryByRole("button",{name:/refund/i})).toBeNull();
 });

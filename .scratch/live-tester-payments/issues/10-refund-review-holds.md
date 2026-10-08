@@ -7,16 +7,16 @@ unused-purchase eligibility and place an auditable hold without racing a defense
 
 **Status:** ready-for-human
 
-- [ ] Provide the configured email support link using receipt/category only, plus a
+- [x] Provide the configured email support link using receipt/category only, plus a
   private receipt's refundable/review/held state; no public admin/support form.
-- [ ] Supported authenticated operator procedure verifies ownership and purchase use;
+- [x] Supported authenticated operator procedure verifies ownership and purchase use;
   normal unused requests differ from complaints about previously spent credits.
-- [ ] A transactional hold protects the purchase lot from spending. An active reservation
+- [x] A transactional hold protects the purchase lot from spending. An active reservation
   prevents that same lot entering refund processing until resolved; duplicate requests
   cannot multiply holds, and a held lot cannot fund a run.
-- [ ] Record actor/reason/reference safely; historical spending and credit returns remain
+- [x] Record actor/reason/reference safely; historical spending and credit returns remain
   traceable. No manual SQL edits or customer claim grants/adjusts a balance.
-- [ ] No cash refund is initiated by this ticket. Test email privacy, review states,
+- [x] No cash refund is initiated by this ticket. Test email privacy, review states,
   lot/hold/reservation races and account UI against real local PostgreSQL.
 
 ## Comments

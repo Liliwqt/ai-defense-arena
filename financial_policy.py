@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 import os
 from types import MappingProxyType
+from urllib.parse import urlsplit
 
 
 @dataclass(frozen=True)
@@ -37,3 +38,18 @@ def support_email():
     if len(value) > 254 or value.count("@") != 1 or any(c.isspace() or c in "?&#\r\n" for c in value):
         return ""
     return value
+
+
+def live_payment_setup_valid():
+    """Mode and deployment readiness without disclosing credential values."""
+    try:
+        origin=os.environ.get('PAYMONGO_PUBLIC_BASE_URL','').strip().rstrip('/')
+        auth_origin=os.environ.get('AUTH_PUBLIC_BASE_URL','').strip().rstrip('/')
+        parsed=urlsplit(origin);parsed.port
+        local=urlsplit(auth_origin).hostname in {'localhost','127.0.0.1','::1'}
+        return (live_mode() and os.environ.get('PAYMONGO_LIVE_SECRET_KEY','').strip().startswith('sk_live_')
+            and bool(os.environ.get('PAYMONGO_LIVE_WEBHOOK_SECRET','').strip())
+            and parsed.scheme=='https' and bool(parsed.hostname)
+            and not (parsed.username or parsed.password or parsed.path or parsed.query or parsed.fragment)
+            and (local or (origin==auth_origin and bool(os.environ.get('DATABASE_URL','').strip()))))
+    except ValueError:return False

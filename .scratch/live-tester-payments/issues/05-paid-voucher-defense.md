@@ -7,17 +7,17 @@ sees reservation/charge history, and cannot accidentally run competing paid sess
 
 **Status:** ready-for-human
 
-- [ ] Validate room/host/research budget before mutation; atomically acquire one active
+- [x] Validate room/host/research budget before mutation; atomically acquire one active
   host claim and reserve ten credits, or authorize a zero-credit voucher run.
-- [ ] Allocate paid reservations to purchased lots deterministically; release the same
+- [x] Allocate paid reservations to purchased lots deterministically; release the same
   allocations on opening failure and reacquire safely on opening retry.
-- [ ] Commit a once-only charge with validated first-question publication commitment;
+- [x] Commit a once-only charge with validated first-question publication commitment;
   later questions, clarification and coaching add no cost.
-- [ ] Persist service ownership/generation and minimal outcomes; completion includes
+- [x] Persist service ownership/generation and minimal outcomes; completion includes
   successful coaching, without storing papers, answers, private chat or transcripts.
-- [ ] Restart confirms a new cost and replaces outcomes/claims safely; denial preserves
+- [x] Restart confirms a new cost and replaces outcomes/claims safely; denial preserves
   the current room. Current code/research flow, guest participation and clocks remain.
-- [ ] Show live cost/reservation/charge/restart/active-run messages in Account/Controls;
+- [x] Show live cost/reservation/charge/restart/active-run messages in Account/Controls;
   prove concurrent starts, duplicates, opening failure, voucher rotation, logout and
   two-client progression with mocked AI and real local PostgreSQL transactions.
 
