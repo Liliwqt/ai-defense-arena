@@ -6,15 +6,34 @@ Use this file to track completed updates across agents and session windows. See 
 
 - Same-question panelist probes completed locally, 2026-10-09: implementation 2a804ce and reviewed corrections b86f6ae on feature/question-first-room. One optional grounded probe retains the answer, selected speaker and question number with a 30-second reply window; reconnect and recovery preserve attribution and original text. Final working-tree gate: 430 Python tests (AI/Google/PayMongo mocked), 239 React tests and build. Exact selected release: 402 Python tests (providers mocked), 233 React tests and build. Independent Standards/Spec reviews have no remaining findings. Mock two-client code4/code8/research4/mixed4 and synthetic desktop/portrait/landscape previews pass; live quality, user visual review and physical devices pending. See docs/PANELIST_PROBE_REVIEW.md. No push/deploy; unrelated work and frozen main preserved.
 
+- Availability rescan fixes completed locally, 2026-10-09: bounded anonymous join buffering, guest socket/message fanout and slow-send cleanup; DOCX expansion now guarded inside a credential-free, killable Linux worker. Final offline gate: 412 Python tests (AI/Google/PayMongo mocked), 232 React tests and production build. Fresh read-only patch review identified launch/backend queue gaps, now corrected and covered by actual backend backpressure test. No commit, push, deployment or live/provider/physical-device verification; unrelated local edits/deletions and frozen main preserved. Details in the dated change entry below.
+
+- Root security policy created locally on feature/question-first-room, 2026-10-09: user approved the exact SECURITY.md draft. Covers identity, room isolation, uploads, AI capacity, live/test financial integrity and native boundaries; no new exclusions or accepted risks. Resolver verified root/server/React/mobile applicability. Documentation only; no restarted scan, commit, push or deployment.
+
+- Security admission checkpoint pushed to feature/question-first-room, 2026-10-09: origin verified at e876f57c8dab396f4827d329a1ba6d8f3ea67a61. All four reviewed local commits published; frozen main remains 866e923c40c3cf431e66984861dd7dbefb223f8b. Render deployment and hosted proxy/native checks are not yet verified. Unrelated local changes/deletions remain untouched.
+
 - Security admission checkpoint completed locally, 2026-10-09: source commits 742ca0a/c853556/76d7e62 on feature/question-first-room, reviewed against dd037d5. Implemented room admission/retention and owner controls, fair mobile handoffs, bounded AI calls/pauses and explicit direct-answer recovery. Final selected release: 384 Python (AI/Google/PayMongo mocked), 226 React/build; working tree: 396/232/build. Mocked voucher and test-credit two-browser checks passed; four Spec findings plus pressure follow-up fixed, Standards zero hard violations/two deferred minor suggestions. User visual review, hosted proxy and installed-native checks remain pending. No push/deploy; main and production unchanged.
 
-- Payment page refresh authorized for publication, 2026-10-08: selected live UI, timestamp types, tests/docs and four synthetic review screenshots; isolated frontend 220 tests/build and prior full working-tree 370 Python/226 React/build passed, with providers mocked. Deployment verification pending. Base feature release 20f3657 was pushed and its hosted health is ready. Main remains frozen; unrelated local work excluded.
+- Payment page refresh deployed on the feature service, 2026-10-08: published dd037d5; served JS/CSS byte-for-byte match the isolated tested build, /health is ready and live PHP 1/5/10 catalog remains enabled. Actual anonymous sign-in and hosted-asset browser smoke passed; receipt/QR/download/paid transition used browser-mocked API responses, not a real payment. Isolated frontend 220 tests/build; prior full working-tree 370 Python/226 React with providers mocked. Main unchanged; no new payment or credit adjustment initiated.
 
-- Render rolling-deploy lease handoff fixed locally, 2026-10-08: Render-only replacement HTTP startup waits for exclusive room ownership while room requests are gated. Eight regression tests pass, including once-only interruption recovery. Selected release: 358 Python with providers mocked, 211 React/build; full working tree: 370/217/build; real disposable PostgreSQL: 166 checks with providers mocked. Publication and hosted readiness verification pending; previous hosted release remains healthy with purchases disabled. No new payment verified.
 
-- Owner dashboard published at `b950405` on feature/question-first-room, 2026-10-08. Persistent tester invitations, private registered-user search and audited live-credit edits use server-verified owner access; hosted deployment/configuration and user review remain pending. Prior full working-tree gate: 362 Python (providers mocked), 217 React/build; disposable PostgreSQL gate: 158 checks with providers mocked. Separate synthetic owner/nonowner and responsive preview evidence is recorded below. Frozen main is unchanged.
 
-- Live tester payments implemented and independently reviewed locally, 2026-10-08: PHP 1/5/10 → 10/50/100 live credits, flat ten-credit paid defenses, public signed-in voucher access, invitation-gated new top-ups, once-only payment/recovery/credit-return records and operator refund holds/reconciliation. Five Spec findings resolved; Standards zero hard violations, one deferred maintenance suggestion. Full working-tree gate: 352 Python (providers mocked), 211 React/build; real disposable PostgreSQL: 148 checks and separate database restart/fresh-process compensation check. Mocked two-browser paid defense and responsive review captures passed. Selected release independently passed 340 Python tests (providers mocked), 205 React tests and production build. User visual review, actual provider/hosted/installed-device gates remain pending; main and hosted services unchanged.
+- Render lease-handoff fix published as `20f3657`, and hosted live payment readiness verified afterward, 2026-10-08: health 200, purchases enabled with exact PHP 1/5/10 terms, unsigned callback 401, signed ignored setup probe 200, exact dedicated live provider webhook still enabled with correct destination/events. No fresh checkout, payment or credit award yet. Selected gate 358 Python (providers mocked), 211 React/build; actual disposable PostgreSQL 166 checks with providers mocked. Frozen main unchanged; the deployed Git SHA was not independently read from Render.
+
+- Regular hosted live-QR callback configured and verified, 2026-10-08: health/account/live catalog return HTTP 200, Google and public support are configured, unsigned callbacks reject with 401 and a signed ignored setup probe returns 200. Exact prior live PayMongo webhook was reconfigured to the regular feature service, enabled and read back with correct live mode/destination/events/signing-secret binding. Purchases remain disabled pending owner-managed invitations and Render enablement. No new checkout, wallet payment or real-credit award verified; fresh hosted purchase/defense remains pending.
+
+- Owner dashboard published at `b950405` on the feature branch, 2026-10-08: server-verified owner only; persistent tester invitations, paginated/searchable registered users and audited live-credit additions/removals. Grants are separate from paid receipts and sandbox history, participate in defense funding/recovery, and preserve reserved/held balances. Verification: 362 Python tests (external providers mocked), 217 React tests and production build; 158 real disposable PostgreSQL checks with providers mocked. Separate synthetic browser contexts confirmed an owner edit and nonowner HTTP 403; desktop/portrait/landscape previews have no horizontal overflow. Preview: http://127.0.0.1:8768/__fixture/login while the private synthetic preview runs. Dashboard publication verified; deployment and real-account credit checks remain pending, as does user review.
+
+
+- Live tester payments published at `ad75ded` on the feature branch and independently reviewed locally, 2026-10-08: PHP 1/5/10 → 10/50/100 live credits, flat ten-credit paid defenses, public signed-in voucher access, invitation-gated new top-ups, once-only payment/recovery/credit-return records and operator refund holds/reconciliation. Five Spec findings resolved; Standards zero hard violations, one deferred maintenance suggestion. Full working-tree gate: 352 Python (providers mocked), 211 React/build; real disposable PostgreSQL: 148 checks and separate database restart/fresh-process compensation check. Mocked two-browser paid defense and responsive review captures passed. Selected release independently passed 340 Python tests (providers mocked), 205 React tests and production build. User visual review, actual provider/hosted/installed-device gates remain pending; main and hosted services unchanged.
+
+- Local PHP 1 real-payment trial verified, 2026-10-08: owner-only separate service and isolated demo store. Operator paid the live QR; read-only PayMongo intent/payment and local receipt/ledger checks confirm true live mode, succeeded status, exact PHP 1.00 and exactly one 100-demo-credit award. Sandbox ledger remains 300; public app balances/pricing unchanged. Dedicated temporary live webhook is disabled after verification; receipt page/tunnel remain for review. Offline gates: 284 Python (providers mocked), 202 React/build; mocked desktop/portrait and receipt-restoration/balance flow passed. Review: `docs/ONE_PESO_LIVE_TRIAL.md`. No push/deployment; main and hosted services unchanged.
+
+- Clean provider-only QR sandbox check passed locally, 2026-10-08: actual Google/account-owned QR creation and PayMongo test authorization produced a matching paid provider receipt with exactly one 100-credit ledger award, increasing available sandbox credits from 200 to 300. No local simulation was used for that receipt. Earlier fixture-to-provider reconciliation also retained one award. Temporary sandbox remains running for review; cleanup helper is prepared but unexecuted. Actual provider redelivery/failure/expiry, PostgreSQL, native devices and hosted QR checks remain separate. README and `docs/QR_TOPUP_PROVIDER_SANDBOX_REVIEW.md` record live evidence. Main/hosted services unchanged; no push/deployment.
+
+- Real QR sandbox setup prepared locally, 2026-10-08: operator saved a test key; a separate temporary HTTPS tunnel/test webhook and actual localhost-8791 backend are configured with an isolated SQLite store. Local/public health return 200, sandbox configuration is enabled and unsigned callbacks return 401. Google sign-in remains unconfigured; an ephemeral hidden-input setup wizard is prepared. No top-up, provider simulator, signed paid event or credits were exercised yet. Mock screen review is accepted; no push/deployment or hosted service changes.
+
+- User accepted the local mock QR payment screen, 2026-10-08. Real provider sandbox verification is starting separately; local PayMongo/Google settings are absent. An ephemeral hidden-input key wizard is prepared; operator setup, provider simulator URL support and signed-webhook verification remain pending. No live payment, publication or deployment is claimed.
 
 - QR top-up migration tickets 01–06 implemented locally, 2026-10-07: ticket 06 removes hosted-checkout creation and obsolete page copy/styles while preserving legacy receipts, ownership/token reads, signed paid reconciliation and navigation-only mobile returns. Accounts create QR fixtures through the active API; no schema/award/room changes. Full gate: 272 Python tests (external providers mocked), 202 working-tree React/build; isolated selected frontend 195 tests/build. Portrait synthetic UI smoke passed. Independent review: Standards 0 violations/1 deferred low-priority fixture-duplication suggestion; Spec 0 findings. User review, real provider/PostgreSQL/device checks and publication/deployment remain pending. See `docs/QR_TOPUP_RETIRE_REVIEW.md`.
 
@@ -103,6 +122,38 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Active work
 
+- Session `publish-all-2026-10-09`: user explicitly requests pushing all remaining project changes on feature/question-first-room. Include reviewed security/upload/payment source, docs, agent configuration, presentation and screenshot changes/deletions; exclude ignored credentials, database state and browser output. Ends with origin hash verification and dated publication receipt; main remains frozen.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -112,6 +163,7 @@ Use this file to track completed updates across agents and session windows. See 
 
 
 - No current implementation work claimed by the root PostgreSQL session; closed by the dated 2026-10-05 PostgreSQL verification entry below. Hosted setup remains pending.
+- Prior `top-up-planning` claim expired on 2026-10-07: its stated handoff is recorded by the 2026-10-06 QR specification/ticket entries, and `git log -- purchase_store.py account_store.py test_purchase_store.py` confirms ticket 01 implementation in `0d47be9`. Tickets 02–06 remain pending; this does not claim their implementation is complete.
 
 
 
@@ -1125,6 +1177,103 @@ Append new entries to the **end** of this file in date order:
 - Verification, hosted HTTP/browser: /health returns200/status ok, root returns200, /api/auth/me returns200 with Google enabled. JS index-Oq6ye7B_.js and CSS index-CG8bX7IF.css SHA-256 bytes exactly match the isolated selected build; hashes are in docs/MOBILE_HEADER_REVIEW.md. Real hosted browsers with synthetic preview dialogue pass390x844 portrait,667x375 landscape and1365x900 desktop: no horizontal page overflow,44x44 mobile buttons, timer centered within0.01 CSS pixel, internally scrolling questions/research excerpts, question11of24, Controls coverage, Transcript, Account and Escape focus restoration. Ordinary unauthenticated setup and empty Transcript work without page exceptions. Hosted captures use screenshots/mobile-header-hosted-*.png. No AI/provider calls or real payment occurred; these previews are not a fresh authenticated live defense or physical device.
 - Handoff: updated selected README/mobile review/spec publication notes and current status. Documentation/capture receipt uses [skip render] to avoid an unnecessary second redeploy. Existing offline/mock defense evidence remains219 Python/177 selected React/build plus local four-turn two-client check; no executable change requires repeating it. Formal user visual review, authenticated fresh hosted defense, installed-device/live-provider checks and physical keyboard remain separate. Unrelated files/deletions and frozen main are preserved.
 
+### 2026-10-06 — QR Ph top-up decisions recorded (grilling, no code)
+
+- Session root top-up-planning. The user asked to change payment into an in-app
+  top-up that auto-generates a QR, is paid by scanning, and returns with credits
+  applied. Grilling and domain modeling settled the design before any code.
+- Changed (docs only): `CONTEXT.md` renames the *Sandbox purchase* term to
+  **Top-up** (an addition of credits to an account balance that must be
+  webhook-verified before award); `docs/adr/0001-qr-ph-top-up.md` records the
+  decision. No application code, tests, or configuration changed.
+- Decisions: sandbox first, structured so going live is a config/go-live step;
+  dynamic QR Ph rendered in-app (Payment Intent + `type: "qrph"` Payment Method +
+  `next_action.code.image_url`); webhook-authoritative credit award reusing the
+  once-only ledger; credits stay credit-denominated; fixed preset packages
+  (default PHP 100 → 100); top-up on the standalone account page, no in-room
+  entry, replacing hosted checkout; extend the existing order/receipt/ledger
+  shape with a provider discriminator rather than a parallel store; 30-minute QR
+  countdown with regenerate/cancel; sandbox testing via PayMongo `test_url` plus a
+  test-key-gated in-app simulate action.
+- Verification: source inspection of `payments.py`, `game/src/payments/`, and
+  `purchase_store.py`, plus PayMongo primary docs for QR Ph, the QR Ph API, and
+  test mode (test QR codes must never be scanned by a real wallet). No runtime or
+  provider check; this is a planning record only.
+- Remaining: no implementation exists. Next is `/to-spec`, then `/to-tickets`;
+  going live (live key, activated QR Ph capability, pricing, refunds) stays a
+  separate, later decision. Frozen main and the hosted release are untouched.
+
+### 2026-10-06 — QR Ph top-up specification published
+
+- Session root top-up-planning. `/to-spec` synthesised the grilled decisions into
+  `.scratch/qr-top-up/spec.md` with `Status: ready-for-agent` (the tracker's
+  `ready-for-agent` label). Docs/spec only; no application code changed.
+- Changed: new `.scratch/qr-top-up/spec.md` — problem, solution, 27 user stories,
+  implementation decisions (dynamic QR Ph via Payment Intent + `qrph` Payment
+  Method + `next_action.code.image_url`; webhook-authoritative once-only award;
+  extended order/receipt/ledger store with a provider discriminator; single
+  preset package PHP 100 → 100; countdown/regenerate/cancel; test-key-gated
+  simulate), testing decisions at four existing seams, and out-of-scope (live
+  money, static QR, free-form amounts, in-room entry).
+- Verification: source inspection of `payments.py`, `purchase_store.py`,
+  `game/src/payments/`, `game/src/lib/paymentHistory.ts`, `account_store.py`,
+  `test_payment_sandbox.py`, and `test_purchase_store.py`, plus PayMongo QR Ph
+  primary docs. No runtime or provider check; specification only.
+- Remaining: `/to-tickets`, then `/implement` (drives `/tdd`) with per-ticket
+  `/code-review`. Active-work claim `top-up-planning` continues; it ends at the
+  ticket session or is superseded by that session's implementation commit.
+  Frozen main and the hosted release are untouched.
+
+### 2026-10-06 — QR Ph top-up tickets published
+
+- Session root top-up-planning. `/to-tickets` split `.scratch/qr-top-up/spec.md`
+  into six tracer-bullet tickets under `.scratch/qr-top-up/issues/`, each
+  `Status: ready-for-agent`, numbered in dependency order: (01) top-up record and
+  once-only award in the store; (02) create a top-up and get a QR, additive
+  beside the existing checkout endpoint; (03) signed-webhook confirmation, also
+  additive; (04) test-key-gated simulate; (05) QR-first page plus labels/history;
+  (06) retire hosted checkout (contract). The create path uses expand–contract so
+  every ticket can land green.
+- Verification: tickets derived from the committed spec and source inspection of
+  `purchase_store.py`, `payments.py`, `game/src/payments/`, and
+  `game/src/lib/paymentHistory.ts`. Docs/spec only; no application code changed.
+  No runtime or provider check.
+- Remaining: `/implement` per ticket, blockers first (01 → 02 → 03 → 04/05 → 06),
+  driving `/tdd` with `/code-review` per ticket. Emptied this session's planning
+  frontier; `top-up-planning` claim remains live until implementation. Frozen
+  main and the hosted release are untouched.
+
+### 2026-10-06 — Ticket 01 implemented: QR top-up store record
+
+- Session root top-up-planning. `/implement` on ticket 01 (the only unblocked
+  ticket): the store seam. Files: `purchase_store.py`, `account_store.py`,
+  `test_purchase_store.py`. Committed as `0d47be9` on
+  `feature/question-first-room`.
+- Changed: additive `test_orders` columns (`provider` default
+  `checkout_session`, `intent_id`, `qr_image_url`, `expires_at`) with SQLite and
+  PostgreSQL migrations; server-owned `PACKAGES` (`starter` = PHP 100 → 100) and
+  `package_for`; `PurchaseStore.begin_topup` / `register_topup` /
+  `record_topup_paid` / `mark_topup_failed` / `mark_topup_expired`. The
+  checkout path (`begin`, `register`, `record_paid`) is unchanged in behavior,
+  sharing one extracted `_reconcile` and once-only `_award`. History now carries
+  `provider`.
+- Verification, offline: `.venv/bin/python -m unittest discover` passes 223
+  tests (was 219; +4 store tests for reserve/register, concurrent once-only
+  award, amount/reference/currency mismatch, failed/expired/paid-terminal,
+  unknown package, account scoping). `cd game && npm test && npm run build`
+  passes 184 React tests and the production build.
+- Review: `/code-review` (Standards + Spec) over the scoped diff `8195eff..HEAD`.
+  Spec flagged the currency check as unreachable and an empty `payment_ids` as a
+  crash; both fixed (currency is compared; an empty list is rejected). Standards
+  flagged duplicated reconciliation prologues; extracted into `_reconcile`. The
+  remaining findings are judgement calls left as-is (status column is free text
+  like the pre-existing schema; `provider` in history serves ticket 05).
+- Not verified: real-local-PostgreSQL checks were not run here
+  (`TEST_POSTGRES_URL` unset); the migration is additive SQL validated on
+  SQLite. No live AI, no provider call, no browser, no hosted check.
+- Remaining: ticket 01 done. Next unblocked tickets are 02 and 03 (both blocked
+  only by 01). Frozen main and the hosted release are untouched.
+
 ### 2026-10-07 — Research on real panelist questioning and suggestions
 
 - Session: root `panelist-questioning-research`; its active-work claim is closed by this entry.
@@ -1165,6 +1314,7 @@ Append new entries to the **end** of this file in date order:
 - Published: ordinary fast-forward push to `origin/feature/question-first-room` from `8195eff` to `5966eb9`, including the existing `0d47be9` QR top-up store commit and the reviewed constructive-panelist commit. Updated current status here and added a publication note to `docs/CONSTRUCTIVE_PANELIST_REVIEW.md`; the selected documentation receipt is also pushed with `[skip render]`.
 - Verification: `git fetch origin feature/question-first-room` found no remote-only commits and two outgoing commits. Push succeeded; independent `git ls-remote origin refs/heads/feature/question-first-room refs/heads/main` confirmed full source SHA `5966eb9bae0538de08ee7e71fa2d70c3093dc17b` and unchanged main `866e923c40c3cf431e66984861dd7dbefb223f8b`. Existing gate evidence remains 228 mocked Python tests, 179 selected React tests/build (186 in the broader working tree), the Streamlit AppTest, and mocked four-question research/twelve-question mixed browser defenses; no executable change required another test run.
 - Boundaries: this is Git publication, not a Render deployment or hosted/live-AI verification. The commits use `[skip render]`; no service settings were changed. User visual/conversation review, separate live recommendation-quality checks and physical-device checks remain pending. Unrelated account/upload/payment edits and screenshot deletions are preserved and unstaged.
+
 
 ### 2026-10-07 — QR top-up store review fixes implemented locally
 
@@ -1233,6 +1383,135 @@ Append new entries to the **end** of this file in date order:
 - Verification: the preceding dated entry records the executed mocked Python/React gates, isolated selected build, synthetic browser smoke and independent review. No code changed during finalization; selective-index inspection and reverse-patch comparison confirm that unrelated README/log/deployment-guide edits and the untracked payment-flow draft are preserved. Main remains frozen; no push, deployment or live payment/database/device verification is claimed.
 - Remaining: user preview review and separate real sandbox/provider/PostgreSQL checks before a later requested publication/deployment.
 
+
+### 2026-10-08 — Mock payment review accepted; provider sandbox setup started
+
+- Session: root `qr-provider-sandbox-setup`. The user accepted the mock payment screen and asked to proceed with separate real provider sandbox verification; no provider success is inferred from that review.
+- Inspection: PayMongo test key/webhook/origin and Google client/session/origin settings are absent in the current process and existing local `.env` (presence-only inspection; no values output). The QR implementation retains the PNG but not the provider `test_url`; exposing a validated provider simulator link remains necessary before a UI-based provider walkthrough. The port-8778 mock remains separate from the actual authenticated backend.
+- Setup: prepared a one-stage ephemeral Wizard at `/tmp/paymongo-sandbox-key-setup.sh` using the unchanged skill template library. It opens the PayMongo dashboard, accepts only a hidden `sk_test_` value and saves it to Git-ignored `.env.paymongo-sandbox` with mode 600; existing `.env` is untouched. The operator has not run it yet. This file is temporary and not published.
+- Verification: `bash -n` passed; `git check-ignore .env.paymongo-sandbox` confirms exclusion. Static tracing confirms no key output, provider request, GitHub secret write or service change. ShellCheck is unavailable. Official PayMongo testing guidance was read; QR tests use the response's `test_url`, not a real-wallet payment.
+- Remaining: operator saves the test key; then configure Google and a public test webhook, support the provider simulator URL and complete separate signed-webhook/once-only-credit verification. No live payment/database check, push or deployment. Frozen main, live services and unrelated local edits/deletions are preserved.
+
+
+### 2026-10-08 — Separate real-provider sandbox callback configured
+
+- Session: root `qr-provider-sandbox-setup`; its active claim is closed by this dated setup handoff. The operator completed hidden entry of the test key; presence/mode and file-permission checks confirm a test key in the ignored file, mode 600. No key value was output.
+- Setup: a new temporary Cloudflare HTTPS tunnel targets the separate actual FastAPI backend on localhost 8791. A single authenticated test-key `POST /v1/webhooks` registered a new test-mode endpoint for payment paid/failed and QR expiry events. Provider response mode, URL and returned signing-secret presence were validated. The secret, matching account/payment origin, generated OAuth-state signing secret and an isolated local SQLite path are saved privately in `.env.paymongo-sandbox`; the new webhook identifier is in an ignored local cleanup record. No existing PayMongo webhook or Google/Render service configuration was changed.
+- Verification, live setup only: real PayMongo webhook registration succeeded. HTTP checks of local/public `/health` returned 200; payment config enabled; Google config disabled; an unsigned public webhook POST returned 401. This confirms callback reachability and signature rejection, not delivery of a signed provider event, a payment, ledger award, duplicate protection or Google identity. No top-up or provider simulator was used.
+- Manual next step: `/tmp/paymongo-sandbox-google-setup.sh` is prepared using the unchanged Wizard library, with one human stage to add the temporary origin/callback to a Web application client and privately save its credentials. Existing hosted entries stay; if its client secret is unavailable, create a separate sandbox client rather than reset the hosted client. `bash -n` passed. The backend must restart after operator setup. The mock localhost-8778 server remains available separately.
+- Remaining: actual Google sign-in, validated provider simulator URL support, an account-owned provider QR, signed-event/once-only credit verification and cleanup of the temporary tunnel/webhook. Ephemeral helpers and private settings are not published. Main, hosted services and unrelated files/deletions remain unchanged; no purchase, real money, push or deployment.
+
+
+### 2026-10-08 — Sandbox Google settings loaded; operator sign-in next
+
+- Session: root `qr-provider-sandbox-setup`. Operator completed the Google settings wizard. Presence-only checks confirm the required account/payment settings, with the private credential file still mode 600. Only the dedicated localhost-8791 backend was stopped and restarted; the temporary HTTPS tunnel, mock preview and hosted services were left unchanged.
+- Verification, live configuration: local/public health returned 200, test-payment and Google configuration flags enabled, and an unauthenticated login request returned 302 to Google. Callback origin, state and PKCE presence were checked without printing OAuth query parameters or credentials. This verifies configuration and login redirection, not successful Google identity validation or an account-owned payment.
+- Next: operator opens the temporary HTTPS payment screen and signs in with Google. No QR has been generated and no local simulation, provider simulator, signed paid event or credit award is claimed. Provider-only verification will inspect the provider simulator link from the actual QR response; the shipped screen currently offers the separate local fixture action, which must not be mistaken for a provider payment.
+- Remaining: actual sign-in, provider QR/simulator and signed once-only credit verification, followed by temporary test-webhook/tunnel cleanup. Helpers and secrets remain private/local; no code/schema change, push, deployment, hosted behavior change or unrelated-file edit.
+
+
+### 2026-10-08 — Actual account-owned QR and provider simulator inspected
+
+- Session: root `qr-provider-sandbox-setup`. Operator reported and corrected Google `redirect_uri_mismatch` by adding the sandbox callback to the matching Web application client. An unauthenticated live login check still returns 302 to Google with the expected callback; public health returns 200.
+- Verification, live account/creation evidence: read-only inspection of the isolated local receipt store finds one account and one account-owned pending QR, with a bound intent/PNG and zero awarded credits. No synthetic account or credit was inserted into this isolated store. This records actual server evidence following operator sign-in/QR generation, not an independently observed Google credential-entry screen.
+- Verification, live provider read: authenticated test-key retrieval of that exact pending intent returns 200; resource identity/type, false livemode, amount/currency and awaiting-next-action status match the stored receipt. The provider returned its simulator at `attributes.next_action.code.test_url`. HTTPS hostname and absence of API credentials were checked; the link is saved in an ignored mode-600 local file, not this log. No new intent or receipt was created by the inspection.
+- Verification, live simulator UI: Playwright opened that provider URL in a separate context and observed QRPH Test Payment Page, the expected PHP 100 test amount and Authorize Test Payment / Fail Test Payment / Expire Test Payment buttons. No button was clicked. The operator will authorize through this provider page, not the app's local fixture action or a wallet scan.
+- Remaining: provider authorization, delivered signed callback, paid nonsimulated receipt/once-only ledger award and separate duplicate confirmation. No paid payment, credit award, real-wallet transaction, push, deployment or hosted behavior change is claimed; temporary tunnel/webhook cleanup remains after testing.
+
+
+### 2026-10-08 — Provider QR confirmed after local simulation; no duplicate award
+
+- Session: root `qr-provider-sandbox-setup`. Operator reported paid state/credits. Read-only store and PayMongo inspection showed the original receipt had local simulation evidence, one 100-credit ledger entry, while the actual test intent was still awaiting next action. That report did not prove provider payment.
+- Action, live sandbox: on the provider-owned QRPH test page, agent checked the explicit PHP 100 test amount and clicked Authorize Test Payment once. The page retained its original text; that UI text was not treated as confirmation. No real wallet/bank scan, live key or application simulation action was used by the agent.
+- Verification, live provider reconciliation: subsequent authenticated PayMongo intent read returns 200, status succeeded with one payment. Read-only local receipt inspection finds paid status with provider payment evidence, replacing the former fixture marker. The receipt still has exactly one ledger row totaling 100 credits. The existing signature-validating webhook handler is the application path that replaces this provider evidence; no direct store settlement or credit write was performed by the agent.
+- Screenshot verification, live stored data: the operator's updated dashboard capture includes today's described sandbox top-up. A read-only exact receipt/payment-reference comparison matches that row to the local provider-confirmed receipt and its single 100-credit ledger award; no private identifiers are recorded here.
+- Scope: this proves actual provider confirmation and fixture-to-provider reconciliation without an additional award. The prior fixture had already awarded credits, so this is not proof of a fresh provider-only credit award. Actual provider redelivery is not exercised; signed duplicate-event checks remain offline/mocked. While verification was underway, another account-owned receipt was created and locally simulated; it is a separate fixture award, not a duplicate award for the original receipt.
+- Next: generate one fresh account-owned test QR and leave it pending without clicking the app simulation action, then use only PayMongo authorization to verify the fresh webhook award. Operator dashboard screenshot shows earlier payment history but is not assumed to match this test receipt. Cleanup of the temporary webhook/tunnel remains afterward. No code/schema change, publication, deployment, hosted behavior change or real money.
+
+
+### 2026-10-08 — Clean provider-only QR payment and credit award verified
+
+- Session: root `qr-provider-sandbox-finalize`; its active claim is closed by this dated verification handoff. Operator generated a fresh QR and left it pending as requested. No app simulation or direct ledger/store settlement was used for this receipt.
+- Verification, live before authorization: read-only local store inspection confirms account ownership, pending state, no payment reference, zero ledger rows/credits for the fresh receipt, and 200 account ledger credits. Real PayMongo intent retrieval confirms matching resource/amount/currency, false livemode and awaiting-next-action state. Its provider-owned simulator URL was validated and kept outside this log.
+- Action/verification, live provider: Playwright checked the explicit PHP 100 test page and attempted authorization. The initial browser closed before the async request completed; two read-only checks found provider/local state still pending and no award before retry. The next attempt waited for the provider POST to finish with HTTP 200 before closing the context. No new intent or receipt, real wallet/bank scan or live key was involved in the retry.
+- Verification, live settlement: PayMongo reports succeeded with one matching test-mode paid payment. The stored receipt is paid with that exact provider reference and timestamp, and its ledger has exactly one 100-credit row. Account ledger credits increased by exactly 100; a consistent read found 300 available credits and zero reserved/charged defense costs. The automatic signature-validating webhook path performed settlement; no direct database payment/credit write was performed by the agent. The provider page text itself stayed unchanged and was not used as proof.
+- Documentation: README now separates this completed local Google/provider test from prior mocked gates and remaining verification. `docs/QR_TOPUP_PROVIDER_SANDBOX_REVIEW.md` records the clean run, earlier fixture-to-provider transition and evidence boundaries. An ephemeral cleanup helper was prepared/compiled, not executed; it verifies and disables only the dedicated new test webhook before stopping the separate localhost-8791 backend/tunnel, retaining mock/hosted services, private credentials and receipts.
+- Remaining: actual provider redelivery of the same notification, live failure/expiry, real PostgreSQL, native/physical-device and hosted QR deployment remain separately unverified. Once-only checks here prove one award for the current receipt and no extra fixture-to-provider award; broader race/duplicate-event coverage remains offline/mocked. The sandbox and mock preview stay available for operator review; temporary Google origin/callback and webhook/tunnel cleanup are pending when finished. No code/schema changes, full-suite rerun, push, deployment, real-money payment or frozen-main/hosted behavior change. Unrelated edits/deletions remain preserved.
+
+
+### 2026-10-08 — Isolated PHP 1 live-payment trial ready for operator
+
+- Session: root `one-peso-live-trial`; active claim closed by this dated implementation/handoff. User authorized one real-payment check at PHP 1 and completed hidden live-key setup. Wizard and private ignored credentials remain local. No key, owner subject, signing secret or provider identifier is recorded here.
+- Changed: shared helpers in `payments.py` accept explicit live-mode resource/signature validation with test defaults preserved; `purchase_store.py` adds a transactional single-receipt PHP 1 trial entry point. New separate `payments_live_trial.py` service checks Google-owner identity, CSRF, confirmation and dedicated database/mode; `game/live-trial.html` shows real-money labels, pending QR/status and automatically refreshed isolated demo balance. Default multiplayer React/sandbox routes, legacy PHP 100 amounts and account balances remain unchanged. Added twelve offline trial tests, README run instructions, `docs/ONE_PESO_LIVE_TRIAL.md` and two own mocked review captures. The narrower dedicated HTML trial replaced the initial proposed React edits; no React/account component changes were needed.
+- Verification, offline: focused payment/store command passed 86 tests, then full `.venv/bin/python -m unittest discover -q` passed 284 tests, external providers mocked. Existing `game` React suite passed 202 tests and production build. Final focused trial rerun passed after the screen balance-refresh correction. Mocked Playwright creation/reload/paid/balance flow passed without browser exceptions; desktop/390-pixel portrait captures show the real amount, no simulation button and no page overflow. Mocked UI checks are not real QR/payment evidence.
+- Verification, actual setup only: live-key registration created one dedicated live-mode webhook, checking its mode, callback URL, enabled state and secret presence privately. Initialized the isolated marked store, disabled only the dedicated earlier test webhook and stopped only its sandbox localhost backend; original sandbox receipt/credit data and existing HTTPS tunnel remain. Started the separate trial service on localhost 8791. Public page/health returned 200 with explicit live-trial mode; unauthenticated config and unsigned webhook returned 401; sandbox simulation returned 404; Google login returned 302 with the existing exact callback. No real intent, wallet charge, settlement or demo award has been made.
+- Remaining: operator signs in to the new separate trial, generates a live QR and checks PHP 1.00 in GCash before manually approving. Real QR merchant activation, signed live settlement and once-only 100-demo-credit award need separate provider/store evidence. Trial webhook/tunnel cleanup remains after verification. No push, deployment or hosted behavior change; frozen main and unrelated edits/deletions are preserved.
+
+
+### 2026-10-08 — Real PHP 1 payment and automatic credit award verified
+
+- Session: root `one-peso-live-trial` follow-through. Operator reported paid after signing in to the isolated service and following the real QR instructions. No agent wallet authorization, local fixture action or direct store/ledger settlement was used.
+- Verification, live provider and read-only store: authenticated retrieval of the exact receipt-bound PayMongo intent returned 200, true live mode, succeeded status, amount 100 centavos/PHP and one live paid payment matching the stored payment reference. Local Google-owner receipt is paid with timestamp; exactly one ledger row awards 100 demo credits and the trial account balance is 100. Original sandbox ledger remains 300 credits. This is actual live payment/automatic webhook award evidence for one receipt, separate from offline duplicate/race tests and prior sandbox simulator checks. Provider fees, merchant payout/bank settlement and actual provider redelivery were not inspected.
+- Cleanup, live configuration: verified the exact dedicated live webhook ID, true mode and callback URL, disabled only that webhook, then read it back to confirm disabled status. Other webhooks and hosted services are unchanged. Receipt page/backend and existing temporary HTTPS tunnel remain for operator review; their later shutdown and removal of the temporary Google origin/callback are still pending. Private credentials and verification records stay ignored/local, receipt data retained.
+- Documentation: README, current status and `docs/ONE_PESO_LIVE_TRIAL.md` now record the successful operator-paid PHP 1 trial and cleanup instead of pending-payment status. The standalone trial's 100 demo credits do not transfer to the normal app; its PHP 100 sandbox pack remains unchanged. No publication, deployment or change to frozen main. Unrelated local changes/deletions remain preserved.
+
+
+### 2026-10-08 — Draft live tester-payment rollout plan
+
+- Session: root Ask Matt planning. User requested real payments in the main app, simpler customer UI and temporary PHP 1 = 10 credits. Async replies confirmed invited Google-account testers only and 10 credits per defense regardless of question count.
+- Changed: added `.scratch/live-tester-payments/plan.md` and this handoff/status entry only. Plan separates live balances from sandbox/trial history through additive durable-storage changes; freezes receipt prices; enforces invitations/account/CSRF/mode checks; preserves once-only webhook awards and reserve/charge/release behavior; simplifies payment labels; and verifies an integrated hosted PHP 1 purchase/defense before rollout. Production-readiness gaps include charged room loss on restart, missed notifications, refund/support procedure and free-voucher behavior. Actual application/configuration is unchanged.
+- Verification: read-only code inspection of current payment/store/account/UI files at HEAD 03e00d6 plus local trial changes; README/log/tracker/domain/QR ADR read. Official PayMongo QR Ph and webhook guides reviewed. No code tests, provider request, new payment, schema migration, publication or deployment in this docs-only task. `git diff --check` passed. The earlier 284-Python/202-React/build and successful real PHP 1 demo trial are prior evidence, not validation of this proposed integrated flow.
+- Remaining: follow Grill with Docs → To Spec → To Tickets → Implement, settling package presets, existing voucher access and interrupted-run/refund recovery in the specification. Present local checkpoints before later user-requested rollout. Frozen main, hosted services, current receipt page and unrelated edits/deletions remain preserved.
+
+
+### 2026-10-08 — Live tester payments: Grill with Docs round one
+
+- Session: root `live-tester-grilling`, active until final shared-understanding confirmation. Read Grill with Docs, Grilling and Domain Modeling instructions/templates, current plan, README/log, glossary and existing QR ADR. Existing user-confirmed rate, invited-host scope and flat run cost were retained rather than asked again.
+- Changed: appended live-credit and invited-tester definitions to `CONTEXT.md` without altering pre-existing sandbox terms; expanded `.scratch/live-tester-payments/plan.md` with the design tree, pending first-round choices and fact references. No ADR was marked accepted for an unanswered policy. Active-work and current status track this ongoing interview.
+- Verification: read-only delegated code inspection (`live_payment_facts`) confirms voucher bypass, reserve/charge/release semantics, restart loss with retained charges, absence of durable run completion/refund records, stored-only receipt polling and current test-only main-app payment setup. No tests/provider requests/private databases or credentials were accessed by this exploration. Docs-only `git diff --check` passed; no runtime/configuration change, payment, push or deployment.
+- Remaining: await package, free-access and interrupted-run choices, then traverse dependent invitation/data/recovery/refund/settlement branches. Final confirmation is required before acting on the design. Preserve unrelated files/deletions; main and hosted services remain unchanged.
+
+
+### 2026-10-08 — Live payments: round-one decisions and partial round two
+
+- Session: root `live-tester-grilling`, ongoing. User selected PHP 1/5/10 packages for 10/50/100 credits, vouchers for all testers without invitations and automatic ten-credit return for verified server interruption. Later Q6 reply confirmed included retry or explicit ending with credit return while a server-recorded later question-generation error remains unresolved. Q4 open paid Google-host scope and Q5 credit expiry are still pending; unanswered options are not defaults.
+- Changed: updated the canonical plan/design tree and current/active status. `CONTEXT.md` replaces the earlier invited-tester term with Tester and distinguishes credit returns from money refunds. New accepted-design ADR 0002 records compensation rather than mandatory support requests; durable outcome/adjustment implementation is still pending. Prior sandbox glossary/ADR and unrelated local edits remain intact.
+- Verification: docs-only; `git diff --check` passed. No executable tests, provider calls, keys, purchases, ledger/schema changes, publication or deployment. Read-only exploration remains the source for observed voucher/restart behavior.
+- Remaining: await Q4/Q5, then settle historical balance treatment, failure/recovery evidence, payment refunds/support and missed-notification policy. Final shared-understanding confirmation precedes implementation. Frozen main and hosted services remain unchanged.
+
+
+### 2026-10-08 — Live payment access clarified; Q7 answered
+
+- Session: root `live-tester-grilling`, ongoing. User clarified Q4: only invited accounts may top up; non-invited top-ups are temporarily disabled, while voucher free access is for all signed-in accounts. Q5 confirms no purchased-credit expiry or credit-count change with future prices. Q7 selects a private server Google-email invitation list rather than an owner dashboard. Q8 historical/demo balance handling and Q9 long absence remain open.
+- Changed: plan, current/active status and glossary now separate Top-up invitation from room/voucher access and record credit permanence. Previous all-account paid-host interpretation is replaced by the user's exact top-up-only gate. Existing live trial and app configuration remain untouched.
+- Verification: docs-only `git diff --check` passed; no executable tests, purchases, provider mutations, credentials/database access or deployment. Read-only delegated identity/provider documentation research is underway for downstream refund/notification decisions; preliminary refund event-name ambiguity is not treated as a confirmed implementation interface.
+- Remaining: await Q8/Q9 before the next question round, complete dependent support/recovery/revocation decisions, then obtain shared-understanding confirmation. Main and hosted services remain unchanged, unrelated files/deletions preserved.
+
+
+### 2026-10-08 — Live payment discovery rounds three through five recorded
+
+- Session: root `live-tester-grilling`, awaiting final shared-understanding confirmation. Q8–Q15 confirm separate demo/live balances, healthy-service-observed ten-minute abandonment, operator-reviewed money refunds, automatic independently verified provider recovery, email support, fully unused top-up refund eligibility with separate spent-credit complaints, failed-coaching retry/explicit ending with credit return, and one active defense per host. No new policy is treated as executable behavior.
+- Changed: canonical plan now records every answer and the closed design tree; current/active status updated. Added accepted-design ADR 0003 for balance isolation and ADR 0004 for verified live recovery, explicitly partially superseding ADR 0001's webhook-only live restriction while preserving sandbox history/rules. ADR 0002 adds included-coaching failure recovery. Glossary distinguishes Payment recovery and Unused top-up. Invitation removal is consistently limited to new top-ups; existing paid credits/issued receipts remain valid. Existing voucher precedence/lifecycle retained.
+- Verification: documentation inspection against recorded answers and `git diff --check` passed; no executable tests or provider/private-store requests in this change. Prior delegated read-only code and official-provider documentation research identifies missing durable outcomes/adjustments and provider refund-schema/capability verification; it does not prove live recovery or refunds. Earlier real PHP 1 trial evidence remains separate.
+- Remaining: obtain final design confirmation, then To Spec → To Tickets → Implement. Configure public support address/invitations later; verify provider refund capability, actual PostgreSQL durability and integrated hosted payment/run recovery before rollout. No runtime/schema/credential change, payment, cash refund, commit, push or deployment; frozen main, hosted services and unrelated local files/deletions remain preserved.
+
+
+### 2026-10-08 — Live tester payments specification published to local tracker
+
+- Session: root `live-tester-spec`, closed by this dated local-publication entry. The user explicitly invoked To Spec after the completed fifteen-decision interview and confirmed the proposed test boundaries. This workflow advancement closes the previous `live-tester-grilling` claim; it does not claim visual review or deployment approval.
+- Changed: new canonical `.scratch/live-tester-payments/spec.md`, marked ready-for-agent with all seven required sections and 68 user stories; discovery plan now links it and records completed handoff. Current status updated and own active-work claim removed. Decisions cover invited new top-ups/public vouchers, PHP 1/5/10 packs, immutable live purchases and separate demo history, once-only settlement/provider recovery, ten-credit reservations/charges/returns, durable run outcomes and one-active-host constraint, operator money-refund workflow and clean account/payment UI. Refund holds, credit allocation and stale-result handling specify concurrency boundaries without storing uploaded documents or transcripts.
+- Verification: read-only code inspection of current account/payment/purchase/store/room operations and existing HTTP/WebSocket, PostgreSQL and React test contracts; official PayMongo refund/retry/intent-read documentation rechecked. Specification checks passed for required sections, 68 sequential story sentences, ready-for-agent status, confirmed test seams and absence of implementation paths/snippets; `git diff --check` passed. Docs-only: no executable suites, provider account/API request, private database access, purchase or refund; prior mocked/live trial evidence stays separate.
+- Remaining: To Tickets then requested implementation with local previews; actual PostgreSQL concurrency/recovery and live Google/GCash/provider/hosted evidence remain future checks. Verify provider refund capability, event schemas and persistent hosted storage before rollout; configure private invitations/public support address during setup. No runtime/schema/credential change, commit, push, deployment or frozen-main update; unrelated files/deletions preserved.
+
+
+### 2026-10-08 — Twelve live tester payment slices drafted for approval
+
+- Session: root `live-tester-ticket-draft`, pending user breakdown review. Read To Tickets invocation, full canonical spec, tracker/status conventions, discovery decisions, relevant ADRs, README/log and current financial/run boundaries. Parent specification is unchanged.
+- Changed: added `.scratch/live-tester-payments/ticket-breakdown-draft.md` with twelve proposed narrow behaviors, acceptance outlines and blocking edges; updated current/active status only. Ticket 01 is compatibility expansion preserving sandbox; tickets 02–11 each expose account/purchase/run/operator behavior, with UI/status and relevant API/storage/race checks. Ticket 12 integrates local evidence and future hosted readiness without deploying. QR creation and awards remain separately reviewable; automatic interruption compensation depends on failure-return and abandonment outcomes.
+- Verification: docs-only static draft checks passed for twelve ordered slices, acyclic genuine-prerequisite graph, delivery/acceptance sections and no trailing whitespace; `git diff --check` passed. Confirmed no individual issues directory/ticket files created before approval. No executable suites, provider/private-store calls or real-money operations; prior mocked/live results are not evidence of this future release.
+- Remaining: user confirms granularity/blocking edges or requests merges/splits, then publish one ready-for-agent local Markdown file per approved slice. To Tickets explicitly says to iterate until the user approves the breakdown. Subsequent implementation/provider setup and publication require their later requested workflow. Main/hosted services and unrelated files/deletions remain preserved.
+
+
 ### 2026-10-08 — Live tester payment tickets published; implementation started
 
 - User invoked Implement after the proposed twelve-slice breakdown; this explicit workflow advancement authorizes publishing the local ticket files and implementing the specification without another redundant permission request. Published twelve dependency-ordered ready-for-agent files under `.scratch/live-tester-payments/issues/`; parent spec unchanged. Previous ticket-draft claim closed by this dated handoff.
@@ -1266,6 +1545,14 @@ Append new entries to the **end** of this file in date order:
 - Handoff: updated local release checklist, review record, README and tickets. Final selected-tree isolation passed 340 Python tests (providers mocked), 205 React tests and production build; unrelated trial/upload changes were excluded. Local mock preview uses port 8767; fixture QR is not payable. Actual provider fees/refund capability/redelivery, configured Google/GCash, hosted persistence/restart and installed WebViews remain later gates. No provider mutation, new real payment, cash refund, push, deployment or frozen-main change. Unrelated upload/payment-trial files, historical screenshots and deletions remain unstaged.
 
 
+### 2026-10-08 — Feature release pushed; regular live QR activation pending
+
+- Session: root `live-qr-render-activation`, closed with this pending-dashboard handoff after the user requested an owner manager instead of supplying a fixed invitation list. User's “ok continue” followed connecting the successful live QR method to the regular Render app.
+- Publication: `git push origin HEAD:refs/heads/feature/question-first-room` advanced the feature release from `55a0228` to `ad75ded`; independent `git ls-remote` confirmed that head and unchanged frozen main `866e923`. Published commits carry `[skip render]`; no Render redeployment was triggered by the agent.
+- Verification, actual read-only services: hosted `/health` returned HTTP 200; `/api/payments/live/config` returned 404, confirming the new live route was not deployed at that check. An authenticated GET of the exact dedicated trial PayMongo webhook returned HTTP 200, matching its recorded live-mode destination and saved signing secret; it remained disabled. No provider mutation or new real payment occurred.
+- Setup: privately prepared ignored Render settings and ephemeral setup helpers, with purchases and paid starts paused. Existing trial owner identity is carried privately for future owner configuration; secrets and addresses are absent from this log/Git. Helpers passed bash syntax/Python compilation; shellcheck is unavailable. The Render connector is not connected, so dashboard settings/deployment remain human setup work. The former fixed-list setup helper has not been executed and must be adapted to the new manager before use.
+- Remaining: publish/review the new owner dashboard when requested, configure public support address and existing durable hosted PostgreSQL/Google/OpenAI settings, deploy the feature service, reconnect/enable its verified live webhook and verify a fresh real purchase/defense. Existing live trial, sandbox and mocked evidence remain distinct. No main/service change, private financial database mutation or wallet authorization; unrelated local work preserved.
+
 ### 2026-10-08 — Owner-managed testers, users and audited live credits
 
 - Session: root `owner-manager`, closed by this dated local implementation handoff; no other session claim removed. User requested an owner dashboard to manage tester access, see all users and edit credits. Registered users means Google accounts stored by the app, not anonymous room guests.
@@ -1277,18 +1564,36 @@ Append new entries to the **end** of this file in date order:
 - Remaining: user local review and later selected publication/deployment. Live activation and public support address remain pending; the previously published release is still `ad75ded`. No new commit/push, Render setting/deployment, real user/credit mutation, payment or cash refund for this dashboard. Frozen main, unrelated files and screenshot deletions preserved.
 
 
-### 2026-10-08 — Owner dashboard selected for publication
-
-- User requested push after the local implementation and owner-access explanation. Selected source, tests, manager README section and synthetic screenshots are prepared; unrelated local trial/upload changes and deletions are excluded. Commit uses [skip render]; this request does not mutate Render settings, payment webhooks or financial accounts. Remote verification and final publication receipt follow the push.
-
-- Verification of the selected release: isolated 350 Python tests passed with Google/PayMongo/AI mocked, plus 211 React tests and production build. The initial parallel Python run preceded the required frontend build and failed on missing game/dist; after building, the complete rerun passed. Staged diff/whitespace and selected-file key-material checks passed. No unrelated local code or private settings are included.
-
-
 ### 2026-10-08 — Owner dashboard published to the feature branch
 
 - Session: root `owner-manager-publish`, closed by this dated publication receipt. User explicitly requested push. Dashboard code, tests, selective README/log additions and four synthetic screenshots committed as `b950405`; unrelated trial/upload changes, private settings and historical screenshot deletions remain local.
 - Verification: `git push origin HEAD:refs/heads/feature/question-first-room` succeeded; independent `git ls-remote` confirmed feature `b950405ca0615064d45bec3e263a1f6599e9f35e` and unchanged frozen main `866e923c40c3cf431e66984861dd7dbefb223f8b`. Selected release passed 350 Python tests (Google/PayMongo/AI mocked), 211 React tests and production build. Prior disposable PostgreSQL and synthetic browser evidence remain separate from real-account/hosted checks.
 - Handoff: commit carries [skip render]; Render deployment and owner environment configuration remain pending. No service settings, provider webhook, real payment, cash refund or real credit balance changed. After manual deployment of this release, /?manager=1 requires the configured server-verified owner Google identity. Live top-up setup/support settings and a fresh hosted payment/run check remain separate.
+
+
+### 2026-10-08 — Hosted manager detected; live payment cutover prepared
+
+- Session: root `live-qr-manager-cutover`, closed with a factual pending-configuration handoff. User requested continuation of live payment activation after the dashboard push. No additional public source change or publication was needed.
+- Verification, actual public service: HTTP reads returned 200 for /health, /api/payments/live/config and /api/auth/me, with Google enabled, correct PHP 1/5/10 package terms, missing support address and purchases disabled. Unauthenticated /api/manager/users returned 401; served JavaScript contains the manager interface. An unsigned empty live-webhook request returned 503, confirming configuration remains incomplete; no checkout was created. These checks establish hosted route/asset presence, not signed-in owner access or successful payment/credit accounting.
+- Verification, actual read-only provider: authenticated GET of the exact prior trial webhook confirmed its ID/live mode and private signing-secret match. It remains disabled and still points to the temporary trial destination. No webhook update/enable, provider payment request or private hosted database mutation occurred.
+- Prepared: ignored .local/render-live-qr-setup.sh now walks five stages using the published manager rather than a fixed invitation list: durable feature service, support/private configuration import while paused, deployment and exact guarded callback reconnection, owner-managed invitations, then live enablement/user-approved fresh PHP 1 payment. The signing key/owner configuration remain private; public support input is pending. Wizard library comparison, five-stage/static data-flow inspection, bash -n and Python compilation passed. shellcheck is unavailable; script was not run end-to-end and no dashboard action was represented as completed.
+- Remaining: operator applies prepared private live settings to the existing feature Render service, preserving Neon/Google/OpenAI/voucher settings; supplies public support email; then confirms callback rejection becomes 401 so the guarded exact webhook helper can reconnect it. Only afterward enable paid purchases/starts and verify a fresh user-approved GCash payment adds ten live credits once. Render connector/credentials are unavailable to this session, so dashboard configuration requires the operator. Main and unrelated local work remain untouched; this local log update is not pushed.
+
+
+### 2026-10-08 — Admin support email prepared; Render import required
+
+- User selected the existing admin email for the public payment-support contact. Matched the prepared owner subject to the historical trial account through a read-only local query, then updated only the ignored .env.render-live-qr; mode 600 retained. No email/secret/owner identifier is recorded here, and no hosted setting changed.
+- Updated the ignored exact-webhook helper to verify a signed, ignored setup event before any provider update, in addition to unsigned rejection and saved provider-secret binding. This event is not a payment and its handler performs no receipt/balance operation. Python compilation and bash syntax checks passed; private files remain Git-ignored.
+- Actual hosted check: executing the guarded helper stopped at the configured-callback prerequisite (unsigned callback did not return 401), before the signed probe or any provider mutation. It reported incomplete live setup. No webhook activation, checkout, payment, refund or real-credit edit occurred.
+- Next: operator imports the prepared private settings into defense-simulator's Render Environment, preserves existing Neon/Google/OpenAI/voucher settings and deploys with both payment switches at 0. Render account/connector access is unavailable to this session. After callback configuration passes, reconnect its verified webhook, add testers through the owner manager, then enable the real flow and verify a fresh user-approved payment. Main, public source and unrelated local changes remain untouched; this handoff is local only.
+
+
+### 2026-10-08 — Regular hosted live QR webhook connected
+
+- User confirmed the redeployed feature service is Live. Executed the previously prepared guarded exact-webhook helper after this steering; the earlier configuration failure made no provider mutation. This successful execution did update the dedicated prior-trial webhook, not another integration or main.
+- Verification, actual hosted/provider configuration: /health returned 200, unsigned live callback returned 401, and a signed ignored setup event returned 200 with the saved signing secret. Authenticated PayMongo retrieval verified the exact dedicated live webhook and secret binding; updated its URL/events to the feature service's /api/payments/live/webhook, enabled it, then read back exact ID, live mode, destination, enabled status and payment.paid/payment.failed/qrph.expired events. Ignored private verification record saved under .local with mode 600; no identifiers/secrets are logged.
+- Independent actual public reads: health/live catalog/account endpoints returned 200, support is now configured and Google enabled. Live purchase catalog remains disabled as requested during cutover. No checkout was created and no paid event was fabricated or submitted; the signed probe is ignored before any database/payment operation. This is callback configuration evidence, not a successful new GCash payment or credit award.
+- Next: operator signs into /?manager=1 with the configured owner account and adds the first payer as a top-up tester, then sets both live payment switches to 1 in Render and deploys. After readiness verification, the operator approves a fresh PHP 1 QR payment and checks an automatic once-only ten-live-credit award. Main, source publication, unrelated local changes and all balances remain unchanged by this setup operation; hosted owner access/purchase/defense checks remain pending. This handoff update is local only.
 
 
 ### 2026-10-08 — Render rolling-deploy lease handoff fix
@@ -1299,6 +1604,19 @@ Append new entries to the **end** of this file in date order:
 - Verification, actual local database with mocked providers: postgres_checks passed 166 checks on agent-owned disposable localhost PostgreSQL, including the eight handoff cases; database stopped afterward. No hosted financial database or provider payment mutation was used.
 - Actual hosted reads: the previous running feature release still returns healthy HTTP 200 and purchases disabled while the failed candidate is retried. This is not evidence that the fix is deployed. User reports adding the first payer through the manager; signed-in invitation verification remains separate. The previously configured actual live webhook remains unchanged.
 - Remaining: publish this selected fix and verify the Render replacement reaches exclusive readiness, then perform the user-approved fresh PHP 1 QR purchase/once-only ten-credit award and a hosted defense. No new payment, cash refund or real-credit edit was initiated. Frozen main, private configuration, unrelated local files and screenshot deletions preserved.
+
+
+### 2026-10-08 — Render startup fix published
+
+- User's active deployment request and reported startup failure continued through the tested fix. Committed only the seven selected server/test/documentation files as `20f3657`, then pushed feature/question-first-room. Independent git ls-remote confirms feature 20f36573e0811624030f60e1c1f47b85290a08f4 and unchanged frozen main 866e923c40c3cf431e66984861dd7dbefb223f8b. Unrelated local work, private helpers/settings and screenshot deletions remain untouched.
+- Actual public monitoring currently returns healthy 200 with purchases still disabled; this does not establish the replacement has deployed. The Render connector is unavailable, so no dashboard action is claimed. Commit permits normal feature-service auto-deployment if configured; manual Deploy latest commit may be needed. No new checkout or actual payment mutation was initiated. Hosted readiness and fresh user-approved purchase remain pending. This publication receipt is local to avoid an unnecessary documentation redeploy.
+
+
+### 2026-10-08 — Hosted live payment readiness after startup-fix publication
+
+- Actual public monitoring after pushing 20f3657 observed /health 200 and the live catalog transition from purchases disabled to enabled. Final verification asserts normal ready health and exact PHP 1/5/10 purchase terms awarding 10/50/100 credits. This establishes hosted readiness after the push; Render's deployed Git SHA was not independently queried, and no dashboard operation is claimed.
+- Actual callback/provider verification: unsigned request rejected 401, signed ignored setup.verification probe accepted 200 without a receipt/balance write, and authenticated read-only retrieval of the exact dedicated PayMongo webhook confirms live/enabled status, matching destination and payment.paid/payment.failed/qrph.expired events. No webhook mutation or paid event was sent during this check.
+- Remaining: user approves one fresh normal-app PHP 1 QR payment, then verify its once-only ten-live-credit award and a fresh hosted defense. Prior one-peso trial demo credits and sandbox evidence remain separate. No checkout, payment, refund or credit adjustment initiated by this startup-fix work. Main and unrelated local work preserved; this factual hosted receipt stays local to avoid another redeploy.
 
 
 ### 2026-10-08 — Payment page layout and downloadable QR (local)
@@ -1315,6 +1633,46 @@ Append new entries to the **end** of this file in date order:
 
 - User requested deployment of the local payment-page redesign and QR PNG download. Prepared an isolated release from HEAD 20f3657 plus only four selected frontend files; selected frontend 220 tests and Vite production build passed. Prior full working-tree gate passed 370 Python (AI/Google/PayMongo mocked) and 226 React/build. Four synthetic review screenshots and only matching README/log additions are selected for publication. No visual-review claim or actual purchase is made.
 - Pre-deployment verification: feature remote matched 20f3657, frozen main matched 866e923c40c3cf431e66984861dd7dbefb223f8b, and existing feature service /health returned normal ready 200. Push and hosted asset verification follow separately. Unrelated account/upload changes, private settings/helpers and old screenshot deletions remain local.
+
+
+### 2026-10-08 — Payment page release pushed; Render verification running
+
+- Committed ten selected UI/type/test/documentation/synthetic screenshot files as dd037d5 and pushed feature/question-first-room. Independent git ls-remote confirms dd037d52f2510d9a184c0579129784976b966092 and unchanged frozen main 866e923c40c3cf431e66984861dd7dbefb223f8b. README/log were staged selectively from HEAD plus matching payment-page additions, preserving all unrelated local content.
+- Verification: isolated selected frontend passed 220 mocked React tests and production build. Render initially continues serving the prior assets with healthy 200; new asset-byte comparison is in progress, so deployment success is not yet claimed. No actual checkout, payment or credit mutation was initiated. Publication receipt remains local to avoid a second redeploy.
+
+
+### 2026-10-08 — Payment page deployed and hosted UI verified
+
+- Session: root `payment-page-deploy`, closed by this dated entry. Feature publication dd037d52f2510d9a184c0579129784976b966092 is independently verified on origin; frozen main remains 866e923c40c3cf431e66984861dd7dbefb223f8b. Render switched from previous assets to the new selected release. No Render dashboard operation or deployed-Git-SHA lookup is claimed; live asset bytes establish the frontend release.
+- Verification, actual hosted reads: /health returns normal ready 200; HTML references /assets/index-DJUsn25T.js and /assets/index-C6013M6W.css, both SHA-256 hashes match the isolated release build exactly. Live configuration remains enabled with PHP 1/5/10 = 10/50/100 credits; anonymous account remains unauthenticated with Google enabled. A fresh anonymous browser loaded Credits & purchases and confirmed Google login returns to the payment page.
+- Verification, hosted assets with browser-mocked API: fresh isolated browser context intercepted every /api request with synthetic account/catalog/receipts; one fake PHP 5 package submission displayed its QR, browser downloaded the exact fixture PNG bytes with safe filename, receipt transitioned to Paid and download disappeared. Desktop 1440x1000, portrait 390x844 and landscape 844x390 had no horizontal overflow. These checks exercise deployed frontend behavior, not PayMongo/Google authentication or actual credit accounting; no provider call was made by the mock.
+- Remaining: user visual review, fresh actual signed-in receipt/payment walkthrough if desired, installed Android/iOS PNG saving and physical-device checks. No checkout, payment, refund or financial balance change initiated. Unrelated local files/deletions preserved; hosted verification receipt stays local to avoid an unnecessary second redeploy.
+
+### 2026-10-08 — Codex Security payment, login and credit review
+
+- Session: root `payment-security-review`, closed by this dated review handoff. User selected Codex Security and approved the recommended functional scope. Reviewed the current feature/question-first-room working tree at HEAD dd037d5, including relevant uncommitted files. Independent baseline, architecture review and focused investigator were reconciled with parent source validation. Managed scan: 895d2d84-928c-4efc-8472-2f758dd9dc0d; sealed Markdown report is retained outside the repository under the Codex Security scan directory, with canonical findings/coverage and static validation evidence.
+- Findings, all medium: authenticated room creation can occupy all 20 process-global slots without a per-account quota or production eviction (game_server.py:698); anonymous mobile/start allocations can fill all 128 five-minute native-login handoffs (accounts.py:235, mobile_auth.py:49); selected defenders can cause repeated paid interpretation beyond the two-clarification cap because enforcement follows the AI call and rejected clarification restores paused time, bypassing the host-action quota (timed_turn.py:137, game_server.py:798, question_generator.py:248). Existing authentication, selected-seat checks and per-room serialization are accounted for; these are not asserted credit theft or account takeover.
+- Verification: offline static source analysis only, not mocked execution or live testing. Forty-two deduplicated paths fully security-reviewed plus relevant supporting excerpts. Ten finding snippets matched exact current source; 186 retained model citations passed path/line-range checks. No validated payment-signature, receipt/account/host/owner authorization or once-only financial-ledger bypass found in inspected paths. This is not a guarantee that the entire repository or deployment is secure.
+- Boundaries/remaining: whole-repository coverage is partial; actual hosted ingress throttling, Google/PayMongo behavior, production storage settings and installed native clients were not tested. Native completion destination lists omit live-payment/manager destinations; retained as a compatibility observation rather than a security finding. Fixes, regression tests and any subsequent deployment are separate work. No secret files, providers, real payment/credit records or deployed service were accessed. Only this handoff log changed; executable source, frozen main and unrelated changes/deletions preserved. No commit, push or deployment.
+
+### 2026-10-08 — Security admission design interview started
+
+- Session: root `security-admission-design`, active. User invoked Grill with Docs after the security review. Added docs/SECURITY_ADMISSION_DESIGN.md with the evidence, boundaries and open decision tree for room fairness, native-login admission and paid AI interpretation limits. Recommendations remain unapproved; no application behavior changed.
+- Verification: inspected README, shared log, root glossary and relevant domain guidance; git diff --check passed for the planning document and log. Documentation-only check, not mocked application execution or live/provider verification. Existing local files/deletions preserved; no commit, push or deployment. Next: user policy decisions followed by dependent limits and recovery decisions.
+- Read-only delegated source cross-check confirmed upload parsing precedes the global room ceiling, abandonment retains rooms, native verifier/retry compatibility, and no pre-provider interpretation budget. Added these constraints to the design note. Round 1 policy questions are pending; no policy is recorded as approved.
+
+### 2026-10-08 — Security admission specification synthesized
+
+- Session: root `security-admission-design`, closed by this dated handoff. User invoked To Spec before answering the three policy questions, superseding the interview rather than approving its recommendations. Published .scratch/security-admission/spec.md to the existing local Markdown tracker with Status: ready-for-agent. Updated docs/SECURITY_ADMISSION_DESIGN.md to link the canonical spec and removed this session's active-work entry. No new glossary terms or ADRs were agreed.
+- Spec covers proposed two-room host quotas, admission before upload parsing, safe retention/expiry and owner-only close/list controls; deduplicated native handoffs with network budgets and trusted-proxy requirements; two successful clarifications, direct answers, shared host/guest pre-provider attempt limits, bounded paused time and research-scaled run budgets. Existing ownership, timers, citations and financial settlement/compensation contracts remain boundaries. Numeric values are proposed synthesis defaults, not approved interview answers.
+- User confirmed the test boundaries: existing authenticated HTTP/WebSocket and timed-turn seams with fake clocks/providers mocked, mobile retry/expiry/shared-network/spoofed-header checks, React and two-client draft/reconnect behavior. Hosted proxy and installed native sign-in checks remain separate evidence. No executable changes, provider requests or new application tests were run.
+- Verification: documentation structure/story coverage check and git diff --check passed for the three planning files. The three security findings remain unfixed. Next: To Tickets for implementation slices, followed by authorized implementation and explicit security-fix verification. Frozen main, production and unrelated local files/deletions preserved; no commit, push or deployment.
+
+### 2026-10-08 — Security admission ticket breakdown drafted
+
+- Session: root `security-admission-tickets`, draft stage closed by this dated handoff; user breakdown review is pending. Read the full source spec and local tracker/triage guidance. Added .scratch/security-admission/ticket-breakdown-draft.md with seven complete behavior slices: fair creation/owner closing; safe expiry/reconnect; mobile admission/retry; bounded clarification/direct answers; bounded clock pauses; owner/run AI allowances; combined verification. No broad prefactor is needed; only the minimal attempt seam in 04 precedes its use in 06.
+- Dependencies: 01 → 02; 04 → 05 and 06; 07 waits for 02, 03, 05 and 06. Initial frontier is 01, 03, 04. All source-spec numeric limits remain explicitly proposed defaults. The To Tickets skill requires breakdown approval before individual ready-for-agent files are published; no implementation tickets created yet and no parent specification status changed.
+- Verification: local Markdown structure/dependency check and git diff --check passed for the draft/log. Documentation-only checks; no mocked application execution, live provider or hosted verification. Unrelated files/deletions, frozen main and production preserved; no commit, push or deployment. Next: user granularity/dependency review, then local per-ticket publication.
 
 ### 2026-10-08 — Security admission implementation and local integration gate
 
@@ -1343,6 +1701,39 @@ Append new entries to the **end** of this file in date order:
 - Ten synthetic screenshots and the local preview are linked from docs/SECURITY_ADMISSION_REVIEW.md. Current no-AI preview: http://127.0.0.1:8774/?preview=1 while the disposable fixture process is running. User visual review, actual trusted-proxy/shared-network and installed Android/iOS login checks remain pending, as does a separately requested managed security fix verification. No production saturation or live provider call was made.
 - Publication boundary: all commits remain local; no push, deployment or main alteration. Frozen main remains 866e923c40c3cf431e66984861dd7dbefb223f8b. Pre-existing account/upload/payment files and documentation, private helpers/settings and unrelated old screenshot deletions remain preserved. This checkpoint is ready for user review.
 
+### 2026-10-09 — Reviewed security admission checkpoint pushed
+
+- Session: root `security-admission-push`, closed by this publication receipt. User explicitly requested push after the local implementation/review handoff. Pushed only the existing four commits 742ca0a, c853556, 76d7e62 and e876f57 to origin/feature/question-first-room; no new files were staged or committed during publication.
+- Verification: git push succeeded, then an independent git ls-remote confirms feature e876f57c8dab396f4827d329a1ba6d8f3ea67a61 and unchanged frozen main 866e923c40c3cf431e66984861dd7dbefb223f8b. Local HEAD matches the published commit and index is empty. Prior isolated gate remains 384 Python tests (AI/Google/PayMongo mocked), 226 React tests/build; no tests were repeated or live providers called for this git operation.
+- Unrelated account/upload/payment edits, private helpers, local documents and screenshot deletions remain untouched. Configured feature-service auto-deploy may restart Render and erase in-memory rooms; no Render dashboard operation or successful deployment is claimed. Hosted release/proxy/native verification and user visual review remain pending. This receipt stays local to avoid an unnecessary second push/redeploy.
+
+### 2026-10-09 — Approved root security policy created
+
+- Session: root `security-policy-definition`, closed by this entry. User explicitly approved the exact proposed root SECURITY.md diff. Added the approved policy without changing its text, defining scope, trust boundaries, required invariants, evidence-based reportability and verification limitations for accounts, rooms, parsing, AI, payments and native wrappers. No finding-class exclusions or new accepted risks were inferred; acceptance of ordinary in-memory room loss remains unresolved.
+- Files changed: SECURITY.md and PROJECT_LOG.md only for this checkpoint. Preserved all pre-existing local edits and deletions. No dependency policy was modified; frozen main and application behavior remain unchanged.
+- Verification: offline documentation checks, not mocked application execution or live/provider testing. Exact byte/text comparison matched the approved 8,206-byte draft. Codex Security policy inventory includes root SECURITY.md; resolve-security-md for root, game_server.py, game/src and mobile yields the root policy as the sole applicable source. File is regular, below 1 MiB and has no unexpected control characters; git diff --check passed. No Python/React suite needed for this documentation-only change.
+- Remaining: unconfirmed accepted-risk decisions and actual hosted/proxy/provider/native controls are not established by this policy. No security scan was started or resumed; the canceled deep scan stays canceled. No stage, commit, push or deployment authorized by this approval.
+
+### 2026-10-09 — Three availability rescan findings fixed locally
+
+- Session: root `availability-security-fixes`, closed by this entry. User authorized fixing the completed Standard rescan's three medium availability findings. The canceled deep scan remains canceled; no new scan, live-provider call or production stress was performed.
+- Anonymous join requests now count actual streamed bytes before FastAPI JSON decoding, including unknown rooms, absent/false Content-Length and chunked bodies. Admission is bounded to 4 KB, 10 seconds, 32 global and eight per client network with network rate limiting and cancellation/disconnect cleanup. Legitimate UTF-8 names, lowercase room codes and normal joins remain supported.
+- Guest sockets reserve global/network capacity before hello, enforce two tabs per player/eight per room, retain player/network connection and message budgets across reconnects, reject binary actions and suppress duplicate-vote publications. Snapshots serialize once per recipient player, coalesce revision publications and bound concurrent sends; slow recipients are removed/reassigned without blocking healthy peers. Error sends and room-removal closure are also deadline-bounded. Last-tab disconnect retains existing online/reassignment rules.
+- DOCX package parsing, including central-directory reads and every related member, now occurs in a credential-free Linux child. Limits: 128 MiB address space, 10 CPU seconds, 20 wall seconds, 512 members, 8 MB per member, 32 MB total expanded bytes and 1000:1 expansion ratio. Duplicate/encrypted/oversized parts are rejected before Document loading. Timeouts and canceled upload requests kill and reap the worker before releasing the parser slot; exact paragraph/table citation order remains. Non-Linux servers fail closed for DOCX with a TXT/Markdown alternative; PDF handling is unchanged.
+- Files for this fix: game_server.py, resource_limits.py, research_files.py, new document_parser_worker.py and test_availability.py, requirements.txt, run_local.sh, render.yaml, README.md, test_research_defense.py, test_research_coverage.py and PROJECT_LOG.md. Existing uncommitted account/payment/React work, private helpers, screenshots and unrelated deletions remain preserved.
+- Review: fresh read-only pre-patch investigator and one fresh read-only bypass/regression reviewer under the Fix Finding skill. Parent confirmed and fixed the missing manual Render flags and the installed Uvicorn auto/sansio backend's ignored queue bound. Launch commands now explicitly select the declared websockets backend. A small offline actual-protocol fixture confirms four completed messages queue and further reads wait; frame limit is 20 KB. No remaining concrete join/DOCX or socket lifecycle issue reported by that review.
+- Verification gate 1: git diff --check, bash -n run_local.sh and .venv/bin/python -m py_compile of changed Python runtime/worker/tests all passed. Gate 2: focused offline triggers reject oversized/false-length/chunked join input, excess/token-reused sockets, reconnect message bursts, expanded/duplicate/excess-entry DOCX packages; actual OS memory-limit and killed/reaped timeout/cancellation fixtures passed. Normal joins/two-tab presence, healthy-peer snapshot delivery, normal document extraction/citations and slow room-removal controls passed. Two mocked research walkthrough fixtures advance message windows alongside their existing fake vote/answer clocks, rather than disabling throttling.
+- Verification gate 3: final env -u DATABASE_URL timeout 240 .venv/bin/python -m unittest discover -v passed 412 tests in 44.110 seconds; AI, Google and PayMongo mocked, disposable local stores. Includes mocked four/eight/twelve-turn two-client flows, clarification, timeout, retry, reconnect, transcript, coaching and existing financial invariants. npm test -- --maxWorkers=1 passed 232 React tests; npm run build passed. Focused final lifecycle/research/admission run passed 76 tests before the additional backend fixture. Sandbox TestClient runs hung in the thread portal and were interrupted; approved unsandboxed disposable offline runs produced the passing evidence. Backend legacy deprecation warnings were emitted but no test/build failure.
+- Remaining: no hosted/proxy/load/native or physical-device check, no real AI/payment quality evidence and no non-Linux DOCX execution support. Publication is separate: HEAD remains e876f57, frozen main remains 866e923; no staging, commit, push or deployment. Documentation describes local safeguards; a future release must retain the explicit supported WebSocket backend and transport flags.
+
+### 2026-10-09 — Same-question panelist probe implementation plan
+
+- Session: root `panelist-probe-plan`, closed by this entry. User requested an implementation plan after reading discovery and discussing a research-method example. Inspected current README/log, shared turn/session logic, structured interpretation, server interpretation caller, React snapshot/display types and Streamlit submission path.
+- Added .scratch/panelist-detail-probe/implementation-plan.md only, plus this handoff update. Preserved the unfinished discovery interview without rewriting its choices. Defaults are proposed: separate panelist probe records in transcript/coaching, one optional material-gap probe per question, all defense modes, existing chosen defender/reassignment and a separate 30-second reply window.
+- Plan explicitly proposes moving the decision from discovery's next-move placement into the existing submission-interpretation request, because final-turn/budget stopping can otherwise bypass generation. Scope includes strict grounded references, saved original answers, distinct probe replies, deferred completion/coverage, stale-message protection with probe IDs, bounded retries/AI pauses, explicit direct-answer recovery, React/Streamlit display and offline/live verification separation. No claim of project-wide absence from a missing source.
+- Verification: documentation-only path/nonempty checks and git diff --check passed; source inspection informed the plan. No application tests or AI/payment calls run for this planning change. The earlier security fix gate remains separate evidence, not evidence of this proposed feature.
+- Remaining: user review of the proposed behavior/timing and implementation. No new tickets or code, no commit/push/deployment; main/production and unrelated working-tree files/deletions preserved.
+
 
 ### 2026-10-09 — Same-question panelist probes implemented for local verification
 
@@ -1359,3 +1750,10 @@ Append new entries to the **end** of this file in date order:
 - Verification: final full working-tree .venv/bin/python -m unittest discover -v passed 430 tests, offline with AI/Google/PayMongo mocked. Full npm test -- --maxWorkers=1 passed 239 React tests; TypeScript check and production build passed. Exact selected-release checkout, excluding unrelated work, passed 402 Python tests (providers mocked), 233 React tests and build. Initial isolated Python import failures were missing generated dist assets; after building, both selected gates passed. A new reassignment test initially cancelled its TestClient cleanup before observing disconnect; a graceful fixture close now exercises the real reassignment and passes.
 - Verification: 18 focused probe tests include mocked two-client code4/code8/research4/mixed4, final-question stopping, expiry, clarification, AI retry, speaker reassignment, capacity recovery/reconnect, separate coaching/transcript context and Streamlit normal/failure recovery. Synthetic Playwright previews at1440x900,390x844 and844x390 show no horizontal overflow, internal question scrolling, visible probe label and dock. Keyboard Enter opens Controls; Escape closes and returns focus. Screenshots use screenshots/panelist-probe-mock-*.png. One favicon404 was the only observed console resource error; no dialogue/layout JavaScript exception was observed.
 - Remaining: local preview http://127.0.0.1:8776/?preview=1&research=1&probe=1 is synthetic, not a live AI conversation. User plans to share an updated key-configured local server URL but has not supplied it. Live restraint, source fidelity, role/language quality, user visual review, hosted behavior and installed-device checks remain unverified. No payment-provider call or real account/balance mutation occurred in these checks.
+
+
+### 2026-10-09 — All remaining project changes prepared for publication
+
+- Session: root `publish-all-2026-10-09`. User's "push all" supersedes the earlier selected-files-only publication scope. Prepared remaining security availability fixes, private-parser worker, upload progress and tests, local-only payment-trial source/tests, documentation/security policy, installed agent-skill/configuration files, presentation/drafts and mock captures. Existing screenshot deletions are included as requested; no branch merge or main update.
+- Added ignore rules for browser automation output, tool dependencies and local SQLite state. Candidate text scan found no credential-shaped values; no credentials, local account/payment records or private environment files are staged. The operator-only payment trial remains a separate service, not a multiplayer route. Publishing files does not execute that service or contact payment/AI providers.
+- Verification: the unchanged executable working tree passed the immediately preceding final gate:430 Python tests with AI/Google/PayMongo mocked,239 React tests and production build. Only ignore rules and handoff text changed afterward. Git diff whitespace and publication candidate checks follow. Actual live dialogue, user visual review and newly hosted behavior remain unverified; origin push/hash verification will close the session.

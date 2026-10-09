@@ -39,9 +39,9 @@ The discussion status of substantive topics identified in the research map. An a
 
 ### Sandbox access
 
-**Sandbox purchase**:
-A simulated purchase of test credits whose payment must be verified before credits are awarded. A browser return from checkout is not verification.
-_Avoid_: Real-money purchase, defense charge.
+**Top-up**:
+An addition of credits to an account balance whose payment must be verified before credits are awarded. A browser return from checkout is not verification.
+_Avoid_: Sandbox purchase, real-money purchase, deposit.
 
 **Credit award**:
 Test credits granted once for a verified sandbox purchase. A pending purchase has no credit award.
@@ -60,3 +60,41 @@ _Avoid_: Purchase, per-question fee.
 
 **Voucher access**:
 An account grant allowing defense runs without spending credits. A changed or removed voucher revokes future access without undoing already authorized runs.
+
+### Live tester access
+
+**Tester**:
+A signed-in host participating in the temporary live-payment release. A guest defender joining a room is a separate role.
+_Avoid_: Guest defender, invited tester when no invitation is required.
+
+**Live credit**:
+A unit of defense access purchased through a verified real-money top-up. At the temporary tester rate, PHP 1 buys ten credits and a paid defense run costs ten; unused credits do not expire or change their count when future prices change.
+_Avoid_: Peso balance, sandbox credit, demo credit.
+
+**Top-up invitation**:
+Permission for a signed-in host to purchase live credits during the temporary release. It is not required to redeem a voucher for free access.
+_Avoid_: Room invitation, voucher, permission to join a defense.
+
+**Credit return**:
+Restoration of credits previously charged for a defense run, including a verified server interruption of an unfinished run. It does not refund the money paid for the original top-up.
+_Avoid_: Payment refund, new top-up.
+
+**Payment refund**:
+Money returned for an earlier top-up payment. It is separate from restoring a defense run's credits.
+_Avoid_: Credit return.
+
+**Abandoned run**:
+A defense run whose defenders have all remained disconnected for ten minutes while the service is operating. Abandonment does not qualify for the automatic credit return granted for a verified server interruption.
+_Avoid_: Timed-out turn, server-interrupted run.
+
+**Payment recovery**:
+Confirmation of an already-paid top-up whose local receipt is still pending,
+based on independently verified provider evidence. It neither creates a new
+payment nor returns defense credits.
+_Avoid_: Credit return, payment refund, payer-reported success.
+
+**Unused top-up**:
+A paid top-up whose awarded credits have not been spent. It is the ordinary
+category eligible for an operator-reviewed money-refund request; eligibility
+does not mean the refund has already reached the customer.
+_Avoid_: Unpaid receipt, unused defense question.

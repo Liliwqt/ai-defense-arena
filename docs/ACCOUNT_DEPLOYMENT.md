@@ -5,9 +5,16 @@ Target the existing `defense-simulator.onrender.com` service connected to
 `ai-defense-arena.onrender.com` service. The root `render.yaml` is the older
 free-service template; it does not provision account storage or Google settings.
 
-The account release is prepared for manual deployment. Its commit uses
-`[skip render]` until persistent storage and host authentication are configured.
-Publishing the source is separate from completing the rollout.
+The owner reports deploying the account/PostgreSQL release. Hosted health,
+account configuration and matching assets are confirmed; the owner reports
+Google sign-in and voucher redemption working. Restart persistence and an
+account-linked hosted PayMongo simulator purchase remain unverified.
+
+The newer local payment cleanup adds request reuse, actual credit-award labels,
+private defense-charge history and an aggregate consistency command. See the
+[payment flow map](PAYMENT_FLOW.md); publish and deploy that checkpoint separately
+before expecting its new behavior online. Publication alone does not verify a
+payment, and a documentation update should not trigger another redeploy.
 
 The QR migration (tickets 01–06) is implemented and checked locally; its
 publication/deployment is still pending. The new screen creates QR top-ups
@@ -16,7 +23,7 @@ legacy compatibility. Do not infer deployment from these updated instructions.
 
 ## Storage: free now, paid when needed
 
-The user selected Render Free with an external PostgreSQL database. The local
+The user selected Render Free with an external PostgreSQL database. The
 adapter uses `DATABASE_URL` for **all** identities, sessions, vouchers, purchases
 and run-credit transactions. Without that setting, local development retains
 SQLite at `PAYMONGO_TEST_DB_PATH` (default `.local/payments-test.sqlite3`). An

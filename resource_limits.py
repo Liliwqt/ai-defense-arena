@@ -1,10 +1,13 @@
 """Bounded admission policy; limits count work before allocation or dispatch."""
 from collections import deque
+import asyncio
 import os
+import re
 import threading
 import time
 from ipaddress import ip_address, ip_network
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
+from fastapi.responses import JSONResponse
 
 
 def limit(name: str, default: int, maximum: int = 10000) -> int:
@@ -21,9 +24,10 @@ class RateLimit:
     def __init__(self):
         self._windows = {}
         self._lock = threading.Lock()
+        self.clock = time.monotonic
 
     def admit(self, key: str, count: int, seconds: int = 60) -> None:
-        now = time.monotonic()
+        now = self.clock()
         with self._lock:
             self._windows = {k: q for k, q in self._windows.items() if q and q[-1] > now - seconds}
             if key not in self._windows and len(self._windows) >= 4096:
@@ -39,6 +43,101 @@ class RateLimit:
 
 creation_rate = RateLimit()
 ai_rate = RateLimit()
+
+
+class Capacity:
+    """Reserve real in-flight resources, without retaining empty network keys."""
+    def __init__(self):
+        self.total = 0
+        self.networks = {}
+        self.lock = threading.Lock()
+
+    def acquire(self, network: str, total: int, per_network: int) -> None:
+        with self.lock:
+            if self.total >= total or self.networks.get(network, 0) >= per_network:
+                raise HTTPException(429, 'Connection capacity reached. Retry shortly.', headers={'Retry-After': '10'})
+            self.total += 1
+            self.networks[network] = self.networks.get(network, 0) + 1
+
+    def release(self, network: str) -> None:
+        with self.lock:
+            count = self.networks.get(network, 0)
+            if count:
+                self.total -= 1
+                if count == 1:
+                    del self.networks[network]
+                else:
+                    self.networks[network] = count - 1
+
+
+join_rate = RateLimit()
+join_capacity = Capacity()
+socket_capacity = Capacity()
+socket_connect_rate = RateLimit()
+socket_player_rate = RateLimit()
+socket_message_rate = RateLimit()
+socket_room_rate = RateLimit()
+MAX_JOIN_BYTES = 4096
+
+
+class JoinAdmissionMiddleware:
+    """Bound anonymous JSON before framework buffering, including unknown rooms."""
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if (scope['type'] != 'http' or scope['method'] != 'POST'
+                or not re.fullmatch(r'/api/rooms/[^/]+/join/?', scope['path'])):
+            await self.app(scope, receive, send)
+            return
+        network = client_network(Request(scope))
+        reserved = False
+        started = False
+        try:
+            join_rate.admit(network, 60)
+            join_capacity.acquire(network, 32, 8)
+            reserved = True
+            async def tracked_send(message):
+                nonlocal started
+                if message['type'] == 'http.response.start':
+                    started = True
+                await send(message)
+
+            async def forward():
+                # Admit a tiny bounded buffer here, before any framework catches
+                # receive errors or attempts JSON decoding.
+                body = bytearray()
+                while True:
+                    message = await receive()
+                    if message['type'] == 'http.disconnect':
+                        return
+                    chunk = message.get('body', b'')
+                    if len(body) + len(chunk) > MAX_JOIN_BYTES:
+                        raise HTTPException(413, 'Join request is too large.')
+                    body.extend(chunk)
+                    if not message.get('more_body', False):
+                        break
+                delivered = False
+                async def admitted_receive():
+                    nonlocal delivered
+                    if not delivered:
+                        delivered = True
+                        return {'type': 'http.request', 'body': bytes(body), 'more_body': False}
+                    return await receive()
+                await self.app(scope, admitted_receive, tracked_send)
+
+            # Count actual bytes, never trust a supplied Content-Length.
+            await asyncio.wait_for(forward(), 10)
+        except asyncio.TimeoutError:
+            if not started:
+                await JSONResponse({'detail': 'Joining took too long. Retry shortly.'}, status_code=408)(scope, receive, send)
+        except HTTPException as error:
+            if started:
+                raise
+            await JSONResponse({'detail': error.detail}, status_code=error.status_code, headers=error.headers)(scope, receive, send)
+        finally:
+            if reserved:
+                join_capacity.release(network)
 
 
 def client_network(request) -> str:

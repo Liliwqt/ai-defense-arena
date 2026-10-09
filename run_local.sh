@@ -47,4 +47,4 @@ if [[ -z "${GOOGLE_CLIENT_ID:-}" || -z "${GOOGLE_CLIENT_SECRET:-}" || -z "${AUTH
 fi
 
 printf 'Real AI room ready at http://127.0.0.1:8000/\n'
-exec .venv/bin/uvicorn game_server:app --host 127.0.0.1 --port 8000
+exec .venv/bin/uvicorn game_server:app --host 127.0.0.1 --port 8000 --ws websockets --ws-max-size 20000 --ws-max-queue 4

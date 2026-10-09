@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { RoomState } from "../types";
 import type { Account } from "../hooks/useAccount";
 import { OwnedRooms } from "./OwnedRooms";
 import { ResearchPlanPanel } from "./ResearchPlanPanel";
+import { createRoom, type RoomCreationProgress } from "../lib/createRoom";
 
 interface ControlsPanelProps {
   account?: Account | null;
@@ -54,6 +55,10 @@ export function ControlsPanel({
 }: ControlsPanelProps) {
   const [activeTab, setActiveTab] = useState<"create" | "join">("create");
   const [createBusy, setCreateBusy] = useState(false);
+  const [createProgress, setCreateProgress] = useState<RoomCreationProgress | null>(null);
+  const [createElapsed, setCreateElapsed] = useState(0);
+  const createPending = useRef(false);
+  const progressRef = useRef<HTMLDivElement>(null);
   const [joinBusy, setJoinBusy] = useState(false);
   const [budgetDirty, setBudgetDirty] = useState(false);
   const [defenseType, setDefenseType] = useState<"code" | "research" | "mixed">("code");
@@ -61,6 +66,15 @@ export function ControlsPanel({
   const [hostName, setHostName] = useState("");
   const [nameEdited, setNameEdited] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
+  useEffect(() => {
+    if (createBusy) progressRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [createBusy]);
+  useEffect(() => {
+    if (!createBusy) return;
+    const started = Date.now();
+    const timer = window.setInterval(() => setCreateElapsed(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => window.clearInterval(timer);
+  }, [createBusy]);
   useEffect(() => { if (!nameEdited && account?.user?.name) setHostName(account.user.name.slice(0, 24)); }, [account?.user?.name, nameEdited]);
   const liveAccess = account?.payment_mode === "live";
   const creditLabel = liveAccess ? "credits" : "test credits";
@@ -76,20 +90,21 @@ export function ControlsPanel({
 
   async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (createPending.current || !account?.authenticated) return;
+    createPending.current = true;
     showMessage("");
+    setCreateElapsed(0);
+    setCreateProgress({ percent: 0, stage: "uploading" });
     setCreateBusy(true);
     const form = e.currentTarget;
     try {
-      const resp = await fetch("/api/rooms", {
-        method: "POST",
-        headers: { "X-CSRF-Token": account?.csrf_token ?? "" },
-        body: new FormData(form),
-      });
-      const body = await responseJson(resp);
-      onUseRoom(body.room_code as string, body.player_token as string, true);
+      const body = await createRoom(new FormData(form), account?.csrf_token ?? "", setCreateProgress);
+      onUseRoom(body.room_code, body.player_token, true);
     } catch (err) {
+      setCreateProgress(null);
       showMessage((err as Error).message ?? "Could not create the room.");
     } finally {
+      createPending.current = false;
       setCreateBusy(false);
     }
   }
@@ -138,6 +153,7 @@ export function ControlsPanel({
   }
 
   function handleSetupTabKey(event: React.KeyboardEvent<HTMLButtonElement>) {
+    if (createBusy || joinBusy) return;
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
     event.preventDefault();
     const next = activeTab === "create" ? "join" : "create";
@@ -185,6 +201,7 @@ export function ControlsPanel({
           <div className="setup-tabs" role="tablist" aria-label="Room setup">
             <button
               type="button"
+              disabled={createBusy || joinBusy}
               className={tabClass(activeTab === "create")}
               role="tab" aria-controls="create-form" tabIndex={activeTab === "create" ? 0 : -1}
               onKeyDown={handleSetupTabKey}
@@ -195,6 +212,7 @@ export function ControlsPanel({
             </button>
             <button
               type="button"
+              disabled={createBusy || joinBusy}
               className={tabClass(activeTab === "join")}
               role="tab" aria-controls="join-form" tabIndex={activeTab === "join" ? 0 : -1}
               onKeyDown={handleSetupTabKey}
@@ -206,7 +224,9 @@ export function ControlsPanel({
           </div>
 
           {activeTab === "create" && (
-            <form id="create-form" role="tabpanel" onSubmit={handleCreate} className="grid gap-[15px]">
+            <>
+            <form id="create-form" role="tabpanel" aria-busy={createBusy} onSubmit={handleCreate}>
+              <fieldset disabled={createBusy} className="setup-fieldset">
               {!account?.authenticated && <div className="account-access-card"><p>Sign in with Google to create a room. Teammates can use Join room without an account.</p><button type="button" className={secondaryBtn} onClick={onOpenAccount}>Open Account</button></div>}
               <label className="setup-label">
                 Your name
@@ -242,7 +262,21 @@ export function ControlsPanel({
               <button type="submit" disabled={createBusy || !account?.authenticated} className={primaryBtn}>
                 {createBusy ? "Creating…" : "Create defense room"}
               </button>
+              </fieldset>
             </form>
+            {createProgress && <div ref={progressRef} className="room-create-progress">
+              <div className="room-create-progress-heading">
+                <p role="status">{createProgress.stage === "ready" ? "Room ready" : createProgress.stage === "processing" ? "Processing files and creating room…" : "Uploading files…"}</p>
+                <strong className="room-create-percent">{createProgress.percent === null ? "Uploading" : `${createProgress.percent}%`}</strong>
+              </div>
+              <div className="room-create-progress-track" role="progressbar" aria-label="File upload" aria-valuemin={0} aria-valuemax={100}
+                aria-valuenow={createProgress.percent ?? undefined}
+                aria-valuetext={createProgress.stage === "ready" ? "Upload complete. Room ready." : createProgress.stage === "processing" ? "Upload complete. Processing files and creating room." : undefined}>
+                <span className={`room-create-progress-fill${createProgress.percent === null ? " is-indeterminate" : ""}`} style={createProgress.percent === null ? undefined : { width: `${createProgress.percent}%` }} />
+              </div>
+              <p className="control-help">{createProgress.stage === "ready" ? "Room created successfully." : createProgress.stage === "processing" ? "Upload complete. Keep this page open while your files are checked." : "Keep this page open. Percentage shows files uploaded."} <span className="room-create-elapsed">{createElapsed}s elapsed</span></p>
+            </div>}
+            </>
           )}
 
           {activeTab === "join" && (

@@ -308,6 +308,13 @@ class ResearchTwoClientTests(unittest.TestCase):
         self.addCleanup(lambda: self.client.__exit__(None, None, None))
         authenticate(self, self.client)
 
+        # Voting/answer clocks advance instantly in this mocked walkthrough;
+        # message windows follow the same elapsed time as a real defense.
+        for limiter in (game_server.socket_message_rate, game_server.socket_room_rate):
+            clock = patch.object(limiter, 'clock', side_effect=lambda: self.now / 1000)
+            clock.start()
+            self.addCleanup(clock.stop)
+
     def prepare(self, host, budget):
         room = game_server.rooms[host['room_code']]
         paper = next(file for file in room.files if file.kind.startswith('research'))

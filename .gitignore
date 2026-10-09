@@ -16,9 +16,16 @@ game/*.tsbuildinfo
 # Local demo upload archive
 /ai-defense-arena-source.zip
 
-# Local sandbox payment receipts (never a production billing database)
-/.local/payments-test.sqlite3*
+# Private local databases, vouchers and generated account artifacts
+/.local/
 /client_secret*.json
 /google_client_secret*.json
 
-.local/free-access-voucher
+# Browser automation output and local tool dependencies
+.playwright-mcp/
+.opencode/node_modules/
+
+# Local database files (never publish account/payment state)
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal

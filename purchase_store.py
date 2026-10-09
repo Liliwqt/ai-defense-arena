@@ -61,7 +61,11 @@ class PurchaseStore:
         package = package_for(package_id)
         return self._begin(account_id, request_id, package["amount"], package["credits"], "payment_intent", now=now)
 
-    def _begin(self, account_id: str, request_id: str, amount: int, credits: int, provider: str, *, now: int | None) -> dict:
+    def begin_live_trial(self, account_id: str, request_id: str) -> dict:
+        """One fixed PHP 1 receipt per owner, in the dedicated live-trial store."""
+        return self._begin(account_id, request_id, 100, 100, "payment_intent", now=None, single_purchase=True)
+
+    def _begin(self, account_id: str, request_id: str, amount: int, credits: int, provider: str, *, now: int | None, single_purchase: bool = False) -> dict:
         now = int(time.time()) if now is None else now
         fingerprint = token_hash(json.dumps([provider, account_id, request_id])) if request_id else None
         with connect_store(self.database) as db:
@@ -77,6 +81,8 @@ class PurchaseStore:
                     if previous["status"] in {"pending", "paid"}:
                         return dict(previous)
                     raise PurchaseError("creating" if previous["status"] == "creating" else "unverified")
+            if single_purchase and db.execute("SELECT 1 FROM test_orders WHERE account_id=? LIMIT 1", (account_id,)).fetchone():
+                raise PurchaseError("trial_exists")
             attempts = db.execute("SELECT count(*) FROM test_orders WHERE account_id=? AND created_at>?",
                                   (account_id, now - CHECKOUT_WINDOW)).fetchone()[0]
             if attempts >= CHECKOUT_LIMIT:

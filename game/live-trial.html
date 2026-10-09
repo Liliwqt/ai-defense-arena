@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>₱1 real-payment trial · AI Defense Arena</title>
+<style>
+*{box-sizing:border-box}body{font:16px/1.5 system-ui,sans-serif;background:#f5f5f5;color:#151515;margin:0;padding:24px}
+main{max-width:620px;margin:30px auto;background:white;border:1px solid #ddd;border-radius:20px;padding:28px}
+h1{font-size:28px;line-height:1.2}button,a{font:inherit}button,.button{display:inline-block;padding:12px 18px;background:#151515;color:white;border:0;border-radius:8px;text-decoration:none;cursor:pointer}
+button:disabled{opacity:.5;cursor:default}:focus-visible{outline:3px solid #a65a00;outline-offset:3px}
+.label{font-size:12px;font-weight:700;letter-spacing:.1em;color:#794200}#qr{display:block;width:min(100%,340px);height:auto;margin:20px auto}#error{color:#794200}label{display:block;margin:20px 0}input{width:20px;height:20px;vertical-align:middle}#receipt{overflow-wrap:anywhere}hr{border:0;border-top:1px solid #ddd;margin:24px 0}[hidden]{display:none!important}
+</style>
+<main><p class="label">REAL PAYMENT · OWNER-ONLY TRIAL</p><h1>Test one ₱1 payment</h1>
+<p>This trial uses real money. You approve <strong>₱1.00</strong> in GCash after scanning the live QR Ph code. It adds <strong>100 demo credits</strong> to this separate trial account. These credits do not change your app or sandbox balance.</p>
+<p>One trial QR is allowed. This is a payment integration check, not a public credit pack or final pricing.</p>
+<section id="login" hidden><a class="button" href="/api/auth/google/login">Sign in with Google</a></section>
+<section id="account" hidden><p id="name"></p><p id="balance"></p><button id="logout">Sign out</button></section>
+<hr><form id="create" hidden><label><input id="confirm" type="checkbox" required> I understand that this is a real ₱1.00 payment.</label><button id="generate">Generate ₱1 payment QR</button></form>
+<section id="payment" hidden><h2 id="status"></h2><p id="amount"></p><img id="qr" alt="Live QR Ph payment code" hidden><p id="expiry"></p><p id="receipt"></p><button id="refresh" type="button">Refresh status</button></section>
+<p id="message" role="status">Checking trial setup…</p><p id="error" role="alert"></p>
+<p>Credits are added only after the server verifies PayMongo’s payment notification. No manual authorization or simulation button is used.</p></main>
+<script>
+const api='/api/payments/live-trial', $=id=>document.getElementById(id);
+let user=null,receipt=null,active=false,checking=false;
+async function request(url,options={}){const response=await fetch(url,{credentials:'same-origin',...options});const body=await response.json();if(!response.ok)throw Error(body.detail||'Could not complete this request.');return body;}
+function showError(error){$('error').textContent=error.message||'Could not verify this trial. Try refreshing status.';}
+async function account(){const data=await request('/api/auth/me');user=data.authenticated?data:null;$('login').hidden=!!user;$('account').hidden=!user;if(user){$('name').textContent=`Signed in as ${user.user.name}`;$('balance').textContent=`${user.test_credits||0} demo credits in this trial account`;}}
+function display(row){if(row.mode!=='live'||row.amount!==100||row.currency!=='PHP'||row.credits!==100||row.simulated)throw Error('The payment receipt is not a verified ₱1 live trial.');
+receipt=row.id;active=row.status==='pending';$('create').hidden=true;$('payment').hidden=false;$('status').textContent=row.status==='paid'?'Payment confirmed':`Payment status: ${row.status.replaceAll('_',' ')}`;
+$('amount').textContent='₱1.00 · 100 demo credits';$('receipt').textContent=`Trial receipt: ${row.id}`;
+const visible=active&&row.expires_at>Date.now()/1000;$('qr').hidden=!visible;if(visible&&row.qr_image_url?.startsWith('data:image/png;base64,'))$('qr').src=row.qr_image_url;else $('qr').removeAttribute('src');
+$('expiry').textContent=visible?'Scan using GCash, check the ₱1.00 amount, and approve in your wallet.':active?'QR display time ended. We are still checking for payment confirmation.':'';
+$('message').textContent=row.status==='paid'?'The signed provider notification confirmed payment and added the demo credits.':active?'Waiting for automatic server confirmation. Status refreshes every five seconds.':'No further QR will be generated automatically. Keep this receipt for review.';}
+async function refresh(){if(checking)return;checking=true;try{$('error').textContent='';await account();if(!user){$('create').hidden=true;$('payment').hidden=true;active=false;$('message').textContent='Sign in using the configured trial owner account.';return;}
+const config=await request(api+'/config');if(config.mode!=='live'||config.amount!==100||config.credits!==100||config.currency!=='PHP')throw Error('Unexpected trial configuration.');receipt=config.receipt_id;if(receipt){display((await request(api+'/topups/'+encodeURIComponent(receipt))).topup);if(!active)await account();}else{$('create').hidden=false;$('message').textContent='Ready to generate one ₱1.00 live QR.';}}
+catch(error){$('create').hidden=true;$('qr').hidden=true;showError(error);}finally{checking=false;}}
+$('create').addEventListener('submit',async event=>{event.preventDefault();if($('generate').disabled||!user)return;$('generate').disabled=true;$('error').textContent='';$('message').textContent='Generating the live payment QR…';
+try{const key='one-peso-trial-'+user.user.id;let id=sessionStorage.getItem(key);if(!id){id=crypto.randomUUID();sessionStorage.setItem(key,id);}const data=await request(api+'/topups',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':user.csrf_token,'Idempotency-Key':id},body:JSON.stringify({confirm_real_payment:$('confirm').checked})});display(data.topup);}
+catch(error){showError(error);}finally{$('generate').disabled=false;}});
+$('refresh').addEventListener('click',refresh);$('logout').addEventListener('click',async()=>{try{await request('/api/auth/logout',{method:'POST',headers:{'X-CSRF-Token':user.csrf_token}});await refresh();}catch(error){showError(error);}});
+setInterval(()=>{if(active)refresh();},5000);refresh();
+</script></html>

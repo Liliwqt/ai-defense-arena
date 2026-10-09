@@ -9,6 +9,7 @@ import logging
 import os
 from pathlib import Path
 import secrets
+import threading
 import time
 from typing import Any
 
@@ -25,7 +26,9 @@ from account_store import (AccessError, require_run_access, reserve_run, charge_
                            release_run, release_orphaned_reservations)
 from financial_policy import live_mode
 from live_store import LiveStore, ServiceAlreadyActive
-from resource_limits import limit, creation_rate, ai_rate, AIBudget
+from resource_limits import (limit, creation_rate, ai_rate, AIBudget, client_network,
+    JoinAdmissionMiddleware, join_rate, join_capacity, socket_capacity,
+    socket_connect_rate, socket_player_rate, socket_message_rate, socket_room_rate)
 from timed_turn import TimedTurn, PendingSubmission, DeadlineExpired, VOTE_MS, ANSWER_MS
 from payments import router as test_payment_router
 from payments_live import router as live_payment_router
@@ -85,6 +88,7 @@ class Room(TimedTurn):
     research_stage: str = "infer"
     defense: DefenseSession | None = None
     revision: int = 0
+    published_revision: int = -1
     generation_id: int = 0
     feedback_status: str = "none"   # none | generating | ready | failed
     feedback: CoachingReport | None = None
@@ -254,10 +258,13 @@ async def _remove_room(room, expired_only=False):
             del rooms[room.code]
             sockets = [socket for player in room.players.values() for socket in player.sockets]
     for socket in sockets:
-        await _send_error(socket, 'Room not found. This room was closed or expired; create a fresh room.')
         try:
-            await socket.close(code=1000)
-        except (RuntimeError, OSError, WebSocketDisconnect):
+            await _send_error(socket, 'Room not found. This room was closed or expired; create a fresh room.')
+        except asyncio.TimeoutError:
+            pass
+        try:
+            await asyncio.wait_for(socket.close(code=1000), 1)
+        except (asyncio.TimeoutError, RuntimeError, OSError, WebSocketDisconnect):
             pass
     room.files.clear()
     room.chat.clear()
@@ -340,6 +347,9 @@ async def lifespan(app):
     creation_pending.clear()
     creation_rate.__init__()
     ai_rate.__init__()
+    for admission in (join_rate, join_capacity, socket_capacity, socket_connect_rate,
+                      socket_player_rate, socket_message_rate, socket_room_rate):
+        admission.__init__()
     if not live_mode():
         app.state.room_service_status = "ready"
         release_orphaned_reservations()
@@ -484,6 +494,7 @@ class RoomAdmissionMiddleware:
 
 
 app.add_middleware(RoomAdmissionMiddleware)
+app.add_middleware(JoinAdmissionMiddleware)
 
 
 def _player_name(value: str) -> str:
@@ -517,18 +528,31 @@ async def publish(room: Room) -> None:
     """Send the latest state to every connected player in message order."""
     async with room.broadcast_lock:
         async with room.lock:
-            deliveries = [
-                (socket, {"type": "snapshot", "state": room.snapshot(player)})
-                for player in room.players.values()
-                for socket in player.sockets
-            ]
-        for socket, payload in deliveries:
+            if room.published_revision == room.revision:
+                return  # Coalesce queued publications of the same/latest revision.
+            room.published_revision = room.revision
+            deliveries = []
+            for player in room.players.values():
+                if player.sockets:
+                    payload = {"type": "snapshot", "state": room.snapshot(player)}
+                    deliveries.extend((socket, payload) for socket in player.sockets)
+
+        async def deliver(socket, payload):
             try:
-                await socket.send_json(payload)
-            except (RuntimeError, OSError, WebSocketDisconnect):
+                await asyncio.wait_for(socket.send_json(payload), 1)
+            except (asyncio.TimeoutError, RuntimeError, OSError, WebSocketDisconnect):
                 async with room.lock:
                     for player in room.players.values():
-                        player.sockets.discard(socket)
+                        if socket in player.sockets:
+                            player.sockets.discard(socket)
+                            room.revision += 1
+                    _reassign_if_offline_locked(room)
+                try:
+                    await asyncio.wait_for(socket.close(code=1013), .25)
+                except (asyncio.TimeoutError, RuntimeError, OSError, WebSocketDisconnect):
+                    pass
+
+        await asyncio.gather(*(deliver(socket, payload) for socket, payload in deliveries))
 
 
 def _online_players(room: Room) -> dict[str, int]:
@@ -879,11 +903,12 @@ async def create_room(
         if len(data) > MAX_RESEARCH_BYTES:
             raise HTTPException(413, f"{filename or 'Research document'} exceeds the 10 MB limit.")
         research_uploads.append(UploadedBytes(filename, data))
+    stop_parsing = threading.Event()
     def extract():
         project_files, errors = read_project_files(uploads) if uploads else ([], [])
         if errors:
             return [], errors
-        papers, errors = read_research_files(research_uploads) if research_uploads else ([], [])
+        papers, errors = read_research_files(research_uploads, cancel=stop_parsing) if research_uploads else ([], [])
         return ([], errors) if errors else combine_sources(project_files, papers)
     await parser_slots.acquire()
     if (creation_pending.get(getattr(request.state, 'room_admission', None)) != account['id']
@@ -893,7 +918,10 @@ async def create_room(
     future = asyncio.get_running_loop().run_in_executor(parser_pool, extract)
     slots = parser_slots
     future.add_done_callback(lambda _: slots.release())
-    project_files, errors = await asyncio.shield(future)
+    try:
+        project_files, errors = await asyncio.shield(future)
+    finally:
+        stop_parsing.set()
     if errors:
         raise HTTPException(422, errors[0])
     async with registry_lock:
@@ -975,7 +1003,7 @@ async def join_room(code: str, request: JoinRequest) -> dict[str, str]:
 
 async def _send_error(socket: WebSocket, message: str, reason: str | None = None) -> None:
     try:
-        await socket.send_json({"type": "error", "message": message, **({"reason": reason} if reason else {})})
+        await asyncio.wait_for(socket.send_json({"type": "error", "message": message, **({"reason": reason} if reason else {})}), 1)
     except (RuntimeError, OSError, WebSocketDisconnect):
         # The peer may close while the server is preparing its reply.
         pass
@@ -1211,6 +1239,7 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
                 feedback_generation_id = room.feedback_generation_id
                 room.revision += 1
         elif action == "cast_vote":
+            previous_vote = room.votes.get(player.token)
             try:
                 room.cast_vote(player.token, message.get("seat"), _online_players(room), _now_ms())
             except HTTPException as failure:
@@ -1219,6 +1248,8 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
                 error = str(failure)
                 expired_action = isinstance(failure, DeadlineExpired)
             else:
+                if previous_vote == room.votes.get(player.token):
+                    return
                 room.revision += 1
         elif action == "send_chat":
             content = message.get("text")
@@ -1351,16 +1382,35 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
 
 @app.websocket("/ws/{code}")
 async def room_socket(socket: WebSocket, code: str) -> None:
-    await socket.accept()
+    network = client_network(socket)
+    try:
+        socket_connect_rate.admit(network, 60)
+        socket_capacity.acquire(network, 256, 32)
+    except HTTPException:
+        await asyncio.wait_for(socket.close(code=1013), 1)
+        return
+    try:
+        await _serve_room_socket(socket, code)
+    except (asyncio.TimeoutError, RuntimeError, OSError, WebSocketDisconnect):
+        try:
+            await asyncio.wait_for(socket.close(code=1013), 1)
+        except (asyncio.TimeoutError, RuntimeError, OSError, WebSocketDisconnect):
+            pass
+    finally:
+        socket_capacity.release(network)
+
+
+async def _serve_room_socket(socket: WebSocket, code: str) -> None:
+    await asyncio.wait_for(socket.accept(), 1)
     if live_mode() and app.state.room_service_status != "ready":
         await _send_error(socket, SERVICE_STARTING_MESSAGE)
-        await socket.close(code=1013)
+        await asyncio.wait_for(socket.close(code=1013), 1)
         return
     room = rooms.get(code.upper())
     if room is None:
         await _send_error(socket, "Room not found. Check the invite code.")
         try:
-            await socket.close(code=1008)
+            await asyncio.wait_for(socket.close(code=1008), 1)
         except (RuntimeError, OSError, WebSocketDisconnect):
             pass
         return
@@ -1370,7 +1420,7 @@ async def room_socket(socket: WebSocket, code: str) -> None:
         token = hello.get("token") if isinstance(hello, dict) and hello.get("type") == "hello" else None
     except WebSocketDisconnect:
         return
-    except (asyncio.TimeoutError, json.JSONDecodeError):
+    except (asyncio.TimeoutError, json.JSONDecodeError, KeyError):
         token = None
     await _observe_absence(room)
     async with room.lock:
@@ -1380,9 +1430,17 @@ async def room_socket(socket: WebSocket, code: str) -> None:
                 _host_account(room, socket)
             except HTTPException as failure:
                 await _send_error(socket, failure.detail)
-                await socket.close(code=1008)
+                await asyncio.wait_for(socket.close(code=1008), 1)
                 return
         if player is not None:
+            try:
+                socket_player_rate.admit(player.token, 12)
+                if len(player.sockets) >= 2 or sum(len(item.sockets) for item in room.players.values()) >= 8:
+                    raise HTTPException(429, 'Room connection limit reached. Close an extra tab and retry.')
+            except HTTPException as failure:
+                await _send_error(socket, failure.detail, 'socket_admission')
+                await asyncio.wait_for(socket.close(code=1013), 1)
+                return
             player.sockets.add(socket)
             room.absent_since_ms = None
             room.absence_elapsed_ms = 0
@@ -1391,15 +1449,29 @@ async def room_socket(socket: WebSocket, code: str) -> None:
     if player is None:
         await _send_error(socket, "This room link is no longer valid. Join again.")
         try:
-            await socket.close(code=1008)
+            await asyncio.wait_for(socket.close(code=1008), 1)
         except (RuntimeError, OSError, WebSocketDisconnect):
             pass
         return
-    await _expire_deadline(room)
-    await publish(room)
     try:
+        await _expire_deadline(room)
+        await publish(room)
         while True:
-            raw = await socket.receive_text()
+            event = await socket.receive()
+            if event['type'] == 'websocket.disconnect':
+                break
+            try:
+                # Shared across all sockets for this token; reconnect cannot reset it.
+                socket_message_rate.admit(player.token, 10, seconds=2)
+                socket_room_rate.admit(room.code, 24, seconds=2)
+            except HTTPException:
+                await asyncio.wait_for(_send_error(socket, 'Too many room messages. Retry shortly.', 'socket_admission'), 1)
+                await asyncio.wait_for(socket.close(code=1013), 1)
+                break
+            raw = event.get('text')
+            if not isinstance(raw, str):
+                await asyncio.wait_for(socket.close(code=1003), 1)
+                break
             if len(raw) > MAX_ANSWER_CHARS + 500:
                 await _send_error(socket, "Message is too long.")
                 continue
@@ -1412,7 +1484,7 @@ async def room_socket(socket: WebSocket, code: str) -> None:
                 await _send_error(socket, "Invalid room message.")
                 continue
             await _handle_action(room, player, socket, message)
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, asyncio.TimeoutError, RuntimeError, OSError):
         pass
     finally:
         async with room.lock:

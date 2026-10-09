@@ -32,7 +32,7 @@ website-only layout changes require no native app rebuild.
 
 This README describes `feature/question-first-room`: the flat room, research documents, same-question clarifications, summary downloads, answer-aware conversations, and Google host accounts with voucher or sandbox-credit access. Research and mixed defenses require a source-grounded paper map and a host-confirmed **4–100-question maximum**. Code-only defenses remain four to eight questions. The compact mobile header and existing architecture are served at [defense-simulator.onrender.com](https://defense-simulator.onrender.com), with shared timed-turn, purchase and progression modules and checkout UI compatible with account-owned receipts. Hosted health and asset hashes match the tested release; Google and test-payment configuration is enabled. A fresh signed-in defense and provider simulator purchase remain separate unverified checks. Separate Account UI and measured upload-progress work is still local. `main` stays frozen during the review window that began on October 1, 2026, and its earlier service remains unchanged.
 
-The local account/access checkpoint, including the PostgreSQL adapter, passes **194 Python tests with AI, Google, and PayMongo mocked, 153 React tests, and a production build**. A separate **52-test gate against real local PostgreSQL**, with external providers still mocked, verifies migrations, rollback, concurrent reservations, duplicate webhooks and room charging. Two-browser mocked defenses completed all four combinations of code/research and voucher/test-credit access, including votes, clarification, answers, reconnect, transcript, and coaching. Mocked checkout/webhooks awarded 100 credits once, an opening failure released its reservation, and the subsequent code and research runs charged 10 credits each. Actual Google sign-in and a new account-linked PayMongo simulator purchase await configuration. Local desktop/landscape captures are linked in the account section below; user review is pending.
+The previous account/PostgreSQL checkpoint passed **194 Python tests with AI, Google, and PayMongo mocked, 153 React tests, and a production build**, plus a **52-test gate against real local PostgreSQL** with external providers mocked. Two-browser mocked defenses completed all four combinations of code/research and voucher/test-credit access, including votes, clarification, answers, reconnect, transcript and coaching. Mocked signed webhooks awarded 100 credits once, an opening failure released its reservation, and the subsequent code/research runs charged ten credits each. The cleanup gate passes **204 Python tests, 62 real-local-PostgreSQL tests with external providers mocked, 157 React tests and a production build**. A synthetic browser checkout processed duplicate signed notifications into exactly one 100-credit award and displayed run reservation/charge/release records; it is not a live provider purchase. An actual account-linked hosted PayMongo simulator purchase, fresh hosted defense charge, and deliberate restart persistence check remain pending. Local account captures use synthetic fixtures, and user visual review is separate.
 
 The isolated published research release passed **138 Python tests with AI mocked, 129 React tests, and a production build** using the committed lockfile. Its mocked two-browser twelve-question research and mixed defenses covered planning, budget confirmation, voting, timeout follow-up, clarification, retry, reconnect, exact PDF/code citations, export and coaching. Desktop, landscape, narrow landscape, portrait rotation and keyboard drawer controls were checked separately. These published-release checks are distinct from the newer local account/access tests.
 
@@ -70,7 +70,65 @@ This checkpoint is **local, not deployed**. See [limits and verification](docs/S
 for configuration, mocked browser screenshots and remaining hosted/native checks.
 Do not configure trusted forwarding headers until the actual proxy path is verified.
 
+Additional local availability safeguards bound anonymous join bodies to 4 KB,
+with a 10-second deadline, 32 in-flight requests globally and eight per network.
+WebSockets are limited to two tabs per defender, eight per room, 256 globally and
+32 per network, including clients awaiting authentication. Connection attempts
+and messages have shared network/player/room limits; reconnecting does not reset
+them. Slow snapshot recipients are disconnected after one second. The launch
+commands explicitly select the declared websockets backend, capping frames at
+20 KB and inbound queues at four messages; do not substitute the auto backend,
+whose queue behavior depends on the installed Uvicorn version.
+
+DOCX extraction runs in a credential-free Linux child process with a 128 MiB
+memory ceiling, 10 CPU seconds and a 20-second wall deadline. It rejects packages
+with more than 512 entries, parts above 8 MB, total expansion above 32 MB, or an
+expansion ratio above 1000. Request cancellation terminates and reaps the child
+before releasing its parser slot. Non-Linux local servers reject DOCX safely;
+use Linux/WSL or upload TXT/Markdown instead. PDF processing is unchanged.
+
 ## Run locally
+
+### One-peso real-payment trial (local only)
+
+`payments_live_trial.py` is a separate, owner-only service for one **PHP 1.00
+real QR Ph payment**, adding 100 demo credits to an isolated trial account.
+It does not change the multiplayer app's PHP 100 sandbox pack or its balances.
+This is an integration check, not final pricing or a public live-money launch.
+
+Configure `PAYMONGO_LIVE_TRIAL_ENABLED=1`, `PAYMONGO_LIVE_SECRET_KEY`,
+`PAYMONGO_LIVE_WEBHOOK_SECRET`, and `PAYMONGO_LIVE_TRIAL_OWNER_SUB` on that
+process only. The owner is the server-verified Google subject, not an email
+or browser-supplied ID. Use the existing Google settings, a matching HTTPS
+`AUTH_PUBLIC_BASE_URL` / `PAYMONGO_PUBLIC_BASE_URL`, and a separate
+`PAYMONGO_TEST_DB_PATH` ending in `qr-one-peso-live.sqlite3`. Do not set
+`DATABASE_URL` for the trial. Keep credentials in an ignored private file;
+the operator's setup wizard writes `.env.paymongo-live-trial` with mode 600.
+
+With those settings loaded into a separate process, run:
+
+```bash
+.venv/bin/uvicorn payments_live_trial:app --host 127.0.0.1 --port 8791 --workers 1 --no-access-log
+```
+
+Register a **live-mode** webhook at `/api/payments/live-trial/webhook` for
+`payment.paid`, `payment.failed`, and `qrph.expired`. The service verifies the
+live `li` signature, event mode, intent, amount, currency and receipt before a
+once-only award. It does not expose sandbox simulation or defense endpoints.
+One trial receipt per owner is enforced transactionally; failed or ambiguous
+creation blocks another payment attempt until reviewed. Refreshing restores
+the existing receipt, without generating another QR.
+
+The owner signs in, confirms the real-payment label, generates the QR, and
+checks **PHP 1.00** in GCash before approving. A paid browser redirect never
+awards credits. Only the verified provider notification does. Trial credits
+remain separate from usable app/sandbox credits. The dedicated temporary
+HTTPS service is running locally. One operator-paid live PHP 1.00 transaction
+was confirmed by PayMongo and awarded exactly 100 demo credits through the
+signed webhook. The temporary live webhook is now disabled; its paid receipt
+remains available. See [the trial review](docs/ONE_PESO_LIVE_TRIAL.md) for evidence.
+
+### Multiplayer app
 
 Install Python with virtual-environment support, Node.js, and npm, then run from the repository root:
 
@@ -134,7 +192,7 @@ cd game
 npm ci
 npm run build
 cd ..
-.venv/bin/uvicorn game_server:app --host 127.0.0.1 --port 8000 --workers 1
+.venv/bin/uvicorn game_server:app --host 127.0.0.1 --port 8000 --workers 1 --ws websockets --ws-max-size 20000 --ws-max-queue 4
 ```
 
 Open <http://127.0.0.1:8000/?preview=1>. Preview mode uses static mock state, makes no AI calls, and does not accept room actions. Add flags to inspect different screens:
@@ -164,6 +222,8 @@ For frontend development, run `npm run dev` in `game/` alongside FastAPI on port
 5. The chosen defender gets **120 seconds** to answer. Only that defender may submit. Disconnection assigns another online defender without resetting the clock. Expiry records an unanswered turn and advances the defense.
 6. A panelist may ask for **one missing detail** after reading an answer. This optional probe keeps the original answer, question, source citation and chosen defender. It has its own **30-second reply window**, with no additional vote, question-budget slot or run charge. A clarification explains the probe without replacing it. If the probe expires, the original answer is retained and only the missed probe is marked. Direct-answer recovery bypasses this AI decision.
 7. After completion (four to eight turns for code; coverage, budget, or host ending for research), open **Transcript** for the conversation and coaching. **Download summary** saves a text copy of questions, citations, clarifications, original answers, separate probe exchanges, timeouts, and coaching in your browser.
+
+After selecting **Create defense room**, the loading bar shows **0–100% of the upload**, measured from browser upload events, plus elapsed time. At 100%, **Processing files and creating room** stays visible until the server validates the files and returns the room. Upload completion does not mean extraction or room creation has finished; elapsed time is not an estimate of time remaining. If the browser cannot report upload size, the bar shows activity without a percentage. The form is locked against repeat submissions, and a failed request keeps your name and selected files for retry.
 
 The server owns deadlines, votes, speaker selection, and accepted answers. Reconnecting in the same browser restores the current snapshot while the room exists. A host also needs a valid session for the room's creator account; guests keep their player-token access. Signing out or session expiry does not reset the room or stop teammates' timers. Signing back in with the same account restores host access while the room exists.
 
@@ -278,7 +338,7 @@ Build React, then start a separate local server so an existing defense server do
 
 ```bash
 (cd game && npm ci && npm run build)
-.venv/bin/uvicorn game_server:app --host 127.0.0.1 --port 8790 --workers 1
+.venv/bin/uvicorn game_server:app --host 127.0.0.1 --port 8790 --workers 1 --ws websockets --ws-max-size 20000 --ws-max-queue 4
 ```
 
 Open <http://127.0.0.1:8790/?account=1> for the Account drawer, or <http://127.0.0.1:8790/?preview=1> for a mock room without AI. Without Google configuration, sign-in explains the required setup and anonymous room creation is disabled. No OpenAI key is required to inspect account/payment screens.
@@ -305,7 +365,7 @@ Local review captures: [account setup](screenshots/account-setup-desktop.png), [
    export AUTH_PUBLIC_BASE_URL=http://127.0.0.1:8790
    export AUTH_SESSION_SECRET="$(.venv/bin/python -c 'import secrets; print(secrets.token_urlsafe(48))')"
    .venv/bin/pip install -r requirements.txt
-   .venv/bin/uvicorn game_server:app --host 127.0.0.1 --port 8790 --workers 1
+   .venv/bin/uvicorn game_server:app --host 127.0.0.1 --port 8790 --workers 1 --ws websockets --ws-max-size 20000 --ws-max-queue 4
    ```
 
    Stop the old port-8790 server with Ctrl+C before starting the updated one. Keep your existing PayMongo variables exported if you want to test QR top-ups too. Google-only sign-in works without PayMongo or OpenAI credentials. `run_local.sh` does not load Google values from `.env`; export them explicitly.
@@ -364,7 +424,7 @@ read -r -s -p 'Test webhook signing secret: ' PAYMONGO_WEBHOOK_SECRET
 printf '\n'
 export PAYMONGO_SECRET_KEY PAYMONGO_WEBHOOK_SECRET
 export PAYMONGO_PUBLIC_BASE_URL=https://YOUR-DEVELOPMENT-ORIGIN
-.venv/bin/uvicorn game_server:app --host 127.0.0.1 --port 8790 --workers 1
+.venv/bin/uvicorn game_server:app --host 127.0.0.1 --port 8790 --workers 1 --ws websockets --ws-max-size 20000 --ws-max-queue 4
 ```
 
 Stop the earlier server on 8790 before restarting it with these settings. The regular `run_local.sh` does not load PayMongo values from `.env`; explicitly exported values are inherited. No secret value belongs in Git, browser code, screenshots, or the handoff log.
@@ -394,7 +454,11 @@ Stop the earlier server on 8790 before restarting it with these settings. The re
 
 The selected account store (PostgreSQL, or a Git-ignored SQLite file locally) stores a basic Google profile (subject, name, email), hashed app sessions, minimal sandbox receipts, the once-only test-credit ledger, voucher fingerprints, and unique run reservation/charge records. Additive migrations preserve existing accounts, purchases, and awards. A signed matching paid event updates receipt and credits in one transaction. Reservations serialize concurrent starts; first-question charges and repeated messages are idempotent. Server startup releases orphaned reservations because active rooms do not survive a restart. Published questions remain charged.
 
-Private account endpoints expose only the current user's access/balance and latest 20 purchases; mutations validate origin and session CSRF. WebSocket host controls recheck account ownership and origin. Uploaded files, room dialogue, and team chat are not stored in this database. Existing anonymous paid receipts stay separate and receive no retroactive credits. Local SQLite accounts/balances survive a Python restart. For hosted Render Free, use a Neon Free PostgreSQL project through `DATABASE_URL`; configuring a URL never migrates existing SQLite data. The PostgreSQL adapter serializes account transactions and never falls back to SQLite on connection failure. See the [deployment guide](docs/ACCOUNT_DEPLOYMENT.md) for setup and the separate real-local-PostgreSQL verification gate. Hosting and database paid tiers can be upgraded later while keeping the same store. Upload-based quotes, real credit pricing/spending, and real-money enforcement remain separate checkpoints.
+Synthetic review screens: [verified checkout](screenshots/payment-cleanup-checkout-mock-desktop.png), [account charge history](screenshots/payment-cleanup-account-mock-desktop.png), and [landscape charge history](screenshots/payment-cleanup-account-mock-landscape.png). They contain synthetic account/billing fixtures, not a live Google or PayMongo transaction.
+
+The [account and payment flow map](docs/PAYMENT_FLOW.md) explains checkout request reuse, verified awards, run charges and recovery. New checkouts accept an account-bound `Idempotency-Key`; the web app preserves it before sending and reuses it after a lost response. In-flight/unverified attempts are not automatically recreated, and new checkout attempts are limited to five per account in ten minutes. New browser receipts store only an order ID and require the owning account, while legacy anonymous receipts keep their earlier access. Account history shows actual `awarded_credits` and the latest 20 run records. The server-only `.venv/bin/python -m payment_audit` checks aggregate financial-record consistency without contacting the provider or repairing data.
+
+Private account endpoints expose only the current user's access/balance and latest 20 purchases/runs; mutations validate origin and session CSRF. WebSocket host controls recheck account ownership and origin. Uploaded files, room dialogue, and team chat are not stored in this database. Existing anonymous paid receipts stay separate and receive no retroactive credits. Local SQLite accounts/balances survive a Python restart. For hosted Render Free, use a Neon Free PostgreSQL project through `DATABASE_URL`; configuring a URL never migrates existing SQLite data. The PostgreSQL adapter serializes account transactions and never falls back to SQLite on connection failure. See the [deployment guide](docs/ACCOUNT_DEPLOYMENT.md) for setup and the separate real-local-PostgreSQL verification gate. Hosting and database paid tiers can be upgraded later while keeping the same store. Upload-based quotes, real credit pricing/spending, and real-money enforcement remain separate checkpoints.
 
 Integration references: [PayMongo Hosted Checkout](https://docs.paymongo.com/docs/payment-channels-hosted-checkout), [test checkout quick start](https://docs.paymongo.com/docs/payment-channels-hosted-checkout-quick-start), [QRPh simulator guidance](https://docs.paymongo.com/docs/payment-acceptance-testing), and [webhook signatures](https://docs.paymongo.com/docs/developer-tools-webhook-setup-management).
 
@@ -548,8 +612,15 @@ Current gate: 272 Python tests with external providers mocked, 202 working-tree
 React tests and production build. Account/credit integration now exercises QR
 creation and signed QR payments; separate legacy fixtures verify existing
 checkout reconciliation, ownership and migration. The prior QR page's synthetic
-layout checks remain applicable. User screen review, real provider/Google,
-real PostgreSQL, native devices and hosted verification remain separate.
+layout checks remain applicable. The user accepted the mock payment screen.
+A separate local Google/PayMongo sandbox walkthrough on 2026-10-08 verified
+account-owned QR creation, provider authorization, automatic webhook settlement
+and one 100-credit award for a clean receipt, plus fixture-to-provider
+reconciliation without another award. This used an isolated local SQLite store
+and temporary HTTPS callback; it does not verify the hosted release. See
+[the provider sandbox evidence](docs/QR_TOPUP_PROVIDER_SANDBOX_REVIEW.md).
+Actual provider redelivery, live failure/expiry, real PostgreSQL, native devices
+and hosted QR verification remain separate.
 See [the retirement review](docs/QR_TOPUP_RETIRE_REVIEW.md). No push or deployment.
 
 ## Streamlit fallback
@@ -570,11 +641,11 @@ The account/access release has a separate [feature-service deployment guide](doc
 
 ```text
 Build: pip install -r requirements.txt && cd game && npm ci && npm run build
-Start: uvicorn game_server:app --host 0.0.0.0 --port $PORT --workers 1
+Start: uvicorn game_server:app --host 0.0.0.0 --port $PORT --workers 1 --ws websockets --ws-max-size 20000 --ws-max-queue 4
 Health: /health
 ```
 
-The currently published research release uses `OPENAI_API_KEY` and `GAME_HOST_PASSCODE`, plus optional `OPENAI_MODEL`, in its own service environment. This local account/access update replaces the passcode with Google authentication and voucher/test-credit eligibility; it is not deployed. Keep both existing services unchanged during review. Select durable hosted account/payment storage and configure exact HTTPS Google/PayMongo callbacks before a later account rollout. A feature service's configuration is independent of frozen `main`.
+The currently published research release uses `OPENAI_API_KEY` and `GAME_HOST_PASSCODE`, plus optional `OPENAI_MODEL`, in its own service environment. The hosted account/access update replaces that passcode with Google authentication and voucher/test-credit eligibility. New payment cleanup remains local pending publication. The user selected Neon PostgreSQL with Render Free. Keep the current services unchanged during local cleanup; verify payment callbacks and persistent balances separately. A feature service's configuration is independent of frozen `main`.
 
 The service hosts UI, API, and WebSocket on one origin. HTTPS pages use `wss://` automatically. Teammates on other devices need a hosted URL; `127.0.0.1` refers to their own device. Restarts and redeploys require fresh rooms.
 

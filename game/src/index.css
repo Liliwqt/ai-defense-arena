@@ -233,6 +233,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .setup-tab { padding: 9px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-size: .82rem; font-weight: 750; }
 .setup-tab.is-selected { background: var(--base); color: var(--accent); box-shadow: var(--raise-sm); }
 .setup-label { display: grid; gap: 7px; color: var(--ink); font-size: .83rem; font-weight: 750; }
+.setup-fieldset { display: grid; gap: 15px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.room-create-progress { display: grid; gap: 10px; margin-top: 15px; padding: 14px; border-radius: 12px; background: var(--base-deep); box-shadow: var(--press-sm); }
+.room-create-progress [role="status"] { margin: 0; color: var(--ink); font-size: .83rem; font-weight: 750; line-height: 1.4; }
+.room-create-progress-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.room-create-percent { color: var(--ink); font-size: 1rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.room-create-elapsed { display: block; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.room-create-progress-track { height: 7px; overflow: hidden; border-radius: 999px; background: var(--base); }
+.room-create-progress-fill { display: block; height: 100%; border-radius: inherit; background: var(--ink); transition: width .15s linear; }
+.room-create-progress-fill.is-indeterminate { width: 40%; animation: room-create-loading 1.5s ease-in-out infinite; }
+@keyframes room-create-loading { from { transform: translateX(-110%); } to { transform: translateX(350%); } }
+@media (prefers-reduced-motion: reduce) { .room-create-progress-fill { animation: none; transition: none; } .room-create-progress-fill.is-indeterminate { transform: translateX(75%); } }
 .setup-input { width: 100%; min-width: 0; padding: 10px 13px; border: 1px solid transparent; border-radius: 12px; background: var(--base-deep); color: var(--ink); box-shadow: var(--press-sm); font-size: .84rem; }
 .setup-input::placeholder { color: var(--subtle); }
 .setup-input[type="file"] { font-size: .76rem; line-height: 1.3; }
