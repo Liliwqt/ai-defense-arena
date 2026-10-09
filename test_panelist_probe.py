@@ -138,6 +138,22 @@ class ProbeGeneratorTests(unittest.TestCase):
         transcript=client.request['input'][1]['content']
         self.assertIn('"reply": "No."',transcript)
 
+    def test_pending_probe_clarification_keeps_both_server_owned_speakers(self):
+        from question_generator import PanelistProbe, SubmissionDraft, interpret_submission
+        from project_files import ProjectFile
+        from test_question_generator import FakeClient
+        client=FakeClient(SubmissionDraft(action='clarify',clarification='Which student list will you use?',probe=None))
+        interpret_submission([ProjectFile('paper.md','Interview 20 students.')],'offline',client=client,
+            panelist='Methodology Reviewer',question=GroundedQuestion('How?', 'paper.md',1,'Interview 20 students.'),
+            submission='Simplify please.',probe=PanelistProbe('p','From which list?'),original_answer='Randomly.',
+            original_speaker_name='Ana',speaker_name='Sam')
+        payload=client.request['input'][1]['content']
+        self.assertIn('"speaker_name": "Ana"',payload)
+        self.assertIn('"answer": "Randomly."',payload)
+        self.assertIn('"id": "p"',payload)
+        self.assertIn('Latest submission speaker (data): "Sam"',payload)
+        self.assertIn('Interview 20 students.',payload)
+
     def test_probe_reference_uses_server_owned_excerpt_and_rejects_invalid_reference(self):
         from project_files import ProjectFile
         from question_generator import SubmissionDraft, ProbeDraft, ProbeReferenceDraft, interpret_submission, QuestionGenerationError
@@ -246,6 +262,78 @@ class ProbeProtocolTests(unittest.TestCase):
                             self.assertTrue(state['turns'][-1]['resolved'])
                     finally:
                         hs.__exit__(None,None,None);gs.__exit__(None,None,None)
+
+    def test_reassigned_speaker_clarifies_probe_with_original_name_preserved(self):
+        import os
+        import game_server as server
+        from unittest.mock import patch
+        from question_generator import SubmissionDraft, interpret_submission
+        from test_question_generator import FakeClient
+        provider=FakeClient(SubmissionDraft(action='clarify',clarification='Which list will you draw from?'))
+        calls=[]
+        def decide(files,key,**kwargs):
+            if not calls:
+                calls.append(kwargs)
+                return SubmissionDecision('probe',probe=ProbeRequest('From which list?'))
+            calls.append(kwargs)
+            return interpret_submission(files,key,client=provider,**kwargs)
+        with patch.dict(os.environ,{'OPENAI_API_KEY':'offline'}), patch.object(server,'generate_first_question',return_value=self.questions[0]),patch.object(server,'interpret_submission',side_effect=decide):
+            host=self.create_room();guest=self.join_room(host['room_code'],'Ana')
+            hs,_=self.connect(host['room_code'],host['player_token']);gs,_=self.connect(host['room_code'],guest['player_token'])
+            try:
+                hs.send_json({'type':'start'})
+                for ws in (hs,gs): self.receive_phase(ws,'question')
+                gs.send_json({'type':'submit_answer','turn':0,'answer':'Randomly.'})
+                for ws in (hs,gs): state=self.receive_phase(ws,'probe')
+                probe=state['turns'][0]['probe']
+                gs.close()
+                while True:
+                    state=self.receive_phase(hs,'probe')
+                    if state['selected_seat']==0: break
+                gs.__exit__(None,None,None); gs=None
+                hs.send_json({'type':'submit_probe_reply','turn':0,'probe_id':probe['id'],'answer':'Simplify please.'})
+                while True:
+                    state=self.receive_phase(hs,'probe')
+                    if state['turns'][0]['probe']['clarifications']: break
+                self.assertEqual(calls[-1]['original_speaker_name'],'Ana')
+                self.assertEqual(calls[-1]['speaker_name'],'Alex')
+                self.assertIn('"speaker_name": "Ana"',provider.request['input'][1]['content'])
+            finally:
+                hs.__exit__(None,None,None)
+                if gs: gs.__exit__(None,None,None)
+
+    def test_capacity_rejection_survives_reconnect_and_can_keep_original_answer(self):
+        import os
+        import game_server as server
+        from unittest.mock import patch
+        with patch.dict(os.environ,{'OPENAI_API_KEY':'offline','AI_OWNER_PER_MINUTE':'2'}),patch.object(server,'generate_first_question',return_value=self.questions[0]),patch.object(server,'interpret_submission',return_value=SubmissionDecision('probe',probe=ProbeRequest('From which list?'))):
+            host=self.create_room();guest=self.join_room(host['room_code'])
+            hs,_=self.connect(host['room_code'],host['player_token']);gs,_=self.connect(host['room_code'],guest['player_token'])
+            try:
+                hs.send_json({'type':'start'})
+                for ws in (hs,gs): self.receive_phase(ws,'question')
+                gs.send_json({'type':'submit_answer','turn':0,'answer':'Randomly.'})
+                for ws in (hs,gs): state=self.receive_phase(ws,'probe')
+                probe=state['turns'][0]['probe']
+                gs.send_json({'type':'submit_probe_reply','turn':0,'probe_id':probe['id'],'answer':'Available students.'})
+                while True:
+                    event=gs.receive_json()
+                    if event['type']=='error': break
+                self.assertEqual(event['reason'],'ai_admission')
+                gs.__exit__(None,None,None);gs=None
+                gs,state=self.connect(host['room_code'],guest['player_token'])
+                self.assertTrue(state['probe_recovery_available'])
+                # Reassignment may have selected the still-online host; both snapshots retain eligibility.
+                if state['selected_seat']==0: speaker=hs
+                else: speaker=gs
+                speaker.send_json({'type':'finish_probe','turn':0,'probe_id':probe['id']})
+                state=self.receive_phase(hs,'retry')
+                self.assertEqual(state['turns'][0]['probe']['status'],'ended_early')
+                self.assertEqual(state['turns'][0]['answer'],'Randomly.')
+                self.assertEqual(len(state['turns']),1)
+            finally:
+                hs.__exit__(None,None,None)
+                if gs: gs.__exit__(None,None,None)
 
     def test_research_and_mixed_stop_at_budget_after_probe_expiry_and_retry(self):
         import os

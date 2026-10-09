@@ -178,6 +178,7 @@ class Room(TimedTurn):
             "self_seat": recipient.seat if recipient is not None else None,
             "self_is_host": recipient.is_host if recipient is not None else False,
             "phase": self.phase,
+            "probe_recovery_available": self.probe_recovery_available,
             "probe_deadline_ms": self.answer_deadline_ms if self.defense and self.defense.turns and self.defense.turns[-1].probe and self.defense.turns[-1].probe.status == "pending" else None,
             "players": [
                 {
@@ -682,6 +683,7 @@ async def _interpret_pending(room: Room, interpretation_id: int) -> None:
         question = turn.question
         panelist = turn.panelist
         probe = turn.probe if pending.probe_id else None
+        original_speaker_name = turn.speaker_name
         clarifications = tuple(turn.clarifications)
         history = room.defense.answered_history()
     try:
@@ -690,7 +692,8 @@ async def _interpret_pending(room: Room, interpretation_id: int) -> None:
             panelist=panelist, question=question, submission=pending.text,
             clarifications=clarifications, history=history, model=os.getenv("OPENAI_MODEL") or DEFAULT_MODEL,
             defense_type=room.defense_type, research_stage=room.research_stage,
-            **({"probe": probe, "original_answer": turn.answer} if probe else {}),
+            **({"probe": probe, "original_answer": turn.answer,
+                "original_speaker_name": original_speaker_name, "speaker_name": pending.name} if probe else {}),
         )
     except Exception as error:
         async with room.lock:

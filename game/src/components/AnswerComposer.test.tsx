@@ -148,3 +148,14 @@ it("clears the acknowledged original draft when the same turn opens a probe", as
   }] }} />);
   expect(screen.getByRole("textbox")).toHaveValue("");
 });
+
+it("restores probe recovery from a reconnect snapshot without an old error event", async () => {
+  const state = { ...questionState, phase: "probe", probe_recovery_available: true, turns: [{ ...questionState.turns[0],
+    answer: "Randomly.", answered_by: "Ana", probe: { id: "probe-1", request: "Which list?", status: "pending", reply: null, references: [], clarifications: [] },
+  }] } as RoomState;
+  const send = vi.fn(() => true);
+  render(<AnswerComposer {...defaults} roomState={state} onSendEvent={send} />);
+  await userEvent.click(screen.getByRole("button", { name: "Continue with original answer" }));
+  expect(send).toHaveBeenCalledWith({ type: "finish_probe", turn: 0, probe_id: "probe-1" });
+  expect(screen.getByRole("button", { name: "Submit reply directly" })).toBeVisible();
+});

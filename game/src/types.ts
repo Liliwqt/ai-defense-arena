@@ -53,7 +53,7 @@ export interface Turn {
 export interface PanelistProbe {
   id: string;
   request: string;
-  references: { filename: string; evidence_line: number; evidence_text: string; evidence_location: string; evidence_kind: string }[];
+  references: SourceReference[];
   status: "pending" | "answered" | "expired" | "ended_early";
   reply: string | null;
   speaker_name?: string | null;
@@ -100,6 +100,7 @@ export interface ResearchPlan {
 }
 
 export interface RoomState {
+  probe_recovery_available?: boolean;
   room_code: string;
   self_seat: number | null;
   self_is_host: boolean;

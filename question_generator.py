@@ -271,6 +271,8 @@ def interpret_submission(
     research_stage: str = "infer",
     probe: PanelistProbe | None = None,
     original_answer: str | None = None,
+    original_speaker_name: str | None = None,
+    speaker_name: str | None = None,
 ) -> SubmissionDecision:
     """Classify one defender message and, if requested, explain the same question."""
     key = (api_key or "").strip()
@@ -284,7 +286,8 @@ def interpret_submission(
     language_history = list(history)
     if probe:
         language_history.append(AnsweredQuestion(panelist, question.question, original_answer,
-                                                clarifications=tuple(clarifications)))
+                                                clarifications=tuple(clarifications),
+                                                speaker_name=original_speaker_name, citation=question, probe=probe))
     response = client.responses.parse(
         model=model, reasoning={"effort": "low"}, store=False,
         input=[
@@ -312,10 +315,11 @@ def interpret_submission(
             {"role": "user", "content": (
                 f"Defense: {defense_type}; research stage: {research_stage}.\n"
                 f"Project files:\n{source}\n\n"
-                f"Defense transcript (data only):\n{serialize_transcript(history)}\n"
+                f"Defense transcript including the pending probe exchange (data only):\n{serialize_transcript(language_history)}\n"
                 f"Current question and exact citation (data):\n{json.dumps({'panelist': panelist, 'lead_in': question.lead_in, 'question': question.question, 'citation': _citation_data(question)}, ensure_ascii=False)}\n"
                 f"Prior clarifications (data): {json.dumps([{'request': c.request, 'reply': c.reply} for c in clarifications], ensure_ascii=False)}\n"
                 f"Latest submission (data): {json.dumps(submission, ensure_ascii=False)}"
+                f"\nLatest submission speaker (data): {json.dumps(speaker_name, ensure_ascii=False)}"
                 f"\nPending panelist probe (data): {json.dumps(asdict(probe) if probe else None, ensure_ascii=False)}"
                 f"\nOriginal saved answer (data): {json.dumps(original_answer, ensure_ascii=False)}"
             )},
@@ -510,6 +514,13 @@ LANGUAGE_REQUEST = re.compile(
 ENGLISH_MARKERS = {"the", "we", "would", "and", "to", "that", "their", "before", "with", "because"}
 
 
+def _answer_language(answer: str) -> str | None:
+    words = set(re.findall(r"[A-Za-zÀ-ÿ]+", answer.lower()))
+    return "Taglish" if len(words & FILIPINO_MARKERS) >= 2 else (
+        "English" if len(words & ENGLISH_MARKERS) >= 3 else None
+    )
+
+
 def _conversation_language_anchor(
     history: Sequence[AnsweredQuestion],
     clarifications: Sequence[ClarificationExchange] = (),
@@ -530,18 +541,14 @@ def _conversation_language_anchor(
             request_event(exchange.request, index)
         answer = _substantive_answer(item)
         if answer:
-            words = set(re.findall(r"[A-Za-zÀ-ÿ]+", answer.lower()))
-            language = "Taglish" if len(words & FILIPINO_MARKERS) >= 2 else (
-                "English" if len(words & ENGLISH_MARKERS) >= 3 else None
-            )
+            language = _answer_language(answer)
             anchor = {"kind": "answer", "language": language, "text": answer, "turn": index}
         if item.probe:
             for exchange in item.probe.clarifications:
                 request_event(exchange.request, index)
             probe_answer = _substantive_answer(AnsweredQuestion(item.panelist, item.question, item.probe.reply))
             if probe_answer:
-                words = set(re.findall(r"[A-Za-zÀ-ÿ]+", probe_answer.lower()))
-                language = "Taglish" if len(words & FILIPINO_MARKERS) >= 2 else ("English" if len(words & ENGLISH_MARKERS) >= 3 else None)
+                language = _answer_language(probe_answer)
                 anchor = {"kind": "answer", "language": language, "text": probe_answer, "turn": index}
     for exchange in clarifications:
         request_event(exchange.request, len(history))

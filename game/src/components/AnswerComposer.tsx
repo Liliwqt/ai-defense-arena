@@ -54,7 +54,8 @@ export function AnswerComposer({ roomState, connected, previewMode, waitingForAn
   const canWrite = chosen && (roomState?.phase === "probe" || roomState?.phase === "question" || (roomState?.phase === "interpretation_retry" && writeRecovery) || (roomState?.phase === "interpreting" && roomState.clock_paused === false));
   const clarifications = turnIndex >= 0 ? roomState?.turns[turnIndex]?.clarifications?.length ?? 0 : 0;
   const allClarifications = clarifications + (probe?.clarifications.length ?? 0);
-  const direct = interpretationLimited || allClarifications >= 2 || roomState?.interpretation_attempts_left === 0 || roomState?.phase === "interpretation_retry" || roomState?.phase === "interpreting";
+  const recoveryAvailable = interpretationLimited || !!roomState?.probe_recovery_available;
+  const direct = recoveryAvailable || allClarifications >= 2 || roomState?.interpretation_attempts_left === 0 || roomState?.phase === "interpretation_retry" || roomState?.phase === "interpreting";
   const chosenName = roomState?.players.find((player) => player.seat === roomState.selected_seat)?.name;
 
   useEffect(() => { setDraft(""); setLocalError(""); setWriteRecovery(false); setInterpretationLimited(false); }, [turnKey]);
@@ -110,7 +111,7 @@ export function AnswerComposer({ roomState, connected, previewMode, waitingForAn
               : connected ? direct ? "Submitted text will be recorded as your answer without AI interpretation. Ctrl/⌘ + Enter to submit." : "A clarification keeps this question open. Ctrl/⌘ + Enter to submit."
               : "Reconnecting before you can submit…")}
           </p>
-          {probing && (interpretationLimited || roomState?.interpretation_attempts_left === 0 || roomState?.phase === "interpretation_retry") && <button type="button" disabled={!connected || previewMode || waitingForAnswerAck} onClick={() => onSendEvent({ type: "finish_probe", turn: turnIndex, probe_id: probe.id })}>Continue with original answer</button>}
+          {probing && (recoveryAvailable || roomState?.interpretation_attempts_left === 0 || roomState?.phase === "interpretation_retry") && <button type="button" disabled={!connected || previewMode || waitingForAnswerAck} onClick={() => onSendEvent({ type: "finish_probe", turn: turnIndex, probe_id: probe.id })}>Continue with original answer</button>}
         </form>
       ) : (
         <p id="answer-status" role={actionError ? "alert" : "status"}>
