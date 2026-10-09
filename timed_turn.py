@@ -33,6 +33,7 @@ class TimedTurn:
     phase: str = "lobby"
     error: str | None = None
     vote_deadline_ms: int | None = None
+    reaction_deadline_ms: int | None = None
     answer_deadline_ms: int | None = None
     probe_deadline_ms: int | None = None
     probe_recovery_available: bool = False
@@ -49,7 +50,19 @@ class TimedTurn:
     pause_started_ms: int | None = None
     pause_deadline_ms: int | None = None
 
+    def present_question(self, session: DefenseSession, now: int) -> None:
+        """Let the validated reaction speak before starting either player clock."""
+        self.clear_clock()
+        reaction = session.turns[-1].question.lead_in.strip()
+        if len(session.turns) > 1 and reaction:
+            self.phase = "reacting"
+            # Readable, brief dwell: four to twelve seconds, based on text length.
+            self.reaction_deadline_ms = now + min(12_000, max(4_000, 1_000 + len(reaction) * 40))
+        else:
+            self.begin_vote(now)
+
     def begin_vote(self, now: int) -> None:
+        self.reaction_deadline_ms = None
         self.probe_recovery_available = False
         self.interpretation_attempts = 0
         self.pause_used_ms = 0
@@ -90,6 +103,9 @@ class TimedTurn:
                expected_id: int | None = None, choose=None) -> str | None:
         if expected_id is not None and self.clock_id != expected_id:
             return None
+        if self.phase == "reacting" and self.reaction_deadline_ms is not None and now >= self.reaction_deadline_ms:
+            self.begin_vote(now)
+            return "reaction_finished"
         if self.phase == "voting" and self.vote_deadline_ms is not None and now >= self.vote_deadline_ms:
             counts = {seat: 0 for seat in sorted(online.values())}
             for token, seat in self.votes.items():
@@ -123,6 +139,7 @@ class TimedTurn:
     def clear_clock(self) -> None:
         self.clock_id += 1
         self.vote_deadline_ms = None
+        self.reaction_deadline_ms = None
         self.answer_deadline_ms = None
         self.probe_deadline_ms = None
         self.pause_started_ms = None

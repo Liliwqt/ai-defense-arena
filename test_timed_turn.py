@@ -3,11 +3,71 @@
 import unittest
 
 from defense_session import DefenseSession
-from question_generator import GroundedQuestion, SubmissionDecision
+from question_generator import GroundedQuestion, SubmissionDecision, PanelMove
 from timed_turn import TimedTurn
 
 
 class TimedTurnTests(unittest.TestCase):
+    def reaction_session(self, text="You chose a small pilot. That leaves one measurement unclear.", timeout=False):
+        session = DefenseSession.start(GroundedQuestion('Why?', 'queue.py', 1, 'queue = []'))
+        if timeout:
+            session.time_out_current()
+        else:
+            session.submit_answer('We chose a small pilot.')
+        session.apply_move(PanelMove('Technical Architect', GroundedQuestion('How?', 'queue.py', 1, 'queue = []', text)))
+        return session
+
+    def test_reaction_then_full_vote_and_answer_windows(self):
+        session = self.reaction_session()
+        turn = TimedTurn()
+        turn.present_question(session, 1000)
+        self.assertEqual(turn.phase, 'reacting')
+        self.assertIsNone(turn.vote_deadline_ms)
+        self.assertIsNone(turn.answer_deadline_ms)
+        end = turn.reaction_deadline_ms
+        with self.assertRaisesRegex(ValueError, 'Voting is not open'):
+            turn.cast_vote('alex', 0, {'alex': 0}, end - 1)
+        with self.assertRaisesRegex(ValueError, 'no question awaiting'):
+            turn.validate_submit(0, 1, 'Answer', session, end - 1)
+        self.assertIsNone(turn.expire(end - 1, {'alex': 0}, session))
+        # Even a late timer task must leave the entire voting window intact.
+        self.assertEqual(turn.expire(end + 500, {'alex': 0}, session), 'reaction_finished')
+        self.assertEqual(turn.vote_deadline_ms, end + 500 + 15_000)
+        self.assertIsNone(turn.reaction_deadline_ms)
+        self.assertEqual(turn.expire(turn.vote_deadline_ms, {'alex': 0}, session), 'voting_closed')
+        self.assertEqual(turn.answer_deadline_ms, end + 500 + 15_000 + 120_000)
+
+    def test_opening_and_empty_reactions_skip_speaking_phase(self):
+        turn = TimedTurn()
+        opening = DefenseSession.start(GroundedQuestion('Why?', 'queue.py', 1, 'queue = []', 'Opening'))
+        for session in (opening, self.reaction_session('   ')):
+            turn.present_question(session, 1000)
+            self.assertEqual(turn.phase, 'voting')
+            self.assertEqual(turn.vote_deadline_ms, 16_000)
+            self.assertIsNone(turn.reaction_deadline_ms)
+
+    def test_reaction_duration_is_bounded_and_cancelled_clock_is_stale(self):
+        for text, duration in [('Brief.', 4_000), ('x' * 300, 12_000)]:
+            turn = TimedTurn()
+            session = self.reaction_session(text)
+            turn.present_question(session, 1000)
+            self.assertEqual(turn.reaction_deadline_ms, 1000 + duration)
+            old_clock = turn.clock_id
+            turn.clear_clock()
+            turn.phase = 'lobby'
+            self.assertIsNone(turn.reaction_deadline_ms)
+            self.assertIsNone(turn.expire(50_000, {'alex': 0}, session, old_clock))
+            self.assertEqual(turn.phase, 'lobby')
+
+    def test_timeout_reaction_preserves_the_unanswered_turn(self):
+        session = self.reaction_session('No answer was recorded. We can revisit that issue.', timeout=True)
+        turn = TimedTurn()
+        turn.present_question(session, 1000)
+        self.assertEqual(turn.phase, 'reacting')
+        self.assertTrue(session.turns[0].timed_out)
+        self.assertIsNone(session.turns[0].answer)
+        self.assertEqual(len(session.turns), 2)
+
     def test_exhausted_clarification_requires_explicit_direct_answer(self):
         session = DefenseSession.start(GroundedQuestion('Why?', 'queue.py', 1, 'queue = []'))
         turn = TimedTurn()

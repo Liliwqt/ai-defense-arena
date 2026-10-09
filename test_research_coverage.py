@@ -401,12 +401,14 @@ class CoverageRoomTests(unittest.IsolatedAsyncioTestCase):
         self.room.generation_id += 1
         with patch('game_server.generate_research_move', side_effect=mocked_move), patch('game_server._schedule_clock'):
             await game_server._generate_question(self.room, 2, False)
-        self.assertEqual(self.room.phase, 'voting')
+        self.assertEqual(self.room.phase, 'reacting')
+        self.assertIsNotNone(self.room.reaction_deadline_ms)
         self.room.clock_task = asyncio.create_task(asyncio.sleep(60))
         self.room.pending_submission = None
         with patch('game_server._schedule_coaching'):
             await game_server._handle_action(self.room, self.host, self.socket, {'type':'end_defense'})
         self.assertIsNone(self.room.vote_deadline_ms)
+        self.assertIsNone(self.room.reaction_deadline_ms)
         self.assertIsNone(self.room.clock_task)
         self.assertTrue(session.turns[-1].ended_early)
         self.assertFalse(session.turns[-1].timed_out)
@@ -437,6 +439,11 @@ class CoverageProtocolTests(unittest.TestCase):
             event=socket.receive_json()
             if event['type']=='error': self.fail(event['message'])
             state=event['state']
+            if phase in {'voting', 'question'} and state['phase'] == 'reacting':
+                room = game_server.rooms[state['room_code']]
+                if room.phase == 'reacting':
+                    self.now = max(self.now, state['reaction_deadline_ms'])
+                    self.client.portal.call(game_server._expire_deadline, room)
             if ((phase is None or state['phase']==phase) and (count is None or len(state['turns'])==count)
                 and all(state.get(k)==v for k,v in conditions.items())): return state
         self.fail('Missing room state')

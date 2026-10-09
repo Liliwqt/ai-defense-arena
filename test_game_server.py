@@ -79,6 +79,11 @@ class GameServerTests(unittest.TestCase):
             state = event["state"]
             if state["phase"] == phase:
                 return state
+            if phase in {"question", "voting"} and state["phase"] == "reacting":
+                room = game_server.rooms[state["room_code"]]
+                if room.phase == "reacting":
+                    self.clock_ms = max(self.clock_ms, state["reaction_deadline_ms"])
+                    self.client.portal.call(game_server._expire_deadline, room)
             # Existing defense tests exercise progression; focused vote tests use voting snapshots directly.
             if phase == "question" and state["phase"] == "voting":
                 room = game_server.rooms[state["room_code"]]
@@ -120,6 +125,58 @@ class GameServerTests(unittest.TestCase):
         for name in ('Sam','Lee','Kai'): self.join_room(host['room_code'], name)
         full = self.client.post(f"/api/rooms/{host['room_code']}/join", json={'name':'Fifth'})
         self.assertEqual(full.status_code, 409)
+
+    def test_two_clients_share_reactions_and_reconnect_before_vote_in_four_and_eight_turns(self):
+        for repeats in (1, 2):
+            with self.subTest(turns=4 * repeats):
+                game_server.rooms.clear()
+                roles = [role for role in game_server.PANELIST_ORDER for _ in range(repeats)]
+                questions = [GroundedQuestion(f'Question {index + 1}?', 'queue.py', 5,
+                    self.questions[0].evidence_text, '' if index == 0 else f'You described choice {index}. Let us examine the next detail.')
+                    for index in range(len(roles))]
+                moves = [PanelMove(role, question) for role, question in zip(roles[1:], questions[1:])] + [PanelMove(None, None)]
+                report = CoachingReport('Review.', [], [], 'Practice.')
+                with patch.dict(os.environ, {'OPENAI_API_KEY': 'offline'}), \
+                     patch('game_server.generate_first_question', return_value=questions[0]), \
+                     patch('game_server.generate_next_move', side_effect=moves) as generation, \
+                     patch('game_server.generate_coaching_report', return_value=report):
+                    host = self.create_room()
+                    guest = self.join_room(host['room_code'])
+                    hs, _ = self.connect(host['room_code'], host['player_token'])
+                    gs, _ = self.connect(host['room_code'], guest['player_token'])
+                    try:
+                        hs.send_json({'type': 'start'})
+                        for index in range(len(roles)):
+                            if index:
+                                snapshots = [self.receive_phase(ws, 'reacting') for ws in (hs, gs)]
+                                self.assertEqual(snapshots[0]['reaction_deadline_ms'], snapshots[1]['reaction_deadline_ms'])
+                                self.assertEqual(snapshots[0]['turns'][-1]['lead_in'], questions[index].lead_in)
+                                self.assertIsNone(snapshots[0]['vote_deadline_ms'])
+                                self.assertIsNone(snapshots[0]['answer_deadline_ms'])
+                                room = game_server.rooms[host['room_code']]
+                                old_clock = room.clock_id
+                                if index == 1:
+                                    gs.__exit__(None, None, None)
+                                    gs, restored = self.connect(host['room_code'], guest['player_token'])
+                                    self.assertEqual(restored['phase'], 'reacting')
+                                    self.assertEqual(restored['reaction_deadline_ms'], snapshots[0]['reaction_deadline_ms'])
+                                    self.assertEqual(restored['turns'], snapshots[0]['turns'])
+                                self.clock_ms = snapshots[0]['reaction_deadline_ms']
+                                self.client.portal.call(game_server._expire_deadline, room, old_clock)
+                                self.client.portal.call(game_server._expire_deadline, room, old_clock)
+                                self.assertEqual(room.vote_deadline_ms, self.clock_ms + 15_000)
+                            states = [self.receive_phase(ws, 'question') for ws in (hs, gs)]
+                            self.assertEqual(states[0]['turns'], states[1]['turns'])
+                            self.assertEqual(len(states[0]['turns']), index + 1)
+                            self.assertEqual(states[0]['answer_deadline_ms'], self.clock_ms + 120_000)
+                            (gs if index % 2 == 0 else hs).send_json({'type': 'submit_answer', 'turn': index, 'answer': f'Choice {index}.'})
+                        states = [self.receive_phase(ws, 'complete') for ws in (hs, gs)]
+                        self.assertEqual(len(states[0]['turns']), len(roles))
+                        self.assertEqual(generation.call_count, 7 if repeats == 2 else 4)
+                        self.assertTrue(all(turn['answer'] for turn in states[0]['turns']))
+                    finally:
+                        gs.__exit__(None, None, None)
+                        hs.__exit__(None, None, None)
 
     def test_websocket_requires_a_valid_room_token(self):
         with self.client.websocket_connect("/ws/UNKNOWN") as socket:
@@ -244,7 +301,7 @@ class GameServerTests(unittest.TestCase):
     def test_eight_turn_defense_allows_one_followup_per_role_then_coaches(self):
         lines = Path("sample_project/queue.py").read_text().splitlines()
         role_sequence = [role for role in game_server.PANELIST_ORDER for _ in range(2)]
-        questions = [GroundedQuestion(f"Question {i + 1}?", "queue.py", line, lines[line - 1])
+        questions = [GroundedQuestion(f"Question {i + 1}?", "queue.py", line, lines[line - 1], "" if i == 0 else "You explained the previous choice. Let's look at the next detail.")
                      for i, line in enumerate((5, 8, 9, 33, 5, 8, 9, 33))]
         moves = [PanelMove(role, question) for role, question in zip(role_sequence[1:], questions[1:])]
         report = CoachingReport("Eight answers reviewed.",

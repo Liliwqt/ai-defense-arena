@@ -39,7 +39,18 @@ export function App() {
   const previousPhase = useRef<string | undefined>();
   const previousFeedback = useRef<string | undefined>();
   const sequence = useRef(0);
-  const roomState: RoomState | null = previewMode ? previewState : liveRoomState;
+  const [mockRoomState, setMockRoomState] = useState(previewState);
+  const roomState: RoomState | null = previewMode ? mockRoomState : liveRoomState;
+
+  useEffect(() => {
+    if (!previewMode || mockRoomState.phase !== "reacting") return;
+    const timer = setTimeout(() => {
+      const now = Date.now();
+      setMockRoomState(state => ({ ...state, phase: "voting", reaction_deadline_ms: null,
+        server_now_ms: now, vote_deadline_ms: now + 15_000 }));
+    }, Math.max(0, (mockRoomState.reaction_deadline_ms ?? Date.now()) - Date.now()));
+    return () => clearTimeout(timer);
+  }, [mockRoomState.phase, mockRoomState.reaction_deadline_ms]);
 
   const openDrawer = useCallback((mode: DrawerMode) => {
     setDrawerMode(mode);

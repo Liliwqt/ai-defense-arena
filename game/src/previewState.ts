@@ -4,6 +4,7 @@ import { researchPlanPreview } from "./researchPlanPreview";
 const previewParams = new URLSearchParams(window.location.search);
 const votePreview = previewParams.get("vote") === "1";
 const reviewPreview = previewParams.get("review") === "1";
+const reactionPreview = previewParams.get("reaction") === "1";
 const longPreview = previewParams.get("long") === "1";
 const planPreview = previewParams.get("plan") === "1";
 const researchPreview = planPreview || previewParams.get("research") === "1";
@@ -12,7 +13,7 @@ const completePreview = previewParams.get("complete") === "1";
 
 export const previewState: RoomState = {
   room_code: "PREVIEW",
-  phase: reviewPreview ? "generating" : votePreview ? "voting" : "question",
+  phase: reactionPreview ? "reacting" : reviewPreview ? "generating" : votePreview ? "voting" : "question",
   self_seat: 0,
   self_is_host: true,
   players: [
@@ -58,8 +59,9 @@ export const previewState: RoomState = {
   feedback: null,
   server_now_ms: Date.now(),
   vote_deadline_ms: votePreview ? Date.now() + 15_000 : null,
-  answer_deadline_ms: votePreview || reviewPreview ? null : Date.now() + 120_000,
-  selected_seat: votePreview || reviewPreview ? null : 0,
+  reaction_deadline_ms: reactionPreview ? Date.now() + 8_000 : null,
+  answer_deadline_ms: reactionPreview || votePreview || reviewPreview ? null : Date.now() + 120_000,
+  selected_seat: reactionPreview || votePreview || reviewPreview ? null : 0,
   vote_counts: votePreview ? { "0": 1, "1": 1, "2": 0 } : {},
   my_vote: votePreview ? 0 : null,
   chat: [],

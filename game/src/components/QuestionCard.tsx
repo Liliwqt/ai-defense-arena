@@ -12,7 +12,6 @@ interface CardContent {
   name: string;
   question: string;
   number: string;
-  leadIn?: string;
   filename?: string;
   line?: number;
   evidence?: string;
@@ -30,7 +29,6 @@ interface CardContent {
 function sourceContent(turn: Turn) {
   return {
     probe: turn.probe,
-    leadIn: turn.lead_in,
     filename: turn.filename,
     line: turn.evidence_line,
     evidence: turn.evidence_text,
@@ -112,21 +110,38 @@ function deriveContent(state: RoomState | null): CardContent {
 
 export function QuestionCard({ roomState }: QuestionCardProps) {
   const content = deriveContent(roomState);
+  const clarification = content.probe ? undefined : content.clarifications?.at(-1);
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
-  }, [roomState?.room_code, roomState?.turns.length]);
+  }, [roomState?.room_code, roomState?.turns.length, content.clarifications?.length]);
   useEffect(() => {
     const scroll = scrollRef.current;
     const probe = scroll?.querySelector<HTMLElement>(".panelist-probe");
     if (scroll && probe) scroll.scrollTop += probe.getBoundingClientRect().top - scroll.getBoundingClientRect().top;
   }, [content.probe?.id, content.probe?.clarifications.length]);
   if (roomState?.defense_type && roomState.defense_type !== "code" && content.name === "Critical Judge") content.name = "Critical Reviewer";
+  if (roomState?.phase === "reacting") {
+    const turn = roomState.turns.at(-1);
+    const name = roomState.defense_type !== "code" && turn?.panelist === "Critical Judge" ? "Critical Reviewer" : turn?.panelist;
+    return (
+      <section id="question-card" className="panelist-reaction-card" aria-labelledby="panelist-reaction-name">
+        <div className="question-heading">
+          <div><p className="question-kicker">THE PANEL RESPONDS</p><h2 id="panelist-reaction-name">{name}</h2></div>
+          <span className="question-number">SPEAKING</span>
+        </div>
+        <div className="question-scroll panelist-reaction-scroll" tabIndex={0} aria-label="Panelist response">
+          <p className="panelist-reaction-text" role="status" aria-live="polite" aria-atomic="true">{turn?.lead_in}</p>
+          <p className="panelist-reaction-next">The next question and speaker vote will follow.</p>
+        </div>
+      </section>
+    );
+  }
   return (
     <section id="question-card" aria-labelledby="panelist-name">
       <div className="question-heading">
         <div>
-          <p className="question-kicker">THE PANEL ASKS</p>
+          <p className="question-kicker">{clarification ? "THE PANEL CLARIFIES" : "THE PANEL ASKS"}</p>
           <h2 id="panelist-name">{content.name}</h2>
         </div>
         <span className="question-number">{content.number}</span>
@@ -134,12 +149,8 @@ export function QuestionCard({ roomState }: QuestionCardProps) {
       {content.reviewStatus && <p className="question-review-status" aria-live="polite">{content.reviewStatus}</p>}
       <div className="question-scroll" ref={scrollRef} tabIndex={0} aria-label="Question and cited source">
       {roomState?.current_topic && <p className="question-topic">Topic: {roomState.research_plan?.topics.find(t => t.id === roomState.current_topic)?.title}</p>}
-      {content.leadIn && <p id="panelist-lead-in">{content.leadIn}</p>}
-      <p id="question-text">{content.question}</p>
-      {content.clarifications?.map((exchange, index) => <div className="question-clarification" key={index}>
-        <p><strong>Defender asks:</strong> {exchange.request}</p>
-        <p><strong>{content.name} explains:</strong> {exchange.reply}</p>
-      </div>)}
+      {clarification && <p className="clarification-request"><strong>Defender asks:</strong> {clarification.request}</p>}
+      <p id="question-text" aria-live={clarification ? "polite" : undefined}>{clarification?.reply ?? content.question}</p>
       {content.initialAnswer && <p className="question-previous-answer"><strong>Original answer:</strong> <span>{content.initialAnswer}</span></p>}
       <ProbeExchange probe={content.probe} panelist={content.name} />
       {content.previousAnswer && <p className="question-previous-answer">{content.previousAnswer}</p>}

@@ -40,17 +40,47 @@ describe("QuestionCard", () => {
     expect(screen.getByText("Your team is gathering")).toBeTruthy();
   });
 
-  it("keeps the original question and citation while showing a clarification", () => {
+  it("replaces the displayed question with clarification while keeping the request above and exact citation", () => {
     const state: RoomState = { ...base, phase: "interpreting", remaining_answer_ms: 42_000,
       turns: [{ panelist: "Methodology Reviewer", question: "How will you recruit?",
         filename: "paper.pdf", evidence_line: 2, evidence_location: "Page 1 · extracted line 2",
         evidence_kind: "research_pdf", evidence_text: "Planned interviews", answer: null, answered_by: null,
         clarifications: [{ request: "Can you explain?", reply: "How will you invite participants?" }] }] };
-    render(<QuestionCard roomState={state} />);
-    expect(screen.getByText("How will you recruit?")).toBeTruthy();
-    expect(screen.getByText(/How will you invite participants/)).toBeTruthy();
+    const view = render(<QuestionCard roomState={state} />);
+    expect(screen.queryByText("How will you recruit?")).toBeNull();
+    expect(view.container.querySelector("#question-text")?.textContent).toBe("How will you invite participants?");
+    const request = screen.getByText(/Can you explain/);
+    expect(request.nextElementSibling?.id).toBe("question-text");
+    expect(screen.getByText("THE PANEL CLARIFIES")).toBeTruthy();
+    expect(screen.getByText("QUESTION 1")).toBeTruthy();
+    expect(state.turns[0].question).toBe("How will you recruit?");
     expect(screen.getByText("Planned interviews")).toBeTruthy();
     expect(screen.getByText(/clock paused/i)).toBeTruthy();
+  });
+
+  it("uses the latest explanation on reconnect and restores ordinary display for the next turn", () => {
+    const state: RoomState = { ...base, phase: "question", turns: [{
+      panelist: "Methodology Reviewer", question: "How will you measure satisfaction?",
+      filename: "paper.md", evidence_line: 1, evidence_text: "Survey ratings", answer: null, answered_by: null,
+      clarifications: [{ request: "What is a scale?", reply: "A set of rating choices." },
+        { request: "Can you use simple English?", reply: "Which rating choices will participants use?" }],
+    }] };
+    const view = render(<QuestionCard roomState={state} />);
+    expect(screen.queryByText("A set of rating choices.")).toBeNull();
+    expect(view.container.querySelector("#question-text")?.textContent).toBe("Which rating choices will participants use?");
+    expect(screen.getByText(/Can you use simple English/)).toBeTruthy();
+    expect(screen.getByText("Survey ratings")).toBeTruthy();
+    view.unmount();
+    const reconnect = render(<QuestionCard roomState={state} />);
+    expect(reconnect.container.querySelector("#question-text")?.textContent).toBe("Which rating choices will participants use?");
+    reconnect.rerender(<QuestionCard roomState={{ ...state, phase: "voting", turns: [
+      { ...state.turns[0], answer: "We use five choices." },
+      { panelist: "Ethics Reviewer", question: "How will you protect responses?", filename: "paper.md",
+        evidence_line: 2, evidence_text: "Anonymous responses", answer: null, answered_by: null },
+    ] }} />);
+    expect(screen.queryByText(/Can you use simple English/)).toBeNull();
+    expect(reconnect.container.querySelector("#question-text")?.textContent).toBe("How will you protect responses?");
+    expect(screen.getByText("QUESTION 2")).toBeTruthy();
   });
 
   it("shows question text and source block for question phase", () => {
@@ -75,12 +105,33 @@ describe("QuestionCard", () => {
     render(
       <QuestionCard roomState={state} />,
     );
-    expect(screen.getByText("You chose SQLite for a small prototype. Let's examine that tradeoff.")).toBeTruthy();
+    expect(screen.queryByText("You chose SQLite for a small prototype. Let's examine that tradeoff.")).toBeNull();
     expect(screen.getByText("Why use SQLite?")).toBeTruthy();
     expect(screen.getByText("QUESTION 1")).toBeTruthy();
     expect(screen.getByText("queue.py")).toBeTruthy();
     expect(screen.getByText("Line 5")).toBeTruthy();
     expect(screen.getByText("DATABASE = 'queue.db'")).toBeTruthy();
+  });
+
+  it("shows a standalone reaction, then the question without the reaction", () => {
+    const reaction = "You chose a small pilot. Let's examine how you'll measure it.";
+    const state: RoomState = { ...base, phase: "reacting", turns: [{
+      panelist: "Methodology Reviewer", lead_in: reaction, question: "How will you measure accuracy?",
+      filename: "paper.pdf", evidence_line: 1, evidence_text: "A pilot is planned.", answer: null, answered_by: null,
+    }] };
+    const view = render(<QuestionCard roomState={state} />);
+    expect(screen.getByRole("status").textContent).toBe(reaction);
+    expect(screen.getByText("THE PANEL RESPONDS")).toBeTruthy();
+    expect(screen.queryByText("How will you measure accuracy?")).toBeNull();
+    expect(screen.queryByText("paper.pdf")).toBeNull();
+    view.rerender(<QuestionCard roomState={{ ...state, phase: "voting" }} />);
+    expect(screen.queryByText(reaction)).toBeNull();
+    expect(screen.getByText("How will you measure accuracy?")).toBeTruthy();
+    expect(screen.getByText("paper.pdf")).toBeTruthy();
+    // A reconnect during voting must not replay or restore the inline reaction.
+    view.unmount();
+    render(<QuestionCard roomState={{ ...state, phase: "question" }} />);
+    expect(screen.queryByText(reaction)).toBeNull();
   });
 
   it("keeps the resolved exchange visible while reviewing the answer", () => {

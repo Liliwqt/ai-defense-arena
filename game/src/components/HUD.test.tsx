@@ -36,6 +36,11 @@ describe("HUD clarification pause", () => {
 });
 
 describe("HUD", () => {
+  it("labels the speaking phase without a vote or answer countdown", () => {
+    render(<HUD roomState={{ ...baseState, phase: "reacting", reaction_deadline_ms: 1_010_000 }} roomCode="ABCD12" previewMode={false} onOpenDrawer={() => {}} />);
+    expect(screen.getByRole("status", { name: "Room status" }).textContent).toBe("Panelist speaking…");
+    expect(screen.queryByRole("timer")).toBeNull();
+  });
   it("shows No room yet when roomState is null", () => {
     render(
       <HUD roomState={null} roomCode={null} previewMode={false} onOpenDrawer={vi.fn()} />,

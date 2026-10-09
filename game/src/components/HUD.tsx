@@ -33,6 +33,7 @@ export function HUD({ roomState, roomCode, previewMode, onOpenDrawer, onPreviewM
   let status = "Ready";
   if (phase === "complete") status = "Complete";
   else if (phase === "retry") status = "Retry needed";
+  else if (phase === "reacting") status = "Panelist speaking…";
   else if (phase === "generating") {
     const previous = roomState?.turns.at(-1);
     status = previous?.timed_out ? "Reviewing missed turn…" : previous?.answer ? "Reviewing answer…" : "Preparing question…";
@@ -59,6 +60,7 @@ export function HUD({ roomState, roomCode, previewMode, onOpenDrawer, onPreviewM
       <div className="hud-actions">
         <RoomExpiryNotice state={roomState} />
         {!timed && <span className="hud-mobile-status" role="status" aria-label="Room status" aria-live="polite">{status}</span>}
+        {phase === "reacting" && <span className="hud-pill hud-desktop-only" role="status">Panelist speaking…</span>}
         <span
           id="room-pill"
           className="hud-pill hud-desktop-only"

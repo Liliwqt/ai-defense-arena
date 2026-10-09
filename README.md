@@ -21,8 +21,23 @@ Questions, reactions, optional advice and clarification replies remain AI-genera
 exact citations and existing language preferences still apply. The opening has no
 fabricated reaction, and a missed turn is acknowledged without inventing an answer.
 
-These refinements are published on `feature/question-first-room`; deployment
-is a separate step. Offline tests check
+In the local multiplayer room, a generated reaction appears briefly on its own
+after the previous turn, with the panelist marked **Speaking**. It stays for
+4–12 seconds according to its length, then the next question and exact citation
+appear and the full 15-second vote begins. The reaction is retained in Transcript
+instead of remaining above the question. Empty reactions skip this moment;
+reconnecting clients resume the server's current phase without replaying it.
+The Streamlit fallback retains its existing inline dialogue display. Review the
+mock transition at <http://127.0.0.1:8820/?preview=1&research=1&reaction=1>.
+
+After a same-question clarification, the defender's request appears above the
+panelist's latest explanation, which replaces the large question text. The
+question number and exact citation remain unchanged. The original wording and
+all clarification exchanges stay in Transcript; the next turn displays its new
+question normally. Preview: <http://127.0.0.1:8820/?preview=1&research=1&clarify=1>.
+
+The role-voice refinements are published on `feature/question-first-room`;
+the new reaction transition is local and has not been deployed. Offline tests check
 context and response contracts; a separate live conversation is needed to assess
 how natural the generated dialogue actually sounds.
 

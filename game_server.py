@@ -214,6 +214,7 @@ class Room(TimedTurn):
             "feedback": feedback_dict,
             "server_now_ms": _now_ms(),
             "vote_deadline_ms": self.vote_deadline_ms,
+            "reaction_deadline_ms": self.reaction_deadline_ms,
             "answer_deadline_ms": self.answer_deadline_ms,
             "remaining_answer_ms": self.pending_submission.remaining_ms if self.pending_submission else None,
             "my_pending_submission": (
@@ -616,7 +617,11 @@ async def _expire_deadline(room: Room, expected_id: int | None = None) -> None:
     feedback_id = None
     async with room.lock:
         outcome = room.expire(_now_ms(), _online_players(room), room.defense, expected_id)
-        if outcome == "voting_closed":
+        if outcome == "reaction_finished":
+            room.revision += 1
+            changed = True
+            next_clock = (room.clock_id, room.vote_deadline_ms)
+        elif outcome == "voting_closed":
             room.revision += 1
             changed = True
             next_clock = (room.clock_id, room.answer_deadline_ms)
@@ -670,8 +675,8 @@ async def _generate_question(room: Room, generation_id: int, first: bool) -> Non
                 room.feedback_generation_id += 1
                 feedback_id = room.feedback_generation_id
             else:
-                room.begin_vote(_now_ms())
-                next_clock = (room.clock_id, room.vote_deadline_ms)
+                room.present_question(room.defense, _now_ms())
+                next_clock = (room.clock_id, room.reaction_deadline_ms or room.vote_deadline_ms)
             room.error = None
             room.revision += 1
     except Exception as error:

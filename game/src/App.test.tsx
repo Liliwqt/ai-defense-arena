@@ -49,10 +49,14 @@ describe("flat room flow", () => {
       summary: "The team explained its scope.", strengths: [{ turn: 0, text: "Justified the scope limit." }],
       improvements: [], next_step: "Document the limits of the pilot claim.",
     } };
-    setSocket({ ...state, phase: "question", turns: [{ ...state.turns[0], answer: null }] });
+    setSocket({ ...state, phase: "reacting", turns: [{ ...state.turns[0], answer: null }] });
     const view = render(<App />);
     await userEvent.click(screen.getByRole("button", { name: /close panel/i }));
     expect(screen.getByText(advice)).toBeTruthy();
+    expect(screen.queryByText(question)).toBeNull();
+    setSocket({ ...state, phase: "voting", turns: [{ ...state.turns[0], answer: null }] });
+    view.rerender(<App />);
+    expect(screen.queryByText(advice)).toBeNull();
     expect(screen.getByText(question)).toBeTruthy();
     expect(screen.getByText("We plan a small campus pilot.")).toBeTruthy();
     setSocket(state);

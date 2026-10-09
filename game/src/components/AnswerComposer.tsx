@@ -28,6 +28,7 @@ function waitingText(state: RoomState | null): string {
   if (state.phase === "interpreting") return state.clock_paused === false ? "The panelist is reading the submission. The answer clock is running." : "The panelist is reading the submission. The answer clock is paused.";
   if (state.phase === "interpretation_retry") return state.clock_paused === false ? "Interpretation failed. The answer clock is running; use the saved submission as an answer." : "Interpretation failed. Retry or explicitly use the saved submission as an answer.";
   if (state.phase === "generating") return "The panel is preparing the next question…";
+  if (state.phase === "reacting") return "Listen to the panelist. Your full voting and answer time starts afterward.";
   if (state.phase === "retry") return state.self_is_host
     ? "Question generation failed. The previous turn is saved; retry from Controls."
     : "Question generation failed. The previous turn is saved; the host can retry.";

@@ -21,6 +21,12 @@ function RoomSeats({ roomState, presenterMoment }: { roomState: RoomState | null
 }
 
 describe("FlatRoom", () => {
+  it("highlights the reacting panelist as speaking without selecting a defender", () => {
+    render(<RoomSeats roomState={{ ...state, phase: "reacting", selected_seat: null }} presenterMoment={null} />);
+    expect(screen.getByLabelText(`${state.active_panelist}, speaking`).getAttribute("aria-current")).toBe("true");
+    expect(screen.getByText("Speaking")).toBeTruthy();
+    expect(screen.queryByText("Answering")).toBeNull();
+  });
   it("shows four ordered panelists and four defender seats with text states", () => {
     const { container } = render(<RoomSeats roomState={state} presenterMoment={null} />);
     const panelists = Array.from(container.querySelectorAll(".panelist-seat strong"), element => element.textContent);

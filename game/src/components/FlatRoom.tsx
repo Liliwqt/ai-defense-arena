@@ -13,7 +13,7 @@ export function PanelistSeats({ roomState }: { roomState: RoomState | null }) {
   const panelists = roomState?.defense_type && roomState.defense_type !== "code"
     ? RESEARCH_PANELISTS : CODE_PANELISTS;
   const speaker = panelists === RESEARCH_PANELISTS && roomState?.active_panelist === "Critical Judge" ? "Critical Reviewer" : roomState?.active_panelist;
-  const speaking = roomState?.phase === "voting" || roomState?.phase === "probe" || roomState?.phase === "question"
+  const speaking = roomState?.phase === "reacting" || roomState?.phase === "voting" || roomState?.phase === "probe" || roomState?.phase === "question"
     || roomState?.phase === "interpreting" || roomState?.phase === "interpretation_retry";
   return (
     <section className="seat-section panelist-section" aria-label="Panelists">
@@ -22,10 +22,10 @@ export function PanelistSeats({ roomState }: { roomState: RoomState | null }) {
         {panelists.map((name, index) => {
           const active = speaking && speaker === name;
           return <div key={name} className={`seat-card panelist-seat${active ? " is-active" : ""}`}
-            aria-label={`${name}${active ? ", asking this question" : ""}`} aria-current={active ? "true" : undefined}>
+            aria-label={`${name}${active ? roomState?.phase === "reacting" ? ", speaking" : ", asking this question" : ""}`} aria-current={active ? "true" : undefined}>
             <span className="seat-index" aria-hidden="true">0{index + 1}</span>
             <strong title={name}>{name}</strong>
-            <span className="seat-state">{active ? "Asking" : "Panelist"}</span>
+            <span className="seat-state">{active ? roomState?.phase === "reacting" ? "Speaking" : "Asking" : "Panelist"}</span>
           </div>;
         })}
       </div>

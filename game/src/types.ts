@@ -3,6 +3,7 @@
 export type Phase =
   | "lobby"
   | "generating"
+  | "reacting"
   | "voting"
   | "question"
   | "probe"
@@ -127,6 +128,7 @@ export interface RoomState {
   feedback: CoachingFeedback | null;
   server_now_ms?: number;
   vote_deadline_ms?: number | null;
+  reaction_deadline_ms?: number | null;
   answer_deadline_ms?: number | null;
   probe_deadline_ms?: number | null;
   remaining_answer_ms?: number | null;
