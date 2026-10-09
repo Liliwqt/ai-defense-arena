@@ -1,7 +1,7 @@
 # Panelist probes within the same question
 
 Date: 2026-10-09
-Status: implementation authorized through Implement; local verification and review in progress. Not approved for publication.
+Status: implemented and code-reviewed locally; live conversation and user visual review remain pending. Not approved for publication.
 
 ## Purpose
 

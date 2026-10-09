@@ -30,8 +30,30 @@ submissions, replacement speaker attribution and explicit recovery. React checks
 cover retained drafts, pending acknowledgment, countdown and separate export.
 Streamlit AppTest covers shared records and failure recovery without a mock timer.
 
-Final suite counts and independent Standards/Spec review are recorded in the
-handoff log after those checks finish. A separate live synthetic conversation is
+Final full working-tree gate passed **430 Python tests** (AI/Google/PayMongo
+mocked), **239 React tests**, TypeScript checking and production build. The exact
+committed release, excluding unrelated local changes, passed **402 Python tests**
+(providers mocked), **233 React tests** and build. Source commits: `2a804ce` and
+`b86f6ae`. Browser previews at1440×900,390×844 and844×390 had no horizontal page
+overflow, internal question scrolling and a visible probe label. Keyboard Enter
+opened Controls; Escape closed it and restored focus. The only observed console
+resource error was favicon404.
+
+## Standards
+
+Independent review against `e876f57` found no hard violations. Two minor
+suggestions—shared answer-language classification and reuse of SourceReference—
+were implemented; follow-up review reports no remaining actionable findings.
+
+## Spec
+
+Initial review found the pending probe's original speaker missing from AI context
+after reassignment. The correction includes both server-owned names and the
+current answer/citation/probe in shared serialization. A graceful-disconnect
+protocol test checks this, and snapshot-only recovery is tested after an actual
+offline capacity rejection. Follow-up review reports no remaining Spec findings.
+
+ A separate live synthetic conversation is
 still needed to assess restraint, source fidelity, role voice and language
 continuity. User visual review, hosted checks and physical devices are unverified.
 No payment provider or account balance is changed by these mock checks.
