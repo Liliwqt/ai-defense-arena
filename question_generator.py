@@ -558,15 +558,39 @@ LANGUAGE_NAMES = (
     "Chinese|Mandarin|Japanese|Korean|Arabic|Hindi|Vietnamese|Indonesian|Malay|Dutch|Italian"
 )
 LANGUAGE_REQUEST = re.compile(
-    rf"\b(?:in|into|using|use|speak)\s+(?:(?:simple|plain|natural|fluent)\s+)*({LANGUAGE_NAMES})\b"
-    rf"|\b({LANGUAGE_NAMES})\s*,?\s*please\b", re.IGNORECASE,
+    rf"\b(?:in|into|using|use|speak)\s+(?:(?:simple|plain|natural|fluent|modern|conversational|casual|everyday)\s+)*({LANGUAGE_NAMES})\b"
+    rf"|\b({LANGUAGE_NAMES})\s*,?\s*(?:please|lang|unta|palihug)\b", re.IGNORECASE,
 )
 ENGLISH_MARKERS = {"the", "we", "would", "and", "to", "that", "their", "before", "with", "because"}
+# Distinctive cues precede Filipino detection; shared words such as ang/sa are
+# not enough to identify Cebuano. Uncertain text remains for the AI to interpret.
+CEBUANO_MARKERS = {
+    "unsa", "unsaon", "giunsa", "ngano", "dili", "namo", "nato", "ninyo",
+    "namong", "among", "aron", "kaayo", "kani", "kini", "maong", "gamiton",
+}
+CEBUANO_GUIDANCE = (
+    "When the current language is Bisaya/Cebuano, use modern, conversational Cebuano, "
+    "like a respectful everyday discussion with university students in Cebu. "
+    "Use short, clear sentences and familiar everyday words. Allow natural English mixing "
+    "for research and technical terms, such as research, participants, method and pag-check, "
+    "when it improves clarity; do not translate every term mechanically. "
+    "Avoid archaic or literary vocabulary, cumbersome formal translations, forced slang "
+    "and exaggerated dialect. Follow the defender's natural Cebuano phrasing while preserving "
+    "the meaning; do not insert Tagalog phrasing into Cebuano dialogue. "
+    "This is the default register; honor an explicit preference for a different register. "
+    "Keep filenames, identifiers and exact cited excerpts unchanged. "
+)
+FILIPINO_DISTINCTIVE_MARKERS = FILIPINO_MARKERS - {"ako", "ang", "lang", "mas", "para", "sa"}
 
 
 def _answer_language(answer: str) -> str | None:
     words = set(re.findall(r"[A-Za-zÀ-ÿ]+", answer.lower()))
-    return "Taglish" if len(words & FILIPINO_MARKERS) >= 2 else (
+    if len(words & CEBUANO_MARKERS) >= 2:
+        return "Cebuano"
+    if words & CEBUANO_MARKERS and len(words & FILIPINO_MARKERS) >= 2:
+        # A partial Cebuano cue plus shared words is not a confident Taglish cue.
+        return None
+    return "Taglish" if len(words & FILIPINO_MARKERS) >= 2 and words & FILIPINO_DISTINCTIVE_MARKERS else (
         "English" if len(words & ENGLISH_MARKERS) >= 3 else None
     )
 
@@ -634,6 +658,8 @@ def _language_guidance(
         if anchor['kind'] == "answer":
             rules += "The latest answer is Filipino/Taglish. "
         rules += "Write natural Taglish, not Spanish or another language; keep technical identifiers unchanged. "
+    if anchor['language'] in {"Bisaya", "Cebuano", None}:
+        rules += CEBUANO_GUIDANCE
     return rules
 
 
@@ -1068,6 +1094,7 @@ def generate_coaching_report(
                     f"{PROBE_CONTEXT_GUIDANCE} "
                     f"{_research_guidance(defense_type, research_stage)} "
                     f"{_research_advice_guidance(defense_type, history, coaching=True)}"
+                    f"{_language_guidance(history)} "
                     "Provide one short coaching report grounded in the project files, actual answers, "
                     "and explicitly marked timed-out turns. Never fabricate a missing answer. "
                     "Return a summary (2–4 sentences), 1–3 strengths when any answer exists "

@@ -42,6 +42,15 @@ been deployed. Offline tests check
 context and response contracts; a separate live conversation is needed to assess
 how natural the generated dialogue actually sounds.
 
+The local language update adds everyday conversational Cebuano for Bisaya/Cebuano
+requests, with natural English research terms such as “pag-check.” Ask a panelist
+“Please use modern Bisaya” or “Bisaya lang” to set the language for the ongoing
+conversation, including reactions, clarifications and coaching. Brief replies,
+code-only replies and timeouts retain the preference; a later explicit request or
+substantive answer in another language can change it. Shared words such as “ang”
+and “sa” alone no longer identify an answer as Taglish. All dialogue remains
+AI-generated, and live native-speaker review is still needed to verify the wording.
+
 ## Mobile website and WebView apps (feature-branch checkpoint)
 
 The existing React room supports phone portrait and landscape, with compact seat

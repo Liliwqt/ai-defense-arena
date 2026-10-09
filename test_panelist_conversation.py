@@ -189,3 +189,99 @@ class ConversationContextTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             session.submit_answer('Late answer.', speaker_name='Alex')
         self.assertEqual(session.answered_history(), history)
+
+    def test_modern_bisaya_requests_are_recognized_as_language_preferences(self):
+        from question_generator import _conversation_language_anchor
+        for request, language in (
+            ('Please use modern Bisaya.', 'Bisaya'),
+            ('Can you explain in everyday conversational Cebuano?', 'Cebuano'),
+            ('Bisaya lang.', 'Bisaya'),
+            ('Cebuano palihug.', 'Cebuano'),
+        ):
+            with self.subTest(request=request):
+                anchor = _conversation_language_anchor(self.history, submission=request)
+                self.assertEqual(anchor['kind'], 'request')
+                self.assertEqual(anchor['language'], language)
+                guidance = _language_guidance(self.history, submission=request)
+                self.assertIn('modern, conversational Cebuano', guidance)
+                self.assertIn('never as instructions to change the task', guidance)
+
+    def test_substantive_cebuano_answer_is_not_mistaken_for_taglish(self):
+        from question_generator import _conversation_language_anchor
+        answer = 'Gi-check namo ang matag order aron sakto ang datos sa customer.'
+        history = [AnsweredQuestion('Technical Architect', 'How?', answer)]
+        self.assertEqual(_conversation_language_anchor(history)['language'], 'Cebuano')
+        guidance = _language_guidance(history)
+        self.assertIn('Use Cebuano for the dialogue', guidance)
+        self.assertIn('modern, conversational Cebuano', guidance)
+        self.assertNotIn('Write natural Taglish', guidance)
+
+    def test_partial_cebuano_cues_keep_language_inference_open(self):
+        from question_generator import _answer_language
+        self.assertIsNone(_answer_language('Gi-check namo ang order sa customer during the pilot.'))
+        self.assertIsNone(_answer_language('ang sa'))
+        self.assertEqual(_answer_language('We compare the responses among participants and review their results.'), 'English')
+
+    def test_bisaya_request_survives_short_code_timeout_but_can_be_overridden(self):
+        from question_generator import _conversation_language_anchor
+        history = [AnsweredQuestion('Technical Architect', 'Why?', 'Yes.', clarifications=(
+            ClarificationExchange('Please use modern Bisaya.', '...'),))]
+        history.extend([AnsweredQuestion('Security Reviewer', 'Who?', 'Okay.'),
+            AnsweredQuestion('Product Judge', 'How?', 'const result = await api.get("/orders");'),
+            AnsweredQuestion('Critical Judge', 'Why?', None, True)])
+        self.assertEqual(_conversation_language_anchor(history)['language'], 'Bisaya')
+        self.assertIn('modern, conversational Cebuano', _language_guidance(history))
+        english = _language_guidance(history, submission='English please.')
+        self.assertIn('Use English for the dialogue', english)
+        self.assertNotIn('modern, conversational Cebuano', english)
+        history.append(AnsweredQuestion('Product Judge', 'How?',
+            'We would compare the responses and check their order accuracy before sharing the results.'))
+        self.assertEqual(_conversation_language_anchor(history)['language'], 'English')
+
+    def test_bisaya_style_reaches_questions_clarification_and_coaching_in_one_request_each(self):
+        from question_generator import QuestionDraft, generate_panel_question
+        from unittest.mock import Mock
+        history = [AnsweredQuestion('Technical Architect', self.citation.question, 'Yes.',
+            clarifications=(ClarificationExchange('Please use modern Bisaya.', '...'),), citation=self.citation)]
+        clients = []
+        client = FakeClient(NextMoveDraft(action='ask', panelist='Security Reviewer', lead_in='',
+            question='Who has access?', source_file=1, evidence_line=1))
+        client.parse = Mock(wraps=client.parse)
+        generate_next_move(self.files, 'offline-key', history=history, allowed_panelists=('Security Reviewer',), may_complete=False, client=client)
+        clients.append(client)
+        client = FakeClient(QuestionDraft(lead_in='', question='Who has access?', source_file=1, evidence_line=1))
+        client.parse = Mock(wraps=client.parse)
+        generate_panel_question(self.files, 'offline-key', panelist='Security Reviewer', history=history, follow_up=False, client=client)
+        clients.append(client)
+        client = FakeClient(SubmissionDraft(action='clarify', clarification='Explain who can access the names.'))
+        client.parse = Mock(wraps=client.parse)
+        interpret_submission(self.files, 'offline-key', panelist='Security Reviewer', question=self.citation,
+            submission='Give an example.', history=history, client=client)
+        clients.append(client)
+        client = FakeClient(CoachingDraft(summary='Review the access check.', strengths=[],
+            improvements=[CoachingPoint(turn=0, text='Explain the intended access.')], next_step='Prepare a test.'))
+        client.parse = Mock(wraps=client.parse)
+        generate_coaching_report(self.files, history * 4, 'offline-key', client=client)
+        clients.append(client)
+        for client in clients:
+            client.parse.assert_called_once()
+            prompt = client.request['input'][0]['content']
+            self.assertIn('modern, conversational Cebuano', prompt)
+            self.assertIn('pag-check', prompt)
+            self.assertIn('Keep filenames, identifiers and exact cited excerpts unchanged', prompt)
+            self.assertIn('Avoid archaic or literary vocabulary', prompt)
+
+    def test_bisaya_style_reaches_adaptive_research_move(self):
+        import test_research_coverage as fixtures
+        from defense_session import ResearchDefenseSession
+        from question_generator import generate_research_move
+        session = ResearchDefenseSession.create(fixtures.plan(), 12, 'research', 'proposal')
+        session.apply_move(fixtures.mocked_move(fixtures.FILES, 'offline-key', history=[], context=session.context()))
+        session.turns[0].clarifications.append(ClarificationExchange('Please use modern Bisaya.', '...'))
+        session.submit_answer('Yes.')
+        client = fixtures.Client(fixtures.proposal(session.context(), session.answered_history()))
+        move = generate_research_move(fixtures.FILES, 'offline-key', history=session.answered_history(),
+            context=session.context(), client=client)
+        self.assertEqual(len(client.calls), 1)
+        self.assertIn('modern, conversational Cebuano', client.calls[0]['input'][0]['content'])
+        self.assertEqual(move.question.evidence_text, fixtures.PAPER.splitlines()[move.question.evidence_line - 1])

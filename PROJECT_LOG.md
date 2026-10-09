@@ -4,6 +4,8 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Current status
 
+- Conversational Bisaya update implemented locally, 2026-10-10: shared guidance prefers familiar everyday Cebuano, short respectful wording and natural English research terms. Modern/casual language requests and Bisaya lang/unta/palihug forms are recognized. Distinctive Cebuano cues take precedence over shared Filipino markers; shared words alone do not force Taglish. Coaching now uses the shared language anchor too. Offline gate: 443 Python tests (AI/Google/PayMongo mocked), 243 React tests and production build. No paid/live language-quality check, commit, push or deployment; main unchanged.
+
 - Clarification presentation published in 62c1d58, 2026-10-10: the latest defender request sits above the latest panelist explanation, replacing the large original question text. Same turn/citation/timers; original wording and exchanges retained in transcript/export. Full combined local gate: 437 Python tests (AI/Google/PayMongo mocked), 243 React tests and production build. Desktop/portrait/landscape synthetic previews checked at http://127.0.0.1:8820/?preview=1&research=1&clarify=1. Origin verified at 62c1d58538cedbf773b31413c4da86a431ac9f1f; no deployment or user visual review.
 
 - Panelist reaction transition published in 62c1d58, 2026-10-10: validated lead-in appears on its own for 4–12 seconds before the next question and full 15-second vote. Server-owned reacting phase/deadline synchronizes clients and reconnects; no inline lead-in on the question card. Transcript retains dialogue. Final offline gate: 437 Python tests (AI/Google/PayMongo mocked), 242 React tests and production build. Desktop/portrait/landscape mock previews and long-text keyboard scrolling checked. Preview: http://127.0.0.1:8820/?preview=1&research=1&reaction=1. Source push verified; not deployed or user-reviewed; main unchanged.
@@ -129,6 +131,7 @@ Use this file to track completed updates across agents and session windows. See 
 - Generated questions carry a validated conversational `lead_in`: distinct panelist voices briefly react to the latest answer, match a substantive answer's language, and stay separate from the grounded question and citation. The previous exchange remains visible while the next response is generated.
 
 ## Active work
+
 
 
 
@@ -1823,3 +1826,19 @@ Append new entries to the **end** of this file in date order:
 - Session: root `publish-dialogue-display`, closed by this entry. Source commit 62c1d58 publishes the reaction/clarification changes, related tests/docs and eight synthetic captures (28 files). README and current status now distinguish published source from hosted behavior.
 - Verification: git push origin feature/question-first-room succeeded from 5aa8973 to 62c1d58. Independent git ls-remote confirmed 62c1d58538cedbf773b31413c4da86a431ac9f1f for the feature branch and unchanged 866e923c40c3cf431e66984861dd7dbefb223f8b for main; worktree was clean after the source push. git diff --cached --check passed before commit. Source matches the tested 437-Python/243-React/build gate with external providers mocked.
 - Deployment: [skip render]; no manual deploy or hosted/provider/device check. This documentation receipt is pushed next, and its final origin tip is independently verified.
+
+
+### 2026-10-10 — Everyday conversational Bisaya guidance
+
+- Session: root `conversational-bisaya`, closed by this entry. User approved the natural Cebuano/English-mixed example and requested implementation. question_generator.py adds a shared Cebuano/Bisaya register guide: short clear respectful sentences, familiar vocabulary, natural research/technical English mixing, no forced slang/literary translations or mechanical term translation, and exact filenames/identifiers/excerpts preserved. No fixed defense question or scripted reaction was added; only general style and vocabulary guidance.
+- Language handling: recognizes modifiers such as modern/conversational/casual/everyday and polite Bisaya lang/unta/palihug requests. Two Cebuano cues select Cebuano before the Filipino heuristic; partial Cebuano cues avoid a forced Taglish label, and shared Filipino/Cebuano words alone no longer force Taglish. Uncertain substantive text remains for AI inference; this is a small heuristic, not a complete language detector. Existing brief/code-only/timeout retention and later-language-request/substantive-answer precedence remain.
+- Shared request coverage: generation for code/research/mixed, legacy follow-ups and submission interpretation already used shared language guidance. Coaching now receives it as well. All continue using their existing single AI request; no schema, citation validator, multiplayer protocol, timer, billing or model setting changed. Files: question_generator.py, test_panelist_conversation.py, README.md and PROJECT_LOG.md.
+- Verification, offline/providers mocked: env -u DATABASE_URL .venv/bin/python -m unittest discover -v passed 443 tests (AI/Google/PayMongo mocked). npm test -- --maxWorkers=1 passed 243 React tests; npm run build and git diff --check passed. Six new conversation tests cover modern/polite requests, substantive Cebuano versus Taglish, uncertain/shared cues, language persistence and explicit/later-answer switches, exact citation retention, and actual mocked question/clarification/coaching/research request prompts. Request tests confirm one call per existing operation.
+- Remaining: live native-speaker assessment of vocabulary, clarity, code-switching and consistency. Mocked outputs validate prompt/context contracts, not actual Cebuano fluency. Restart the regular local server and ask "Please use modern Bisaya" to try it with a configured local key. No paid API call, live dialogue, commit, push, deployment or production restart; feature/question-first-room remains local and frozen main unchanged.
+
+
+### 2026-10-10 — Bisaya update prepared for publication
+
+- User authorized "push". Selected question_generator.py, test_panelist_conversation.py, README.md and PROJECT_LOG.md; no unrelated changes. Remote feature baseline 10448da independently verified; main unchanged at 866e923c40c3cf431e66984861dd7dbefb223f8b.
+- Verification: unchanged source passed the preceding offline gate of 443 Python tests (AI/Google/PayMongo mocked), 243 React tests and production build; git diff --check passed. Live native-language quality remains unverified.
+- Publication only; [skip render] preserves hosted rooms. Push/hash verification will be recorded afterward; no manual deployment.
