@@ -21,7 +21,8 @@ Questions, reactions, optional advice and clarification replies remain AI-genera
 exact citations and existing language preferences still apply. The opening has no
 fabricated reaction, and a missed turn is acknowledged without inventing an answer.
 
-These refinements are local until published and deployed. Offline tests check
+These refinements are published on `feature/question-first-room`; deployment
+is a separate step. Offline tests check
 context and response contracts; a separate live conversation is needed to assess
 how natural the generated dialogue actually sounds.
 
