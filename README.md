@@ -4,6 +4,27 @@ Practice a code-project or research-paper defense with four AI panelists and up 
 
 The multiplayer app uses a flat, question-centered React interface served by FastAPI. Four panelist cards sit above the question, four defender cards below it, and a persistent bottom dock holds voting, answers, and team chat. A separate Streamlit app provides a single-browser fallback.
 
+## Panelist conversation
+
+The prompts give each panelist a distinct conversational habit: Technical follows
+how a concrete operation works; Security calmly examines safeguards; Product
+follows a user's everyday workflow; Methodology patiently examines research
+choices; Ethics considers the participant's experience; Impact explores realistic
+benefits; Critical tests assumptions fairly and accepts a sound justification.
+
+Reactions are tied to an actual decision, reason or constraint in the defender's
+answer. Panelists are instructed to vary their wording, use brief introductions,
+explain confusing terms patiently and move on from details a probe reply has
+already resolved. Their personality comes through their perspective and phrasing,
+without invented personal stories, credentials, gestures or scripted questions.
+Questions, reactions, optional advice and clarification replies remain AI-generated;
+exact citations and existing language preferences still apply. The opening has no
+fabricated reaction, and a missed turn is acknowledged without inventing an answer.
+
+These refinements are local until published and deployed. Offline tests check
+context and response contracts; a separate live conversation is needed to assess
+how natural the generated dialogue actually sounds.
+
 ## Mobile website and WebView apps (feature-branch checkpoint)
 
 The existing React room supports phone portrait and landscape, with compact seat
