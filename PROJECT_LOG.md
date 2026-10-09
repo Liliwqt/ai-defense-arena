@@ -4,9 +4,9 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Current status
 
-- Clarification presentation updated locally, 2026-10-10: the latest defender request sits above the latest panelist explanation, replacing the large original question text. Same turn/citation/timers; original wording and exchanges retained in transcript/export. Full combined local gate: 437 Python tests (AI/Google/PayMongo mocked), 243 React tests and production build. Desktop/portrait/landscape synthetic previews checked at http://127.0.0.1:8820/?preview=1&research=1&clarify=1. No push/deployment or user visual review; preceding local reaction work preserved.
+- Clarification presentation published in 62c1d58, 2026-10-10: the latest defender request sits above the latest panelist explanation, replacing the large original question text. Same turn/citation/timers; original wording and exchanges retained in transcript/export. Full combined local gate: 437 Python tests (AI/Google/PayMongo mocked), 243 React tests and production build. Desktop/portrait/landscape synthetic previews checked at http://127.0.0.1:8820/?preview=1&research=1&clarify=1. Origin verified at 62c1d58538cedbf773b31413c4da86a431ac9f1f; no deployment or user visual review.
 
-- Panelist reaction transition implemented locally, 2026-10-10: validated lead-in appears on its own for 4–12 seconds before the next question and full 15-second vote. Server-owned reacting phase/deadline synchronizes clients and reconnects; no inline lead-in on the question card. Transcript retains dialogue. Final offline gate: 437 Python tests (AI/Google/PayMongo mocked), 242 React tests and production build. Desktop/portrait/landscape mock previews and long-text keyboard scrolling checked. Preview: http://127.0.0.1:8820/?preview=1&research=1&reaction=1. Not committed, pushed, deployed or user-reviewed; main unchanged.
+- Panelist reaction transition published in 62c1d58, 2026-10-10: validated lead-in appears on its own for 4–12 seconds before the next question and full 15-second vote. Server-owned reacting phase/deadline synchronizes clients and reconnects; no inline lead-in on the question card. Transcript retains dialogue. Final offline gate: 437 Python tests (AI/Google/PayMongo mocked), 242 React tests and production build. Desktop/portrait/landscape mock previews and long-text keyboard scrolling checked. Preview: http://127.0.0.1:8820/?preview=1&research=1&reaction=1. Source push verified; not deployed or user-reviewed; main unchanged.
 
 - Human panelist voice refinements published, 2026-10-09: shared role and conversation prompts emphasize concrete answer-aware reactions, varied wording, natural first-person phrasing, patient explanations, fair acceptance of sufficient answers and attention to a resolved probe reply. No scripted questions, personal anecdotes or fake gestures. Opening-versus-later dialogue guidance is explicit and does not claim a timed-out defender answered. Full offline gate430 Python tests (AI/Google/PayMongo mocked),239 React tests and build; live dialogue quality remains unverified. Source commit d035c7b is independently verified on origin/feature/question-first-room. Deployment skipped with [skip render]; frozen main unchanged.
 
@@ -130,7 +130,6 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Active work
 
-- Root `publish-dialogue-display`, 2026-10-10: commit/push the tested reaction and clarification UI updates, related server timing/tests/docs and synthetic screenshots to feature/question-first-room. Closes with a verified publication receipt; no main update or deployment.
 
 
 
@@ -1817,3 +1816,10 @@ Append new entries to the **end** of this file in date order:
 - User authorized "push". Publishing the standalone answer-aware reaction, clarified wording as the primary question, related timing/snapshot changes, tests, README/handoff and eight synthetic review captures. Existing remote feature tip verified at 5aa8973; main remains 866e923c40c3cf431e66984861dd7dbefb223f8b.
 - Verification: executable files are unchanged from the preceding full offline gate: 437 Python tests (AI/Google/PayMongo mocked), 243 React tests and production build. Desktop/portrait/landscape browser mock evidence is recorded in the preceding entries. git diff --check passed. No secrets, generated assets or runtime data are included.
 - Publication-only request: commit uses [skip render] to preserve active hosted rooms. Push and independent remote hash verification will close this session. No live AI, hosted or physical-device verification is claimed.
+
+
+### 2026-10-10 — Dialogue display push verified
+
+- Session: root `publish-dialogue-display`, closed by this entry. Source commit 62c1d58 publishes the reaction/clarification changes, related tests/docs and eight synthetic captures (28 files). README and current status now distinguish published source from hosted behavior.
+- Verification: git push origin feature/question-first-room succeeded from 5aa8973 to 62c1d58. Independent git ls-remote confirmed 62c1d58538cedbf773b31413c4da86a431ac9f1f for the feature branch and unchanged 866e923c40c3cf431e66984861dd7dbefb223f8b for main; worktree was clean after the source push. git diff --cached --check passed before commit. Source matches the tested 437-Python/243-React/build gate with external providers mocked.
+- Deployment: [skip render]; no manual deploy or hosted/provider/device check. This documentation receipt is pushed next, and its final origin tip is independently verified.

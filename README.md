@@ -21,7 +21,7 @@ Questions, reactions, optional advice and clarification replies remain AI-genera
 exact citations and existing language preferences still apply. The opening has no
 fabricated reaction, and a missed turn is acknowledged without inventing an answer.
 
-In the local multiplayer room, a generated reaction appears briefly on its own
+In the feature-branch multiplayer room, a generated reaction appears briefly on its own
 after the previous turn, with the panelist marked **Speaking**. It stays for
 4–12 seconds according to its length, then the next question and exact citation
 appear and the full 15-second vote begins. The reaction is retained in Transcript
@@ -37,7 +37,8 @@ all clarification exchanges stay in Transcript; the next turn displays its new
 question normally. Preview: <http://127.0.0.1:8820/?preview=1&research=1&clarify=1>.
 
 The role-voice refinements are published on `feature/question-first-room`;
-the new reaction transition is local and has not been deployed. Offline tests check
+the reaction and clarification display updates are also published but have not
+been deployed. Offline tests check
 context and response contracts; a separate live conversation is needed to assess
 how natural the generated dialogue actually sounds.
 
