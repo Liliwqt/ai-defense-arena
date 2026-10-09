@@ -125,3 +125,26 @@ describe("AnswerComposer", () => {
     expect(screen.getByRole("status").textContent).toMatch(/preparing/i);
   });
 });
+
+it("submits a probe reply with its own id and retains a draft after a send failure", async () => {
+  const state: RoomState = { ...questionState, phase: "probe", turns: [{ ...questionState.turns[0],
+    answer: "Randomly.", answered_by: "Ana", resolved: false,
+    probe: { id: "probe-1", request: "Which list?", status: "pending", reply: null, references: [], clarifications: [] },
+  }] };
+  const send = vi.fn(() => false);
+  render(<AnswerComposer {...defaults} roomState={state} onSendEvent={send} />);
+  await userEvent.type(screen.getByRole("textbox"), "The school list.");
+  await userEvent.click(screen.getByRole("button", { name: "Submit reply" }));
+  expect(send).toHaveBeenCalledWith({ type: "submit_probe_reply", turn: 0, probe_id: "probe-1", answer: "The school list.", direct: false });
+  expect(screen.getByRole("textbox")).toHaveValue("The school list.");
+  expect(screen.getByRole("alert")).toHaveTextContent("Could not send");
+});
+
+it("clears the acknowledged original draft when the same turn opens a probe", async () => {
+  const { rerender } = render(<AnswerComposer {...defaults} roomState={questionState} />);
+  await userEvent.type(screen.getByRole("textbox"), "Randomly.");
+  rerender(<AnswerComposer {...defaults} roomState={{ ...questionState, phase: "probe", turns: [{ ...questionState.turns[0],
+    answer: "Randomly.", answered_by: "Ana", probe: { id: "probe-1", request: "Which list?", status: "pending", reply: null, references: [], clarifications: [] },
+  }] }} />);
+  expect(screen.getByRole("textbox")).toHaveValue("");
+});

@@ -4,7 +4,7 @@ import type { RoomState } from "../types";
 export function useRoomCountdown(roomState: RoomState | null): number | null {
   const deadline = roomState?.phase === "voting"
     ? roomState.vote_deadline_ms
-    : (roomState?.phase === "question" || (roomState?.clock_paused === false && ["interpreting", "interpretation_retry"].includes(roomState?.phase ?? ""))) ? roomState?.answer_deadline_ms : null;
+    : (roomState?.phase === "probe" || roomState?.phase === "question" || (roomState?.clock_paused === false && ["interpreting", "interpretation_retry"].includes(roomState?.phase ?? ""))) ? roomState?.answer_deadline_ms : null;
   const serverNow = roomState?.server_now_ms ?? 0;
   const [remaining, setRemaining] = useState<number | null>(null);
 

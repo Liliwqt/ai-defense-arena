@@ -247,6 +247,19 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                 if turn.answer is not None:
                     st.markdown("**Your answer**")
                     st.write(turn.answer)
+                if turn.probe:
+                    st.markdown("**Panelist asks for a detail**")
+                    st.write(turn.probe.request)
+                    for reference in turn.probe.references:
+                        st.caption(f"{reference.filename} · {reference.evidence_location}")
+                        st.code(reference.evidence_text)
+                    for exchange in turn.probe.clarifications:
+                        st.write(f"Defender asks: {exchange.request}")
+                        st.write(f"{turn.panelist} explains: {exchange.reply}")
+                    if turn.probe.reply is not None:
+                        st.write(f"Probe reply: {turn.probe.reply}")
+                    elif turn.probe.status != "pending":
+                        st.caption(f"Probe {turn.probe.status}; original answer retained.")
 
             if session.completed:
                 st.success(f"Defense complete. Review your {answered_count} answers above.")
@@ -280,12 +293,23 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
             elif session.awaiting_answer:
                 run_id = st.session_state["defense_run_id"]
                 turn_number = len(session.turns)
-                clarification_count = len(session.turns[-1].clarifications)
-                with st.form(f"answer_form_{run_id}_{turn_number}_{clarification_count}"):
+                probe = session.turns[-1].probe
+                clarification_count = len(session.turns[-1].clarifications) + (len(probe.clarifications) if probe else 0)
+                stage_key = probe.id if probe else "answer"
+                recovery_key = f"probe_recovery_{run_id}_{stage_key}"
+                if probe and st.session_state.get(recovery_key):
+                    st.error(st.session_state[recovery_key])
+                    if st.button("Continue with original answer"):
+                        session.resolve_probe(status="ended_early")
+                        st.session_state.pop(recovery_key, None)
+                        if not session.completed:
+                            generate_next_question(session, files, api_key, model)
+                        st.rerun()
+                with st.form(f"answer_form_{run_id}_{turn_number}_{clarification_count}_{stage_key}"):
                     answer = st.text_area(
-                        "Your answer or clarification request",
+                        "Your probe reply or clarification request" if probe else "Your answer or clarification request",
                         max_chars=MAX_ANSWER_CHARS,
-                        key=f"answer_{run_id}_{turn_number}_{clarification_count}",
+                        key=f"answer_{run_id}_{turn_number}_{clarification_count}_{stage_key}",
                     )
                     submitted = st.form_submit_button("Send to panelist")
                 if submitted:
@@ -300,19 +324,35 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                                     clarifications=tuple(session.turns[-1].clarifications),
                                     history=session.answered_history(),
                                     model=model, defense_type=mode, research_stage=research_stage,
+                                    **({"probe": probe, "original_answer": session.turns[-1].answer} if probe else {}),
                                 )
                         except (QuestionGenerationError, OpenAIError, ValidationError) as error:
+                            if probe:
+                                st.session_state[recovery_key] = generation_error_message(error, model, api_key)
                             st.error(generation_error_message(error, model, api_key))
+                            if probe:
+                                st.rerun()
                         else:
                             if decision.action == "clarify":
                                 try:
-                                    session.record_clarification(ClarificationExchange(answer.strip(), decision.clarification))
+                                    if probe:
+                                        if clarification_count >= 2:
+                                            raise ValueError("Both clarifications are used. Submit a reply.")
+                                        probe.clarifications.append(ClarificationExchange(answer.strip(), decision.clarification))
+                                    else:
+                                        session.record_clarification(ClarificationExchange(answer.strip(), decision.clarification))
                                 except ValueError as error:
                                     st.error(str(error))
                                 else:
                                     st.rerun()
+                            elif decision.action == "probe":
+                                session.begin_probe(answer, decision.probe)
+                                st.rerun()
                             else:
-                                session.submit_answer(answer)
+                                if probe:
+                                    session.resolve_probe(answer)
+                                else:
+                                    session.submit_answer(answer)
                                 if not session.completed:
                                     generate_next_question(session, files, api_key, model)
                                 st.rerun()

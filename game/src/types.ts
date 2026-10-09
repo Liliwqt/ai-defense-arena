@@ -5,6 +5,7 @@ export type Phase =
   | "generating"
   | "voting"
   | "question"
+  | "probe"
   | "interpreting"
   | "interpretation_retry"
   | "retry"
@@ -25,6 +26,8 @@ export interface ClarificationExchange {
 }
 
 export interface Turn {
+  probe?: PanelistProbe | null;
+  resolved?: boolean;
   panelist: string;
   lead_in?: string;
   question: string;
@@ -45,6 +48,17 @@ export interface Turn {
   assigned_seat?: number | null;
   answered_by: string | null;
   answered_by_seat?: number | null;
+}
+
+export interface PanelistProbe {
+  id: string;
+  request: string;
+  references: { filename: string; evidence_line: number; evidence_text: string; evidence_location: string; evidence_kind: string }[];
+  status: "pending" | "answered" | "expired" | "ended_early";
+  reply: string | null;
+  speaker_name?: string | null;
+  speaker_seat?: number | null;
+  clarifications: ClarificationExchange[];
 }
 
 export interface CoachingPoint {
@@ -113,6 +127,7 @@ export interface RoomState {
   server_now_ms?: number;
   vote_deadline_ms?: number | null;
   answer_deadline_ms?: number | null;
+  probe_deadline_ms?: number | null;
   remaining_answer_ms?: number | null;
   expires_at_ms?: number | null;
   clock_paused?: boolean;

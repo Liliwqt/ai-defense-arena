@@ -34,3 +34,11 @@ describe("room countdown", () => {
     expect(result.current).toBe(0);
   });
 });
+
+it("shows the separate probe reply countdown from the server clock", () => {
+  vi.useFakeTimers();
+  const { result } = renderHook(() => useRoomCountdown(state("probe", 1000, null, 31000)));
+  expect(result.current).toBe(30);
+  act(() => vi.advanceTimersByTime(31000));
+  expect(result.current).toBe(0);
+});

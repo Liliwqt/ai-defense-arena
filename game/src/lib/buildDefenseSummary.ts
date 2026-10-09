@@ -58,6 +58,16 @@ function turnLines(turn: Turn, index: number, research = false): string[] {
     const who = turn.answered_by ? ` (${turn.answered_by})` : "";
     lines.push(`   Team answer${who}: ${turn.answer}`);
   }
+  if (turn.probe) {
+    lines.push(`   Panelist probe: ${turn.probe.request}`);
+    for (const ref of turn.probe.references) lines.push(`   Probe citation: ${ref.filename}, ${ref.evidence_location} — ${ref.evidence_text}`);
+    for (const c of turn.probe.clarifications) {
+      lines.push(`   Probe clarification requested: ${c.request}`);
+      lines.push(`   ${panelist} explains: ${c.reply}`);
+    }
+    lines.push(`   Probe status: ${turn.probe.status}`);
+    if (turn.probe.reply != null) lines.push(`   Probe reply (${turn.probe.speaker_name ?? "Defender"}): ${turn.probe.reply}`);
+  }
   lines.push("");
   return lines;
 }

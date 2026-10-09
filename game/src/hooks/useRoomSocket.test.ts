@@ -205,3 +205,17 @@ describe("useRoomSocket", () => {
     expect(sent).toBe(false);
   });
 });
+
+it("does not acknowledge a pending probe reply on an unrelated same-phase snapshot", () => {
+  const { result } = renderHook(() => useRoomSocket(false));
+  act(() => result.current.useRoom("ABCD12", "tok", false));
+  act(() => allSockets[0].emit("open", {}));
+  const snapshot = { room_code: "ABCD12", phase: "probe", turns: [{ answer: "Original answer", probe: { id: "p1", status: "pending" } }] };
+  act(() => allSockets[0].emit("message", { data: JSON.stringify({ type: "snapshot", state: snapshot }) }));
+  act(() => result.current.sendEvent({ type: "submit_probe_reply", turn: 0, probe_id: "p1", answer: "Reply" }));
+  expect(result.current.waitingForAnswerAck).toBe(true);
+  act(() => allSockets[0].emit("message", { data: JSON.stringify({ type: "snapshot", state: snapshot }) }));
+  expect(result.current.waitingForAnswerAck).toBe(true);
+  act(() => allSockets[0].emit("message", { data: JSON.stringify({ type: "snapshot", state: { ...snapshot, phase: "interpreting" } }) }));
+  expect(result.current.waitingForAnswerAck).toBe(false);
+});

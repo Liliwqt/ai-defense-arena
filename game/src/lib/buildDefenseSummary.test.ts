@@ -153,3 +153,14 @@ describe("buildDefenseSummary", () => {
     expect(defenseSummaryFileName({ ...baseState, server_now_ms: undefined })).toMatch(/\.txt$/);
   });
 });
+
+it("exports the original answer and attributed probe reply separately", () => {
+  const text = buildDefenseSummary({ ...baseState, turns: [turn({
+    answer: "Randomly.", answered_by: "Ana",
+    probe: { id: "p1", request: "Which list?", references: [], clarifications: [],
+      status: "answered", reply: "The school list.", speaker_name: "Sam" },
+  })] });
+  expect(text).toContain("Team answer (Ana): Randomly.");
+  expect(text).toContain("Panelist probe: Which list?");
+  expect(text).toContain("Probe reply (Sam): The school list.");
+});

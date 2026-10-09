@@ -67,6 +67,7 @@ export function useRoomSocket(previewMode: boolean): RoomSocketState {
   const connectionVersionRef = useRef(0);
   const roomCodeRef = useRef<string | null>(null);
   const pendingAnswerTurnRef = useRef<number | null>(null);
+  const pendingProbeRef = useRef<string | null>(null);
 
   // Keep roomCodeRef in sync for connectSocket closure
   useEffect(() => {
@@ -116,7 +117,7 @@ export function useRoomSocket(previewMode: boolean): RoomSocketState {
         setActionError(null);
         setActionErrorReason(null);
         const pendingTurn = pendingAnswerTurnRef.current;
-        if (pendingTurn !== null && (snapshot.turns[pendingTurn]?.answer != null || snapshot.phase !== "question")) {
+        if (pendingTurn !== null && (pendingProbeRef.current ? snapshot.turns[pendingTurn]?.probe?.id !== pendingProbeRef.current || snapshot.turns[pendingTurn]?.probe?.status !== "pending" || snapshot.phase !== "probe" : snapshot.turns[pendingTurn]?.answer != null || snapshot.phase !== "question")) {
           pendingAnswerTurnRef.current = null;
           setWaitingForAnswerAck(false);
         }
@@ -213,9 +214,10 @@ export function useRoomSocket(previewMode: boolean): RoomSocketState {
     (payload: Record<string, unknown>): boolean => {
       const ws = websocketRef.current;
       if (!ws || ws.readyState !== WebSocket.OPEN) return false;
-      if ((payload.type === "submit_answer" || payload.type === "submit_direct_answer")) {
+      if ((payload.type === "submit_answer" || payload.type === "submit_direct_answer" || payload.type === "submit_probe_reply")) {
         if (pendingAnswerTurnRef.current !== null) return false;
         pendingAnswerTurnRef.current = Number(payload.turn);
+        pendingProbeRef.current = payload.type === "submit_probe_reply" ? String(payload.probe_id) : null;
         setWaitingForAnswerAck(true);
       }
       setActionError(null);
@@ -224,7 +226,7 @@ export function useRoomSocket(previewMode: boolean): RoomSocketState {
         ws.send(JSON.stringify(payload));
         return true;
       } catch {
-        if ((payload.type === "submit_answer" || payload.type === "submit_direct_answer")) {
+        if ((payload.type === "submit_answer" || payload.type === "submit_direct_answer" || payload.type === "submit_probe_reply")) {
           pendingAnswerTurnRef.current = null;
           setWaitingForAnswerAck(false);
         }

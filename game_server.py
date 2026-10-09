@@ -3,7 +3,7 @@
 import asyncio
 from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 import json
 import logging
 import os
@@ -139,6 +139,8 @@ class Room(TimedTurn):
                         "evidence_after": turn.question.evidence_after,
                         "clarifications": [exchange.__dict__ for exchange in turn.clarifications],
                         "answer": turn.answer,
+                        "probe": asdict(turn.probe) if turn.probe else None,
+                        "resolved": turn.resolved,
                         "timed_out": turn.timed_out,
                         "ended_early": turn.ended_early,
                         "topic_id": turn.topic_id,
@@ -176,6 +178,7 @@ class Room(TimedTurn):
             "self_seat": recipient.seat if recipient is not None else None,
             "self_is_host": recipient.is_host if recipient is not None else False,
             "phase": self.phase,
+            "probe_deadline_ms": self.answer_deadline_ms if self.defense and self.defense.turns and self.defense.turns[-1].probe and self.defense.turns[-1].probe.status == "pending" else None,
             "players": [
                 {
                     "seat": player.seat,
@@ -543,6 +546,8 @@ def _reassign_if_offline_locked(room: Room) -> bool:
 
 
 def _clear_clock_locked(room: Room) -> None:
+    if room.defense and room.defense.turns and room.defense.turns[-1].probe and room.defense.turns[-1].probe.status == "pending":
+        room.defense.resolve_probe(status="ended_early")
     room.clear_clock()
     _cancel_clock_task(room)
 
@@ -594,7 +599,7 @@ async def _expire_deadline(room: Room, expected_id: int | None = None) -> None:
             next_clock = (room.clock_id, room.answer_deadline_ms)
             room.revision += 1
             changed = True
-        elif outcome == "timed_out":
+        elif outcome in {"timed_out", "probe_expired"}:
             generation_id, feedback_id = _resolve_turn_locked(room)
             room.revision += 1
             changed = True
@@ -676,6 +681,7 @@ async def _interpret_pending(room: Room, interpretation_id: int) -> None:
         turn = room.defense.turns[pending.turn]
         question = turn.question
         panelist = turn.panelist
+        probe = turn.probe if pending.probe_id else None
         clarifications = tuple(turn.clarifications)
         history = room.defense.answered_history()
     try:
@@ -684,6 +690,7 @@ async def _interpret_pending(room: Room, interpretation_id: int) -> None:
             panelist=panelist, question=question, submission=pending.text,
             clarifications=clarifications, history=history, model=os.getenv("OPENAI_MODEL") or DEFAULT_MODEL,
             defense_type=room.defense_type, research_stage=room.research_stage,
+            **({"probe": probe, "original_answer": turn.answer} if probe else {}),
         )
     except Exception as error:
         async with room.lock:
@@ -699,10 +706,15 @@ async def _interpret_pending(room: Room, interpretation_id: int) -> None:
     async with room.lock:
         if room.defense is None:
             return
-        outcome = room.interpret(room.defense, decision, interpretation_id, pending, _online_players(room), _now_ms())
+        try:
+            outcome = room.interpret(room.defense, decision, interpretation_id, pending, _online_players(room), _now_ms())
+        except ValueError as failure:
+            if not room.interpretation_failed(interpretation_id, pending, str(failure)):
+                return
+            outcome = "failed"
         if outcome is None:
             return
-        if outcome == "clarified":
+        if outcome in {"clarified", "probed"}:
             next_clock = (room.clock_id, room.answer_deadline_ms)
         elif outcome == "answered":
             generation_id, feedback_id = _resolve_turn_locked(room)
@@ -1258,6 +1270,45 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
                 generation_id, feedback_generation_id = _resolve_turn_locked(room)
                 if generation_id is not None:
                     generate_first = False
+                room.revision += 1
+        elif action == "finish_probe":
+            try:
+                cap = limit('AI_INTERPRETATION_ATTEMPTS', 6, 20)
+                if room.phase != "interpretation_retry" and not room.probe_recovery_available and room.interpretation_attempts < cap and room.ai_budget.remaining(f'interpret:{len(room.defense.turns)-1}' if room.defense else '', cap) > 0:
+                    raise ValueError("Continue with the original answer is available during probe recovery.")
+                room.finish_probe(player.seat, message.get("turn"), message.get("probe_id"), room.defense, _now_ms())
+            except ValueError as failure:
+                error = str(failure)
+                expired_action = isinstance(failure, DeadlineExpired)
+            else:
+                generation_id, feedback_generation_id = _resolve_turn_locked(room)
+                generate_first = False
+                room.revision += 1
+        elif action == "submit_probe_reply":
+            try:
+                probe_id = message.get("probe_id")
+                direct = message.get("direct") is True
+                room.validate_submit(player.seat, message.get("turn"), message.get("answer"), room.defense, _now_ms(), direct=direct, probe_id=probe_id)
+                if not isinstance(probe_id, str) or not probe_id:
+                    raise ValueError("A current panelist probe identifier is required.")
+                if not direct:
+                    room.ai_budget.admit(f'interpret:{len(room.defense.turns)-1}', limit('AI_INTERPRETATION_ATTEMPTS', 6, 20), room.owner_account_id or room.code)
+                room.submit_probe_reply(player.token, player.name, player.seat, message.get("turn"), probe_id, message.get("answer"), room.defense, _now_ms(), direct=direct)
+            except HTTPException as failure:
+                error, error_reason = str(failure.detail), "ai_admission" if failure.status_code == 429 else None
+                if failure.status_code == 429:
+                    room.probe_recovery_available = True
+            except ValueError as failure:
+                error = str(failure)
+                expired_action = isinstance(failure, DeadlineExpired)
+            else:
+                if direct:
+                    generation_id, feedback_generation_id = _resolve_turn_locked(room)
+                    generate_first = False
+                else:
+                    _cancel_clock_task(room)
+                    _schedule_clock(room, room.clock_id, room.pause_deadline_ms or room.answer_deadline_ms)
+                    interpretation_id = room.interpretation_id
                 room.revision += 1
         elif action == "submit_answer":
             try:

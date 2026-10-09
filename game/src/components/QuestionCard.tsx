@@ -1,3 +1,4 @@
+import { ProbeExchange } from "./ProbeExchange";
 import { PageCitation } from "./PageCitation";
 import { useEffect, useRef } from "react";
 import { isResearchCitation } from "../lib/citation";
@@ -22,10 +23,13 @@ interface CardContent {
   reviewStatus?: string;
   previousAnswer?: string;
   clarifications?: Turn["clarifications"];
+  probe?: Turn["probe"];
+  initialAnswer?: string | null;
 }
 
 function sourceContent(turn: Turn) {
   return {
+    probe: turn.probe,
     leadIn: turn.lead_in,
     filename: turn.filename,
     line: turn.evidence_line,
@@ -40,29 +44,30 @@ function sourceContent(turn: Turn) {
 function deriveContent(state: RoomState | null): CardContent {
   const phase = state?.phase ?? "none";
   const turns = state?.turns ?? [];
-  const resolved = turns.filter((turn) => turn.answer || turn.timed_out).length;
+  const resolved = turns.filter((turn) => turn.resolved ?? (!!turn.answer || !!turn.timed_out)).length;
   let current: Turn | null = null;
   let currentIndex = -1;
   for (let index = turns.length - 1; index >= 0; index--) {
-    if (turns[index].question && !turns[index].answer && !turns[index].timed_out) {
+    if (turns[index].question && (!turns[index].answer || turns[index].probe?.status === "pending") && !turns[index].timed_out) {
       current = turns[index];
       currentIndex = index;
       break;
     }
   }
 
-  if ((phase === "voting" || phase === "question" || phase === "interpreting" || phase === "interpretation_retry") && current) {
+  if ((phase === "voting" || phase === "probe" || phase === "question" || phase === "interpreting" || phase === "interpretation_retry") && current) {
     return {
       name: current.panelist,
       question: current.question,
       number: `QUESTION ${currentIndex + 1}${state?.question_budget ? ` OF ${state.question_budget}` : ""}`,
       ...sourceContent(current),
       clarifications: current.clarifications,
+      initialAnswer: current.answer,
       reviewStatus: phase === "interpreting" ? state?.clock_paused === false ? "Reading your submission… Answer clock running." : "Reading your submission… Answer clock paused." : phase === "interpretation_retry" ? state?.clock_paused === false ? "Could not interpret the submission. Answer clock running." : "Could not interpret the submission. Answer clock paused." : undefined,
     };
   }
   if (phase === "generating") {
-    const previous = [...turns].reverse().find((turn) => turn.answer || turn.timed_out);
+    const previous = [...turns].reverse().find((turn) => turn.resolved ?? (!!turn.answer || !!turn.timed_out));
     if (previous) {
       return {
         name: previous.panelist,
@@ -111,6 +116,11 @@ export function QuestionCard({ roomState }: QuestionCardProps) {
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   }, [roomState?.room_code, roomState?.turns.length]);
+  useEffect(() => {
+    const scroll = scrollRef.current;
+    const probe = scroll?.querySelector<HTMLElement>(".panelist-probe");
+    if (scroll && probe) scroll.scrollTop += probe.getBoundingClientRect().top - scroll.getBoundingClientRect().top;
+  }, [content.probe?.id, content.probe?.clarifications.length]);
   if (roomState?.defense_type && roomState.defense_type !== "code" && content.name === "Critical Judge") content.name = "Critical Reviewer";
   return (
     <section id="question-card" aria-labelledby="panelist-name">
@@ -130,6 +140,8 @@ export function QuestionCard({ roomState }: QuestionCardProps) {
         <p><strong>Defender asks:</strong> {exchange.request}</p>
         <p><strong>{content.name} explains:</strong> {exchange.reply}</p>
       </div>)}
+      {content.initialAnswer && <p className="question-previous-answer"><strong>Original answer:</strong> <span>{content.initialAnswer}</span></p>}
+      <ProbeExchange probe={content.probe} panelist={content.name} />
       {content.previousAnswer && <p className="question-previous-answer">{content.previousAnswer}</p>}
       {content.filename !== undefined && (
         isResearchCitation(content.kind) ? (

@@ -1,0 +1,10 @@
+.panelist-probe {
+  border-top: 1px solid var(--line);
+  padding-top: 0.8rem;
+  margin-top: 0.8rem;
+}
+.panelist-probe .probe-request { font-size: 1.05em; line-height: 1.5; font-weight: 600; }
+.probe-label { margin: 0 0 0.4rem; color: var(--subtle); font-size: 0.75rem; font-weight: 700; }
+.probe-source { margin: 0.65rem 0; background: var(--code); color: var(--code-text); border-radius: 0.5rem; overflow: hidden; }
+.probe-source figcaption { padding: 0.5rem 0.75rem; font-size: 0.8rem; overflow-wrap: anywhere; border-bottom: 1px solid var(--code-line); }
+.probe-source pre { padding: 0.65rem 0.75rem; margin: 0; overflow-x: auto; white-space: pre; font: 0.85rem/1.5 monospace; }

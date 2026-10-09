@@ -142,3 +142,18 @@ if (researchPreview && !planPreview) {
   }
   if (completePreview) previewState.completion_reason = "budget exhausted";
 }
+
+// Illustrative synthetic dialogue for layout review only; never used for live AI.
+if (previewParams.get("probe") === "1" && !completePreview && !planPreview) {
+  previewState.phase = "probe";
+  previewState.answer_deadline_ms = Date.now() + 30_000;
+  previewState.probe_deadline_ms = previewState.answer_deadline_ms;
+  previewState.turns[0].answer = "We will choose students randomly.";
+  previewState.turns[0].answered_by = "You";
+  previewState.turns[0].resolved = false;
+  previewState.turns[0].probe = {
+    id: "synthetic-probe-preview",
+    request: "Will you draw names from a complete student list, or approach whoever is available?",
+    references: [], status: "pending", reply: null, clarifications: [],
+  };
+}

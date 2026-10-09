@@ -341,3 +341,19 @@ it("presents extracted PDF text as a document page, not as code", () => {
     expect(screen.getAllByText(/coaching report/i).length).toBeGreaterThanOrEqual(1);
   });
 });
+
+it("keeps the original question, answer and citation visible during a panelist probe", () => {
+  const state = { ...base, phase: "probe", turns: [{
+    panelist: "Methodology Reviewer", question: "How will you select students?",
+    filename: "paper.md", evidence_line: 1, evidence_text: "Interview 20 students.",
+    answer: "Randomly.", answered_by: "Ana", resolved: false,
+    probe: { id: "probe-1", request: "A complete list or whoever is available?",
+      status: "pending", reply: null, references: [], clarifications: [] },
+  }] } as unknown as RoomState;
+  render(<QuestionCard roomState={state} />);
+  expect(screen.getByText("How will you select students?")).toBeTruthy();
+  expect(screen.getByText("Randomly.")).toBeTruthy();
+  expect(screen.getByText("A complete list or whoever is available?")).toBeTruthy();
+  expect(screen.getByText("Interview 20 students.")).toBeTruthy();
+  expect(screen.getByText("QUESTION 1")).toBeTruthy();
+});

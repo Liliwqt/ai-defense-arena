@@ -1,3 +1,4 @@
+import { ProbeExchange } from "./ProbeExchange";
 import type { Turn } from "../types";
 
 interface TurnCardProps {
@@ -26,6 +27,7 @@ export function TurnCard({ turn, index, research = false }: TurnCardProps) {
       {turn.answer && <p className="transcript-answer">
         <strong>Team answer{turn.answered_by ? ` · ${turn.answered_by}` : ""}:</strong> {turn.answer}
       </p>}
+      <ProbeExchange probe={turn.probe} panelist={panelist} />
     </article>
   );
 }

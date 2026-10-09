@@ -13,7 +13,7 @@ export function PanelistSeats({ roomState }: { roomState: RoomState | null }) {
   const panelists = roomState?.defense_type && roomState.defense_type !== "code"
     ? RESEARCH_PANELISTS : CODE_PANELISTS;
   const speaker = panelists === RESEARCH_PANELISTS && roomState?.active_panelist === "Critical Judge" ? "Critical Reviewer" : roomState?.active_panelist;
-  const speaking = roomState?.phase === "voting" || roomState?.phase === "question"
+  const speaking = roomState?.phase === "voting" || roomState?.phase === "probe" || roomState?.phase === "question"
     || roomState?.phase === "interpreting" || roomState?.phase === "interpretation_retry";
   return (
     <section className="seat-section panelist-section" aria-label="Panelists">
@@ -45,7 +45,7 @@ export function DefenderSeats({ roomState, presenterMoment }: {
       <div className="seat-row defender-row">
         {Array.from({ length: 4 }, (_, seat) => {
           const player = roomState?.players.find((candidate) => candidate.seat === seat);
-          const isSelected = selected === seat && ["question", "interpreting", "interpretation_retry"].includes(roomState?.phase ?? "");
+          const isSelected = selected === seat && ["question", "probe", "interpreting", "interpretation_retry"].includes(roomState?.phase ?? "");
           const presenting = presenterMoment?.seat === seat;
           const votes = roomState?.vote_counts?.[String(seat)] ?? 0;
           const label = player ? `${player.name}${player.is_host ? ", host" : ""}, ${player.online ? "online" : "offline"}` : "Open seat";

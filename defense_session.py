@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from typing import MutableMapping
+from uuid import uuid4
 
 from project_files import ProjectFile
 from question_generator import (
@@ -19,6 +20,8 @@ from question_generator import (
     generate_research_move,
     ResearchMove,
     QuestionGenerationError,
+    ProbeRequest,
+    PanelistProbe,
 )
 from research_plan import ResearchPlan, validate_question_budget
 
@@ -38,10 +41,11 @@ class DefenseTurn:
     topic_id: str | None = None
     is_follow_up: bool = False
     ended_early: bool = False
+    probe: PanelistProbe | None = None
 
     @property
     def resolved(self) -> bool:
-        return self.answer is not None or self.timed_out
+        return (self.answer is not None or self.timed_out) and not (self.probe and self.probe.status == "pending")
 
 
 @dataclass
@@ -100,6 +104,7 @@ class DefenseSession:
                 turn.question.lead_in, tuple(turn.clarifications),
                 turn.speaker_name, turn.question,
                 turn.topic_id, turn.is_follow_up,
+                turn.probe,
             )
             for turn in self.turns
             if turn.resolved
@@ -108,6 +113,8 @@ class DefenseSession:
     def submit_answer(self, answer: str, *, speaker_name: str | None = None) -> None:
         if not self.awaiting_answer:
             raise ValueError("There is no question awaiting an answer.")
+        if self.turns[-1].probe:
+            raise ValueError("Record a probe reply separately from the original answer.")
         answer = answer.strip()
         if not answer:
             raise ValueError("Write an answer before continuing.")
@@ -120,7 +127,28 @@ class DefenseSession:
     def time_out_current(self) -> None:
         if not self.awaiting_answer:
             raise ValueError("There is no question awaiting an answer.")
+        if self.turns[-1].probe:
+            raise ValueError("Expire the probe while retaining the original answer.")
         self.turns[-1].timed_out = True
+        self._finish_if_last()
+
+    def begin_probe(self, answer: str, request: ProbeRequest, *, speaker_name=None):
+        if not self.awaiting_answer or self.turns[-1].answer is not None or self.turns[-1].probe is not None:
+            raise ValueError("This question cannot receive another probe.")
+        if not answer.strip() or len(answer) > MAX_ANSWER_CHARS or not request.request.strip() or len(request.request) > 300:
+            raise ValueError("The panelist returned an invalid probe.")
+        turn = self.turns[-1]
+        turn.answer, turn.speaker_name = answer.strip(), speaker_name
+        turn.probe = PanelistProbe(uuid4().hex, request.request, request.references)
+
+    def resolve_probe(self, reply=None, *, speaker_name=None, seat=None, status="answered"):
+        if not self.turns or not self.turns[-1].probe or self.turns[-1].probe.status != "pending":
+            raise ValueError("There is no probe awaiting a reply.")
+        if status not in {"answered", "expired", "ended_early"} or (status == "answered" and (not isinstance(reply, str) or not reply.strip() or len(reply) > MAX_ANSWER_CHARS)):
+            raise ValueError("Write a valid probe reply.")
+        probe = self.turns[-1].probe
+        probe.status, probe.reply = status, reply.strip() if isinstance(reply, str) else None
+        probe.speaker_name, probe.speaker_seat = speaker_name, seat
         self._finish_if_last()
 
     def assign_current_defender(self, seat: int | None) -> None:
@@ -287,6 +315,8 @@ class ResearchDefenseSession(DefenseSession):
     def end(self):
         if self.finished:
             raise ValueError("The defense is already complete.")
+        if self.turns and self.turns[-1].probe and self.turns[-1].probe.status == "pending":
+            self.resolve_probe(status="ended_early")
         if self.awaiting_answer:
             self.turns[-1].ended_early = True
         self.finished = True

@@ -147,6 +147,7 @@ Open <http://127.0.0.1:8000/?preview=1>. Preview mode uses static mock state, ma
 | `&coverage=1&research=1` | Longer-session progress (question 11 of 24) and topic coverage |
 | `&review=1` | Reviewing an answer |
 | `&clarify=1` | Same-question clarification |
+| `&probe=1` | Synthetic same-question panelist probe (combine with `&research=1`) |
 | `&complete=1` | Transcript and coaching |
 | `&long=1` | Long question and citation overflow |
 
@@ -161,7 +162,8 @@ For frontend development, run `npm run dev` in `game/` alongside FastAPI on port
 3. For research or mixed rooms, the host first chooses **Prepare defense**, reviews the map, edits the question maximum and selects **Confirm question budget**. Preparation requires free access or at least 10 available test credits, but deducts nothing. Start uses the voucher or reserves **10 test credits per run**, charged when the first validated question appears. The question count does not change this sandbox fixture charge. Each question appears with its panelist, optional reaction, and validated citation.
 4. Every question, including follow-ups, begins with a **15-second speaker vote**. Online defenders may vote for themselves or another online defender and change their vote. The highest count wins; ties and no votes are resolved randomly among online defenders.
 5. The chosen defender gets **120 seconds** to answer. Only that defender may submit. Disconnection assigns another online defender without resetting the clock. Expiry records an unanswered turn and advances the defense.
-6. After completion (four to eight turns for code; coverage, budget, or host ending for research), open **Transcript** for the conversation and coaching. **Download summary** saves a text copy of questions, citations, clarifications, answers, timeouts, and coaching in your browser.
+6. A panelist may ask for **one missing detail** after reading an answer. This optional probe keeps the original answer, question, source citation and chosen defender. It has its own **30-second reply window**, with no additional vote, question-budget slot or run charge. A clarification explains the probe without replacing it. If the probe expires, the original answer is retained and only the missed probe is marked. Direct-answer recovery bypasses this AI decision.
+7. After completion (four to eight turns for code; coverage, budget, or host ending for research), open **Transcript** for the conversation and coaching. **Download summary** saves a text copy of questions, citations, clarifications, original answers, separate probe exchanges, timeouts, and coaching in your browser.
 
 The server owns deadlines, votes, speaker selection, and accepted answers. Reconnecting in the same browser restores the current snapshot while the room exists. A host also needs a valid session for the room's creator account; guests keep their player-token access. Signing out or session expiry does not reset the room or stop teammates' timers. Signing back in with the same account restores host access while the room exists.
 
