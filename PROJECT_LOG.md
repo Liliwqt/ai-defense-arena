@@ -4,9 +4,9 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Current status
 
-- Room presentation tickets 02–04 active locally, 2026-10-10: clarification/reply/review, lifecycle/recovery guidance and combined verification. Baseline d94bccb; no push/deployment.
+- Room presentation tickets 02–04 complete and reviewed locally, 2026-10-10: implementation 99de8d4 and Controls corrections 8f9434d, baseline d94bccb. Shared clarification/reply/review and lifecycle/recovery guidance; 443 Python tests with providers mocked, 257 React tests and production build. Mocked two-client code four/eight-turn and research/mixed twelve-turn protocol checks, plus eleven desktop/portrait/landscape Chromium fixtures pass. Standards has zero findings; Spec has zero remaining findings after two corrections. Preview http://127.0.0.1:8832/?preview=1&research=1&probe=1 and gallery docs/ROOM_PRESENTATION_REVIEW.md await user visual review. No push/deployment; main unchanged.
 
-- Room presentation ticket 01 complete and reviewed locally, 2026-10-10: implementation 0c2f52c centralizes ordinary speaking/voting/answering semantics and improves Choose a speaker / Your turn / named answering guidance. Offline gate: 443 Python tests (external providers mocked), 249 React tests and production build. Independent Standards and Spec reviews against c567311 have zero findings; 65 focused React tests independently rerun. See docs/ROOM_PRESENTATION_REVIEW.md. Tickets 02/03 are unblocked; ticket 04 combined visual/browser review remains pending. Not pushed or deployed; main unchanged.
+- Room presentation ticket 01 complete and reviewed locally, 2026-10-10: implementation 0c2f52c centralizes ordinary speaking/voting/answering semantics and improves Choose a speaker / Your turn / named answering guidance. Offline gate: 443 Python tests (external providers mocked), 249 React tests and production build. Independent Standards and Spec reviews against c567311 have zero findings; 65 focused React tests independently rerun. See docs/ROOM_PRESENTATION_REVIEW.md. Tickets 02–04 are now completed in the continuation recorded above; user visual review remains pending. Not pushed or deployed; main unchanged.
 
 - Shared room presentation tickets published locally, 2026-10-10: user approved four slices; separate ready-for-agent files under .scratch/room-presentation/issues, graph 01 -> {02,03} -> 04. Ticket 01 is the only initially unblocked task. Metadata/dependency/documentation checks pass; parent specification unchanged. No runtime implementation or deployment.
 
@@ -140,7 +140,6 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Active work
 
-- root-room-presentation-finish, started 2026-10-10: game/src shared presentation and renderers/tests, synthetic previews, review screenshots, README and ticket/log handoff. Ends with dated review entry and local commits for tickets 02–04. Preserve unrelated files; main and hosted services unchanged.
 
 
 
@@ -1950,3 +1949,10 @@ Append new entries to the **end** of this file in date order:
 - Independent Standards review against d94bccb...99de8d4 returned zero findings. Spec review identified stale Controls guidance during active/review turns and a missing shared presentation prop at the App-to-Controls boundary. Corrected both: Controls receives the existing shared result; its guidance now uses the same vote/answer/reply/review/recovery descriptors as the dock and seats. No server, protocol, timer, draft or account changes.
 - Verification: new whole-room Controls trace failed on the old Waiting for the next question message, then passed through voting, selected/other defender answering, reply, running review and exhausted/saved-submission recovery. 38 focused React tests passed offline with synthetic snapshots and mocked account/transport boundaries. Full frontend gate passed 257 tests and TypeScript/Vite build; rebuilt browser fixtures passed all eleven desktop/portrait/landscape cases. Both reviewers checked the corrections and returned no remaining findings; the prior Python gate remains 443 tests with providers mocked.
 - Remaining: local handoff closure. User visual review, live/provider/hosted/device checks and publication remain pending; frozen main unchanged.
+
+
+### 2026-10-10 — Room presentation tickets 02–04 review and handoff closed
+
+- Local implementation 99de8d4 plus reviewed Controls corrections 8f9434d complete the remaining approved tickets on feature/question-first-room. Independent Standards review has zero findings; Spec's stale active-turn guidance and missing shared prop findings were corrected, with zero remaining findings. Full reports are recorded in docs/ROOM_PRESENTATION_REVIEW.md; tickets marked ready-for-human and final review criterion checked. Updated current status and closed root-room-presentation-finish active work.
+- Verification: 443 Python tests with AI/Google/PayMongo mocked; no server changes after that gate. Final React gate 257 tests and TypeScript/Vite build passed. Spec reviewer independently reran 38 focused React tests and whitespace checks. Eleven synthetic localhost Chromium cases passed again on the corrected build; earlier checked desktop/portrait/landscape gallery preserved. Mocked HTTP/WebSocket two-client code four/eight-turn and research/mixed twelve-turn flows passed in the Python gate. Documentation-only closure checked with git diff --check; no additional provider or live dialogue evidence.
+- Handoff: local preview http://127.0.0.1:8832/?preview=1&research=1&probe=1 and review gallery are ready for the user's visual review, which remains pending. No push, hosted deployment, native rebuild, physical-device or live-provider claim. Main remains 866e923c40c3cf431e66984861dd7dbefb223f8b; unrelated files and parent spec preserved.

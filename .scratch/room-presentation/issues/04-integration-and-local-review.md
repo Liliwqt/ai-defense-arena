@@ -21,7 +21,7 @@ checks demonstrating preserved behavior and clearer status.
   The existing theme and layout remain; no new header boxes or controls.
 - [x] Present the working local preview and screenshots. Update README and the
   shared handoff log with implementation evidence and remaining limitations.
-- [ ] Review the completed change against the confirmed specification, including
+- [x] Review the completed change against the confirmed specification, including
   preservation of server timers, citation integrity, answer rules and local drafts.
 - [x] Preserve unrelated files/deletions. No push, deployment, native rebuild or
   frozen-main change is part of this checkpoint.
@@ -43,11 +43,14 @@ log; distinguish mocked checks from live/provider/device evidence.
 ## Comments
 
 2026-10-10: Implemented locally. Offline gate: 443 Python tests with external
-AI/Google/PayMongo mocked, 256 React tests and TypeScript/Vite build. Existing
+AI/Google/PayMongo mocked, 257 React tests and TypeScript/Vite build. Existing
 real HTTP/WebSocket tests complete code four/eight-turn and research/mixed
 twelve-turn defenses, with clarification, probes, timeout, retry, reconnect and
 coaching across the matrix. Isolated Chromium checks desktop, portrait and short
 landscape previews, focus restoration, dock navigation and internal scrolling.
 Review screenshots and the running preview are linked in README and the review
-record. Independent final review is pending; user visual review remains pending.
+record. Independent Standards/Spec review is complete with no remaining findings
+after Controls corrections in 8f9434d (implementation 99de8d4, baseline d94bccb).
+The Spec reviewer independently reran 38 focused React tests. User visual review
+remains pending.
 No push, deployment, native rebuild or live/provider/device claim.

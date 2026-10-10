@@ -52,7 +52,8 @@ Review result: **Standards 0 findings; Spec 0 findings**.
 Baseline: `d94bccb4c3da2635675d9a85c9154051f22b808b`. Ticket 01 was already
 implemented and reviewed above. This continuation completes clarification,
 reply/submission review and lifecycle/recovery presentation, then the combined
-local gate. Final independent Standards/Spec review is pending.
+local gate. Implementation commit: `99de8d4`; reviewed Controls corrections:
+`8f9434d`. Final independent review is complete.
 
 The shared model determines clarification selection, current probe, input mode,
 clock description, selected/replying states and recovery/lifecycle guidance.
@@ -65,7 +66,7 @@ factual recovery guidance. The existing layout/theme is retained.
 
 - 443 Python tests passed with AI, Google and PayMongo mocked; `DATABASE_URL`
   unset. No live provider or PostgreSQL check is implied.
-- 256 React tests and the TypeScript/Vite production build passed.
+- 257 React tests and the TypeScript/Vite production build passed after review corrections.
 - Whole-room tests retain real question/HUD/seats/dock. Controlled time verifies
   frozen versus running review, replies retaining question number and accepted
   answers, and acknowledgment/ownership/attempt-aware recovery with saved drafts.
@@ -112,3 +113,31 @@ horizontal-scroll assertions passed after correcting it.
 User visual review, live AI/provider quality, hosted deployment and physical
 Android/iOS checks remain separate. No push, deployment or native rebuild is part
 of this checkpoint; frozen `main` is unchanged.
+
+
+## Standards — final checkpoint
+
+Zero findings against baseline `d94bccb`. The shared presentation keeps draft,
+transport and timer ownership separate; rendering adapters retain interaction
+responsibilities. The follow-up inspection also found no documented-standard
+breach in the Controls corrections. Read-only static review; this reviewer did
+not independently execute runtime tests.
+
+## Spec — final checkpoint
+
+The first review of `99de8d4` found two issues: Controls used lifecycle waiting
+guidance during active turns (P2), and App omitted its shared presentation prop
+when rendering Controls (P3). Both were corrected in `8f9434d`. A whole-room
+Controls trace failed before the correction, then passed through voting,
+answering, same-question reply, running submission review and saved/exhausted
+recovery. The Spec reviewer independently reran 38 focused React tests and
+whitespace checks, with no remaining findings. These checks use synthetic
+snapshots and mocked account/transport boundaries.
+
+The final frontend gate passed 257 tests and the production build. All eleven
+localhost Chromium fixture checks were rerun on the corrected build and passed;
+temporary captures were used so the review gallery remained intact. No server
+source changed after the 443-test mocked Python gate.
+
+Review result: **Standards 0 findings; Spec 0 remaining findings**.
+User visual review remains pending; publication is outside this checkpoint.
