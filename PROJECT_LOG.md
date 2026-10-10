@@ -4,7 +4,7 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Current status
 
-- Room presentation ticket 01 implementation active locally, 2026-10-10: root-room-presentation-01 is centralizing ordinary speaking/voting/answering semantics. Baseline c567311; tickets 02–04 and publication remain outside this slice.
+- Room presentation ticket 01 complete and reviewed locally, 2026-10-10: implementation 0c2f52c centralizes ordinary speaking/voting/answering semantics and improves Choose a speaker / Your turn / named answering guidance. Offline gate: 443 Python tests (external providers mocked), 249 React tests and production build. Independent Standards and Spec reviews against c567311 have zero findings; 65 focused React tests independently rerun. See docs/ROOM_PRESENTATION_REVIEW.md. Tickets 02/03 are unblocked; ticket 04 combined visual/browser review remains pending. Not pushed or deployed; main unchanged.
 
 - Shared room presentation tickets published locally, 2026-10-10: user approved four slices; separate ready-for-agent files under .scratch/room-presentation/issues, graph 01 -> {02,03} -> 04. Ticket 01 is the only initially unblocked task. Metadata/dependency/documentation checks pass; parent specification unchanged. No runtime implementation or deployment.
 
@@ -138,7 +138,6 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Active work
 
-- root-room-presentation-01, started 2026-10-10: game/src room presentation module, App/HUD/question/seats/dock/composer/countdown and tests; README, ticket 01 and this log. Ends with a dated implementation/review entry and local commit. Approved planning/glossary documents already present are preserved.
 
 
 
@@ -1922,3 +1921,9 @@ Append new entries to the **end** of this file in date order:
 - Implementation complete for the ordinary speaking/voting/answering slice; ticket 01 criteria checked and status ready-for-human. Tickets 02 and 03 are unblocked; their new wording and the ticket 04 browser walkthrough are still pending. Preserved and included the approved originating planning/spec/tickets and glossary edits in the same local handoff.
 - Verification: env -u DATABASE_URL .venv/bin/python -m unittest discover -v passed 443 tests (external AI/Google/PayMongo mocked); game npm test passed 249 tests; npm run build passed TypeScript and Vite. git diff --check passed. Six added tests cover real-view snapshot traces and difficult public presentation semantics. No new browser, live/provider, hosted or physical-device verification; not user visually reviewed.
 - Remaining: required Standards/Spec review against baseline c567311 and any corrections before final handoff. Local commit only; no push/deployment and frozen main unchanged.
+
+### 2026-10-10 — Room presentation ticket 01 review and handoff complete
+
+- Implementation committed locally as 0c2f52c on feature/question-first-room. Required independent Standards and Spec reviewers compared git diff c567311...0c2f52c against ticket 01 and the parent constraints; both returned zero findings. Full reports/evidence retained in docs/ROOM_PRESENTATION_REVIEW.md. Closed root-room-presentation-01 active work and updated current status and ticket comments.
+- Verification: full offline gate remains 443 Python tests (AI/Google/PayMongo mocked), 249 React tests and production build; the Spec reviewer independently reran 65 focused React tests and comparison whitespace checks. Final documentation-only handoff passed git diff --check. No runtime changes after the full gate.
+- Remaining: tickets 02/03 (clarification/reply/review and lifecycle/recovery guidance) are unblocked, then ticket 04 combined two-client/responsive preview and user review. No new live/provider/browser/hosted/physical-device claim, no push/deployment. Approved planning/glossary files preserved; frozen main unchanged.
