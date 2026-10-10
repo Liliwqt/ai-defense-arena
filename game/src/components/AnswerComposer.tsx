@@ -14,43 +14,23 @@ interface AnswerComposerProps {
   onSendEvent: (payload: Record<string, unknown>) => boolean;
 }
 
-function waitingText(state: RoomState | null): string {
-  if (!state) return "Create or join a room to begin your defense.";
-  if (state.phase === "lobby") return state.self_is_host
-    ? "Start the defense from Controls when your team is ready."
-    : "Waiting for the host to start the defense.";
-  if (state.phase === "interpreting") return state.clock_paused === false ? "The panelist is reading the submission. The answer clock is running." : "The panelist is reading the submission. The answer clock is paused.";
-  if (state.phase === "interpretation_retry") return state.clock_paused === false ? "Interpretation failed. The answer clock is running; use the saved submission as an answer." : "Interpretation failed. Retry or explicitly use the saved submission as an answer.";
-  if (state.phase === "generating") return "The panel is preparing the next question…";
-  if (state.phase === "reacting") return "Listen to the panelist. Your full voting and answer time starts afterward.";
-  if (state.phase === "retry") return state.self_is_host
-    ? "Question generation failed. The previous turn is saved; retry from Controls."
-    : "Question generation failed. The previous turn is saved; the host can retry.";
-  if (state.phase === "complete") {
-    if (state.feedback_status === "generating") return "Preparing the team's coaching report…";
-    if (state.feedback_status === "failed") return state.self_is_host
-      ? "Coaching failed. Retry from Controls."
-      : "Coaching failed. The host can retry.";
-    return "Defense complete. Open Transcript to review answers, timeouts, and coaching.";
-  }
-  return "Waiting for the next question…";
-}
-
 export function AnswerComposer({ roomState, connected, previewMode, waitingForAnswerAck, actionError, actionErrorReason, onSendEvent, presentation = deriveRoomPresentation(roomState) }: AnswerComposerProps) {
   const [draft, setDraft] = useState("");
   const [localError, setLocalError] = useState("");
   const [writeRecovery, setWriteRecovery] = useState(false);
   const [interpretationLimited, setInterpretationLimited] = useState(false);
   const turnIndex = presentation.answerTurnIndex;
-  const probe = turnIndex >= 0 ? roomState?.turns[turnIndex]?.probe : null;
-  const probing = probe?.status === "pending";
-  const turnKey = `${roomState?.room_code ?? ""}:${turnIndex}:${turnIndex >= 0 ? roomState?.turns[turnIndex]?.question ?? "" : ""}:${probe?.id ?? ""}`;
+  const { submission } = presentation;
+  const { probe, probing, turnKey, clarificationCount: allClarifications } = submission;
   const chosen = presentation.chosenSelf;
-  const canWrite = chosen && (roomState?.phase === "probe" || roomState?.phase === "question" || (roomState?.phase === "interpretation_retry" && writeRecovery) || (roomState?.phase === "interpreting" && roomState.clock_paused === false));
-  const clarifications = turnIndex >= 0 ? roomState?.turns[turnIndex]?.clarifications?.length ?? 0 : 0;
-  const allClarifications = clarifications + (probe?.clarifications.length ?? 0);
-  const recoveryAvailable = interpretationLimited || !!roomState?.probe_recovery_available;
-  const direct = recoveryAvailable || allClarifications >= 2 || roomState?.interpretation_attempts_left === 0 || roomState?.phase === "interpretation_retry" || roomState?.phase === "interpreting";
+  const canWrite = chosen && (submission.entry === "open" || (submission.entry === "recovery" && writeRecovery));
+  const recoveryAvailable = interpretationLimited || submission.recoveryAvailable;
+  const direct = interpretationLimited || submission.direct;
+  const recoveryDisabled = !connected || previewMode || waitingForAnswerAck;
+  const reviewGuidance = previewMode ? "Mock preview · recovery actions are disabled."
+    : !connected ? "Reconnecting… Your submission and remaining time are saved."
+    : waitingForAnswerAck ? "Waiting for submission acknowledgment…"
+    : submission.recoveryGuidance;
 
   useEffect(() => { setDraft(""); setLocalError(""); setWriteRecovery(false); setInterpretationLimited(false); }, [turnKey]);
   useEffect(() => {
@@ -72,21 +52,21 @@ export function AnswerComposer({ roomState, connected, previewMode, waitingForAn
 
   return (
     <section id="answer-composer" aria-label="Answer area">
-      {roomState?.phase === "interpretation_retry" && !canWrite && (chosen || roomState.self_is_host) ? (
+      {submission.showRecovery && !canWrite && roomState ? (
         <div className="submission-retry" role="status">
-          <p>{roomState.error || "Could not interpret the submission."} The submission and remaining answer time are saved.</p>
+          <p>{reviewGuidance}</p>
           {roomState.my_pending_submission && <p className="pending-text">{roomState.my_pending_submission}</p>}
           <div className="submission-retry-actions">
-            <button type="button" disabled={!connected || previewMode || roomState.interpretation_attempts_left === 0} onClick={() => onSendEvent({ type: "retry_interpretation" })}>Retry panelist</button>
-            {chosen && <button type="button" disabled={!connected || previewMode} onClick={() => setWriteRecovery(true)}>Write a new answer</button>}
-            {chosen && <button type="button" disabled={!connected || previewMode || !roomState.my_pending_submission} onClick={() => onSendEvent({ type: "use_pending_as_answer" })}>{probing ? "Use this as my reply" : "Use this as my answer"}</button>}
-            {chosen && probing && <button type="button" disabled={!connected || previewMode} onClick={() => onSendEvent({ type: "finish_probe", turn: turnIndex, probe_id: probe.id })}>Continue with original answer</button>}
+            <button type="button" disabled={recoveryDisabled || !submission.retryAvailable} onClick={() => onSendEvent({ type: "retry_interpretation" })}>Retry panelist</button>
+            {chosen && <button type="button" disabled={recoveryDisabled} onClick={() => setWriteRecovery(true)}>Write a new answer</button>}
+            {chosen && <button type="button" disabled={recoveryDisabled || !submission.savedAvailable} onClick={() => onSendEvent({ type: "use_pending_as_answer" })}>{probing ? "Use this as my reply" : "Use this as my answer"}</button>}
+            {chosen && probing && <button type="button" disabled={recoveryDisabled} onClick={() => onSendEvent({ type: "finish_probe", turn: turnIndex, probe_id: probe?.id })}>Continue with original answer</button>}
           </div>
           {actionError && <p role="alert">{actionError}</p>}
         </div>
       ) : canWrite ? (
         <form id="answer-form" onSubmit={submitAnswer}>
-          <label htmlFor="answer-textarea">{probing ? "Reply to the panelist probe" : presentation.answerPrompt}{direct ? "" : " or clarify"} question {turnIndex + 1} · {Math.max(0, 2 - allClarifications)} clarifications left</label>
+          <label htmlFor="answer-textarea">{presentation.answerPrompt}{direct ? "" : " or clarify"} question {turnIndex + 1} · {Math.max(0, 2 - allClarifications)} clarifications left</label>
           <div className="answer-controls">
             <textarea id="answer-textarea" name="answer" rows={3} maxLength={4000} value={draft}
               onChange={(event) => { setDraft(event.target.value); setLocalError(""); }}
@@ -105,15 +85,15 @@ export function AnswerComposer({ roomState, connected, previewMode, waitingForAn
               : connected ? direct ? "Submitted text will be recorded as your answer without AI interpretation. Ctrl/⌘ + Enter to submit." : "A clarification keeps this question open. Ctrl/⌘ + Enter to submit."
               : "Reconnecting before you can submit…")}
           </p>
-          {probing && (recoveryAvailable || roomState?.interpretation_attempts_left === 0 || roomState?.phase === "interpretation_retry") && <button type="button" disabled={!connected || previewMode || waitingForAnswerAck} onClick={() => onSendEvent({ type: "finish_probe", turn: turnIndex, probe_id: probe.id })}>Continue with original answer</button>}
+          {probing && recoveryAvailable && <button type="button" disabled={!connected || previewMode || waitingForAnswerAck} onClick={() => onSendEvent({ type: "finish_probe", turn: turnIndex, probe_id: probe?.id })}>Continue with original answer</button>}
         </form>
       ) : (
         <p id="answer-status" role={actionError ? "alert" : "status"}>
-          {actionError || (roomState?.phase === "interpreting" || roomState?.phase === "interpretation_retry"
-            ? waitingText(roomState)
+          {actionError || (submission.reviewing || submission.retrying
+            ? submission.retrying ? reviewGuidance : submission.reviewGuidance
             : turnIndex >= 0
             ? presentation.teammateInstruction
-            : waitingText(roomState))}
+            : presentation.guidance)}
         </p>
       )}
     </section>

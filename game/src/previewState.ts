@@ -159,3 +159,24 @@ if (previewParams.get("probe") === "1" && !completePreview && !planPreview) {
     references: [], status: "pending", reply: null, clarifications: [],
   };
 }
+
+// Display-only submission/coaching states; no AI request or payment is made.
+const submissionPreview = previewParams.get("submission");
+if (submissionPreview && !completePreview && !planPreview) {
+  previewState.phase = submissionPreview === "retry" ? "interpretation_retry" : "interpreting";
+  previewState.clock_paused = submissionPreview !== "running";
+  previewState.remaining_answer_ms = 25_000;
+  previewState.answer_deadline_ms = previewState.clock_paused ? null : Date.now() + 25_000;
+  previewState.selected_seat = 0;
+  previewState.my_pending_submission = "We would compare the pilot with the existing workflow.";
+  previewState.interpretation_attempts_left = submissionPreview === "retry" ? 0 : 5;
+}
+const coachingPreview = previewParams.get("coaching");
+if (completePreview && ["none", "generating", "failed"].includes(coachingPreview ?? "")) {
+  previewState.feedback_status = coachingPreview as "none" | "generating" | "failed";
+  previewState.feedback = null;
+  previewState.coaching_attempts_left = coachingPreview === "failed" ? 0 : 3;
+}
+
+// Match the rendered snapshot to deadlines created while assembling the fixture.
+previewState.server_now_ms = Date.now();

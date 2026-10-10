@@ -18,7 +18,7 @@ it("distinguishes an accepted answer awaiting a probe from resolved turns withou
   expect(view.answerTurnIndex).toBe(0);
   expect(view.card.initialAnswer).toBe("We will run a pilot.");
   expect(view.card.probe?.request).toBe("What will the pilot measure?");
-  expect(view.timer).toMatchObject({ label: "PROBE", deadline: 31000 });
+  expect(view.timer).toMatchObject({ label: "REPLY", deadline: 31000 });
   expect(state.turns[0]).toBe(turn);
 });
 

@@ -1,15 +1,17 @@
 import { CoachingReport } from "./CoachingReport";
+import { deriveRoomPresentation, type RoomPresentation } from "../lib/roomPresentation";
 import { TurnCard } from "./TurnCard";
 import { buildDefenseSummary, defenseSummaryFileName } from "../lib/buildDefenseSummary";
 import { saveDefenseSummary } from "../lib/saveDefenseSummary";
 import type { RoomState } from "../types";
 
 interface TranscriptPanelProps {
+  presentation?: RoomPresentation;
   roomState: RoomState | null;
   previewMode?: boolean;
 }
 
-export function TranscriptPanel({ roomState, previewMode = false }: TranscriptPanelProps) {
+export function TranscriptPanel({ roomState, previewMode = false, presentation = deriveRoomPresentation(roomState) }: TranscriptPanelProps) {
   const turns = roomState?.turns ?? [];
   const answered = turns.filter((t) => t.answer).length;
   const timedOut = turns.filter((t) => t.timed_out).length;
@@ -96,6 +98,7 @@ export function TranscriptPanel({ roomState, previewMode = false }: TranscriptPa
       {hasSomething && (
         <div className="transcript-list">
           <CoachingReport
+            failureGuidance={presentation.guidance}
             feedbackStatus={feedbackStatus}
             feedback={roomState?.feedback ?? null}
           />

@@ -4,6 +4,8 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Current status
 
+- Room presentation tickets 02–04 active locally, 2026-10-10: clarification/reply/review, lifecycle/recovery guidance and combined verification. Baseline d94bccb; no push/deployment.
+
 - Room presentation ticket 01 complete and reviewed locally, 2026-10-10: implementation 0c2f52c centralizes ordinary speaking/voting/answering semantics and improves Choose a speaker / Your turn / named answering guidance. Offline gate: 443 Python tests (external providers mocked), 249 React tests and production build. Independent Standards and Spec reviews against c567311 have zero findings; 65 focused React tests independently rerun. See docs/ROOM_PRESENTATION_REVIEW.md. Tickets 02/03 are unblocked; ticket 04 combined visual/browser review remains pending. Not pushed or deployed; main unchanged.
 
 - Shared room presentation tickets published locally, 2026-10-10: user approved four slices; separate ready-for-agent files under .scratch/room-presentation/issues, graph 01 -> {02,03} -> 04. Ticket 01 is the only initially unblocked task. Metadata/dependency/documentation checks pass; parent specification unchanged. No runtime implementation or deployment.
@@ -137,6 +139,8 @@ Use this file to track completed updates across agents and session windows. See 
 - Generated questions carry a validated conversational `lead_in`: distinct panelist voices briefly react to the latest answer, match a substantive answer's language, and stay separate from the grounded question and citation. The previous exchange remains visible while the next response is generated.
 
 ## Active work
+
+- root-room-presentation-finish, started 2026-10-10: game/src shared presentation and renderers/tests, synthetic previews, review screenshots, README and ticket/log handoff. Ends with dated review entry and local commits for tickets 02–04. Preserve unrelated files; main and hosted services unchanged.
 
 
 
@@ -1927,3 +1931,16 @@ Append new entries to the **end** of this file in date order:
 - Implementation committed locally as 0c2f52c on feature/question-first-room. Required independent Standards and Spec reviewers compared git diff c567311...0c2f52c against ticket 01 and the parent constraints; both returned zero findings. Full reports/evidence retained in docs/ROOM_PRESENTATION_REVIEW.md. Closed root-room-presentation-01 active work and updated current status and ticket comments.
 - Verification: full offline gate remains 443 Python tests (AI/Google/PayMongo mocked), 249 React tests and production build; the Spec reviewer independently reran 65 focused React tests and comparison whitespace checks. Final documentation-only handoff passed git diff --check. No runtime changes after the full gate.
 - Remaining: tickets 02/03 (clarification/reply/review and lifecycle/recovery guidance) are unblocked, then ticket 04 combined two-client/responsive preview and user review. No new live/provider/browser/hosted/physical-device claim, no push/deployment. Approved planning/glossary files preserved; frozen main unchanged.
+
+### 2026-10-10 — Room presentation tickets 02 and 03 implemented locally
+
+- Shared presentation now owns clarification choice, probe/review entry state, recovery descriptions, selected/replying labels, mapping/scope/preparation/retry and completion/coaching guidance. Controls uses shared recovery flags and guidance while retaining account/cost/start gating. Composer retains drafts, acknowledgment, admission recovery and recovery-writing selection. New Reply time/Replying and Reviewing submission · Timer paused/running wording; retry controls honor pending acknowledgment. No server/protocol/AI/payment changes. Added display-only preview parameters for submission and coaching states.
+- Verification: ticket 02 real-view tracer failed on the old probe label before implementation; ticket 03 tracer failed on missing mapping guidance before implementation. Focused offline mocked room/component tests and TypeScript check pass, including real seats, clarification citations, accepted-versus-resolved probe progress, paused/running clocks, owner/selected recovery, retained saved drafts, attempt exhaustion and coaching states. Existing wording assertions updated only for intended status changes.
+- Remaining: ticket 04 full offline gate, mocked two-client scenario matrix, desktop/portrait/landscape browser checks/screenshots, independent review and local commits. Baseline d94bccb. No user visual review, live/provider/hosted/physical-device claim or publication/deployment.
+
+### 2026-10-10 — Completed room presentation local gate and browser preview
+
+- Tickets 02/03 implementation complete; removed superseded composer waiting/turn-state logic and migrated Controls/transcript coaching recovery guidance to the shared model. Ticket 04 integration and local preview evidence prepared; independent review remains pending. README and tickets updated, screenshots under screenshots/room-presentation-*.png. Preview running at http://127.0.0.1:8832/?preview=1&research=1&probe=1 with provider credentials removed and a temporary account database.
+- Verification: full Python unittest gate passed 443 tests (AI/Google/PayMongo mocked), including two-client four/eight-turn reaction/probe defenses and twelve-turn research/mixed vote/clarification/timeout/retry/reconnect/coaching flows. Full React gate passed 256 tests; TypeScript/Vite build passed. Added real-view tests for review clocks, selected/replying highlights, recovery ownership/attempts/acknowledgment, saved drafts, mapping/preparation/missed turns and coaching statuses.
+- Browser evidence: isolated localhost Chromium checks desktop 1440x900, portrait 390x844 and landscape 844x390 synthetic fixtures; no page overflow or page exceptions, seat rows/header/dock remain visible, keyboard drawer focus/escape and dock arrows work, long content scrolls internally. Exact code-source boundaries and horizontal scrolling checked; research excerpts and coaching/transcript inspected. Preview timestamp aligned after fixture assembly to prevent a synthetic 31-second reply display. One browser-harness assertion incorrectly assumed the long code fixture exceeded 500 characters; replaced with its actual prefix/suffix checks. No app behavior failure inferred from that assertion.
+- Remaining: final Standards/Spec review against d94bccb, local commits and user visual review. No publication/deployment or live/provider/physical-device verification. Main and unrelated files unchanged.

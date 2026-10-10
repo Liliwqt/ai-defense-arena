@@ -5,7 +5,10 @@ import { OwnedRooms } from "./OwnedRooms";
 import { ResearchPlanPanel } from "./ResearchPlanPanel";
 import { createRoom, type RoomCreationProgress } from "../lib/createRoom";
 
+import { deriveRoomPresentation, type RoomPresentation } from "../lib/roomPresentation";
+
 interface ControlsPanelProps {
+  presentation?: RoomPresentation;
   account?: Account | null;
   onOpenAccount?: () => void;
   onOpenTranscript?: () => void;
@@ -52,6 +55,7 @@ export function ControlsPanel({
   onSendEvent,
   onCloseDrawer,
   showMessage,
+  presentation = deriveRoomPresentation(roomState),
 }: ControlsPanelProps) {
   const [activeTab, setActiveTab] = useState<"create" | "join">("create");
   const [createBusy, setCreateBusy] = useState(false);
@@ -167,28 +171,8 @@ export function ControlsPanel({
   const primaryBtn = "button-primary";
   const secondaryBtn = "button-secondary";
 
-  const waitText =
-    previewMode
-      ? "Preview mode does not send answers."
-      : phase === "lobby"
-        ? isHost
-          ? "Start when your team is ready."
-          : "The host will start the defense."
-        : phase === "generating"
-          ? "The panelist is preparing the next question…"
-          : phase === "retry"
-            ? isHost
-              ? "Question generation failed. Your team's previous answer was saved; retry when ready."
-              : "The host can retry the next question. Previous answers are saved."
-            : phase === "complete" && feedbackStatus === "generating"
-              ? "Preparing your team's coaching report…"
-              : phase === "complete" && feedbackStatus === "failed"
-                ? isHost
-                  ? "Coaching report failed. Use Retry coaching report to try again."
-                  : "Coaching report failed. The host can retry."
-                : phase === "complete"
-                  ? "The defense is complete. Open Transcript for your coaching report."
-                  : "";
+  const waitText = previewMode ? "Preview mode does not send answers." : !connected && roomState
+    ? "Reconnecting… Controls become available when connected." : presentation.guidance;
 
   return (
     <div className="grid gap-[15px]">
@@ -356,20 +340,20 @@ export function ControlsPanel({
                   onClick={() => { if (onSendEvent({ type: "end_defense" })) onCloseDrawer(); }}>End defense</button>
                 <p className="control-help">End now and keep accepted answers. An active unanswered question is marked ended early.</p>
               </>}
-              {phase === "retry" && (
+              {presentation.controls.questionRetry && (
                 <button
                   type="button"
-                  disabled={!connected || roomState?.question_attempts_left === 0}
+                  disabled={!connected || !presentation.controls.questionRetryAvailable}
                   onClick={handleRetry}
                   className={primaryBtn}
                 >
                   Retry question
                 </button>
               )}
-              {phase === "complete" && feedbackStatus === "failed" && (
+              {presentation.controls.coachingRetry && (
                 <button
                   type="button"
-                  disabled={!connected || roomState?.coaching_attempts_left === 0}
+                  disabled={!connected || !presentation.controls.coachingRetryAvailable}
                   onClick={handleRetryCoaching}
                   className={primaryBtn}
                 >

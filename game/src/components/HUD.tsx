@@ -14,7 +14,6 @@ interface HUDProps {
 }
 
 export function HUD({ roomState, roomCode, previewMode, onOpenDrawer, onPreviewMoment, presentation = deriveRoomPresentation(roomState) }: HUDProps) {
-  const phase = roomState?.phase;
   const seconds = useRoomCountdown(roomState, presentation);
   const { timer, status, progress: pillProgress, coverage } = presentation;
   const timed = timer !== null;
@@ -40,7 +39,7 @@ export function HUD({ roomState, roomCode, previewMode, onOpenDrawer, onPreviewM
       <div className="hud-actions">
         <RoomExpiryNotice state={roomState} />
         {!timed && <span className="hud-mobile-status" role="status" aria-label="Room status" aria-live="polite">{status}</span>}
-        {phase === "reacting" && <span className="hud-pill hud-desktop-only" role="status">Panelist speaking…</span>}
+        {presentation.reaction && <span className="hud-pill hud-desktop-only" role="status">{status}</span>}
         <span
           id="room-pill"
           className="hud-pill hud-desktop-only"

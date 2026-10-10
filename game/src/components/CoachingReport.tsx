@@ -1,18 +1,19 @@
 import type { CoachingFeedback, FeedbackStatus } from "../types";
 
 interface CoachingReportProps {
+  failureGuidance?: string;
   feedbackStatus: FeedbackStatus;
   feedback: CoachingFeedback | null;
 }
 
-export function CoachingReport({ feedbackStatus, feedback }: CoachingReportProps) {
+export function CoachingReport({ feedbackStatus, feedback, failureGuidance = "Review Controls for recovery options." }: CoachingReportProps) {
   if (feedbackStatus === "none") return null;
 
   return (
     <section className="coaching-report" aria-label="Coaching report">
       <h3>Coaching Report</h3>
       {feedbackStatus === "generating" && <p className="report-status">Preparing your coaching report…</p>}
-      {feedbackStatus === "failed" && <p className="report-error" role="alert">The coaching report could not be generated. The host can retry from Controls.</p>}
+      {feedbackStatus === "failed" && <p className="report-error" role="alert">The coaching report could not be generated. {failureGuidance}</p>}
       {feedbackStatus === "ready" && feedback && <>
         <p className="report-summary">{feedback.summary}</p>
         {feedback.strengths.length > 0 && <div className="report-group">

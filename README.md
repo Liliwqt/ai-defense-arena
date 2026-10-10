@@ -52,6 +52,31 @@ and “sa” alone no longer identify an answer as Taglish. All dialogue remains
 AI-generated. This language update has not been deployed; live native-speaker
 review is still needed to verify the wording.
 
+## Room status and replies (local checkpoint)
+
+The question, header, seat strips, bottom dock and Controls use one read-only
+room presentation model. Voting says **Choose a speaker**; the selected defender
+sees **Your turn**, and teammates see who is answering. A same-question probe
+uses **Reply to panelist**, a Reply timer and a **Replying** seat. It retains the
+original answer, question number and citation. A new follow-up gets a new number.
+
+During submission interpretation, **Reviewing submission · Timer paused/running**
+explains the clock and the defender is **Selected**. Recovery guidance names the
+existing permitted actions and respects remaining attempts; pending sends disable
+repeat recovery actions. Drafts, reconnect, server timers and answer rules retain
+their existing owners. Research mapping, first-question preparation, missed-turn
+review and coaching each show their own status. Exhausted retries are described
+in the dock, Controls and coaching report rather than suggesting an available retry.
+
+Review the running [local reply preview](http://127.0.0.1:8832/?preview=1&research=1&probe=1).
+Add `&submission=paused`, `&submission=running` or `&submission=retry` for review
+states; use `?preview=1&complete=1&coaching=failed` for exhausted coaching recovery.
+These are synthetic layout fixtures with no AI or payment calls. The preview
+server uses an isolated temporary database and no provider credentials.
+The [review record](docs/ROOM_PRESENTATION_REVIEW.md) links desktop, portrait and
+landscape screenshots and records mocked two-client verification. This checkpoint
+is local; user visual review and publication/deployment remain separate.
+
 ## Mobile website and WebView apps (feature-branch checkpoint)
 
 The existing React room supports phone portrait and landscape, with compact seat

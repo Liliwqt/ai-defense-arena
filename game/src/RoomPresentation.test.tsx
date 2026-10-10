@@ -112,3 +112,127 @@ it("shows factual no-defender guidance and an unknown countdown without a deadli
   expect(screen.queryByRole("timer")).toBeNull();
   expect(screen.getAllByText("Open seat")).toHaveLength(4);
 });
+
+it("keeps clarification and a pending reply on the same turn and describes paused/running review accurately", () => {
+  vi.useFakeTimers();
+  const source = room().turns[0];
+  const state = room({ phase: "question", selected_seat: 0, answer_deadline_ms: 121000,
+    turns: [{ ...source, clarifications: [{ request: "Say it simply?", reply: "Why store requests only while the app runs?" }] }] });
+  snapshot(state);
+  const view = render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: /close panel/i }));
+  expect(screen.getByText("Say it simply?")).toBeTruthy();
+  expect(screen.getByText("Why store requests only while the app runs?")).toBeTruthy();
+  expect(screen.queryByText(source.question)).toBeNull();
+  const pending = { ...source, answer: "It keeps the pilot small.", answered_by: "Alex", answered_by_seat: 0,
+    resolved: false, probe: { id: "p1", request: "How will requests survive a restart?", status: "pending" as const,
+      references: [], reply: null, clarifications: [] } };
+  snapshot({ ...state, phase: "probe", turns: [pending], answer_deadline_ms: 31000 });
+  view.rerender(<App />);
+  expect(screen.getByRole("textbox", { name: /Reply to panelist/ })).toBeTruthy();
+  expect(screen.getByLabelText(/Defender seat 1: Alex/)).toHaveTextContent("Replying");
+  expect(screen.getByRole("timer", { name: "Reply time remaining" })).toHaveTextContent("REPLY 0:30");
+  expect(screen.getByText("QUESTION 1")).toBeTruthy();
+  expect(screen.getByText(/0 RESOLVED/)).toBeTruthy();
+  expect(screen.getByText("It keeps the pilot small.")).toBeTruthy();
+  expect(screen.getByText("queue = []")).toBeTruthy();
+  snapshot({ ...state, phase: "interpreting", turns: [pending], clock_paused: true, remaining_answer_ms: 25000 });
+  view.rerender(<App />);
+  expect(screen.getByLabelText(/Defender seat 1: Alex/)).toHaveTextContent("Selected");
+  expect(screen.getByText("Reviewing submission · Timer paused")).toBeTruthy();
+  expect(screen.getByRole("status", { name: "Reply timer paused" })).toHaveTextContent("PAUSED 0:25");
+  act(() => vi.advanceTimersByTime(2000));
+  expect(screen.getByRole("status", { name: "Reply timer paused" })).toHaveTextContent("0:25");
+  snapshot({ ...state, phase: "interpreting", turns: [pending], clock_paused: false, answer_deadline_ms: 26000 });
+  view.rerender(<App />);
+  expect(screen.getByText("Reviewing submission · Timer running")).toBeTruthy();
+  expect(screen.getByRole("timer", { name: "Reply time remaining" })).toHaveTextContent("0:25");
+  expect(screen.getByRole("button", { name: "Submit reply directly" })).toBeTruthy();
+  act(() => vi.advanceTimersByTime(2100));
+  expect(screen.getByRole("timer", { name: "Reply time remaining" })).toHaveTextContent("0:23");
+});
+
+it("offers recovery only to the host and selected defender, respecting exhausted attempts and acknowledgment", () => {
+  const state = room({ phase: "interpretation_retry", selected_seat: 1, interpretation_attempts_left: 0,
+    remaining_answer_ms: 45000, my_pending_submission: null });
+  snapshot(state);
+  const view = render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: /close panel/i }));
+  expect(screen.getByRole("button", { name: "Retry panelist" })).toBeDisabled();
+  expect(screen.queryByRole("button", { name: "Write a new answer" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Use this as my answer" })).toBeNull();
+  expect(screen.getByText(/No panelist retries remain/)).toBeTruthy();
+  snapshot({ ...state, self_seat: 1, self_is_host: false, my_pending_submission: "Keep this saved answer." });
+  view.rerender(<App />);
+  expect(screen.getByRole("button", { name: "Use this as my answer" })).toBeEnabled();
+  const pending = snapshot({ ...state, self_seat: 1, self_is_host: false, interpretation_attempts_left: 3, my_pending_submission: "Keep this saved answer." });
+  pending.waitingForAnswerAck = true;
+  view.rerender(<App />);
+  expect(screen.getByRole("button", { name: "Retry panelist" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Use this as my answer" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Write a new answer" })).toBeDisabled();
+  pending.waitingForAnswerAck = false;
+  view.rerender(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Write a new answer" }));
+  expect(screen.getByRole("textbox")).toHaveValue("Keep this saved answer.");
+  const socket = snapshot({ ...state, self_seat: 1, self_is_host: false, my_pending_submission: "Keep this saved answer." });
+  socket.waitingForAnswerAck = true;
+  view.rerender(<App />);
+  expect(screen.getByRole("button", { name: "Sending…" })).toBeDisabled();
+  expect(screen.getByRole("textbox")).toHaveValue("Keep this saved answer.");
+  snapshot({ ...state, self_seat: 2, self_is_host: false });
+  view.rerender(<App />);
+  expect(screen.queryByRole("button", { name: "Retry panelist" })).toBeNull();
+  expect(screen.queryByRole("textbox", { name: /answer/i })).toBeNull();
+});
+
+it("gives truthful shared mapping, preparation, missed-turn and exhausted recovery guidance", () => {
+  const state = room({ phase: "lobby", defense_type: "research", turns: [], active_panelist: null,
+    research_planning_status: "planning" });
+  snapshot(state);
+  const view = render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: /close panel/i }));
+  expect(screen.getByRole("status", { name: "Room status" })).toHaveTextContent("Mapping research…");
+  expect(within(screen.getByRole("region", { name: "Answer area" })).getByText(/Mapping research/)).toBeTruthy();
+  expect(screen.queryByRole("timer")).toBeNull();
+  snapshot({ ...state, phase: "generating", research_planning_status: "ready" });
+  view.rerender(<App />);
+  expect(screen.getByText("Preparing the first question…")).toBeTruthy();
+  expect(screen.queryByText("QUESTION 1")).toBeNull();
+  const missed = { ...room().turns[0], timed_out: true };
+  snapshot({ ...state, phase: "generating", turns: [missed] });
+  view.rerender(<App />);
+  expect(screen.getByRole("status", { name: "Room status" })).toHaveTextContent("Reviewing missed turn…");
+  expect(screen.getByText(/Time expired · question passed/)).toBeTruthy();
+  snapshot({ ...state, phase: "retry", turns: [missed], question_attempts_left: 0 });
+  view.rerender(<App />);
+  fireEvent.click(screen.getByRole("button", { name: /settings.*controls/i }));
+  expect(screen.getByRole("button", { name: "Retry question" })).toBeDisabled();
+  expect(within(screen.getByRole("region", { name: "Answer area" })).getByText(/No question retries remain/)).toBeTruthy();
+});
+
+it.each(["none", "generating", "failed", "ready"] as const)("shows completion and %s coaching without an answering seat or countdown", (feedback_status) => {
+  const state = room({ phase: "complete", selected_seat: 0, answer_deadline_ms: 121000,
+    coaching_attempts_left: 0, feedback_status,
+    turns: [{ ...room().turns[0], answer: "A saved answer", resolved: true, answered_by: "Alex" }] });
+  snapshot(state);
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: /close panel/i }));
+  expect(screen.queryByRole("timer")).toBeNull();
+  expect(screen.getByLabelText(/Defender seat 1: Alex/)).not.toHaveClass("is-active");
+  expect(screen.getByText("1 RESOLVED")).toBeTruthy();
+  if (feedback_status === "failed") {
+    expect(within(screen.getByRole("region", { name: "Answer area" })).getByText(/No coaching report retries remain/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /settings.*controls/i }));
+    expect(screen.getByRole("button", { name: "Retry coaching report" })).toBeDisabled();
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Controls" })).getByRole("button", { name: "Transcript" }));
+    expect(within(screen.getByRole("region", { name: "Coaching report" })).getByText(/No coaching report retries remain/)).toBeTruthy();
+  } else if (feedback_status === "generating") {
+    expect(screen.getByRole("status", { name: "Room status" })).toHaveTextContent("Preparing coaching…");
+  } else if (feedback_status === "ready") {
+    expect(screen.getByRole("status", { name: "Room status" })).toHaveTextContent("Coaching ready");
+  } else {
+    expect(screen.getByRole("status", { name: "Room status" })).toHaveTextContent("Complete");
+    expect(screen.getByText("Open Transcript to review your answers.")).toBeTruthy();
+  }
+});

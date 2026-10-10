@@ -118,8 +118,8 @@ describe("flat room flow", () => {
     ["mapping", { ...room([], "lobby"), research_planning_status: "planning" }, "Mapping research…"],
     ["map failure", { ...room([], "lobby"), research_planning_status: "failed" }, "Retry needed"],
     ["question failure", room([turn("Accepted answer", 0)], "retry"), "Retry needed"],
-    ["coaching pending", { ...room([turn("Accepted answer", 0)], "complete"), feedback_status: "generating" }, "Complete"],
-    ["coaching failure", { ...room([turn("Accepted answer", 0)], "complete"), feedback_status: "failed" }, "Complete"],
+    ["coaching pending", { ...room([turn("Accepted answer", 0)], "complete"), feedback_status: "generating" }, "Preparing coaching…"],
+    ["coaching failure", { ...room([turn("Accepted answer", 0)], "complete"), feedback_status: "failed" }, "Coaching unavailable"],
   ] as const)("shows a factual room status during %s", (_label, state, expected) => {
     setSocket(state);
     render(<App />);

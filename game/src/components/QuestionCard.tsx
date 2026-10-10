@@ -13,7 +13,7 @@ interface QuestionCardProps {
 
 export function QuestionCard({ roomState, presentation = deriveRoomPresentation(roomState) }: QuestionCardProps) {
   const content = presentation.card;
-  const clarification = content.probe ? undefined : content.clarifications?.at(-1);
+  const { clarification } = presentation;
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;

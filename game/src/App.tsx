@@ -186,7 +186,7 @@ export function App() {
         ) : drawerMode === "account" ? (
           <AccountPanel account={account} refresh={refreshAccount} error={actionError?.startsWith("Sign in") ? actionError : accountError} previewMode={previewMode} />
         ) : (
-          <TranscriptPanel roomState={roomState} previewMode={previewMode} />
+          <TranscriptPanel presentation={presentation} roomState={roomState} previewMode={previewMode} />
         )}
       </Drawer>
     </div>

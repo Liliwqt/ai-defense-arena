@@ -55,7 +55,7 @@ describe("QuestionCard", () => {
     expect(screen.getByText("QUESTION 1")).toBeTruthy();
     expect(state.turns[0].question).toBe("How will you recruit?");
     expect(screen.getByText("Planned interviews")).toBeTruthy();
-    expect(screen.getByText(/clock paused/i)).toBeTruthy();
+    expect(screen.getByText(/Timer paused/i)).toBeTruthy();
   });
 
   it("uses the latest explanation on reconnect and restores ordinary display for the next turn", () => {
