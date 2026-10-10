@@ -52,7 +52,7 @@ and “sa” alone no longer identify an answer as Taglish. All dialogue remains
 AI-generated. This language update has not been deployed; live native-speaker
 review is still needed to verify the wording.
 
-## Room status and replies (local checkpoint)
+## Room status and replies (feature-branch checkpoint)
 
 The question, header, seat strips, bottom dock and Controls use one read-only
 room presentation model. Voting says **Choose a speaker**; the selected defender
@@ -75,7 +75,8 @@ These are synthetic layout fixtures with no AI or payment calls. The preview
 server uses an isolated temporary database and no provider credentials.
 The [review record](docs/ROOM_PRESENTATION_REVIEW.md) links desktop, portrait and
 landscape screenshots and records mocked two-client verification. This checkpoint
-is local; user visual review and publication/deployment remain separate.
+is published on `feature/question-first-room`; user visual review remains pending
+and deployment is held with `[skip render]`.
 
 ## Mobile website and WebView apps (feature-branch checkpoint)
 

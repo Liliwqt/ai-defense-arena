@@ -141,3 +141,13 @@ source changed after the 443-test mocked Python gate.
 
 Review result: **Standards 0 findings; Spec 0 remaining findings**.
 User visual review remains pending; publication is outside this checkpoint.
+
+
+## Publication receipt — 2026-10-10
+
+The user subsequently requested push. Source and review commits through
+`2299d77` were pushed to `origin/feature/question-first-room`, with the remote
+hash independently verified. Frozen `main` remains `866e923`. All pushed commits
+carry `[skip render]`; no deployment or hosted verification is claimed. README
+and PROJECT_LOG.md now distinguish publication from the pending visual review
+and deployment.
