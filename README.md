@@ -21,6 +21,16 @@ Questions, reactions, optional advice and clarification replies remain AI-genera
 exact citations and existing language preferences still apply. The opening has no
 fabricated reaction, and a missed turn is acknowledged without inventing an answer.
 
+Panelists can use optional brief acknowledgments such as “Oh, I see” or “Hmm,
+noted,” adapting the wording to the current language. Encouragement recognizes a
+specific explanation; “perfect” is reserved for a clearly resolved explanation,
+without certifying the whole study. Concern stays calm and grounded: something
+not described in the paper is not automatically unplanned or absent. The answer
+guides whether to clarify the same question, probe one important gap, or move on.
+These are AI style instructions, not scripted reactions or a required prefix on
+every turn. They reuse the existing requests and bounded reaction field. This
+refinement has passed offline checks; live dialogue and user review remain pending.
+
 In the feature-branch multiplayer room, a generated reaction appears briefly on its own
 after the previous turn, with the panelist marked **Speaking**. It stays for
 4–12 seconds according to its length, then the next question and exact citation
@@ -164,7 +174,7 @@ use Linux/WSL or upload TXT/Markdown instead. PDF processing is unchanged.
 
 ### One-peso real-payment trial (local only)
 
-`payments_live_trial.py` is a separate, owner-only service for one **PHP 1.00
+`backend/payments_live_trial.py` is a separate, owner-only service for one **PHP 1.00
 real QR Ph payment**, adding 100 demo credits to an isolated trial account.
 It does not change the multiplayer app's PHP 100 sandbox pack or its balances.
 This is an integration check, not final pricing or a public live-money launch.
@@ -181,7 +191,7 @@ the operator's setup wizard writes `.env.paymongo-live-trial` with mode 600.
 With those settings loaded into a separate process, run:
 
 ```bash
-.venv/bin/uvicorn payments_live_trial:app --host 127.0.0.1 --port 8791 --workers 1 --no-access-log
+.venv/bin/uvicorn backend.payments_live_trial:app --host 127.0.0.1 --port 8791 --workers 1 --no-access-log
 ```
 
 Register a **live-mode** webhook at `/api/payments/live-trial/webhook` for
@@ -265,7 +275,7 @@ cd game
 npm ci
 npm run build
 cd ..
-.venv/bin/uvicorn game_server:app --host 127.0.0.1 --port 8000 --workers 1 --ws websockets --ws-max-size 20000 --ws-max-queue 4
+.venv/bin/uvicorn backend.game_server:app --host 127.0.0.1 --port 8000 --workers 1 --ws websockets --ws-max-size 20000 --ws-max-queue 4
 ```
 
 Open <http://127.0.0.1:8000/?preview=1>. Preview mode uses static mock state, makes no AI calls, and does not accept room actions. Add flags to inspect different screens:
@@ -380,20 +390,28 @@ The document panel shows **extracted text**, not a rendered original PDF. Extrac
 
 ## Architecture
 
+Python application modules live in `backend/`; offline tests and their shared
+fixtures live in `tests/`. Run Python commands from the repository root so the
+package imports resolve consistently. The Streamlit entry point is
+`backend/app.py`; local PostgreSQL verification runs separately with
+`.venv/bin/python -m tests.postgres_checks` against a disposable local database.
+The repository-root `.local/` directory keeps its existing database/voucher paths;
+`game/`, `mobile/`, and `sample_project/` retain their existing locations.
+
 | Component | Responsibility |
 | --- | --- |
 | `game/src/` | React account/setup drawers, flat room, question/citation UI, vote/answer/chat dock, transcript, and export |
-| `game_server.py` | FastAPI HTTP/WebSocket service, authentication, room state, task scheduling, charging, and broadcasts |
-| `timed_turn.py` | Synchronous voting, speaker selection, authoritative deadlines, interpretation, clarification and timeout transitions |
-| `accounts.py`, `account_store.py` | Google sign-in, opaque sessions, voucher grants, private balances, atomic run reservations/charges, and additive SQLite migrations |
-| `payments.py`, `game/src/payments/` | Account-authenticated sandbox QR top-ups, legacy receipt reconciliation, provider/signature validation and HTTP error translation |
-| `purchase_store.py` | Transactional QR request reuse, legacy receipts, once-only credit awards and private purchase history |
-| `defense_session.py` | Code/research policies, role order, optional follow-ups, coverage, resolved turns, and retained history |
-| `defense_progression.py` | Shared isolated generation preparation and validated move application for FastAPI and Streamlit |
-| `research_plan.py` | Structured research map, exact source references, suggested budget and scope-preview validation |
-| `question_generator.py` | Shared prompts, Responses API structured output, submission interpretation, citation validation, and coaching |
-| `project_files.py` / `research_files.py` | Upload validation and document extraction/location mapping |
-| `app.py` | Streamlit single-browser fallback |
+| `backend/game_server.py` | FastAPI HTTP/WebSocket service, authentication, room state, task scheduling, charging, and broadcasts |
+| `backend/timed_turn.py` | Synchronous voting, speaker selection, authoritative deadlines, interpretation, clarification and timeout transitions |
+| `backend/accounts.py`, `backend/account_store.py` | Google sign-in, opaque sessions, voucher grants, private balances, atomic run reservations/charges, and additive SQLite migrations |
+| `backend/payments.py`, `game/src/payments/` | Account-authenticated sandbox QR top-ups, legacy receipt reconciliation, provider/signature validation and HTTP error translation |
+| `backend/purchase_store.py` | Transactional QR request reuse, legacy receipts, once-only credit awards and private purchase history |
+| `backend/defense_session.py` | Code/research policies, role order, optional follow-ups, coverage, resolved turns, and retained history |
+| `backend/defense_progression.py` | Shared isolated generation preparation and validated move application for FastAPI and Streamlit |
+| `backend/research_plan.py` | Structured research map, exact source references, suggested budget and scope-preview validation |
+| `backend/question_generator.py` | Shared prompts, Responses API structured output, submission interpretation, citation validation, and coaching |
+| `backend/project_files.py` / `backend/research_files.py` | Upload validation and document extraction/location mapping |
+| `backend/app.py` | Streamlit single-browser fallback |
 
 Endpoints: `POST /api/rooms` requires a verified account, matching origin, and CSRF token; `POST /api/rooms/{code}/join` admits guests; `WS /ws/{code}` authenticates player tokens and additionally checks the owner's account and origin for hosts. `GET /api/auth/me` returns private account/access/history data; `POST /api/auth/voucher` requires account authentication and CSRF. Research socket actions remain host-only `prepare_research_plan`, `retry_research_plan`, `approve_research_plan`, and `end_defense`. Approval and research `start` carry the current `plan_id` and integer `question_budget`; paid start/restart also requires `confirm_cost: true`. Shared snapshots carry research state, never email, account identifiers, balances, or voucher details. FastAPI serves the production React build from `game/dist`. There is no active 3D/Phaser scene.
 
@@ -411,7 +429,7 @@ Build React, then start a separate local server so an existing defense server do
 
 ```bash
 (cd game && npm ci && npm run build)
-.venv/bin/uvicorn game_server:app --host 127.0.0.1 --port 8790 --workers 1 --ws websockets --ws-max-size 20000 --ws-max-queue 4
+.venv/bin/uvicorn backend.game_server:app --host 127.0.0.1 --port 8790 --workers 1 --ws websockets --ws-max-size 20000 --ws-max-queue 4
 ```
 
 Open <http://127.0.0.1:8790/?account=1> for the Account drawer, or <http://127.0.0.1:8790/?preview=1> for a mock room without AI. Without Google configuration, sign-in explains the required setup and anonymous room creation is disabled. No OpenAI key is required to inspect account/payment screens.
@@ -438,7 +456,7 @@ Local review captures: [account setup](screenshots/account-setup-desktop.png), [
    export AUTH_PUBLIC_BASE_URL=http://127.0.0.1:8790
    export AUTH_SESSION_SECRET="$(.venv/bin/python -c 'import secrets; print(secrets.token_urlsafe(48))')"
    .venv/bin/pip install -r requirements.txt
-   .venv/bin/uvicorn game_server:app --host 127.0.0.1 --port 8790 --workers 1 --ws websockets --ws-max-size 20000 --ws-max-queue 4
+   .venv/bin/uvicorn backend.game_server:app --host 127.0.0.1 --port 8790 --workers 1 --ws websockets --ws-max-size 20000 --ws-max-queue 4
    ```
 
    Stop the old port-8790 server with Ctrl+C before starting the updated one. Keep your existing PayMongo variables exported if you want to test QR top-ups too. Google-only sign-in works without PayMongo or OpenAI credentials. `run_local.sh` does not load Google values from `.env`; export them explicitly.
@@ -497,7 +515,7 @@ read -r -s -p 'Test webhook signing secret: ' PAYMONGO_WEBHOOK_SECRET
 printf '\n'
 export PAYMONGO_SECRET_KEY PAYMONGO_WEBHOOK_SECRET
 export PAYMONGO_PUBLIC_BASE_URL=https://YOUR-DEVELOPMENT-ORIGIN
-.venv/bin/uvicorn game_server:app --host 127.0.0.1 --port 8790 --workers 1 --ws websockets --ws-max-size 20000 --ws-max-queue 4
+.venv/bin/uvicorn backend.game_server:app --host 127.0.0.1 --port 8790 --workers 1 --ws websockets --ws-max-size 20000 --ws-max-queue 4
 ```
 
 Stop the earlier server on 8790 before restarting it with these settings. The regular `run_local.sh` does not load PayMongo values from `.env`; explicitly exported values are inherited. No secret value belongs in Git, browser code, screenshots, or the handoff log.
@@ -529,7 +547,7 @@ The selected account store (PostgreSQL, or a Git-ignored SQLite file locally) st
 
 Synthetic review screens: [verified checkout](screenshots/payment-cleanup-checkout-mock-desktop.png), [account charge history](screenshots/payment-cleanup-account-mock-desktop.png), and [landscape charge history](screenshots/payment-cleanup-account-mock-landscape.png). They contain synthetic account/billing fixtures, not a live Google or PayMongo transaction.
 
-The [account and payment flow map](docs/PAYMENT_FLOW.md) explains checkout request reuse, verified awards, run charges and recovery. New checkouts accept an account-bound `Idempotency-Key`; the web app preserves it before sending and reuses it after a lost response. In-flight/unverified attempts are not automatically recreated, and new checkout attempts are limited to five per account in ten minutes. New browser receipts store only an order ID and require the owning account, while legacy anonymous receipts keep their earlier access. Account history shows actual `awarded_credits` and the latest 20 run records. The server-only `.venv/bin/python -m payment_audit` checks aggregate financial-record consistency without contacting the provider or repairing data.
+The [account and payment flow map](docs/PAYMENT_FLOW.md) explains checkout request reuse, verified awards, run charges and recovery. New checkouts accept an account-bound `Idempotency-Key`; the web app preserves it before sending and reuses it after a lost response. In-flight/unverified attempts are not automatically recreated, and new checkout attempts are limited to five per account in ten minutes. New browser receipts store only an order ID and require the owning account, while legacy anonymous receipts keep their earlier access. Account history shows actual `awarded_credits` and the latest 20 run records. The server-only `.venv/bin/python -m backend.payment_audit` checks aggregate financial-record consistency without contacting the provider or repairing data.
 
 Private account endpoints expose only the current user's access/balance and latest 20 purchases/runs; mutations validate origin and session CSRF. WebSocket host controls recheck account ownership and origin. Uploaded files, room dialogue, and team chat are not stored in this database. Existing anonymous paid receipts stay separate and receive no retroactive credits. Local SQLite accounts/balances survive a Python restart. For hosted Render Free, use a Neon Free PostgreSQL project through `DATABASE_URL`; configuring a URL never migrates existing SQLite data. The PostgreSQL adapter serializes account transactions and never falls back to SQLite on connection failure. See the [deployment guide](docs/ACCOUNT_DEPLOYMENT.md) for setup and the separate real-local-PostgreSQL verification gate. Hosting and database paid tiers can be upgraded later while keeping the same store. Upload-based quotes, real credit pricing/spending, and real-money enforcement remain separate checkpoints.
 
@@ -701,7 +719,7 @@ See [the retirement review](docs/QR_TOPUP_RETIRE_REVIEW.md). No push or deployme
 Configure `OPENAI_API_KEY` in the launching terminal, optionally set `OPENAI_MODEL`, then run:
 
 ```bash
-.venv/bin/streamlit run app.py
+.venv/bin/python -m streamlit run backend/app.py
 ```
 
 The fallback supports all three defense types, the corresponding four-role sequence, validated citations, conversational lead-ins, and same-question clarifications. It keeps its separate appearance and browser-session state. Voting, answer deadlines, and team chat belong to the multiplayer room.
@@ -714,7 +732,7 @@ The account/access release has a separate [feature-service deployment guide](doc
 
 ```text
 Build: pip install -r requirements.txt && cd game && npm ci && npm run build
-Start: uvicorn game_server:app --host 0.0.0.0 --port $PORT --workers 1 --ws websockets --ws-max-size 20000 --ws-max-queue 4
+Start: uvicorn backend.game_server:app --host 0.0.0.0 --port $PORT --workers 1 --ws websockets --ws-max-size 20000 --ws-max-queue 4
 Health: /health
 ```
 

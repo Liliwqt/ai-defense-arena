@@ -100,7 +100,7 @@ pages; this release does not guess refund-event payloads or enable them for sett
 
 Run `.venv/bin/python -m unittest discover -v`, then `npm test && npm run build` in `game/`.
 Use `TEST_POSTGRES_URL` only for a disposable localhost database and run
-`.venv/bin/python postgres_checks.py`. It creates/drops isolated databases and mocks
+`.venv/bin/python -m tests.postgres_checks`. It creates/drops isolated databases and mocks
 Google, AI and payment providers. Never supply a production database to this gate.
 
 Before a separately approved hosted release, verify durable PostgreSQL backups/storage,

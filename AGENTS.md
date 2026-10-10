@@ -19,6 +19,15 @@ After each logical change to project files:
 
 Never put API keys, secrets, full environment values, or uploaded private project text in the log. Keep entries factual; distinguish implemented work from mocked or live verification. Do not mark a checkpoint reviewed until the user has actually reviewed it.
 
+## Python navigation
+
+For backend changes, use `backend/`; for Python verification, use `tests/`.
+Use package-qualified imports (`backend.*`, `tests.*`) and run entry points from
+the repository root; launch commands are in README.md and run_local.sh.
+Keep filesystem paths to `game/` and `.local/` rooted at the repository, including
+inside the isolated document worker. The shared offline fixtures and opt-in local
+PostgreSQL runner belong in `tests/`, outside the runtime package.
+
 ## Legacy, not wired into the app
 
 The room is a flat React layout. `game/src/App.tsx` renders `FlatRoom.tsx` (`PanelistSeats` / `DefenderSeats`) with `QuestionCard.tsx` and `RoomDock.tsx`. The earlier 3D/Phaser room (`ThreeDefenseScene.tsx`, `PhaserScene.tsx`, `phaser/DefenseScene.ts`, `JudgePanelOverlay.tsx`, `judgeConfig.ts`) was removed on 2026-10-01 along with the `three` and `phaser` dependencies; it had not been imported by the app since the flat redesign, and neither library reached the production bundle. Do not reintroduce it, and do not describe the room as 3D. `main` still serves that older room, so the two branches genuinely differ; the flat room is the intended direction.

@@ -86,7 +86,7 @@ AI/Google/PayMongo mocked. A separate real-PostgreSQL gate uses a disposable
 **local** PostgreSQL server and creates/drops one test database per case:
 
 ```bash
-TEST_POSTGRES_URL=postgresql://YOUR_LOCAL_ROLE@127.0.0.1:5432/postgres .venv/bin/python postgres_checks.py
+TEST_POSTGRES_URL=postgresql://YOUR_LOCAL_ROLE@127.0.0.1:5432/postgres .venv/bin/python -m tests.postgres_checks
 ```
 
 The role needs local database-creation permissions. The script refuses remote
@@ -151,7 +151,7 @@ Use the existing commands:
 
 ```text
 Build: pip install -r requirements.txt && cd game && npm ci && npm run build
-Start: uvicorn game_server:app --host 0.0.0.0 --port $PORT --workers 1
+Start: uvicorn backend.game_server:app --host 0.0.0.0 --port $PORT --workers 1
 Health: /health
 ```
 

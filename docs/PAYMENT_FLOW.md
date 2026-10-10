@@ -135,7 +135,7 @@ defense completed. The database retains records beyond the UI's latest-20 view.
 Run the check privately with the same database configuration as the server:
 
 ```bash
-.venv/bin/python -m payment_audit
+.venv/bin/python -m backend.payment_audit
 ```
 
 It prints aggregate counts only and exits **0** for consistent records, **1** for

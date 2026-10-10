@@ -18,7 +18,7 @@ These are institutional expectations for conducting defenses, not observational 
 
 ## Current app compared with those findings
 
-Source inspection of [question_generator.py](../question_generator.py) shows existing role focus/voice rules for methodological reasoning, ethics, impact, alternatives, and tradeoffs. `CONVERSATION_GUIDANCE` already requires one main question, meaningful reactions to actual answers, and a distinction between claims and demonstrated evidence. `_research_guidance` separates proposals from completed studies. `interpret_submission` explains the same question without supplying the team's answer. Coaching already includes turn-referenced improvements and a concrete next step.
+Source inspection of [question_generator.py](../backend/question_generator.py) shows existing role focus/voice rules for methodological reasoning, ethics, impact, alternatives, and tradeoffs. `CONVERSATION_GUIDANCE` already requires one main question, meaningful reactions to actual answers, and a distinction between claims and demonstrated evidence. `_research_guidance` separates proposals from completed studies. `interpret_submission` explains the same question without supplying the team's answer. Coaching already includes turn-referenced improvements and a concrete next step.
 
 However, question/move schemas have no dedicated suggestion field, and the questioning prompts have no explicit rule for when or how to offer a constructive methodological alternative. A model might mention one within its current prose; source inspection does not establish how frequently or well it does so. A new field is not automatically necessary.
 

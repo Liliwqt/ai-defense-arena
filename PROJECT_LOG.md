@@ -4,6 +4,14 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Current status
 
+- Python folder reorganization complete locally, 2026-10-11: 24 runtime modules in backend/, 30 offline test modules and two verification helpers in tests/, with package-qualified imports and updated local/Render/fallback/audit commands. Existing repository-root data/assets and uncommitted natural-reaction changes preserved. Full gate: 445 Python tests (providers mocked), 257 React tests and production build; temporary credential-free ASGI/asset and audit checks pass. Uncommitted; no publication/deployment, main unchanged.
+
+- Natural reaction prompt refinement complete locally, 2026-10-11: shared conversation guidance now allows optional language-matched acknowledgments, specific encouragement and calm concern, with answer-guided clarify/probe/advance decisions. Full offline gate: 445 Python tests with AI/Google/PayMongo mocked, 257 React tests and production build. Existing requests, citations, bounds, timers, roles, limits and same-question behavior retained. Live dialogue/user review remains pending; no commit, push or deployment.
+
+- Natural panelist conversation-flow research complete locally, 2026-10-11: docs/PANELIST_CONVERSATION_FLOW_RESEARCH.md combines nine primary works and static app inspection. Recommends optional answer-fitting acknowledgments, specific encouragement, proportionate concern, clarification/probe/advance decisions and conditional advice. User corrected the earlier size-cleanup inference; no cleanup continuation. Research-only, no prompt/runtime changes, AI calls or publication/deployment.
+
+- Project footprint research complete locally, 2026-10-11: docs/PROJECT_SIZE_RESEARCH.md records current disk/source/build sizes and 15 primary-source references. Conditional archive/release-copy cleanup identifies up to about 106 MiB; a temporary all-object pack estimates about 29.4 MiB reduction before overhead, with Git storage unchanged. Preserve active environments, fallback, database state and evidence. No cleanup, dependency/runtime changes, publication or deployment.
+
 - Room presentation tickets 02–04 published and reviewed, 2026-10-10: implementation 99de8d4 and Controls corrections 8f9434d, baseline d94bccb. Shared clarification/reply/review and lifecycle/recovery guidance; 443 Python tests with providers mocked, 257 React tests and production build. Mocked two-client code four/eight-turn and research/mixed twelve-turn protocol checks, plus eleven desktop/portrait/landscape Chromium fixtures pass. Standards has zero findings; Spec has zero remaining findings after two corrections. Preview http://127.0.0.1:8832/?preview=1&research=1&probe=1 and gallery docs/ROOM_PRESENTATION_REVIEW.md await user visual review. Source through 2299d77 verified on origin/feature/question-first-room; deployment held with [skip render]. Main unchanged.
 
 - Room presentation ticket 01 complete and reviewed locally, 2026-10-10: implementation 0c2f52c centralizes ordinary speaking/voting/answering semantics and improves Choose a speaker / Your turn / named answering guidance. Offline gate: 443 Python tests (external providers mocked), 249 React tests and production build. Independent Standards and Spec reviews against c567311 have zero findings; 65 focused React tests independently rerun. See docs/ROOM_PRESENTATION_REVIEW.md. Tickets 02–04 are now completed in the continuation recorded above; user visual review remains pending. Published with the continuation through 2299d77; deployment held with [skip render], main unchanged.
@@ -139,6 +147,12 @@ Use this file to track completed updates across agents and session windows. See 
 - Generated questions carry a validated conversational `lead_in`: distinct panelist voices briefly react to the latest answer, match a substantive answer's language, and stay separate from the grounded question and citation. The previous exchange remains visible while the next response is generated.
 
 ## Active work
+
+- root-python-publication, 2026-10-11: publishing the verified Python reorganization and pending natural-reaction prompt/documentation changes to feature/question-first-room with [skip render]. Ends with a dated publication receipt; preserve the unrelated local footprint note and frozen main.
+
+
+
+
 
 
 
@@ -1963,3 +1977,53 @@ Append new entries to the **end** of this file in date order:
 - User requested push. Published the five reviewed local commits through 2299d77 on origin/feature/question-first-room, including ticket 01, tickets 02–04, Controls corrections and review receipts. Updated README and current status to distinguish published source from deployment. All pushed commits carry [skip render]; no deployment requested or triggered by this session.
 - Verification: git push succeeded; independent git ls-remote returned feature tip 2299d77b019252dec1f1953dcfbed71686508943 and unchanged main 866e923c40c3cf431e66984861dd7dbefb223f8b. Prior executable evidence remains 443 Python tests (AI/Google/PayMongo mocked), 257 React tests/build and eleven synthetic Chromium fixture checks. Publication documentation checked with git diff --check; no new live/provider/hosted/device checks.
 - Remaining: user visual review and separately requested deployment. Source-only publication preserves frozen main and unrelated files; no real-money operation or native rebuild.
+
+
+### 2026-10-11 — Project footprint research opened
+
+- User invoked Research after the disk audit; scope inferred from that context as safe project-size reduction. Opened root-project-size-research with a single cited note under docs/. Background research checks official sources; root verifies current disk/Git/build facts. No cleanup authorized or performed.
+- Verification: read AGENTS.md, README, current status/active work and existing note conventions; git status is clean on feature/question-first-room at the start. Inspection only; no runtime/provider/hosted tests.
+- Remaining: primary-source research, measurement cross-check and a clear recommendation separating local tools, repository history/assets and delivered web assets. No push/deployment or main changes.
+
+
+### 2026-10-11 — Project footprint research completed
+
+- Created docs/PROJECT_SIZE_RESEARCH.md with 15 primary-source references covering Python/pip, npm/Vite, Streamlit, PostgreSQL, Git and image encoders. Separated ignored local tools and state, tracked assets/history and built frontend. Proposed a conditional cleanup order: installer archives and reviewed release copies before unused tool installs/packing/image optimization. Runtime dependency split and retained @types/three group are future verified changes, not deletions performed. Updated current status and closed root-project-size-research active work.
+- Verification: read-only du, git ls-tree/count-objects, manifests/installed metadata and npm ls/source searches rechecked prior footprint facts. Hash-only image comparison identified 39.51 MiB of exact duplicates inside release copies; unique artifacts still need review. A temporary git pack-objects stdout experiment included all 2,717 objects and produced 32.75 MiB versus 62.15 MiB loose allocation; about 29.4 MiB potential reduction before overhead, with no repository objects/refs rewritten and no actual savings. Local research links exist, trailing whitespace and git diff --check pass. Official-source browsing is research evidence; no runtime suites, image conversion, provider, hosted or physical-device verification performed.
+- Remaining: user selection of a cleanup checkpoint and prerequisite backup/in-use checks; actual savings are unverified. Up to about 106 MiB in archive/release copies is conditional, and the 39.51 MiB duplicate pool is included, not additive. App environments, local databases, original screenshots, main and production preserved. Only note/log changed locally; no commit, push or deployment.
+
+
+### 2026-10-11 — Research scope corrected to natural panelist conversation
+
+- User clarified that the invoked Research skill concerns realistic panelist speech and a structured questioning flow, including brief acknowledgments, thoughtful pauses, encouragement and concerned reactions. The previous footprint note was produced from a mistaken context inference; retained it as local documentation, with no cleanup continuation. Opened root-panelist-flow-research and a separate conversation-flow note.
+- Verification: read existing university-questioning research and inspected current question_generator.py conversation/role, lead-in, clarification and advice rules. Static inspection only, no prompt changes, AI/provider calls or runtime tests.
+- Remaining: primary-source research on examiner conversation and responsive acknowledgment, compare with actual app flow, and propose review criteria. No scripted dialogue, publication/deployment, source cleanup or frozen-main changes.
+
+
+### 2026-10-11 — Natural panelist reaction and structured-flow research completed
+
+- Created docs/PANELIST_CONVERSATION_FLOW_RESEARCH.md from five official university examiner guides and four original conversation/supervision studies (nine primary works, ten source URLs). Separates institutional recommendations, empirical findings outside defenses and design inference. Explains receipt/understanding versus evaluation, selective praise and tactful concern; includes original illustrative exchanges, grounded discussion progression and live/native review criteria. Current conversation already supports answer-aware reactions, role voices, optional advice, clarifications and probes; a future refinement could clarify the distinction between useful discourse markers and fake filler.
+- Verification: primary-source browsing plus static comparison with question_generator.py, defense_session.py, timed_turn.py and game_server.py. Checked existing reaction ownership, 300-character/two-sentence bounds, next-question voting, same-question semantics and coaching-only completion. Local references exist, no trailing whitespace, git diff --check passes. Research/documentation evidence only; no AI dialogue, runtime suites, live/hosted/physical-device checks or user-quality approval.
+- Handoff: updated current status and closed root-panelist-flow-research. Prompt refinement and a separately recorded live transcript/human review remain later work. Prior footprint note retained as a mistaken-context side output; cleanup is not being pursued. Existing unrelated files and frozen main preserved; no source, timer/protocol changes, commit, push or deployment.
+
+
+### 2026-10-11 — Optional natural reactions added to shared panelist prompts
+
+- Updated question_generator.py shared conversation guidance: optional language-matched acknowledgments, one brief reaction without repeated acknowledgment of the same point, specific encouragement instead of grading, proportionate concern without inferred absence, and explicit clarification/probe/advance decisions. Retained role voices, empty opening reactions, 300-character/two-sentence lead-ins, exact citations, research coverage and existing requests/timers. Added public-generator request/context tests and updated README and the research note with the subsequent local implementation.
+- Verification: new generator-boundary test first failed on missing acknowledgment guidance, then focused test_panelist_conversation passed 20 tests with AI mocked. Code/research/clarification checks preserve exact citations, accepted answer context, response text and one existing provider request per invocation. This verifies request contracts, not generated conversational quality. Full offline gates pending.
+- Remaining: full Python/React/build checks and local handoff; live dialogue/human review remains separate. Preserve prior uncommitted research/log work. No commit, push, deployment or frozen-main change.
+
+
+### 2026-10-11 — Natural reaction refinement offline gate and local handoff
+
+- Completed the user-requested prompt refinement in question_generator.py with two new tests in test_panelist_conversation.py. README and docs/PANELIST_CONVERSATION_FLOW_RESEARCH.md distinguish local implementation from the earlier research and unverified live output. No new schema, action, UI, timer, question-budget rule, scripted substantive question or AI request added. Closed root-natural-reactions and updated current status; unrelated footprint research and local files preserved.
+- Verification: env -u DATABASE_URL .venv/bin/python -m unittest discover -v passed 445 tests in 64.523 seconds (AI/Google/PayMongo mocked). game npm test passed 257 React tests; npm run build passed TypeScript and Vite. Existing mocked room/coverage/probe/retry/reconnect/timeout tests passed within the Python gate. New generator tests check optional reaction/encouragement/concern guidance reaching code, adaptive research and clarification requests, exact source context and one request per invocation. git diff --check and local research-link checks passed. Manual diff inspection confirms runtime edit is confined to the shared prompt constant; no live AI, hosted, native-device or human-quality review claimed.
+- Remaining: restart a local server to load the prompt and inspect a separately recorded live conversation for actual wording, variety and appropriateness. Changes remain uncommitted and local; no push/deployment or payment action. Frozen main remains 866e923c40c3cf431e66984861dd7dbefb223f8b.
+
+
+### 2026-10-11 — Python application and tests organized into folders
+
+- Session: root-python-layout; complete locally on feature/question-first-room. Moved all 56 root Python files: 24 runtime modules to backend/, 30 test modules plus offline_accounts/postgres_checks helpers to tests/. Added lightweight package initializers, updated imports and mock targets, and retained the isolated DOCX worker with its credential-free environment and resource limits. Repository-root .local/ database/voucher storage, game/dist assets and live-trial HTML keep their existing locations. Prior uncommitted natural-reaction prompts, two conversation tests and research notes are preserved through the moves.
+- Files: backend/, tests/, run_local.sh, render.yaml, README.md, AGENTS.md, docs/ACCOUNT_DEPLOYMENT.md, docs/LIVE_TESTER_PAYMENTS.md, docs/PAYMENT_FLOW.md and maintained research-note source links. Writing for Agents guidance informed the short task-triggered navigation section in AGENTS; detailed commands remain in README/config rather than duplicated agent guidance. Historical log entries and the unrelated draft migration plan retain their original paths as historical context.
+- Verification: env -u DATABASE_URL .venv/bin/python -m unittest discover -v passes 445 tests in 50.622 seconds (AI/Google/PayMongo mocked), including code/research two-client protocol and Streamlit walkthroughs. The first moved-file run exposed seven AppTest caller-relative path failures; corrected them to ../backend/app.py and reran the complete suite successfully. game npm test passes 257 React tests; npm run build passes TypeScript/Vite. Temporary localhost backend.game_server:app launch verifies /health, React HTML, byte-identical JS/CSS and unsigned account response, using no provider credentials and a disposable SQLite store; backend.payment_audit also succeeds on that store. compileall, bash -n run_local.sh, git diff --check and maintained local-link checks pass. No live AI, provider payment, hosted or installed-device verification claimed.
+- Handoff: local startup remains ./run_local.sh; direct ASGI target is backend.game_server:app. Fallback runs with .venv/bin/python -m streamlit run backend/app.py from the repository root. Audit/local PostgreSQL runners are python -m backend.payment_audit and python -m tests.postgres_checks. Any manually configured feature-service Render start command must adopt backend.game_server:app when this refactor is later deployed; updating render.yaml alone does not change an independently configured dashboard command. Existing root-module commands are superseded. Closed own active-work entry; no commit, push or deployment. Frozen main remains 866e923c40c3cf431e66984861dd7dbefb223f8b.
