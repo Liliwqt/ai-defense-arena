@@ -4,6 +4,12 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Current status
 
+- Room presentation ticket 01 implementation active locally, 2026-10-10: root-room-presentation-01 is centralizing ordinary speaking/voting/answering semantics. Baseline c567311; tickets 02–04 and publication remain outside this slice.
+
+- Shared room presentation tickets published locally, 2026-10-10: user approved four slices; separate ready-for-agent files under .scratch/room-presentation/issues, graph 01 -> {02,03} -> 04. Ticket 01 is the only initially unblocked task. Metadata/dependency/documentation checks pass; parent specification unchanged. No runtime implementation or deployment.
+
+- Shared room presentation specification published locally, 2026-10-10: .scratch/room-presentation/spec.md is ready-for-agent, synthesized from the confirmed interview in docs/ROOM_PRESENTATION_PLAN.md. Includes 34 user stories, shared presentation ownership, clearer status/reply labels, retained drafts/connection/server behavior, and the already approved offline/mock/browser test seams. Documentation checks pass; no runtime implementation or deployment.
+
 - Conversational Bisaya update published in 7bd142f, 2026-10-10: shared guidance prefers familiar everyday Cebuano, short respectful wording and natural English research terms. Modern/casual language requests and Bisaya lang/unta/palihug forms are recognized. Distinctive Cebuano cues take precedence over shared Filipino markers; shared words alone do not force Taglish. Coaching now uses the shared language anchor too. Offline gate: 443 Python tests (AI/Google/PayMongo mocked), 243 React tests and production build. Origin verified at 7bd142f632a80481ed67b55245ae00e002e48bbc. No paid/live language-quality check or deployment; main unchanged.
 
 - Clarification presentation published in 62c1d58, 2026-10-10: the latest defender request sits above the latest panelist explanation, replacing the large original question text. Same turn/citation/timers; original wording and exchanges retained in transcript/export. Full combined local gate: 437 Python tests (AI/Google/PayMongo mocked), 243 React tests and production build. Desktop/portrait/landscape synthetic previews checked at http://127.0.0.1:8820/?preview=1&research=1&clarify=1. Origin verified at 62c1d58538cedbf773b31413c4da86a431ac9f1f; no deployment or user visual review.
@@ -131,6 +137,11 @@ Use this file to track completed updates across agents and session windows. See 
 - Generated questions carry a validated conversational `lead_in`: distinct panelist voices briefly react to the latest answer, match a substantive answer's language, and stay separate from the grounded question and citation. The previous exchange remains visible while the next response is generated.
 
 ## Active work
+
+- root-room-presentation-01, started 2026-10-10: game/src room presentation module, App/HUD/question/seats/dock/composer/countdown and tests; README, ticket 01 and this log. Ends with a dated implementation/review entry and local commit. Approved planning/glossary documents already present are preserved.
+
+
+
 
 
 
@@ -1849,3 +1860,65 @@ Append new entries to the **end** of this file in date order:
 - User-authorized source commit 7bd142f publishes the four selected language-guidance/test/documentation files. README/current status now distinguish publication from deployment.
 - Verification: git push origin feature/question-first-room succeeded; independent git ls-remote returned 7bd142f632a80481ed67b55245ae00e002e48bbc for the feature branch and unchanged 866e923c40c3cf431e66984861dd7dbefb223f8b for main. Worktree was clean after source push and git diff --cached --check passed. Executable source matches the preceding 443-Python/243-React/build gate with providers mocked.
 - Deployment: [skip render], no manual deploy, paid API or live fluency review. This documentation receipt is pushed next and its final origin tip is verified separately.
+
+### 2026-10-10 — Room presentation planning interview opened
+
+- User invoked grill-with-docs after the architecture review recommendation. Created docs/ROOM_PRESENTATION_PLAN.md with established facts, a design tree and three pending scope/verification decisions; added this session to current status and active work. No final interface or implementation selected.
+- Verification: static inspection of QuestionCard, AnswerComposer, HUD, FlatRoom, countdown, socket state and related tests; independent read-only presentation_planning_facts exploration. Found repeated turn/phase interpretation and role aliases. App tests mock seat rendering, so they do not by themselves demonstrate cross-display consistency. git diff --check validates documentation formatting; no new runtime tests, AI calls, provider requests, hosted or physical-device checks.
+- Remaining: user answers on behavior preservation, connection/draft scope and verification, followed by dependent design decisions. Runtime source and frozen main unchanged; no commit, push or deployment.
+
+### 2026-10-10 — Room presentation round 1 decisions recorded
+
+- User selected intentional UX changes, retained connection retries/acknowledgments/drafts in their existing modules, and accepted the full offline/mock/responsive verification scope. Updated docs/ROOM_PRESENTATION_PLAN.md and current status; round 2 asks which UX improvements to include.
+- Verification: documentation cross-check against the user's three answers and git diff --check. Static exploration additionally distinguished accepted answers from resolved turns and confirmed original question/citation preservation through clarification. No runtime or live checks executed.
+- Remaining: UX focus and dependent acceptance decisions. Active planning entry remains open; no runtime edits, implementation approval, commit, push or deployment.
+
+### 2026-10-10 — Room presentation UX focus selected
+
+- User selected status, highlights and next-action clarity within the existing black-and-white layout. Updated docs/ROOM_PRESENTATION_PLAN.md and current status. Round 3 asks about reviewing versus selected/answering labels, and same-question reply terminology; neither is yet confirmed.
+- Verification: static comparison with current HUD, AnswerComposer and RoomDock behavior plus git diff --check. Existing direct-answer availability and local draft/recovery state remain constraints; no runtime or live checks run.
+- Remaining: concrete label decisions and final agreed-plan review. No implementation, commit, push or deployment; frozen main unchanged.
+
+### 2026-10-10 — Room presentation plan consolidated for review
+
+- User confirmed reviewing versus selected/answering distinctions, explicit running/paused timer wording, and Reply to panelist / Reply time / Replying labels for same-question answer probes. Updated docs/ROOM_PRESENTATION_PLAN.md with proposed module ownership, preserved local state, a display matrix, acceptance scenarios and delivery checks. Added Answer probe to CONTEXT.md to distinguish it from a new follow-up turn and defender-requested clarification.
+- Verification: static comparison with current snapshot fields, countdown behavior and local composer recovery/draft logic; documentation review against all six answers and git diff --check. Existing optional-field fallbacks, original citations/transcript and accepted-versus-resolved counts are explicit constraints. No runtime suites, mocked defense, live dialogue, provider, hosted or device checks executed for planning.
+- Remaining: final shared-understanding confirmation required by the grilling workflow. All product questions currently settled; implementation and publication are later steps. No runtime edits, commit, push or deployment; frozen main unchanged.
+
+### 2026-10-10 — Room presentation planning confirmed and closed
+
+- User selected Matches—finish planning for the consolidated plan. Marked docs/ROOM_PRESENTATION_PLAN.md planning complete, updated current status and removed root-room-presentation-plan from active work. All interview decisions and acceptance criteria remain recorded; glossary clarification retained in CONTEXT.md.
+- Verification: documentation comparison with the final user confirmation and git diff --check. Planning evidence is static inspection; no runtime suites, mocked/live defense, payment, hosted or physical-device checks run in this planning checkpoint.
+- Remaining: turn the confirmed plan into a specification, then request implementation through the chosen workflow. No runtime changes, commit, push or deployment; frozen main unchanged.
+
+### 2026-10-10 — Shared room presentation specification published locally
+
+- User invoked to-spec. Created .scratch/room-presentation/spec.md in the configured local Markdown tracker with Status: ready-for-agent. Synthesized all confirmed decisions into seven required sections and 34 user stories; no further discovery interview or new product scope. Linked the specification from docs/ROOM_PRESENTATION_PLAN.md, updated current status and closed root-room-presentation-spec active work.
+- Testing seams: reuse the previously user-confirmed actual room-rendering interface, authenticated HTTP/WebSocket flows with external dependencies mocked, and responsive keyboard/browser checks. Integrated tests must retain real seats; targeted countdown/composer checks supplement the primary room seam. No repeated approval request was needed for the same confirmed seams.
+- Verification: a local specification checker passed required headings/status, sequential story format, no implementation paths/snippets, trailing whitespace and planning-link resolution; git diff --check passed. These are documentation checks only. No runtime suites, mocked defense, live AI/payment, hosted or physical-device checks run in this specification checkpoint.
+- Remaining: ticket breakdown or implementation through the requested workflow. Existing planning/glossary changes preserved; no runtime changes, commit, remote push or deployment. Frozen main and hosted release unchanged.
+
+### 2026-10-10 — Room presentation ticket breakdown drafted
+
+- User invoked to-tickets. Prepared .scratch/room-presentation/ticket-breakdown-draft.md with four verifiable behavior slices: ordinary speaking/vote/answer presentation; same-question clarification/reply/submission review; preparation/retry/completion guidance; and migration cleanup plus complete local verification. Dependency graph: 01 -> {02,03} -> 04. Shared files between 02/03 are a coordination concern, not a false blocking edge.
+- Verification: local draft checker confirmed four numbered slices with deliveries and blockers, no specific code paths/snippets, no trailing whitespace and no prematurely published issue files; git diff --check passed. Static scope matches the confirmed specification. No runtime tests, mocked/live defense, provider or hosted checks executed.
+- Remaining: user review of ticket size, dependencies and merges/splits required by to-tickets before separate local ready-for-agent tickets are published. Parent specification and runtime source untouched; unrelated planning/glossary edits preserved. No commit, push, implementation or deployment; frozen main unchanged.
+
+### 2026-10-10 — Approved room presentation tickets published locally
+
+- User selected Approve as drafted. Published four individual ready-for-agent tickets in .scratch/room-presentation/issues: 01-unify-turn-presentation, 02-clarification-reply-review, 03-preparation-recovery-completion and 04-integration-and-local-review. Preserved the approved deliveries and acceptance criteria. Annotated the reviewed breakdown, updated current status and closed root-room-presentation-tickets active work.
+- Verification: local ticket checker passed headings/status, blocker graph 01 -> {02,03} -> 04, topological numbering, six/seven acceptance criteria per ticket, no stale code paths and whitespace. Parent specification SHA-256 remained unchanged through ticket publication; git diff --check passed. Documentation only; no runtime tests or mocked/live/provider/hosted/device verification run.
+- Remaining: implement ticket 01 first; then 02 and 03 once its blocker is complete; 04 waits for both. Existing planning/glossary and unrelated work preserved. No runtime implementation, commit, push or deployment; frozen main and hosted release unchanged.
+
+
+### 2026-10-10 — Room presentation ticket 01 implementation and focused checks
+
+- Session root-room-presentation-01: added a read-only room presentation model shared by App, question card, HUD, panelist/defender seats, dock and countdown. It owns turn identity, role aliases, accepted/resolved counts, timer descriptions and ordinary action guidance. Drafts, transport, server behavior and advanced/lifecycle wording remain with their existing owners for later slices. Voting now says Choose a speaker; chosen defenders see Your turn; teammates see the selected name is answering. README updated.
+- Verification: TDD room test failed on the old voting label, then passed with real room views (including seats) and mocked external account/transport boundaries. Focused checks passed ordinary vote/answer/reassignment, research reaction isolation and full vote duration, no-defender/missing-deadline/null room, accepted-versus-resolved probe history and legacy paused-clock semantics. Existing question/composer/App tests passed; dock assertion updated for the intended answering wording. TypeScript build-mode typecheck passed. These are offline mocked/synthetic checks, not live AI or visual review.
+- Remaining: full offline gate, required Standards/Spec review against starting commit c567311, ticket closure and local commit. Tickets 02–04 not implemented; no publication/deployment.
+
+### 2026-10-10 — Room presentation ticket 01 offline gate
+
+- Implementation complete for the ordinary speaking/voting/answering slice; ticket 01 criteria checked and status ready-for-human. Tickets 02 and 03 are unblocked; their new wording and the ticket 04 browser walkthrough are still pending. Preserved and included the approved originating planning/spec/tickets and glossary edits in the same local handoff.
+- Verification: env -u DATABASE_URL .venv/bin/python -m unittest discover -v passed 443 tests (external AI/Google/PayMongo mocked); game npm test passed 249 tests; npm run build passed TypeScript and Vite. git diff --check passed. Six added tests cover real-view snapshot traces and difficult public presentation semantics. No new browser, live/provider, hosted or physical-device verification; not user visually reviewed.
+- Remaining: required Standards/Spec review against baseline c567311 and any corrections before final handoff. Local commit only; no push/deployment and frozen main unchanged.

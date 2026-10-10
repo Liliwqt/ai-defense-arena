@@ -59,7 +59,7 @@ describe("RoomDock", () => {
     const question = { ...state, phase: "question" as const, selected_seat: 1, vote_deadline_ms: null, answer_deadline_ms: 1_120_000 };
     const view = render(<RoomDock {...props} roomState={question} onSendEvent={() => true} />);
     expect(screen.queryByRole("textbox", { name: /chosen to answer/i })).toBeNull();
-    expect(screen.getByText(/Sam was chosen/)).toBeTruthy();
+    expect(screen.getByText(/Sam is answering/)).toBeTruthy();
     view.rerender(<RoomDock {...props} roomState={{ ...question, self_seat: 1 }} onSendEvent={() => true} />);
     expect(screen.getByRole("textbox", { name: /chosen to answer/i })).toBeTruthy();
   });

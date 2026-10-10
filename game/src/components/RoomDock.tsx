@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { AnswerComposer } from "./AnswerComposer";
 import type { RoomState } from "../types";
 
+import { deriveRoomPresentation, type RoomPresentation } from "../lib/roomPresentation";
+
 interface RoomDockProps {
+  presentation?: RoomPresentation;
   roomState: RoomState | null;
   connected: boolean;
   previewMode: boolean;
@@ -12,7 +15,8 @@ interface RoomDockProps {
   onSendEvent: (payload: Record<string, unknown>) => boolean;
 }
 
-function VotePanel({ state, connected, previewMode, actionError, onSendEvent }: {
+function VotePanel({ state, connected, previewMode, actionError, onSendEvent, instruction }: {
+  instruction: string;
   state: RoomState;
   connected: boolean;
   previewMode: boolean;
@@ -22,7 +26,7 @@ function VotePanel({ state, connected, previewMode, actionError, onSendEvent }: 
   const [localError, setLocalError] = useState("");
   return (
     <div className="vote-panel" aria-label="Choose a defender">
-      <p className="vote-instruction">Choose who will answer. You can change your vote until the clock reaches zero.</p>
+      <p className="vote-instruction">{instruction}</p>
       <div className="vote-choices">
         {state.players.filter((player) => player.online).map((player) => (
           <button key={player.seat} type="button" className={state.my_vote === player.seat ? "selected" : ""}
@@ -85,7 +89,7 @@ function TeamChat({ state, connected, previewMode, actionError, onSendEvent, vis
   );
 }
 
-export function RoomDock({ roomState, connected, previewMode, waitingForAnswerAck, actionError, actionErrorReason, onSendEvent }: RoomDockProps) {
+export function RoomDock({ roomState, connected, previewMode, waitingForAnswerAck, actionError, actionErrorReason, onSendEvent, presentation = deriveRoomPresentation(roomState) }: RoomDockProps) {
   const [tab, setTab] = useState<"action" | "chat">("action");
   const [seenChatId, setSeenChatId] = useState(0);
   const latestChatId = roomState?.chat?.at(-1)?.id ?? 0;
@@ -111,9 +115,9 @@ export function RoomDock({ roomState, connected, previewMode, waitingForAnswerAc
           disabled={!roomState} onClick={() => setTab("chat")}>Team chat{unread > 0 ? ` (${unread})` : ""}</button>
       </div>
       <div id="dock-action" role="tabpanel" hidden={tab !== "action"} className="dock-content">
-        {roomState?.phase === "voting" ? <VotePanel state={roomState} connected={connected} previewMode={previewMode}
-          actionError={actionError} onSendEvent={onSendEvent} /> :
-          <AnswerComposer roomState={roomState} connected={connected} previewMode={previewMode}
+        {presentation.voting && roomState ? <VotePanel state={roomState} connected={connected} previewMode={previewMode}
+          actionError={actionError} onSendEvent={onSendEvent} instruction={presentation.voteInstruction} /> :
+          <AnswerComposer presentation={presentation} roomState={roomState} connected={connected} previewMode={previewMode}
             waitingForAnswerAck={waitingForAnswerAck} actionError={actionError} actionErrorReason={actionErrorReason} onSendEvent={onSendEvent} />}
       </div>
       <div id="dock-chat" role="tabpanel" hidden={tab !== "chat"} className="dock-content">

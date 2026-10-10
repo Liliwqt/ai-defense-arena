@@ -14,6 +14,8 @@ import { useRoomSocket } from "./hooks/useRoomSocket";
 import { previewState } from "./previewState";
 import type { DrawerMode, RoomState } from "./types";
 
+import { deriveRoomPresentation } from "./lib/roomPresentation";
+
 const PRESENTER_MS = 2600;
 const previewMode = new URLSearchParams(window.location.search).get("preview") === "1";
 
@@ -41,6 +43,7 @@ export function App() {
   const sequence = useRef(0);
   const [mockRoomState, setMockRoomState] = useState(previewState);
   const roomState: RoomState | null = previewMode ? mockRoomState : liveRoomState;
+  const presentation = deriveRoomPresentation(roomState);
 
   useEffect(() => {
     if (!previewMode || mockRoomState.phase !== "reacting") return;
@@ -77,7 +80,7 @@ export function App() {
     const phase = roomState?.phase;
     const feedback = roomState?.feedback_status;
     const turns = roomState?.turns ?? [];
-    const answered = turns.filter((turn) => turn.answer).length;
+    const answered = presentation.acceptedCount;
     const firstSnapshot = previousAnswered.current === -1;
     const newAnswer = !firstSnapshot && answered > previousAnswered.current;
 
@@ -163,12 +166,12 @@ export function App() {
   return (
     <div className="arena-shell" data-compact-viewport={viewport.compact} style={{ "--room-viewport-height": `${viewport.height}px` } as React.CSSProperties}>
       <div id="stage" className="arena-stage">
-        <HUD roomState={roomState} roomCode={roomCode} previewMode={previewMode} onOpenDrawer={openDrawer} onPreviewMoment={previewPresenter} />
-        <PanelistSeats roomState={roomState} />
-        <QuestionCard roomState={roomState} />
-        <DefenderSeats roomState={roomState} presenterMoment={presenterMoment} />
+        <HUD presentation={presentation} roomState={roomState} roomCode={roomCode} previewMode={previewMode} onOpenDrawer={openDrawer} onPreviewMoment={previewPresenter} />
+        <PanelistSeats presentation={presentation} roomState={roomState} />
+        <QuestionCard presentation={presentation} roomState={roomState} />
+        <DefenderSeats presentation={presentation} roomState={roomState} presenterMoment={presenterMoment} />
       </div>
-      <RoomDock roomState={roomState} connected={connected} previewMode={previewMode}
+      <RoomDock presentation={presentation} roomState={roomState} connected={connected} previewMode={previewMode}
         waitingForAnswerAck={waitingForAnswerAck} actionError={actionError} actionErrorReason={actionErrorReason} onSendEvent={sendEvent} />
       <Drawer open={drawerOpen} mode={drawerMode} title={title} onClose={closeDrawer}>
         {drawerMode === "controls" ? (

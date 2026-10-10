@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import type { RoomState } from "../types";
 
+import { deriveRoomPresentation, type RoomPresentation } from "../lib/roomPresentation";
+
 interface AnswerComposerProps {
+  presentation?: RoomPresentation;
   roomState: RoomState | null;
   connected: boolean;
   previewMode: boolean;
@@ -9,15 +12,6 @@ interface AnswerComposerProps {
   actionError: string | null;
   actionErrorReason?: string | null;
   onSendEvent: (payload: Record<string, unknown>) => boolean;
-}
-
-function currentQuestionIndex(state: RoomState | null): number {
-  if (!state || !["question", "probe", "interpreting", "interpretation_retry"].includes(state.phase)) return -1;
-  for (let index = state.turns.length - 1; index >= 0; index--) {
-    const turn = state.turns[index];
-    if (turn.question && (!turn.answer || turn.probe?.status === "pending") && !turn.timed_out) return index;
-  }
-  return -1;
 }
 
 function waitingText(state: RoomState | null): string {
@@ -42,22 +36,21 @@ function waitingText(state: RoomState | null): string {
   return "Waiting for the next question…";
 }
 
-export function AnswerComposer({ roomState, connected, previewMode, waitingForAnswerAck, actionError, actionErrorReason, onSendEvent }: AnswerComposerProps) {
+export function AnswerComposer({ roomState, connected, previewMode, waitingForAnswerAck, actionError, actionErrorReason, onSendEvent, presentation = deriveRoomPresentation(roomState) }: AnswerComposerProps) {
   const [draft, setDraft] = useState("");
   const [localError, setLocalError] = useState("");
   const [writeRecovery, setWriteRecovery] = useState(false);
   const [interpretationLimited, setInterpretationLimited] = useState(false);
-  const turnIndex = currentQuestionIndex(roomState);
+  const turnIndex = presentation.answerTurnIndex;
   const probe = turnIndex >= 0 ? roomState?.turns[turnIndex]?.probe : null;
   const probing = probe?.status === "pending";
   const turnKey = `${roomState?.room_code ?? ""}:${turnIndex}:${turnIndex >= 0 ? roomState?.turns[turnIndex]?.question ?? "" : ""}:${probe?.id ?? ""}`;
-  const chosen = turnIndex >= 0 && roomState?.selected_seat != null && roomState.selected_seat === roomState.self_seat;
+  const chosen = presentation.chosenSelf;
   const canWrite = chosen && (roomState?.phase === "probe" || roomState?.phase === "question" || (roomState?.phase === "interpretation_retry" && writeRecovery) || (roomState?.phase === "interpreting" && roomState.clock_paused === false));
   const clarifications = turnIndex >= 0 ? roomState?.turns[turnIndex]?.clarifications?.length ?? 0 : 0;
   const allClarifications = clarifications + (probe?.clarifications.length ?? 0);
   const recoveryAvailable = interpretationLimited || !!roomState?.probe_recovery_available;
   const direct = recoveryAvailable || allClarifications >= 2 || roomState?.interpretation_attempts_left === 0 || roomState?.phase === "interpretation_retry" || roomState?.phase === "interpreting";
-  const chosenName = roomState?.players.find((player) => player.seat === roomState.selected_seat)?.name;
 
   useEffect(() => { setDraft(""); setLocalError(""); setWriteRecovery(false); setInterpretationLimited(false); }, [turnKey]);
   useEffect(() => {
@@ -93,7 +86,7 @@ export function AnswerComposer({ roomState, connected, previewMode, waitingForAn
         </div>
       ) : canWrite ? (
         <form id="answer-form" onSubmit={submitAnswer}>
-          <label htmlFor="answer-textarea">{probing ? "Reply to the panelist probe" : "You were chosen to answer"}{direct ? "" : " or clarify"} question {turnIndex + 1} · {Math.max(0, 2 - allClarifications)} clarifications left</label>
+          <label htmlFor="answer-textarea">{probing ? "Reply to the panelist probe" : presentation.answerPrompt}{direct ? "" : " or clarify"} question {turnIndex + 1} · {Math.max(0, 2 - allClarifications)} clarifications left</label>
           <div className="answer-controls">
             <textarea id="answer-textarea" name="answer" rows={3} maxLength={4000} value={draft}
               onChange={(event) => { setDraft(event.target.value); setLocalError(""); }}
@@ -119,7 +112,7 @@ export function AnswerComposer({ roomState, connected, previewMode, waitingForAn
           {actionError || (roomState?.phase === "interpreting" || roomState?.phase === "interpretation_retry"
             ? waitingText(roomState)
             : turnIndex >= 0
-            ? chosenName ? `${chosenName} was chosen to answer. Use Team Chat to help them.` : "Waiting for a defender to reconnect. The answer clock keeps running."
+            ? presentation.teammateInstruction
             : waitingText(roomState))}
         </p>
       )}

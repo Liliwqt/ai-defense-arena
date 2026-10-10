@@ -2,7 +2,10 @@ import { RoomExpiryNotice } from "./RoomExpiryNotice";
 import type { DrawerMode, RoomState } from "../types";
 import { formatCountdown, useRoomCountdown } from "../hooks/useRoomCountdown";
 
+import { deriveRoomPresentation, type RoomPresentation } from "../lib/roomPresentation";
+
 interface HUDProps {
+  presentation?: RoomPresentation;
   roomState: RoomState | null;
   roomCode: string | null;
   previewMode: boolean;
@@ -10,35 +13,12 @@ interface HUDProps {
   onPreviewMoment?: () => void;
 }
 
-export function HUD({ roomState, roomCode, previewMode, onOpenDrawer, onPreviewMoment }: HUDProps) {
+export function HUD({ roomState, roomCode, previewMode, onOpenDrawer, onPreviewMoment, presentation = deriveRoomPresentation(roomState) }: HUDProps) {
   const phase = roomState?.phase;
-  const probing = roomState?.turns.at(-1)?.probe?.status === "pending";
-  const resolved = (roomState?.turns ?? []).filter((t) => t.resolved ?? (!!t.answer || !!t.timed_out)).length;
-  const seconds = useRoomCountdown(roomState);
-
-  const pillCode = roomState
-    ? `Room ${roomState.room_code || roomCode || "—"}`
-    : "No room yet";
-
-  const addressed = Object.values(roomState?.coverage ?? {}).filter(item => item.status === "addressed").length;
-  const topicCount = roomState?.research_plan?.topics.length ?? 0;
-  const pillProgress =
-    phase === "complete"
-      ? "COMPLETE"
-      : roomState
-        ? roomState.question_budget ? `Question ${roomState.turns.length} of ${roomState.question_budget} · ${roomState.active_panelist?.replace(" Reviewer", "").replace(" Judge", "") ?? "Reviewing"}` : `${resolved} RESOLVED`
-        : "READY";
-
-  const timed = phase === "voting" || phase === "probe" || phase === "question" || phase === "interpreting" || phase === "interpretation_retry";
-  let status = "Ready";
-  if (phase === "complete") status = "Complete";
-  else if (phase === "retry") status = "Retry needed";
-  else if (phase === "reacting") status = "Panelist speaking…";
-  else if (phase === "generating") {
-    const previous = roomState?.turns.at(-1);
-    status = previous?.timed_out ? "Reviewing missed turn…" : previous?.answer ? "Reviewing answer…" : "Preparing question…";
-  } else if (roomState?.research_planning_status === "planning") status = "Mapping research…";
-  else if (roomState?.research_planning_status === "failed") status = "Retry needed";
+  const seconds = useRoomCountdown(roomState, presentation);
+  const { timer, status, progress: pillProgress, coverage } = presentation;
+  const timed = timer !== null;
+  const pillCode = roomState ? `Room ${roomState.room_code || roomCode || "—"}` : "No room yet";
 
   return (
     <header
@@ -73,11 +53,11 @@ export function HUD({ roomState, roomCode, previewMode, onOpenDrawer, onPreviewM
         >
           <span aria-hidden="true">▥</span> {pillProgress}
         </span>
-        {!!roomState?.question_budget && <span className="hud-pill hud-coverage hud-desktop-only">{addressed} of {topicCount} topics addressed</span>}
-        {(phase === "interpreting" || phase === "interpretation_retry") && roomState?.clock_paused !== false && <span id="room-countdown" className="hud-pill hud-timer" role="status" aria-label="Answer timer paused">PAUSED {formatCountdown(Math.ceil((roomState?.remaining_answer_ms ?? 0) / 1000))}</span>}
-        {(phase === "voting" || phase === "probe" || phase === "question" || ((phase === "interpreting" || phase === "interpretation_retry") && roomState?.clock_paused === false)) && (
-          <span id="room-countdown" className={`hud-pill hud-timer${seconds !== null && seconds <= (phase === "voting" ? 5 : 15) ? " is-urgent" : ""}`} role="timer" aria-label={`${phase === "voting" ? "Vote" : probing ? "Probe reply" : "Answer"} time remaining`}>
-            {phase === "voting" ? "VOTE" : probing ? "PROBE" : "ANSWER"} {formatCountdown(seconds)}
+        {!!roomState?.question_budget && <span className="hud-pill hud-coverage hud-desktop-only">{coverage.addressed} of {coverage.total} topics addressed</span>}
+        {timer && (
+          <span id="room-countdown" className={`hud-pill hud-timer${timer.mode === "running" && seconds !== null && seconds <= timer.urgentAt ? " is-urgent" : ""}`}
+            role={timer.mode === "paused" ? "status" : "timer"} aria-label={timer.accessibleLabel}>
+            {timer.label} {formatCountdown(timer.mode === "paused" ? timer.savedSeconds : seconds)}
           </span>
         )}
         <button

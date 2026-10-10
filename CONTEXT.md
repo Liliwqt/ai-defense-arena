@@ -31,6 +31,10 @@ The online defender selected to answer the current question after the speaker vo
 **Clarification**:
 An explanation, translation or example of the existing question that preserves its intent. It is neither the team's answer nor a follow-up question.
 
+**Answer probe**:
+A panelist's request for one important detail about an answer already given, with any defender reply remaining part of the same defense turn.
+_Avoid_: Follow-up question (a new turn), clarification (the defender asks for an explanation).
+
 **Grounded citation**:
 An exact excerpt from accepted uploaded material with its validated location. It establishes the excerpt's origin, not the correctness of the panelist's interpretation.
 

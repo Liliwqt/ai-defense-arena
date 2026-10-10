@@ -2,114 +2,17 @@ import { ProbeExchange } from "./ProbeExchange";
 import { PageCitation } from "./PageCitation";
 import { useEffect, useRef } from "react";
 import { isResearchCitation } from "../lib/citation";
-import type { RoomState, Turn } from "../types";
+import type { RoomState } from "../types";
+
+import { deriveRoomPresentation, type RoomPresentation } from "../lib/roomPresentation";
 
 interface QuestionCardProps {
+  presentation?: RoomPresentation;
   roomState: RoomState | null;
 }
 
-interface CardContent {
-  name: string;
-  question: string;
-  number: string;
-  filename?: string;
-  line?: number;
-  evidence?: string;
-  location?: string;
-  kind?: string;
-  before?: string;
-  after?: string;
-  reviewStatus?: string;
-  previousAnswer?: string;
-  clarifications?: Turn["clarifications"];
-  probe?: Turn["probe"];
-  initialAnswer?: string | null;
-}
-
-function sourceContent(turn: Turn) {
-  return {
-    probe: turn.probe,
-    filename: turn.filename,
-    line: turn.evidence_line,
-    evidence: turn.evidence_text,
-    location: turn.evidence_location,
-    kind: turn.evidence_kind,
-    before: turn.evidence_before,
-    after: turn.evidence_after,
-  };
-}
-
-function deriveContent(state: RoomState | null): CardContent {
-  const phase = state?.phase ?? "none";
-  const turns = state?.turns ?? [];
-  const resolved = turns.filter((turn) => turn.resolved ?? (!!turn.answer || !!turn.timed_out)).length;
-  let current: Turn | null = null;
-  let currentIndex = -1;
-  for (let index = turns.length - 1; index >= 0; index--) {
-    if (turns[index].question && (!turns[index].answer || turns[index].probe?.status === "pending") && !turns[index].timed_out) {
-      current = turns[index];
-      currentIndex = index;
-      break;
-    }
-  }
-
-  if ((phase === "voting" || phase === "probe" || phase === "question" || phase === "interpreting" || phase === "interpretation_retry") && current) {
-    return {
-      name: current.panelist,
-      question: current.question,
-      number: `QUESTION ${currentIndex + 1}${state?.question_budget ? ` OF ${state.question_budget}` : ""}`,
-      ...sourceContent(current),
-      clarifications: current.clarifications,
-      initialAnswer: current.answer,
-      reviewStatus: phase === "interpreting" ? state?.clock_paused === false ? "Reading your submission… Answer clock running." : "Reading your submission… Answer clock paused." : phase === "interpretation_retry" ? state?.clock_paused === false ? "Could not interpret the submission. Answer clock running." : "Could not interpret the submission. Answer clock paused." : undefined,
-    };
-  }
-  if (phase === "generating") {
-    const previous = [...turns].reverse().find((turn) => turn.resolved ?? (!!turn.answer || !!turn.timed_out));
-    if (previous) {
-      return {
-        name: previous.panelist,
-        question: previous.question,
-        number: "REVIEWING",
-        reviewStatus: previous.timed_out ? "Reviewing the missed turn…" : "Reviewing your answer…",
-        previousAnswer: previous.timed_out
-          ? "Time expired · question passed to the panel."
-          : `Team answer${previous.answered_by ? ` · ${previous.answered_by}` : ""}: ${previous.answer}`,
-        ...sourceContent(previous),
-        clarifications: previous.clarifications,
-      };
-    }
-    return { name: state?.active_panelist ?? "The panel", question: "Reviewing the project…", number: `QUESTION ${resolved + 1}` };
-  }
-  if (phase === "retry") {
-    return { name: "Question paused", question: `${state?.error ?? "The next question could not be generated."} The host can retry from Controls.`, number: `QUESTION ${resolved + 1}` };
-  }
-  if (phase === "complete") {
-    const feedback = state?.feedback_status;
-    return {
-      name: feedback === "generating" ? "Preparing coaching report" : "Defense complete",
-      question: feedback === "generating"
-        ? "The panel has finished. Your coaching report is being prepared."
-        : feedback === "failed"
-          ? `${state?.error ?? "The coaching report could not be generated."} The host can retry from Controls.`
-          : `Open Transcript to review your answers and coaching report.${state?.completion_reason ? ` Ending reason: ${state.completion_reason}.` : ""}`,
-      number: `${resolved} RESOLVED`,
-    };
-  }
-  if (phase === "lobby") {
-    if (state?.research_planning_status === "planning") {
-      return { name: "Preparing research coverage", question: "Mapping the uploaded research. The scope preview will appear in Controls for your team to inspect.", number: "MAPPING" };
-    }
-    if (state?.research_plan) {
-      return { name: "Research scope ready", question: `${state.research_plan.topics.length} proposed topics are ready in Controls. Review the map and confirm the question budget before starting.`, number: "PLAN READY" };
-    }
-    return { name: "Your team is gathering", question: "The host starts the defense when everyone is ready.", number: "READY" };
-  }
-  return { name: "Your defense begins here", question: "Create or join a room to begin your defense.", number: "READY" };
-}
-
-export function QuestionCard({ roomState }: QuestionCardProps) {
-  const content = deriveContent(roomState);
+export function QuestionCard({ roomState, presentation = deriveRoomPresentation(roomState) }: QuestionCardProps) {
+  const content = presentation.card;
   const clarification = content.probe ? undefined : content.clarifications?.at(-1);
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -120,10 +23,8 @@ export function QuestionCard({ roomState }: QuestionCardProps) {
     const probe = scroll?.querySelector<HTMLElement>(".panelist-probe");
     if (scroll && probe) scroll.scrollTop += probe.getBoundingClientRect().top - scroll.getBoundingClientRect().top;
   }, [content.probe?.id, content.probe?.clarifications.length]);
-  if (roomState?.defense_type && roomState.defense_type !== "code" && content.name === "Critical Judge") content.name = "Critical Reviewer";
-  if (roomState?.phase === "reacting") {
-    const turn = roomState.turns.at(-1);
-    const name = roomState.defense_type !== "code" && turn?.panelist === "Critical Judge" ? "Critical Reviewer" : turn?.panelist;
+  if (presentation.reaction) {
+    const { name, text } = presentation.reaction;
     return (
       <section id="question-card" className="panelist-reaction-card" aria-labelledby="panelist-reaction-name">
         <div className="question-heading">
@@ -131,7 +32,7 @@ export function QuestionCard({ roomState }: QuestionCardProps) {
           <span className="question-number">SPEAKING</span>
         </div>
         <div className="question-scroll panelist-reaction-scroll" tabIndex={0} aria-label="Panelist response">
-          <p className="panelist-reaction-text" role="status" aria-live="polite" aria-atomic="true">{turn?.lead_in}</p>
+          <p className="panelist-reaction-text" role="status" aria-live="polite" aria-atomic="true">{text}</p>
           <p className="panelist-reaction-next">The next question and speaker vote will follow.</p>
         </div>
       </section>
