@@ -34,6 +34,34 @@ function snapshot(state: RoomState | null) {
 
 afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); });
 
+it("keeps Controls guidance current during voting, answering, replies and submission recovery", () => {
+  snapshot(room());
+  const view = render(<App />);
+  const controls = within(screen.getByRole("dialog", { name: "Controls" }));
+  expect(controls.getByText(/Choose a speaker/)).toBeTruthy();
+  const state = room({ phase: "question", selected_seat: 1, answer_deadline_ms: 121000 });
+  snapshot(state);
+  view.rerender(<App />);
+  expect(controls.getByText(/Sam is answering.*Team Chat/)).toBeTruthy();
+  snapshot({ ...state, selected_seat: 0 });
+  view.rerender(<App />);
+  expect(controls.getByText(/Your turn.*bottom dock/)).toBeTruthy();
+  const probe = { id: "reply1", request: "Explain the restart?", status: "pending" as const, references: [], reply: null, clarifications: [] };
+  snapshot({ ...state, phase: "probe", selected_seat: 0, turns: [{ ...state.turns[0], answer: "Pilot only.", probe }] });
+  view.rerender(<App />);
+  expect(controls.getByText(/Reply to panelist.*bottom dock/)).toBeTruthy();
+  snapshot({ ...state, phase: "interpreting", clock_paused: false });
+  view.rerender(<App />);
+  expect(controls.getByText(/Reviewing submission · Timer running.*Selected defender: Sam/)).toBeTruthy();
+  snapshot({ ...state, phase: "interpretation_retry", clock_paused: true, interpretation_attempts_left: 2 });
+  view.rerender(<App />);
+  expect(controls.getByText(/Submission review failed · Timer paused.*You can retry the panelist.*selected defender/)).toBeTruthy();
+  snapshot({ ...state, phase: "interpretation_retry", self_seat: 1, self_is_host: false,
+    interpretation_attempts_left: 0, my_pending_submission: "Saved draft." });
+  view.rerender(<App />);
+  expect(controls.getByText(/No panelist retries remain.*write a new answer.*saved submission/)).toBeTruthy();
+});
+
 it("keeps real seats, question, countdown and action guidance in step from vote to answer and reassignment", () => {
   vi.useFakeTimers();
   snapshot(room());

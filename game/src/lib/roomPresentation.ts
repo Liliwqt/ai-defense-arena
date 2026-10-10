@@ -261,17 +261,23 @@ export function deriveRoomPresentation(state: Readonly<RoomState> | null) {
   const progress = phase === "complete" ? "COMPLETE" : state
     ? state.question_budget ? turns.length === 0 ? `0 of ${state.question_budget} questions generated` : `Question ${turns.length} of ${state.question_budget} · ${displayRole(state.active_panelist ?? "Reviewing").replace(" Reviewer", "").replace(" Judge", "")}` : `${resolvedCount} RESOLVED`
     : "READY";
+  const voteInstruction = "Choose a speaker. You can change your vote until the clock reaches zero.";
+  const answerPrompt = probing ? "Reply to panelist" : phase === "question" ? "Your turn · You were chosen to answer" : "Submit an answer directly";
+  const teammateInstruction = chosenName ? `${chosenName} is ${probing ? "replying" : "answering"}. Use Team Chat to help them.` : "Waiting for a defender to reconnect. The answer clock keeps running.";
+  const guidance = voting ? voteInstruction
+    : retryingSubmission ? submission.recoveryGuidance
+    : reviewing ? submission.reviewGuidance
+    : phase === "question" || phase === "probe" ? chosenSelf ? `${answerPrompt} in the bottom dock.` : teammateInstruction
+    : lifecycleGuidance(state);
   return {
     currentIndex, answerTurnIndex, acceptedCount, resolvedCount, card, clarification, reaction, panelists, defenders,
-    guidance: lifecycleGuidance(state),
+    guidance,
     controls: { questionRetry: phase === "retry", questionRetryAvailable: state?.question_attempts_left !== 0,
       coachingRetry: phase === "complete" && state?.feedback_status === "failed", coachingRetryAvailable: state?.coaching_attempts_left !== 0 },
     voting, chosenSelf, chosenName, submission, timer: deriveTimer(state), status: interpretationStatus(state) ?? roomStatus(state), progress,
     coverage: { addressed: Object.values(state?.coverage ?? {}).filter(item => item.status === "addressed").length,
       total: state?.research_plan?.topics.length ?? 0 },
-    voteInstruction: "Choose a speaker. You can change your vote until the clock reaches zero.",
-    answerPrompt: probing ? "Reply to panelist" : phase === "question" ? "Your turn · You were chosen to answer" : "Submit an answer directly",
-    teammateInstruction: chosenName ? `${chosenName} is ${probing ? "replying" : "answering"}. Use Team Chat to help them.` : "Waiting for a defender to reconnect. The answer clock keeps running.",
+    voteInstruction, answerPrompt, teammateInstruction,
   };
 }
 

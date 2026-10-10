@@ -176,7 +176,7 @@ export function App() {
       <Drawer open={drawerOpen} mode={drawerMode} title={title} onClose={closeDrawer}>
         {drawerMode === "controls" ? (
           <>
-            <ControlsPanel roomState={previewMode ? roomState : liveRoomState} connected={connected} previewMode={previewMode}
+            <ControlsPanel presentation={presentation} roomState={previewMode ? roomState : liveRoomState} connected={connected} previewMode={previewMode}
               onUseRoom={handleUseRoom} onLeaveRoom={handleLeaveRoom} onSendEvent={sendEvent}
               onCloseDrawer={closeDrawer} showMessage={showMessage} account={account}
               onOpenAccount={() => openDrawer("account")} onOpenTranscript={() => openDrawer("transcript")}
