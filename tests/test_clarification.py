@@ -89,7 +89,7 @@ class ClarificationRoomTests(unittest.IsolatedAsyncioTestCase):
 
     async def asyncSetUp(self):
         for name in ['_schedule_coaching']:
-            mocked = patch.object(server, name)
+            mocked = patch('backend.rooms.coordinator.RoomCoordinator.' + name)
             mocked.start()
             self.addCleanup(mocked.stop)
         authenticate(self, unit_server=server)

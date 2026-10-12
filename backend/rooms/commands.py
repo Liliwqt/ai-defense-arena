@@ -68,12 +68,38 @@ class InterpretSubmission:
     interpretation_id: int
 
 
+@dataclass(frozen=True)
+class PrepareResearchPlan:
+    retry: bool = False
+
+
+@dataclass(frozen=True)
+class ApproveResearchPlan:
+    plan_id: object
+    question_budget: object
+
+
+@dataclass(frozen=True)
+class GenerateResearchPlan:
+    generation_id: int
+
+
+@dataclass(frozen=True)
+class RetryCoaching:
+    pass
+
+
+@dataclass(frozen=True)
+class GenerateCoaching:
+    generation_id: int
+
+
+PlanCommand = PrepareResearchPlan | ApproveResearchPlan
 SubmissionCommand = SubmitAnswer | SubmitDirectAnswer | SubmitProbeReply | FinishProbe | RetryInterpretation | UsePendingAnswer
 
 
 LegacyAction = Literal[
-    "start", "restart", "retry", "retry_coaching", "prepare_research_plan",
-    "retry_research_plan", "approve_research_plan", "end_defense", "end_unavailable",
+    "start", "restart", "retry", "end_defense", "end_unavailable",
 ]
 
 
@@ -85,7 +111,7 @@ class LegacyCommand:
     payload: Mapping[str, object]
 
 
-Command = CastVote | SendChat | LegacyCommand | GenerateQuestion | CatchUpDeadline | SubmissionCommand | InterpretSubmission
+Command = CastVote | SendChat | LegacyCommand | GenerateQuestion | CatchUpDeadline | SubmissionCommand | InterpretSubmission | PlanCommand | GenerateResearchPlan | RetryCoaching | GenerateCoaching
 
 
 def decode_command(message: dict) -> Command:
@@ -106,6 +132,12 @@ def decode_command(message: dict) -> Command:
         return RetryInterpretation()
     if action == "use_pending_as_answer":
         return UsePendingAnswer()
+    if action in {"prepare_research_plan", "retry_research_plan"}:
+        return PrepareResearchPlan(retry=action == "retry_research_plan")
+    if action == "approve_research_plan":
+        return ApproveResearchPlan(message.get("plan_id"), message.get("question_budget"))
+    if action == "retry_coaching":
+        return RetryCoaching()
     if action in get_args(LegacyAction):
         return LegacyCommand(action, MappingProxyType(dict(message)))
     raise ValueError("Unknown room action.")

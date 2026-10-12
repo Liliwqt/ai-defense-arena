@@ -10,11 +10,18 @@ from typing import get_args
 from backend.rooms.commands import (
     SendChat, CastVote, GenerateQuestion, CatchUpDeadline, LegacyCommand,
     Command, CommandResult, VerifiedActor, decode_command,
-    SubmissionCommand, InterpretSubmission,
+    SubmissionCommand, InterpretSubmission, PlanCommand, GenerateResearchPlan,
+    RetryCoaching, GenerateCoaching,
 )
 from backend.rooms.submissions import (
     InterpretationWork, InterpretationRequest, request_interpretation,
     capture_interpretation, run_interpretation, handle_submission,
+)
+from backend.rooms.coaching import (
+    CoachingWork, CoachingRequest, request_coaching, capture_coaching, run_coaching, retry_coaching,
+)
+from backend.rooms.planning import (
+    PlanWork, PlanInput, PlanRequest, request_plan, run_plan, handle_plan_command,
 )
 from backend.rooms.model import Room, now_ms
 from backend.timed_turn import DeadlineExpired
@@ -41,10 +48,11 @@ class RoomWorkflows:
     publish: Callable[[Room], Awaitable[None]]
     now: Callable[[], int] = now_ms
     legacy_action: Callable[[Room, VerifiedActor, LegacyCommand], Awaitable[CommandResult]] | None = None
+    plan_request: PlanRequest = request_plan
     interpretation_request: InterpretationRequest = request_interpretation
     question_request: QuestionRequest = request_question
     sleep: Callable[[float], Awaitable[None]] = lambda seconds: asyncio.sleep(seconds)
-    coaching: Callable[[Room, int], None] | None = None
+    coaching_request: CoachingRequest = request_coaching
 
 
 class RoomCoordinator:
@@ -56,6 +64,8 @@ class RoomCoordinator:
         self._shutdown_started = False
         self._question_tasks: dict[tuple[str | None, int], asyncio.Task] = {}
         self._interpretation_tasks: dict[tuple[str | None, int], asyncio.Task] = {}
+        self._plan_tasks: dict[tuple[str | None, int], asyncio.Task] = {}
+        self._coaching_tasks: dict[tuple[str | None, int], asyncio.Task] = {}
         self._tasks: set[asyncio.Task] = set()
         self._clock_work: ClockWork | None = None
         room.coordinator = self
@@ -85,6 +95,14 @@ class RoomCoordinator:
             async with room.lock:
                 task = self._schedule_interpretation(command.interpretation_id)
             return CommandResult(task is not None)
+        if isinstance(command, GenerateResearchPlan):
+            async with room.lock:
+                task = self._schedule_research_plan(command.generation_id)
+            return CommandResult(task is not None)
+        if isinstance(command, GenerateCoaching):
+            async with room.lock:
+                task = self._schedule_coaching(command.generation_id)
+            return CommandResult(task is not None)
         if isinstance(command, CatchUpDeadline):
             await self._expire_deadline(command.clock_id, command.run_id)
             return CommandResult(True)
@@ -99,6 +117,10 @@ class RoomCoordinator:
             except ValueError as failure:
                 return CommandResult(False, str(failure))
         await self._expire_deadline()
+        if isinstance(command, RetryCoaching):
+            return await retry_coaching(self, actor)
+        if isinstance(command, get_args(PlanCommand)):
+            return await handle_plan_command(self, actor, command)
         if isinstance(command, get_args(SubmissionCommand)):
             return await handle_submission(self, actor, command)
         if isinstance(command, LegacyCommand):
@@ -177,6 +199,24 @@ class RoomCoordinator:
         room = self._room
         return not room.closed and room.run_id == work.run_id and room.generation_id == work.generation_id and room.phase == "generating"
 
+    def _plan_current(self, work: PlanWork) -> bool:
+        room = self._room
+        return (not room.closed and room.run_id == work.run_id
+                and room.research_plan_generation_id == work.generation_id
+                and room.phase == "lobby" and room.research_planning_status == "planning")
+
+    def _schedule_research_plan(self, version: int) -> asyncio.Task | None:
+        room = self._room
+        work = PlanWork(version, room.run_id)
+        if not self._plan_current(work):
+            return None
+        key = (work.run_id, work.generation_id)
+        if key in self._plan_tasks:
+            return self._plan_tasks[key]
+        request = PlanInput(tuple(room.files), room.defense_type, room.research_stage)
+        return self._retain_work_task(self._plan_tasks, key,
+                                      asyncio.create_task(run_plan(self, work, request)))
+
     def _interpretation_current(self, work: InterpretationWork) -> bool:
         room = self._room
         return (not room.closed and room.run_id == work.run_id
@@ -254,9 +294,24 @@ class RoomCoordinator:
         room.generation_id += 1
         return room.generation_id, None
 
-    def _schedule_coaching(self, version: int) -> None:
-        if self._workflows.coaching is not None:
-            self._workflows.coaching(self._room, version)
+    def _coaching_current(self, work: CoachingWork) -> bool:
+        room = self._room
+        return (not room.closed and room.run_id == work.run_id
+                and room.feedback_generation_id == work.generation_id
+                and room.phase == "complete" and room.feedback_status == "generating"
+                and room.defense is not None)
+
+    def _schedule_coaching(self, version: int) -> asyncio.Task | None:
+        room = self._room
+        work = CoachingWork(version, room.run_id)
+        if not self._coaching_current(work):
+            return None
+        key = (work.run_id, work.generation_id)
+        if key in self._coaching_tasks:
+            return self._coaching_tasks[key]
+        request = capture_coaching(room)
+        return self._retain_work_task(self._coaching_tasks, key,
+                                      asyncio.create_task(run_coaching(self, work, request)))
 
     async def _expire_deadline(self, expected_id: int | None = None, expected_run: str | None = None) -> None:
         room = self._room

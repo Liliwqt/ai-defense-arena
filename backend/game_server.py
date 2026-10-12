@@ -16,7 +16,6 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from backend.rooms.errors import safe_generation_error
 from backend.rooms.model import Player, Room, now_ms as _now_ms
 from backend.rooms.coordinator import (
     RoomCoordinator, RoomWorkflows,
@@ -38,12 +37,6 @@ from backend.payments import router as test_payment_router
 from backend.payments_live import router as live_payment_router
 from backend.project_files import MAX_ARCHIVE_BYTES, MAX_FILE_BYTES, ProjectFile, read_project_files
 from backend.research_files import MAX_RESEARCH_BYTES, read_research_files, combine_sources
-from backend.research_plan import ResearchPlan, generate_research_plan, validate_question_budget
-from backend.question_generator import (
-    DEFAULT_MODEL,
-    CoachingReport,
-    generate_coaching_report,
-)
 
 
 SERVICE_ID = secrets.token_hex(24)
@@ -393,97 +386,6 @@ def _clear_clock_locked(room: Room) -> None:
     _coordinator(room)._cancel_clock()
 
 
-async def _prepare_research_plan(room: Room, plan_generation_id: int) -> None:
-    async with room.lock:
-        if room.closed or room.research_plan_generation_id != plan_generation_id or room.phase != "lobby":
-            return
-        files, mode, stage = list(room.files), room.defense_type, room.research_stage
-    try:
-        async with room.lock:
-            room.ai_budget.admit('plan', limit('AI_PLAN_ATTEMPTS', 3, 10), room.owner_account_id or room.code)
-        plan = await asyncio.to_thread(generate_research_plan, files, os.getenv("OPENAI_API_KEY"),
-                                       os.getenv("OPENAI_MODEL") or DEFAULT_MODEL,
-                                       defense_type=mode, research_stage=stage)
-    except Exception as error:
-        async with room.lock:
-            if room.research_plan_generation_id != plan_generation_id or room.phase != "lobby":
-                return
-            room.research_planning_status = "failed"
-            room.research_plan_error = safe_generation_error(error)
-            room.revision += 1
-        await publish(room)
-        return
-    async with room.lock:
-        if room.research_plan_generation_id != plan_generation_id or room.phase != "lobby":
-            return
-        room.research_plan = plan
-        room.research_planning_status = "ready"
-        room.research_plan_error = None
-        room.research_budget_preview = plan.suggested_budget
-        room.research_plan_approved = False
-        room.revision += 1
-    await publish(room)
-
-
-def _schedule_research_plan(room: Room, plan_generation_id: int) -> None:
-    task = asyncio.create_task(_prepare_research_plan(room, plan_generation_id))
-    task.add_done_callback(lambda finished: finished.exception() if not finished.cancelled() else None)
-
-
-async def _generate_coaching(room: Room, feedback_generation_id: int) -> None:
-    api_key = os.getenv("OPENAI_API_KEY")
-    model = os.getenv("OPENAI_MODEL") or DEFAULT_MODEL
-    async with room.lock:
-        if room.feedback_generation_id != feedback_generation_id or room.defense is None:
-            return
-        history = room.defense.answered_history()
-        research_context = room.defense.context() if isinstance(room.defense, ResearchDefenseSession) else None
-    try:
-        if not history:
-            report = CoachingReport("The host ended the defense before any answer or timeout was recorded. No discussion coverage was confirmed.", [], [], "Review the paper map and start a new defense when the team is ready.")
-        else:
-            async with room.lock:
-                if room.closed or room.feedback_generation_id != feedback_generation_id:
-                    return
-                room.ai_budget.admit('coaching', limit('AI_COACHING_ATTEMPTS', 3, 10), room.owner_account_id or room.code)
-            report = await asyncio.to_thread(
-                generate_coaching_report, room.files, history, api_key, model,
-                defense_type=room.defense_type, research_stage=room.research_stage,
-                **({"research_context": research_context} if research_context else {}),
-            )
-        async with room.lock:
-            if room.feedback_generation_id != feedback_generation_id:
-                return
-            if live_mode() and room.run_id:
-                LiveStore().finish_run(room.run_id,"completed")
-            room.settled = True
-            room.terminal_ms = _now_ms()
-            room.feedback = report
-            room.feedback_status = "ready"
-            room.error = None
-            room.revision += 1
-    except Exception as error:
-        async with room.lock:
-            if room.feedback_generation_id != feedback_generation_id:
-                return
-            room.feedback_status = "failed"
-            room.error = safe_generation_error(error)
-            if live_mode() and room.run_id and not isinstance(error, HTTPException):
-                try:LiveStore().service_state(room.run_id,"unavailable","coaching")
-                except Exception:
-                    room.error="The coaching state could not be saved. Your answers are retained; retry when the service recovers."
-            room.revision += 1
-        await publish(room)
-        return
-
-    await publish(room)
-
-
-def _schedule_coaching(room: Room, feedback_generation_id: int) -> None:
-    task = asyncio.create_task(_generate_coaching(room, feedback_generation_id))
-    task.add_done_callback(lambda finished: finished.exception() if not finished.cancelled() else None)
-
-
 @app.get("/health")
 async def health() -> dict[str, str]:
     if live_mode() and app.state.room_service_status != "ready":
@@ -686,7 +588,6 @@ def _coordinator(room: Room) -> RoomCoordinator:
             publish=lambda state: publish(state),
             now=lambda: _now_ms(),
             legacy_action=lambda state, actor, command: _handle_legacy_action(state, actor, command),
-            coaching=lambda state, version: _schedule_coaching(state, version),
         ))
     return room.coordinator
 
@@ -714,7 +615,7 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
 
 
 async def _handle_legacy_action(room: Room, actor: VerifiedActor, command: LegacyCommand) -> CommandResult:
-    """Temporary execution adapter for workflows scheduled for tickets 04–06."""
+    """Temporary execution adapter for lifecycle workflows scheduled for ticket 06."""
     action = command.action
     message = command.payload
     account = {"id": actor.account_id}
@@ -723,7 +624,6 @@ async def _handle_legacy_action(room: Room, actor: VerifiedActor, command: Legac
     generate_first = None
     generation_id = None
     feedback_generation_id = None
-    plan_generation_id = None
     async with room.lock:
         if room.closed:
             return CommandResult(False, "Room not found. Create a fresh room.")
@@ -732,8 +632,6 @@ async def _handle_legacy_action(room: Room, actor: VerifiedActor, command: Legac
             return CommandResult(False, "This room link is no longer valid. Join again.")
         # Authorize before mutation or scheduling any paid AI work.
         try:
-            if player.is_host and action in {"prepare_research_plan", "retry_research_plan"}:
-                require_run_access(account["id"])
             if player.is_host and action == "start" and room.phase == "lobby" and room.defense is None:
                 # Budget/map validation below must precede a reservation.
                 if room.defense_type == "code" or (room.research_plan and room.research_plan_approved
@@ -747,41 +645,8 @@ async def _handle_legacy_action(room: Room, actor: VerifiedActor, command: Legac
                 _reserve_room_run(room, account["id"], True, retry=True)
         except AccessError as failure:
             return CommandResult(False, str(failure))
-        if action in {"start", "restart", "retry", "retry_coaching", "prepare_research_plan", "retry_research_plan", "approve_research_plan", "end_defense", "end_unavailable"} and not player.is_host:
+        if action in {"start", "restart", "retry", "end_defense", "end_unavailable"} and not player.is_host:
             error = "Only the host can control the defense."
-        elif action in {"prepare_research_plan", "retry_research_plan"}:
-            if room.defense_type == "code":
-                error = "Paper mapping is available for research and mixed defenses only."
-            elif room.phase != "lobby" or room.defense is not None:
-                error = "Prepare the research map before starting a defense."
-            elif room.research_planning_status == "planning":
-                error = "The research map is already being prepared."
-            elif action == "retry_research_plan" and room.research_planning_status != "failed":
-                error = "There is no failed research map to retry."
-            else:
-                room.activity_ms = _now_ms()
-                room.research_planning_status = "planning"
-                room.research_plan_error = None
-                room.research_plan = None
-                room.research_budget_preview = None
-                room.research_plan_approved = False
-                room.research_plan_generation_id += 1
-                plan_generation_id = room.research_plan_generation_id
-                room.revision += 1
-        elif action == "approve_research_plan":
-            if room.phase != "lobby" or room.research_planning_status != "ready" or room.research_plan is None:
-                error = "Prepare a research map before confirming its question budget."
-            elif message.get("plan_id") != room.research_plan.id:
-                error = "The research map changed. Review the current map before confirming."
-            else:
-                try:
-                    room.research_budget_preview = validate_question_budget(message.get("question_budget"))
-                except ValueError as exc:
-                    error = str(exc)
-                else:
-                    room.activity_ms = _now_ms()
-                    room.research_plan_approved = True
-                    room.revision += 1
         elif action == "start":
             if room.phase != "lobby" or room.defense is not None:
                 error = "The defense has already started."
@@ -882,26 +747,15 @@ async def _handle_legacy_action(room: Room, actor: VerifiedActor, command: Legac
                 room.generation_id += 1
                 generation_id = room.generation_id
                 room.revision += 1
-        elif action == "retry_coaching":
-            if room.phase != "complete" or room.feedback_status != "failed":
-                error = "There is no failed coaching report to retry."
-            else:
-                room.feedback_status = "generating"
-                room.error = None
-                room.feedback_generation_id += 1
-                feedback_generation_id = room.feedback_generation_id
-                room.revision += 1
         else:
             error = "Unknown room action."
     if error:
         return CommandResult(False, error, error_reason)
     await publish(room)
-    if plan_generation_id is not None:
-        _schedule_research_plan(room, plan_generation_id)
     if generate_first is not None and generation_id is not None:
         _coordinator(room)._schedule_question(generation_id, generate_first)
     if feedback_generation_id is not None:
-        _schedule_coaching(room, feedback_generation_id)
+        _coordinator(room)._schedule_coaching(feedback_generation_id)
 
     return CommandResult(True)
 

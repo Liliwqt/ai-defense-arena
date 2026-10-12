@@ -192,7 +192,7 @@ class RoomAccessTests(unittest.TestCase):
         room,host,_=self.create();room.defense_type='research'
         self.act(room,host,'prepare_research_plan');self.assertEqual(room.research_planning_status,'none')
         self.seed(10)
-        with patch.object(server,'_schedule_research_plan') as scheduled:self.act(room,host,'prepare_research_plan');scheduled.assert_called_once()
+        with patch('backend.rooms.coordinator.RoomCoordinator._schedule_research_plan') as scheduled:self.act(room,host,'prepare_research_plan');scheduled.assert_called_once()
         self.assertEqual(store.account_access(self.account['id'])['test_credits'],10)
 
     def test_failed_charge_does_not_publish_opening_question(self):
@@ -218,7 +218,7 @@ class RoomAccessTests(unittest.TestCase):
                     q=GroundedQuestion('How will the pilot work?','study.md',4,PAPER.splitlines()[3],evidence_kind='research_text')
                     with patch.object(question_workflow, 'generate_research_move',return_value=ResearchMove('Methodology Reviewer',q,'topic-1',False,None)):
                         self.client.portal.call(generate_question,room,room.generation_id,True)
-                with patch.object(server,'_schedule_coaching'):self.act(room,host,'end_defense')
+                with patch('backend.rooms.coordinator.RoomCoordinator._schedule_coaching'):self.act(room,host,'end_defense')
                 access=store.account_access(self.account['id'])
                 self.assertEqual(access['reserved_credits'],0)
                 self.assertEqual(access['spent_credits'],before+(10 if publish else 0))

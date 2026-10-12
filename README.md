@@ -156,10 +156,16 @@ interpretation work, and rejects obsolete or late results without losing accepte
 answers. Same-question clarifications, probes and direct-answer recovery retain
 their existing limits and clocks.
 
-Paper mapping, coaching and lifecycle actions retain an explicit temporary adapter
-while later tickets migrate them. The shutdown seam cancels migrated question,
-interpretation and clock tasks; full task ownership and service shutdown integration
-belong to the later lifecycle checkpoint.
+Research preparation/approval and final coaching now use tracked coordinator
+work as well. Captured sources, transcript and coverage stay stable during AI
+requests; run/version/phase checks reject stale plans, reports and failures.
+Host retries use fresh work identities, and an empty ended defense receives the
+existing factual summary without an AI call. Settlement and recovery retain the
+existing financial policy.
+
+Lifecycle actions retain an explicit temporary adapter for the later checkpoint.
+The shutdown seam cancels migrated question, interpretation, planning, coaching
+and clock tasks; service lifecycle integration remains pending.
 
 This is a local implementation on `feature/question-first-room`, with no new
 browser protocol, UI, payment policy or Streamlit behavior. See the approved

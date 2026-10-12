@@ -14,7 +14,7 @@ class LiveRoomTests(GameServerTests):
         live.start();self.addCleanup(live.stop)
         recover=patch('backend.payments_live.recover_payments',new_callable=AsyncMock)
         recover.start();self.addCleanup(recover.stop)
-        coaching=patch('backend.game_server.generate_coaching_report',return_value=__import__('backend.question_generator', fromlist=["*"]).CoachingReport('Offline report',[],[],'Review the discussion.'))
+        coaching=patch('backend.rooms.coaching.generate_coaching_report',return_value=__import__('backend.question_generator', fromlist=["*"]).CoachingReport('Offline report',[],[],'Review the discussion.'))
         coaching.start();self.addCleanup(coaching.stop)
         super().setUp()
 

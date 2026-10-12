@@ -1,3 +1,4 @@
+from backend.rooms import coaching as coaching_workflow
 from backend.timed_turn import VOTE_MS, ANSWER_MS
 from backend.rooms import submissions as submission_workflow
 from backend.rooms import questions as question_workflow
@@ -368,7 +369,7 @@ class ResearchTwoClientTests(unittest.TestCase):
                 report = CoachingReport('Review complete.', [{'turn': 0, 'text': 'Specific plan.'}],
                                          [{'turn': 1, 'text': 'Clarify ethics.'}], 'Run a pilot.')
                 with patch.object(question_workflow, 'generate_research_move', side_effect=moves), \
-                     patch.object(game_server, 'generate_coaching_report', return_value=report):
+                     patch.object(coaching_workflow, 'generate_coaching_report', return_value=report):
                     with self.client.websocket_connect(f"/ws/{host['room_code']}") as host_ws, \
                          self.client.websocket_connect(f"/ws/{host['room_code']}") as guest_ws:
                         host_ws.send_json({'type': 'hello', 'token': host['player_token']})

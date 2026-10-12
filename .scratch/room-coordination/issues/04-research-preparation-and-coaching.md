@@ -7,21 +7,21 @@ retain uploads and transcript.
 
 **Blocked by:** 02 — Coordinate questions, retries and authoritative deadlines.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 **Checkpoint:** 2 — asynchronous workflows.
 
 ## Acceptance criteria
 
-- [ ] Migrate map and coaching task ownership, admission, version/phase checks and
+- [x] Migrate map and coaching task ownership, admission, version/phase checks and
   publication without changing prompts, report validation or request count.
-- [ ] Preserve host-only preparation/approval, current plan/budget matching,
+- [x] Preserve host-only preparation/approval, current plan/budget matching,
   research scope, citation validation and no-question-on-planning-failure behavior.
-- [ ] Preserve coaching settlement/recovery semantics and the factual empty-session
+- [x] Preserve coaching settlement/recovery semantics and the factual empty-session
   summary without an AI request.
-- [ ] Deduplicate identical map/coaching work and suppress obsolete success/failure;
+- [x] Deduplicate identical map/coaching work and suppress obsolete success/failure;
   distinguish legitimate fresh retries and intended new closing coaching.
-- [ ] Verify prepared research start, map retry, transcript/coverage retention,
+- [x] Verify prepared research start, map retry, transcript/coverage retention,
   coaching retry, privacy and durable settlement using existing contract tests.
 
 ## Scope and execution constraints
@@ -54,3 +54,19 @@ retain uploads and transcript.
 
 - 2026-10-12: User approved the seven-ticket size and blocking graph. Published
   to the local Markdown tracker; implementation has not started.
+
+- 2026-10-12: Implemented locally. Preparation, retry and approval use closed
+  host-only commands; maps and coaching have retained, deduplicated tasks with
+  run/version/phase/closure fences before admission and both result paths.
+  Inputs capture accepted sources and detached transcript/coverage. Provider
+  validation, prompts, budgets, access and settlement policy remain unchanged.
+- Verification: 477 Python tests pass (offline, AI/Google/PayMongo mocked), 261
+  React tests pass and production build succeeds. Seven new command/view checks
+  cover duplicate work, current-map approval, retained uploads after map failure,
+  stale map/report success and failure, coaching retry/transcript privacy,
+  distinct newer closing work and empty-session summary without AI admission.
+  Existing two-client and local durable-credit fixtures pass in the full gate.
+- Independent Standards and Spec reviews report zero findings. Ready for local
+  human review; no new visual/live AI/provider/PostgreSQL/hosted/device evidence.
+  Tickets 05–07 remain; no push/deployment requested. The explicit Implement
+  invocation authorizes a local commit and preserves unrelated files.

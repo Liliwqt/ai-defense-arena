@@ -1,3 +1,6 @@
+from tests.room_commands import generate_coaching
+from backend.rooms import coaching as coaching_workflow
+from backend.rooms import planning as planning_workflow
 from backend.timed_turn import VOTE_MS, ANSWER_MS
 from tests.room_commands import interpret_pending
 from backend.rooms import submissions as submission_workflow
@@ -374,7 +377,7 @@ class CoverageRoomTests(unittest.IsolatedAsyncioTestCase):
         async def delayed(*args, **kwargs):
             started.set(); await release.wait()
             return ResearchMove(RESEARCH_PANELISTS[0], GroundedQuestion('How?', 'paper.md', 1, PAPER.splitlines()[0]), 'topic-1', False, None)
-        with patch('backend.game_server.asyncio.to_thread', side_effect=delayed), patch('backend.game_server._schedule_coaching'):
+        with patch('backend.game_server.asyncio.to_thread', side_effect=delayed), patch('backend.rooms.coordinator.RoomCoordinator._schedule_coaching'):
             task = asyncio.create_task(generate_question(self.room, 1, True))
             await started.wait()
             await game_server._handle_action(self.room, self.guest, self.socket, {'type':'end_defense'})
@@ -383,8 +386,8 @@ class CoverageRoomTests(unittest.IsolatedAsyncioTestCase):
             release.set(); await task
         self.assertEqual(self.room.phase, 'complete')
         self.assertEqual(self.room.defense.turns, [])
-        with patch('backend.game_server.generate_coaching_report') as coach:
-            await game_server._generate_coaching(self.room, self.room.feedback_generation_id)
+        with patch('backend.rooms.coaching.generate_coaching_report') as coach:
+            await generate_coaching(self.room, self.room.feedback_generation_id)
             coach.assert_not_called()
         self.assertEqual(self.room.feedback.strengths, [])
         self.assertIn('before any answer', self.room.feedback.summary)
@@ -414,7 +417,7 @@ class CoverageRoomTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(self.room.reaction_deadline_ms)
         self.room.clock_task = asyncio.create_task(asyncio.sleep(60))
         self.room.pending_submission = None
-        with patch('backend.game_server._schedule_coaching'):
+        with patch('backend.rooms.coordinator.RoomCoordinator._schedule_coaching'):
             await game_server._handle_action(self.room, self.host, self.socket, {'type':'end_defense'})
         self.assertIsNone(self.room.vote_deadline_ms)
         self.assertIsNone(self.room.reaction_deadline_ms)
@@ -491,10 +494,10 @@ class CoverageProtocolTests(unittest.TestCase):
                         strengths=[CoachingPoint(turn=1,text='The team described a pilot comparison.')],
                         improvements=[CoachingPoint(turn=0,text='The opening question received no answer.')],next_step='Review remaining topics.')
                     return generate_coaching_report(files,history,'offline-key',client=Client(draft),**kwargs)
-                with patch.object(game_server,'generate_research_plan',return_value=p), \
+                with patch.object(planning_workflow,'generate_research_plan',return_value=p), \
                      patch.object(question_workflow, 'generate_research_move',side_effect=generate) as generator, \
                      patch.object(submission_workflow,'interpret_submission',side_effect=interpret), \
-                     patch.object(game_server,'generate_coaching_report',side_effect=coach):
+                     patch.object(coaching_workflow,'generate_coaching_report',side_effect=coach):
                     with self.client.websocket_connect(f'/ws/{code}') as h, self.client.websocket_connect(f'/ws/{code}') as g:
                         h.send_json({'type':'hello','token':host['player_token']});self.until(h,'lobby')
                         g.send_json({'type':'hello','token':guest['player_token']});self.until(g,'lobby')
@@ -607,7 +610,7 @@ class CoverageAdditionalTests(unittest.IsolatedAsyncioTestCase):
         async def delayed(*args, **kwargs):
             started.set(); await release.wait(); return SubmissionDecision('answer')
         async def send(event): pass
-        with patch('backend.game_server.asyncio.to_thread', side_effect=delayed), patch('backend.game_server._schedule_coaching'):
+        with patch('backend.game_server.asyncio.to_thread', side_effect=delayed), patch('backend.rooms.coordinator.RoomCoordinator._schedule_coaching'):
             task=asyncio.create_task(interpret_pending(room, 1))
             await asyncio.wait_for(started.wait(), 2)
             await game_server._handle_action(room, host, SimpleNamespace(send_json=send), {'type':'end_defense'})

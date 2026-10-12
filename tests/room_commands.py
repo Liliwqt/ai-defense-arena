@@ -24,3 +24,23 @@ async def interpret_pending(room, interpretation_id):
             return
         request = capture_interpretation(room, work.pending)
     await run_interpretation(owner, work, request)
+
+
+async def prepare_research_plan(room, version):
+    from backend.rooms.planning import PlanWork, PlanInput, run_plan
+    owner = server._coordinator(room)
+    async with room.lock:
+        work = PlanWork(version, room.run_id)
+        request = PlanInput(tuple(room.files), room.defense_type, room.research_stage)
+    await run_plan(owner, work, request)
+
+
+async def generate_coaching(room, version):
+    from backend.rooms.coaching import CoachingWork, capture_coaching, run_coaching
+    owner = server._coordinator(room)
+    async with room.lock:
+        work = CoachingWork(version, room.run_id)
+        if not owner._coaching_current(work):
+            return
+        request = capture_coaching(room)
+    await run_coaching(owner, work, request)

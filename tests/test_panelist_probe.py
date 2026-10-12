@@ -1,3 +1,5 @@
+from backend.rooms import coaching as coaching_workflow
+from backend.rooms import planning as planning_workflow
 from backend.rooms import submissions as submission_workflow
 from backend.rooms import questions as question_workflow
 from tests.room_commands import catch_up_deadline
@@ -231,7 +233,7 @@ class ProbeProtocolTests(unittest.TestCase):
                         decisions.extend([SubmissionDecision('clarify', 'Name the decision in your answer.'), SubmissionDecision('answer')])
                     elif i == len(roles)-1:
                         decisions.append(SubmissionDecision('answer'))
-                with patch.dict(os.environ, {'OPENAI_API_KEY':'offline'}), patch.object(question_workflow, 'generate_first_question', return_value=self.questions[0]), patch.object(question_workflow, 'generate_next_move', side_effect=moves), patch.object(submission_workflow, 'interpret_submission', side_effect=decisions), patch.object(server, 'generate_coaching_report', return_value=CoachingReport('Review.', [], [], 'Practice.')):
+                with patch.dict(os.environ, {'OPENAI_API_KEY':'offline'}), patch.object(question_workflow, 'generate_first_question', return_value=self.questions[0]), patch.object(question_workflow, 'generate_next_move', side_effect=moves), patch.object(submission_workflow, 'interpret_submission', side_effect=decisions), patch.object(coaching_workflow, 'generate_coaching_report', return_value=CoachingReport('Review.', [], [], 'Practice.')):
                     host = self.create_room(); guest = self.join_room(host['room_code'])
                     hs,_ = self.connect(host['room_code'], host['player_token'])
                     gs,_ = self.connect(host['room_code'], guest['player_token'])
@@ -350,7 +352,7 @@ class ProbeProtocolTests(unittest.TestCase):
                 server.rooms.clear()
                 stack.enter_context(patch.dict(os.environ, {'OPENAI_API_KEY':'offline'}))
                 planned = plan(4)
-                stack.enter_context(patch.object(server,'generate_research_plan',return_value=planned))
+                stack.enter_context(patch.object(planning_workflow,'generate_research_plan',return_value=planned))
                 def generate(files,key,*,history,context,**kwargs):
                     output = proposal(context, history)
                     if output['action']=='ask':
@@ -363,7 +365,7 @@ class ProbeProtocolTests(unittest.TestCase):
                 def coach(files,history,*args,**kwargs):
                     captured.extend(history)
                     return CoachingReport('Review retained answers.',[],[],'Practice.')
-                stack.enter_context(patch.object(server,'generate_coaching_report',side_effect=coach))
+                stack.enter_context(patch.object(coaching_workflow,'generate_coaching_report',side_effect=coach))
                 files = [('research_files',('paper.md',PAPER.encode(),'text/markdown'))]
                 if mode == 'mixed': files += [('files',('main.py',b'value=1','text/x-python'))]
                 response = self.client.post('/api/rooms',data={'host_name':'Alex','defense_type':mode},files=files)

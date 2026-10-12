@@ -1,3 +1,4 @@
+from tests.room_commands import prepare_research_plan
 from tests.offline_accounts import authenticate
 """Offline paper-map checks; all AI calls mocked, no paid requests."""
 
@@ -213,7 +214,7 @@ class ResearchPlanRoomTests(unittest.TestCase):
 
     def test_two_clients_prepare_confirm_and_reconnect_without_extra_call(self):
         for mode in ("research", "mixed"):
-            with self.subTest(mode=mode), patch('backend.game_server.generate_research_plan', return_value=self.plan) as generator, \
+            with self.subTest(mode=mode), patch('backend.rooms.planning.generate_research_plan', return_value=self.plan) as generator, \
                  patch('backend.rooms.questions.generate_first_question') as question_call:
                 host = self.create(mode)
                 guest = self.client.post(f"/api/rooms/{host['room_code']}/join", json={"name": "Guest"}).json()
@@ -249,7 +250,7 @@ class ResearchPlanRoomTests(unittest.TestCase):
 
     def test_failure_retry_and_stale_or_invalid_approval_preserve_uploads(self):
         host = self.create()
-        with patch('backend.game_server.generate_research_plan', side_effect=[QuestionGenerationError("The AI cited an invalid source line."), self.plan]) as generator, \
+        with patch('backend.rooms.planning.generate_research_plan', side_effect=[QuestionGenerationError("The AI cited an invalid source line."), self.plan]) as generator, \
              patch('backend.rooms.questions.generate_first_question') as question_call, \
              self.client.websocket_connect(f"/ws/{host['room_code']}") as h:
             self.hello(h, host["player_token"])
@@ -302,7 +303,7 @@ class ResearchPlanRaceTests(unittest.IsolatedAsyncioTestCase):
             events.append(event)
         await game_server._handle_action(room, host, socket, {"type": "start"})
         self.assertIn("Wait for", events[-1]["message"])
-        with patch('backend.game_server._schedule_research_plan') as schedule:
+        with patch('backend.rooms.coordinator.RoomCoordinator._schedule_research_plan') as schedule:
             await game_server._handle_action(room, host, socket, {"type": "prepare_research_plan"})
             self.assertIn("already being prepared", events[-1]["message"])
             schedule.assert_not_called()
@@ -313,7 +314,7 @@ class ResearchPlanRaceTests(unittest.IsolatedAsyncioTestCase):
             await release.wait()
             return plan
         with patch('backend.game_server.asyncio.to_thread', side_effect=delayed), patch('backend.rooms.coordinator.RoomCoordinator._schedule_question'):
-            task = asyncio.create_task(game_server._prepare_research_plan(room, 1))
+            task = asyncio.create_task(prepare_research_plan(room, 1))
             await started.wait()
             await game_server._handle_action(room, host, socket, {"type": "restart"})
             release.set()
