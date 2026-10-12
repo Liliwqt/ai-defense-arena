@@ -6,7 +6,7 @@ Use this file to track completed updates across agents and session windows. See 
 
 - Render startup mismatch diagnosed, 2026-10-13: user-provided deploy log shows a successful build followed by obsolete game_server:app imports. Local Uvicorn importer reproduces that error; backend.game_server:app loads successfully. render.yaml/README already specify the package-qualified command. Feature-service dashboard correction/redeployment and hosted health remain unverified; no server-setting change performed by this session.
 
-- Logo icon generated and integrated locally, 2026-10-13: generated shield/speech-bubble PNG now supplies the React desktop header and browser favicon through game/public/ai-defense-arena-icon.png. Original/prompt remain under presentation/branding/. Frontend gate: 261 tests/build pass; synthetic desktop/portrait/landscape checks confirm asset loading and no overflow. Compact mobile timer layout and native launcher icons retain their current behavior. User visual review and publication/deployment remain pending.
+- Logo icon generated, integrated and published in dba75a7, 2026-10-13: generated shield/speech-bubble PNG now supplies the React desktop header and browser favicon through game/public/ai-defense-arena-icon.png. Original/prompt remain under presentation/branding/. Frontend gate: 261 tests/build pass; synthetic desktop/portrait/landscape checks confirm asset loading and no overflow. Compact mobile timer layout and native launcher icons retain their current behavior. Source publication verified; user visual review and deployment remain pending.
 
 - Reviewed room-coordination source published, 2026-10-12: origin/feature/question-first-room independently verified at 2e56c86d4abfb5d9e852b98bb03d74b6eb4221da, including prerequisite recovery, all seven migration commits and the final review report. Deployment held with [skip render]; frozen main verified unchanged at 866e923c40c3cf431e66984861dd7dbefb223f8b. User visual/live/hosted/device checks remain separate.
 
@@ -166,7 +166,6 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Active work
 
-- root-logo-publish, started 2026-10-13: user authorized pushing the logo integration, original asset/prompt and related handoff notes to origin/feature/question-first-room. Close with a dated remote verification receipt; [skip render], no deployment or main changes. Preserve unrelated footprint research.
 
 
 
@@ -2260,3 +2259,10 @@ Append new entries to the **end** of this file in date order:
 - Session: root-logo-publish; user requested pushing the completed logo integration. Selected game/public/ai-defense-arena-icon.png, game/index.html, HUD.tsx, index.css, the original/prompt under presentation/branding/ and related handoff notes. Included the earlier local Render-startup diagnosis in the shared log; no configuration change.
 - Verification: local diff check passes; origin/feature/question-first-room is d4e8fcfe7087f9e1453bf03588572b0530d23b49 and origin/main remains 866e923c40c3cf431e66984861dd7dbefb223f8b. The unchanged logo patch already passed 261 frontend tests, production build and synthetic desktop/portrait/landscape asset/overflow checks; no redundant tests or provider calls. Unrelated docs/PROJECT_SIZE_RESEARCH.md remains untracked and unchanged.
 - Remaining: push and independently verify the remote SHA. [skip render] holds deployment; hosted logo/startup and user visual/device confirmation remain separate.
+
+
+### 2026-10-13 — Web logo pushed and independently verified
+
+- Session: root-logo-publish; closes its active-work claim with this dated receipt. Logo integration and original/prompt committed as dba75a7 on feature/question-first-room.
+- Verification: git push succeeded from d4e8fcf to dba75a7; independent git ls-remote confirms origin/feature/question-first-room at dba75a744433d2ac5677863ee23bf506a60c0b94 and frozen origin/main unchanged at 866e923c40c3cf431e66984861dd7dbefb223f8b. Existing frontend/build/synthetic preview checks remain the executable evidence; no new hosted or provider verification.
+- Changed: this publication receipt/current status only, committed and pushed separately with [skip render]. Deployment is held; unrelated docs/PROJECT_SIZE_RESEARCH.md remains untracked and untouched. No main merge, Render redeploy, native launcher update or PDF viewer added.
