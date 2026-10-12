@@ -9,6 +9,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from backend import game_server
+from backend.timed_turn import PendingSubmission
 from backend.defense_session import ResearchDefenseSession, advance_defense
 from backend.project_files import ProjectFile
 from backend.question_generator import (RESEARCH_PANELISTS, ResearchMove, ResearchMoveDraft, TopicAssessmentDraft,
@@ -593,7 +594,7 @@ class CoverageAdditionalTests(unittest.IsolatedAsyncioTestCase):
         room.defense = ResearchDefenseSession.create(plan(4), 8, 'research', 'proposal')
         room.defense.apply_move(mocked_move(FILES, None, history=[], context=room.defense.context()))
         room.phase, room.interpretation_id, room.selected_seat = 'interpreting', 1, 0
-        room.pending_submission = game_server.PendingSubmission(0, host.token, host.name, 0, 'Text awaiting interpretation.', 60000)
+        room.pending_submission = PendingSubmission(0, host.token, host.name, 0, 'Text awaiting interpretation.', 60000)
         started, release = asyncio.Event(), asyncio.Event()
         async def delayed(*args, **kwargs):
             started.set(); await release.wait(); return SubmissionDecision('answer')

@@ -139,6 +139,20 @@ See [PROJECT_LOG.md](PROJECT_LOG.md) for evidence and publication history. Agent
 
 ## Architecture release checkpoint
 
+The first local room-coordination checkpoint groups the multiplayer state and
+snapshot serializer in `backend/rooms/model.py`. Each multiplayer room has one
+`RoomCoordinator`; voting and team chat pass through its typed command boundary,
+and connected clients receive recipient-specific views. FastAPI still verifies
+tokens and host accounts for each invocation. The remaining AI, timer and
+lifecycle workflows use an explicit temporary adapter while later tickets migrate
+them. The coordinator shutdown seam is available locally; service shutdown and
+complete task ownership are part of the later lifecycle checkpoint.
+
+This is a local implementation on `feature/question-first-room`, with no new
+browser protocol, UI, payment policy or Streamlit behavior. See the approved
+[room-coordination tickets](.scratch/room-coordination/issues/) for the remaining
+migration and final integration checks. Publication and deployment are separate.
+
 The timed-turn, purchase persistence and shared progression modules are published
 on the feature service, with checkout UI compatible with account-owned receipts. The isolated committed release passed **212 Python tests with external
 providers mocked, 156 React tests, and the production build**. Account UI and upload-progress changes are now included in feature-branch source; the hosted verification below describes the earlier deployed release. Hosted health and assets match the tested release. Evidence and limitations are

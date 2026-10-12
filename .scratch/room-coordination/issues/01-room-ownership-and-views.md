@@ -7,20 +7,20 @@ complete command path through transport, validation, mutation and publication.
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 **Checkpoint:** 1 — ownership and wiring.
 
 ## Acceptance criteria
 
-- [ ] Establish the agreed command/view/shutdown seam and server-verified actor
+- [x] Establish the agreed command/view/shutdown seam and server-verified actor
   wiring without inventing a general command registry or new browser fields.
-- [ ] Create/join/reconnect preserve seats, tokens, account checks, recipient privacy,
+- [x] Create/join/reconnect preserve seats, tokens, account checks, recipient privacy,
   bounded chat and snapshot shape; voting/chat use the new command seam.
-- [ ] Preserve existing launch, fallback and root-relative assets/data paths.
-- [ ] Unmigrated workflows retain their existing implementation through explicit,
+- [x] Preserve existing launch, fallback and root-relative assets/data paths.
+- [x] Unmigrated workflows retain their existing implementation through explicit,
   temporary delegation, with no duplicated policy implementation.
-- [ ] Verify authenticated create/join/reconnect and vote/chat publication through
+- [x] Verify authenticated create/join/reconnect and vote/chat publication through
   existing HTTP/WebSocket tests and focused command/view behavior.
 
 ## Scope and execution constraints
@@ -53,3 +53,19 @@ complete command path through transport, validation, mutation and publication.
 
 - 2026-10-12: User approved the seven-ticket size and blocking graph. Published
   to the local Markdown tracker; implementation has not started.
+
+- 2026-10-12: Implemented and independently code-reviewed locally. Room state
+  lives under backend/rooms/ with one coordinator, typed vote/chat commands,
+  server-verified actors, recipient views and an idempotent shutdown seam. Real
+  transport/authentication is wired; AI/timer/lifecycle workflows retain the
+  explicit temporary adapter for later tickets. Existing launch/fallback and
+  browser contracts are preserved.
+- Verification: full offline gate passes 461 Python tests (AI/Google/PayMongo
+  mocked), 261 React tests and production build. A stale test import found by the
+  first full run was corrected. After review, a shared online-defender lookup
+  replaced duplicate logic; 52 affected offline command/transport/deadline/retry/
+  clarification/research tests pass. Standards: zero remaining findings after
+  resolving one minor duplication concern. Spec: zero ticket-01 findings.
+- Ready for local human review; visual/provider/hosted/device checks are not
+  claimed. Ticket 02 is unblocked; later tickets remain pending. The explicit
+  Implement invocation authorizes local commits; no push/deployment requested.

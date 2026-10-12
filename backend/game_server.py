@@ -3,21 +3,24 @@
 import asyncio
 from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass
 import json
 import logging
 import os
 from pathlib import Path
 import secrets
 import threading
-import time
-from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from openai import OpenAIError, APIConnectionError, APIStatusError
 from pydantic import BaseModel, ValidationError
+
+from backend.rooms.model import Player, Room, now_ms as _now_ms
+from backend.rooms.coordinator import (
+    RoomCoordinator, RoomWorkflows, VerifiedActor, LegacyCommand, CommandResult, decode_command,
+)
 
 from backend.defense_session import DefenseSession, ResearchDefenseSession, MAX_ANSWER_CHARS, PANELIST_ORDER
 from backend.defense_progression import prepare_progression, commit_progression
@@ -26,10 +29,10 @@ from backend.account_store import (AccessError, require_run_access, reserve_run,
                            release_run, release_orphaned_reservations)
 from backend.financial_policy import live_mode
 from backend.live_store import LiveStore, ServiceAlreadyActive
-from backend.resource_limits import (limit, creation_rate, ai_rate, AIBudget, client_network,
+from backend.resource_limits import (limit, creation_rate, ai_rate, client_network,
     JoinAdmissionMiddleware, join_rate, join_capacity, socket_capacity,
     socket_connect_rate, socket_player_rate, socket_message_rate, socket_room_rate)
-from backend.timed_turn import TimedTurn, PendingSubmission, DeadlineExpired, VOTE_MS, ANSWER_MS
+from backend.timed_turn import DeadlineExpired, VOTE_MS, ANSWER_MS
 from backend.payments import router as test_payment_router
 from backend.payments_live import router as live_payment_router
 from backend.project_files import MAX_ARCHIVE_BYTES, MAX_FILE_BYTES, ProjectFile, read_project_files
@@ -54,8 +57,6 @@ SERVICE_POLL_SECONDS = 2
 SERVICE_HEARTBEAT_SECONDS = 10
 SERVICE_STARTING_MESSAGE = "The room service is restarting. Please retry shortly."
 MAX_PLAYERS = 4
-MAX_CHAT_MESSAGES = 100
-MAX_CHAT_CHARS = 500
 MAX_ROOMS = 20
 MAX_REQUEST_BYTES = 110_000_000
 ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -70,173 +71,6 @@ class UploadedBytes:
     def getvalue(self) -> bytes:
         return self.data
 
-
-@dataclass
-class Player:
-    token: str
-    name: str
-    seat: int
-    is_host: bool = False
-    sockets: set[WebSocket] = field(default_factory=set)
-
-
-@dataclass
-class Room(TimedTurn):
-    code: str
-    files: list[ProjectFile]
-    players: dict[str, Player]
-    defense_type: str = "code"
-    research_stage: str = "infer"
-    defense: DefenseSession | None = None
-    revision: int = 0
-    published_revision: int = -1
-    generation_id: int = 0
-    question_retry_generation_id: int | None = None
-    feedback_status: str = "none"   # none | generating | ready | failed
-    feedback: CoachingReport | None = None
-    research_planning_status: str = "none"  # none | planning | ready | failed
-    research_plan: ResearchPlan | None = None
-    research_plan_error: str | None = None
-    research_budget_preview: int | None = None
-    research_plan_approved: bool = False
-    research_plan_generation_id: int = 0
-    feedback_generation_id: int = 0
-    chat: list[dict[str, Any]] = field(default_factory=list)
-    chat_seq: int = 0
-    clock_task: asyncio.Task | None = field(default=None, repr=False)
-    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-    broadcast_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-    owner_account_id: str | None = None
-    run_id: str | None = None
-    absent_since_ms: int | None = None
-    absence_elapsed_ms: int = 0
-
-    created_ms: int = field(default_factory=lambda: _now_ms())
-    activity_ms: int = field(default_factory=lambda: _now_ms())
-    terminal_ms: int | None = None
-    settled: bool = True
-    closed: bool = False
-    ai_budget: AIBudget = field(default_factory=AIBudget)
-
-    def expires_at(self):
-        if self.closed or not self.settled or self.phase not in {'lobby', 'retry', 'complete'} or self.research_planning_status == 'planning' or self.feedback_status in {'generating', 'failed'}:
-            return None
-        if self.phase == 'complete':
-            return (self.terminal_ms or self.activity_ms) + limit('ROOM_RETENTION_SECONDS', 1800, 86400) * 1000
-        if self.defense and self.defense.turns:
-            return None
-        return self.activity_ms + limit('ROOM_IDLE_SECONDS', 1800, 86400) * 1000
-
-    def snapshot(self, recipient: Player | None = None) -> dict[str, Any]:
-        turns = []
-        if self.defense:
-            for index, turn in enumerate(self.defense.turns):
-                turns.append(
-                    {
-                        "panelist": turn.panelist,
-                        "lead_in": turn.question.lead_in,
-                        "question": turn.question.question,
-                        "filename": turn.question.filename,
-                        "evidence_line": turn.question.evidence_line,
-                        "evidence_text": turn.question.evidence_text,
-                        "evidence_location": turn.question.evidence_location or f"Line {turn.question.evidence_line}",
-                        "evidence_kind": turn.question.evidence_kind,
-                        "evidence_before": turn.question.evidence_before,
-                        "evidence_after": turn.question.evidence_after,
-                        "clarifications": [exchange.__dict__ for exchange in turn.clarifications],
-                        "answer": turn.answer,
-                        "probe": asdict(turn.probe) if turn.probe else None,
-                        "resolved": turn.resolved,
-                        "timed_out": turn.timed_out,
-                        "ended_early": turn.ended_early,
-                        "topic_id": turn.topic_id,
-                        "is_follow_up": turn.is_follow_up,
-                        "assigned_seat": turn.assigned_seat,
-                        "answered_by": self.answered_by.get(index),
-                        "answered_by_seat": self.answered_by_seat.get(index),
-                    }
-                )
-        if self.defense and self.defense.awaiting_answer:
-            active_panelist = self.defense.turns[-1].panelist
-        elif self.defense and self.defense.needs_question:
-            active_panelist = self.defense.pending_panelist
-        elif self.phase == "generating":
-            active_panelist = "Methodology Reviewer" if self.defense_type != "code" else PANELIST_ORDER[0]
-        else:
-            active_panelist = None
-        feedback_dict = None
-        if self.feedback is not None:
-            feedback_dict = {
-                "summary": self.feedback.summary,
-                "strengths": self.feedback.strengths,
-                "improvements": self.feedback.improvements,
-                "next_step": self.feedback.next_step,
-            }
-        return {
-            "room_code": self.code,
-            "expires_at_ms": self.expires_at(),
-            "interpretation_attempts_left": max(0, limit('AI_INTERPRETATION_ATTEMPTS', 6, 20) - self.interpretation_attempts),
-            "clock_paused": self.pause_deadline_ms is not None and _now_ms() < self.pause_deadline_ms,
-            "pause_deadline_ms": self.pause_deadline_ms,
-            "question_attempts_left": self.ai_budget.remaining(f'question:{len(self.defense.turns) if self.defense else 0}', limit('AI_QUESTION_ATTEMPTS', 3, 10)),
-            "question_retrying": self.phase == "generating" and self.question_retry_generation_id == self.generation_id,
-            "coaching_attempts_left": self.ai_budget.remaining('coaching', limit('AI_COACHING_ATTEMPTS', 3, 10)),
-            "plan_attempts_left": self.ai_budget.remaining('plan', limit('AI_PLAN_ATTEMPTS', 3, 10)),
-            "self_seat": recipient.seat if recipient is not None else None,
-            "self_is_host": recipient.is_host if recipient is not None else False,
-            "phase": self.phase,
-            "probe_recovery_available": self.probe_recovery_available,
-            "probe_deadline_ms": self.answer_deadline_ms if self.defense and self.defense.turns and self.defense.turns[-1].probe and self.defense.turns[-1].probe.status == "pending" else None,
-            "players": [
-                {
-                    "seat": player.seat,
-                    "name": player.name,
-                    "online": bool(player.sockets),
-                    "is_host": player.is_host,
-                }
-                for player in sorted(self.players.values(), key=lambda player: player.seat)
-            ],
-            "turns": turns,
-            "active_panelist": active_panelist,
-            "error": self.error,
-            "revision": self.revision,
-            "files": [file.name for file in self.files],
-            "accepted_files": [{"name": file.name, "kind": file.kind, "detail": file.detail} for file in self.files],
-            "defense_type": self.defense_type,
-            "research_stage": self.research_stage,
-            "research_planning_status": self.research_planning_status,
-            "research_plan": self.research_plan.snapshot() if self.research_plan else None,
-            "research_plan_error": self.research_plan_error,
-            "research_budget_preview": self.research_budget_preview,
-            "research_plan_approved": self.research_plan_approved,
-            "question_budget": self.defense.question_budget if isinstance(self.defense, ResearchDefenseSession) else None,
-            "coverage": self.defense.coverage if isinstance(self.defense, ResearchDefenseSession) else {},
-            "current_topic": self.defense.turns[-1].topic_id if isinstance(self.defense, ResearchDefenseSession) and self.defense.turns else None,
-            "completion_reason": self.defense.completion_reason if isinstance(self.defense, ResearchDefenseSession) else None,
-            "feedback_status": self.feedback_status,
-            "feedback": feedback_dict,
-            "server_now_ms": _now_ms(),
-            "vote_deadline_ms": self.vote_deadline_ms,
-            "reaction_deadline_ms": self.reaction_deadline_ms,
-            "answer_deadline_ms": self.answer_deadline_ms,
-            "remaining_answer_ms": self.pending_submission.remaining_ms if self.pending_submission else None,
-            "my_pending_submission": (
-                self.pending_submission.text if recipient is not None and self.pending_submission
-                and recipient.token == self.pending_submission.token else None
-            ),
-            "selected_seat": self.selected_seat,
-            "vote_counts": {
-                str(seat): sum(1 for token, choice in self.votes.items()
-                               if choice == seat and bool(self.players[token].sockets))
-                for seat in sorted({player.seat for player in self.players.values() if player.sockets})
-            },
-            "my_vote": self.votes.get(recipient.token) if recipient is not None else None,
-            "chat": list(self.chat),
-        }
-
-
-def _now_ms() -> int:
-    return int(time.time() * 1000)
 
 
 rooms: dict[str, Room] = {}
@@ -538,7 +372,7 @@ async def publish(room: Room) -> None:
             deliveries = []
             for player in room.players.values():
                 if player.sockets:
-                    payload = {"type": "snapshot", "state": room.snapshot(player)}
+                    payload = {"type": "snapshot", "state": _coordinator(room).view(VerifiedActor(player.token, room.owner_account_id if player.is_host else None))}
                     deliveries.extend((socket, payload) for socket in player.sockets)
 
         async def deliver(socket, payload):
@@ -559,16 +393,12 @@ async def publish(room: Room) -> None:
         await asyncio.gather(*(deliver(socket, payload) for socket, payload in deliveries))
 
 
-def _online_players(room: Room) -> dict[str, int]:
-    return {player.token: player.seat for player in room.players.values() if player.sockets}
-
-
 def _set_selected_locked(room: Room, seat: int | None) -> None:
     room.set_selected(seat, room.defense)
 
 
 def _reassign_if_offline_locked(room: Room) -> bool:
-    changed = room.reassign(_online_players(room), room.defense)
+    changed = room.reassign(room.online_players(), room.defense)
     if changed:
         room.revision += 1
     return changed
@@ -619,7 +449,7 @@ async def _expire_deadline(room: Room, expected_id: int | None = None) -> None:
     generation_id = None
     feedback_id = None
     async with room.lock:
-        outcome = room.expire(_now_ms(), _online_players(room), room.defense, expected_id)
+        outcome = room.expire(_now_ms(), room.online_players(), room.defense, expected_id)
         if outcome == "reaction_finished":
             room.revision += 1
             changed = True
@@ -770,7 +600,7 @@ async def _interpret_pending(room: Room, interpretation_id: int) -> None:
         if room.defense is None:
             return
         try:
-            outcome = room.interpret(room.defense, decision, interpretation_id, pending, _online_players(room), _now_ms())
+            outcome = room.interpret(room.defense, decision, interpretation_id, pending, room.online_players(), _now_ms())
         except ValueError as failure:
             if not room.interpretation_failed(interpretation_id, pending, str(failure)):
                 return
@@ -968,8 +798,10 @@ async def create_room(
         while code in rooms:
             code = _room_code()
         token = _new_token()
-        rooms[code] = Room(code, project_files, {token: Player(token, name, 0, True)}, defense_type, research_stage,
-                           owner_account_id=account["id"])
+        room = Room(code, project_files, {token: Player(token, name, 0, True)}, defense_type, research_stage,
+                    owner_account_id=account["id"], created_ms=_now_ms(), activity_ms=_now_ms())
+        _coordinator(room)
+        rooms[code] = room
     return {"room_code": code, "player_token": token}
 
 
@@ -1022,6 +854,7 @@ async def join_room(code: str, request: JoinRequest) -> dict[str, str]:
     room = rooms.get(code.upper())
     if room is None:
         raise HTTPException(404, "Room not found. Check the invite code.")
+    _coordinator(room)
     async with room.lock:
         if room.closed:
             raise HTTPException(404, "Room not found. Create a fresh room.")
@@ -1084,6 +917,18 @@ def _reserve_room_run(room: Room, account_id: str, confirmed: bool, retry: bool 
     room.absence_elapsed_ms = 0
 
 
+def _coordinator(room: Room) -> RoomCoordinator:
+    """Compose one coordinator; legacy workflow adapters disappear during migration."""
+    if room.coordinator is None:
+        RoomCoordinator(room, RoomWorkflows(
+            publish=lambda state: publish(state),
+            expire_deadline=lambda state: _expire_deadline(state),
+            now=lambda: _now_ms(),
+            legacy_action=lambda state, actor, command: _handle_legacy_action(state, actor, command),
+        ))
+    return room.coordinator
+
+
 async def _handle_action(room: Room, player: Player, socket: WebSocket, message: dict) -> None:
     if live_mode() and app.state.room_service_status != "ready":
         await _send_error(socket, SERVICE_STARTING_MESSAGE)
@@ -1095,11 +940,22 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
         except HTTPException as failure:
             await _send_error(socket, failure.detail)
             return
-    if room.closed:
-        await _send_error(socket, "Room not found. Create a fresh room.")
+    actor = VerifiedActor(player.token, account["id"] if account else None)
+    try:
+        command = decode_command(message)
+    except ValueError as failure:
+        await _send_error(socket, str(failure))
         return
-    await _expire_deadline(room)
-    action = message.get("type")
+    result = await _coordinator(room).execute(command, actor)
+    if not result.accepted:
+        await _send_error(socket, result.error, result.reason)
+
+
+async def _handle_legacy_action(room: Room, actor: VerifiedActor, command: LegacyCommand) -> CommandResult:
+    """Temporary execution adapter for workflows scheduled for tickets 02–06."""
+    action = command.action
+    message = command.payload
+    account = {"id": actor.account_id}
     error = None
     error_reason = None
     expired_action = False
@@ -1110,8 +966,10 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
     plan_generation_id = None
     async with room.lock:
         if room.closed:
-            await _send_error(socket, "Room not found. Create a fresh room.")
-            return
+            return CommandResult(False, "Room not found. Create a fresh room.")
+        player = room.players.get(actor.token)
+        if player is None:
+            return CommandResult(False, "This room link is no longer valid. Join again.")
         # Authorize before mutation or scheduling any paid AI work.
         try:
             if player.is_host and action in {"prepare_research_plan", "retry_research_plan"}:
@@ -1128,8 +986,7 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
             if player.is_host and action == "retry" and room.phase == "retry" and (room.defense is None or not room.defense.turns):
                 _reserve_room_run(room, account["id"], True, retry=True)
         except AccessError as failure:
-            await _send_error(socket, str(failure))
-            return
+            return CommandResult(False, str(failure))
         if action in {"start", "restart", "retry", "retry_coaching", "prepare_research_plan", "retry_research_plan", "approve_research_plan", "end_defense", "end_unavailable"} and not player.is_host:
             error = "Only the host can control the defense."
         elif action in {"prepare_research_plan", "retry_research_plan"}:
@@ -1274,31 +1131,6 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
                 room.feedback_generation_id += 1
                 feedback_generation_id = room.feedback_generation_id
                 room.revision += 1
-        elif action == "cast_vote":
-            previous_vote = room.votes.get(player.token)
-            try:
-                room.cast_vote(player.token, message.get("seat"), _online_players(room), _now_ms())
-            except HTTPException as failure:
-                error = str(failure.detail)
-            except ValueError as failure:
-                error = str(failure)
-                expired_action = isinstance(failure, DeadlineExpired)
-            else:
-                if previous_vote == room.votes.get(player.token):
-                    return
-                room.revision += 1
-        elif action == "send_chat":
-            content = message.get("text")
-            if not isinstance(content, str) or not content.strip():
-                error = "Write a team message before sending."
-            elif len(content) > MAX_CHAT_CHARS:
-                error = f"Keep team messages under {MAX_CHAT_CHARS} characters."
-            else:
-                room.chat_seq += 1
-                room.chat.append({"id": room.chat_seq, "seat": player.seat, "name": player.name,
-                                  "text": content.strip(), "sent_at_ms": _now_ms()})
-                room.chat = room.chat[-MAX_CHAT_MESSAGES:]
-                room.revision += 1
         elif action == "retry_interpretation":
             try:
                 if room.phase != 'interpretation_retry' or room.pending_submission is None or not (player.is_host or room.selected_seat == player.seat):
@@ -1403,8 +1235,7 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
     if expired_action:
         await _expire_deadline(room)
     if error:
-        await _send_error(socket, error, error_reason)
-        return
+        return CommandResult(False, error, error_reason)
     await publish(room)
     if plan_generation_id is not None:
         _schedule_research_plan(room, plan_generation_id)
@@ -1414,6 +1245,8 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
         _schedule_coaching(room, feedback_generation_id)
     if interpretation_id is not None:
         _schedule_interpretation(room, interpretation_id)
+
+    return CommandResult(True)
 
 
 @app.websocket("/ws/{code}")
