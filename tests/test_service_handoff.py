@@ -13,6 +13,11 @@ from backend.account_store import AccessError, create_google_session, session_ac
 from backend.management_store import ManagementStore
 from backend.live_store import LiveStore, ServiceAlreadyActive
 from starlette.websockets import WebSocketDisconnect
+from backend.rooms.commands import GenerateQuestion, VerifiedActor
+from backend.rooms.coordinator import RoomCoordinator, RoomWorkflows
+from backend.rooms.model import Player, Room
+from backend.project_files import ProjectFile
+from backend.question_generator import GroundedQuestion
 
 
 class ServiceHandoffTests(unittest.TestCase):
@@ -44,6 +49,56 @@ class ServiceHandoffTests(unittest.TestCase):
                     await asyncio.sleep(0.005)
             await asyncio.wait_for(poll(), timeout=2)
         client.portal.call(wait)
+
+    def test_room_work_is_fenced_before_lease_release_and_cannot_charge_late(self):
+        self.store.stop_service('previous-process')
+        token, _ = create_google_session('shutdown-owner', 'owner@example.test', 'Owner')
+        account = session_account(token)['id']
+        ManagementStore().adjust(account, account, 10, 'Offline shutdown fixture', 'shutdown-fixture')
+        started, cancelled, release = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        room = None
+
+        async def ask(request, files):
+            started.set()
+            try:
+                await release.wait()
+            except asyncio.CancelledError:
+                cancelled.set()
+                await release.wait()
+            return GroundedQuestion('Old opening?', 'queue.py', 1, 'queue = []')
+
+        original_stop = LiveStore.stop_service
+
+        def stop_after_fence(store, service):
+            self.assertTrue(cancelled.is_set())
+            self.assertEqual(coordinator.view(VerifiedActor('host', account))['turns'], [])
+            release.set()
+            return original_stop(store, service)
+
+        try:
+            with patch.object(LiveStore, 'stop_service', new=stop_after_fence):
+                with TestClient(game_server.app) as client:
+                    self.wait_for_status(client, 'ready')
+                    service = game_server.SERVICE_ID
+                    self.store.reserve_run(account, 'shutdown-run', service, 'QUIESCE')
+                    host = Player('host', 'Owner', 0, True)
+                    room = Room('QUIESCE', [ProjectFile('queue.py', 'queue = []')], {host.token: host},
+                                owner_account_id=account, run_id='shutdown-run', phase='generating', generation_id=1,
+                                settled=False)
+                    coordinator = RoomCoordinator(room, RoomWorkflows(question_request=ask, service_id=service))
+                    game_server.rooms[room.code] = room
+                    client.portal.call(coordinator.execute, GenerateQuestion(1, True))
+                    client.portal.call(asyncio.wait_for, started.wait(), 2)
+            self.store.start_service('shutdown-replacement')
+            overview = self.store.overview(account)
+            self.assertEqual(overview['live_credits'], 10)
+            self.assertEqual(overview['live_reserved_credits'], 0)
+            self.assertEqual(overview['credit_returns'], [])
+            self.assertEqual(coordinator.view(VerifiedActor('host', account))['turns'], [])
+        finally:
+            release.set()
+            if room is not None:
+                game_server.rooms.pop(room.code, None)
 
     def test_render_replacement_starts_without_stealing_previous_lease(self):
         with TestClient(game_server.app) as client:

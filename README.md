@@ -171,9 +171,19 @@ the existing answer deadline. Interrupted initial delivery also cleans up presen
 and publishes any pending correction. Connection and message limits remain unchanged.
 Observed absence retains the existing abandonment policy.
 
-Lifecycle actions retain an explicit temporary adapter for the later checkpoint.
-The shutdown seam cancels migrated question, interpretation, planning, coaching
-and clock tasks; service lifecycle integration remains pending.
+Start, retry, restart and permitted ending now use typed coordinator commands.
+One invalidation path fences every AI workflow and clock before cancelling old
+work; an eligible research ending can then schedule fresh closing coaching.
+Room reclamation rechecks settlement and expiry under registry ownership, fences
+work before releasing uploads, and retains bounded socket closure. Service
+shutdown and lease failure stop room work and drain captured delivery before
+ownership is relinquished. Cleanup remains owned if a requesting caller is
+cancelled: shutdown callers share the same drain, and registry reclamation
+continues through socket cleanup and removal. Existing confirmation,
+reservations, charges, credit
+returns and service lease transactions keep their financial implementations.
+Cancelling an await does not terminate an already running provider thread; late
+success and failure remain harmless through version and closure checks.
 
 This is a local implementation on `feature/question-first-room`, with no new
 browser protocol, UI, payment policy or Streamlit behavior. See the approved

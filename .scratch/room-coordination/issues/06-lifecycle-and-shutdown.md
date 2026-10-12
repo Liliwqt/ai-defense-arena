@@ -11,23 +11,23 @@ remain valid and existing financial outcomes stay unchanged.
 - 04 — Coordinate research preparation and final coaching.
 - 05 — Coordinate ordered publication and defender presence.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 **Checkpoint:** 3 — action and lifecycle routing.
 
 ## Acceptance criteria
 
-- [ ] Centralize applicable work invalidation before cancellation/replacement and
+- [x] Centralize applicable work invalidation before cancellation/replacement and
   retain closure, retention, settlement and abandonment eligibility.
-- [ ] Preserve confirmed restart/new run charging and allowed ending/recovery modes;
+- [x] Preserve confirmed restart/new run charging and allowed ending/recovery modes;
   keep new closing coaching independent of retired work.
-- [ ] Retain registry-then-room reclamation, current socket closure behavior and
+- [x] Retain registry-then-room reclamation, current socket closure behavior and
   bounded cleanup without claiming cancellation terminates provider threads.
-- [ ] Shut down room work before relinquishing ownership; keep global lease,
+- [x] Shut down room work before relinquishing ownership; keep global lease,
   heartbeat, independent payment recovery and database transactions unchanged.
-- [ ] Verify every retired AI lane for both late success and late error, including
+- [x] Verify every retired AI lane for both late success and late error, including
   blocked provider/backoff work, late interpretation and failed delivery.
-- [ ] Verify charge/return and service-handoff outcomes with actual local stores and
+- [x] Verify charge/return and service-handoff outcomes with actual local stores and
   disposable PostgreSQL where integration changes, external providers mocked.
 
 ## Scope and execution constraints
@@ -60,3 +60,14 @@ remain valid and existing financial outcomes stay unchanged.
 
 - 2026-10-12: User approved the seven-ticket size and blocking graph. Published
   to the local Markdown tracker; implementation has not started.
+- 2026-10-12: Implemented typed lifecycle commands, centralized fencing, eligible
+  reclamation, cancellation-safe bounded shutdown and registry removal. Ten
+  lifecycle tests cover all AI lanes, backoff, ending, paid restart/retry,
+  abandonment, expiry and cancelled cleanup callers. Existing authenticated
+  integration and ledger tests remain intact. Full offline gate: 494 Python
+  tests (AI/Google/PayMongo mocked), 261 React tests and production build.
+  Disposable local PostgreSQL: 167 checks, followed by nine service-handoff
+  checks after cancellation fixes. Both review findings reproduced red and
+  passed green; independent Standards/Spec rechecks report zero remaining
+  findings. Ready for human review; no new visual, live provider, hosted or
+  device verification. Final migration/integration cleanup is ticket 07.

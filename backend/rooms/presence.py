@@ -63,10 +63,7 @@ async def observe_absence(owner: "RoomCoordinator") -> bool:
             LiveStore().finish_run(room.run_id, "abandoned")
         else:
             release_run(room.run_id)
-        room.generation_id += 1
-        room.feedback_generation_id += 1
-        room.discard_pending()
-        owner._clear_clock()
+        owner._retire_work()
         if isinstance(room.defense, ResearchDefenseSession) and not room.defense.completed:
             room.defense.end()
         room.phase = "complete"

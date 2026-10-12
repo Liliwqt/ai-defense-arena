@@ -1,3 +1,4 @@
+from backend.defense_session import PANELIST_ORDER
 from backend.rooms import coaching as coaching_workflow
 from backend.rooms import planning as planning_workflow
 from backend.rooms import submissions as submission_workflow
@@ -222,7 +223,7 @@ class ProbeProtocolTests(unittest.TestCase):
         for eight in (False, True):
             with self.subTest(eight=eight):
                 server.rooms.clear()
-                roles = [role for role in server.PANELIST_ORDER for _ in range(2)] if eight else list(server.PANELIST_ORDER)
+                roles = [role for role in PANELIST_ORDER for _ in range(2)] if eight else list(PANELIST_ORDER)
                 moves = [PanelMove(role, GroundedQuestion(f'Question {i+1}?', 'queue.py', 5, self.questions[0].evidence_text))
                          for i, role in enumerate(roles)][1:] + [PanelMove(None, None)]
                 # Probe first and final answers, with one defender clarification.

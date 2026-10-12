@@ -1,8 +1,6 @@
 """Closed room commands and server-verified invocation identity."""
 
 from dataclasses import dataclass
-from types import MappingProxyType
-from typing import Literal, Mapping, get_args
 
 
 @dataclass(frozen=True)
@@ -119,20 +117,42 @@ PlanCommand = PrepareResearchPlan | ApproveResearchPlan
 SubmissionCommand = SubmitAnswer | SubmitDirectAnswer | SubmitProbeReply | FinishProbe | RetryInterpretation | UsePendingAnswer
 
 
-LegacyAction = Literal[
-    "start", "restart", "retry", "end_defense", "end_unavailable",
-]
+@dataclass(frozen=True)
+class StartDefense:
+    plan_id: object = None
+    question_budget: object = None
+    confirm_cost: bool = False
 
 
 @dataclass(frozen=True)
-class LegacyCommand:
-    """Temporary bridge for the existing workflows, removed as each migrates."""
-
-    action: LegacyAction
-    payload: Mapping[str, object]
+class RestartDefense:
+    confirm_cost: bool = False
 
 
-Command = CastVote | SendChat | LegacyCommand | GenerateQuestion | CatchUpDeadline | SubmissionCommand | InterpretSubmission | PlanCommand | GenerateResearchPlan | RetryCoaching | GenerateCoaching | PublishRoom | ObserveAbsence | DefenderConnected | DefenderDisconnected
+@dataclass(frozen=True)
+class RetryQuestion:
+    pass
+
+
+@dataclass(frozen=True)
+class EndDefense:
+    pass
+
+
+@dataclass(frozen=True)
+class EndUnavailable:
+    pass
+
+
+@dataclass(frozen=True)
+class ReclaimRoom:
+    expired_only: bool = False
+
+
+LifecycleCommand = StartDefense | RestartDefense | RetryQuestion | EndDefense | EndUnavailable
+
+
+Command = CastVote | SendChat | LifecycleCommand | ReclaimRoom | GenerateQuestion | CatchUpDeadline | SubmissionCommand | InterpretSubmission | PlanCommand | GenerateResearchPlan | RetryCoaching | GenerateCoaching | PublishRoom | ObserveAbsence | DefenderConnected | DefenderDisconnected
 
 
 def decode_command(message: dict) -> Command:
@@ -159,8 +179,16 @@ def decode_command(message: dict) -> Command:
         return ApproveResearchPlan(message.get("plan_id"), message.get("question_budget"))
     if action == "retry_coaching":
         return RetryCoaching()
-    if action in get_args(LegacyAction):
-        return LegacyCommand(action, MappingProxyType(dict(message)))
+    if action == "start":
+        return StartDefense(message.get("plan_id"), message.get("question_budget"), message.get("confirm_cost") is True)
+    if action == "restart":
+        return RestartDefense(message.get("confirm_cost") is True)
+    if action == "retry":
+        return RetryQuestion()
+    if action == "end_defense":
+        return EndDefense()
+    if action == "end_unavailable":
+        return EndUnavailable()
     raise ValueError("Unknown room action.")
 
 

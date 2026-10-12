@@ -21,14 +21,13 @@ from backend.rooms.coordinator import (
     RoomCoordinator, RoomWorkflows,
 )
 from backend.rooms.commands import (
-    VerifiedActor, LegacyCommand, CommandResult, decode_command,
-    ObserveAbsence, DefenderConnected, DefenderDisconnected, PublishRoom,
+    VerifiedActor, decode_command,
+    ObserveAbsence, DefenderConnected, DefenderDisconnected, PublishRoom, ReclaimRoom,
 )
 
-from backend.defense_session import DefenseSession, ResearchDefenseSession, MAX_ANSWER_CHARS, PANELIST_ORDER
+from backend.defense_session import MAX_ANSWER_CHARS
 from backend.accounts import configure_auth, require_account, check_csrf, auth_settings
-from backend.account_store import (AccessError, require_run_access, reserve_run,
-                           release_run, release_orphaned_reservations)
+from backend.account_store import release_orphaned_reservations
 from backend.financial_policy import live_mode
 from backend.live_store import LiveStore, ServiceAlreadyActive
 from backend.resource_limits import (limit, creation_rate, ai_rate, client_network,
@@ -63,40 +62,44 @@ class UploadedBytes:
 
 rooms: dict[str, Room] = {}
 registry_lock = asyncio.Lock()
+registry_removals: set[asyncio.Task] = set()
 creation_pending = {}
 parser_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix='room-parser')
 parser_slots = asyncio.Semaphore(2)
 
 async def _remove_room(room, expired_only=False):
-    # Registry then room is the only nested lock order used for reclamation.
+    # Own the full registry operation even if its HTTP/maintenance caller exits.
+    # Cleanup and deletion must finish together so a closed room cannot retain
+    # uploads and permanently consume the host's room allowance.
+    task = asyncio.create_task(_reclaim_registered_room(room, expired_only))
+    registry_removals.add(task)
+
+    def finished(done):
+        registry_removals.discard(done)
+        if not done.cancelled():
+            done.exception()
+
+    task.add_done_callback(finished)
+    return await asyncio.shield(task)
+
+
+async def _reclaim_registered_room(room, expired_only):
+    # Registry ownership precedes the coordinator's eligibility recheck/fence.
     async with registry_lock:
-        async with room.lock:
-            if rooms.get(room.code) is not room or not room.settled or room.expires_at() is None:
-                return False
-            if expired_only and _now_ms() < room.expires_at():
-                return False
-            room.closed = True
-            room.generation_id += 1
-            room.feedback_generation_id += 1
-            room.research_plan_generation_id += 1
-            room.discard_pending()
-            _coordinator(room)._clear_clock()
+        if rooms.get(room.code) is not room:
+            return False
+        result = await _coordinator(room).execute(ReclaimRoom(expired_only))
+        if result.accepted:
             del rooms[room.code]
-            sockets = [socket for player in room.players.values() for socket in player.sockets]
-    for socket in sockets:
-        try:
-            await _send_error(socket, 'Room not found. This room was closed or expired; create a fresh room.')
-        except asyncio.TimeoutError:
-            pass
-        try:
-            await asyncio.wait_for(socket.close(code=1000), 1)
-        except (asyncio.TimeoutError, RuntimeError, OSError, WebSocketDisconnect):
-            pass
-    room.files.clear()
-    room.chat.clear()
-    room.players.clear()
-    room.defense = None
-    return True
+        return result.accepted
+
+
+async def _shutdown_rooms():
+    await asyncio.gather(
+        *(_coordinator(room).shutdown() for room in list(rooms.values())),
+        *(asyncio.shield(task) for task in tuple(registry_removals)),
+    )
+
 
 async def _cleanup_rooms():
     for room in list(rooms.values()):
@@ -143,6 +146,8 @@ async def lifespan(app):
         finally:
             maintenance.cancel()
             await asyncio.gather(maintenance, return_exceptions=True)
+            app.state.room_service_status = "stopped"
+            await _shutdown_rooms()
         return
     SERVICE_ID=secrets.token_hex(24)
     service=SERVICE_ID
@@ -181,6 +186,7 @@ async def lifespan(app):
             # Never reacquire after losing ownership or advertise a dead heartbeat.
             app.state.room_service_status = "failed"
             logging.getLogger(__name__).error("Room service maintenance failed; room access paused.")
+            await _shutdown_rooms()
 
     async def recover():
         from backend.payments_live import recover_payments
@@ -196,6 +202,7 @@ async def lifespan(app):
         for task in tasks:task.cancel()
         await asyncio.gather(*tasks,return_exceptions=True)
         app.state.room_service_status = "stopped"
+        await _shutdown_rooms()
         if owns_lease:
             LiveStore().stop_service(service)
 
@@ -463,44 +470,12 @@ def _host_account(room: Room, socket: WebSocket):
     return account
 
 
-def _reserve_room_run(room: Room, account_id: str, confirmed: bool, retry: bool = False) -> None:
-    if not retry:
-        if live_mode():
-            from backend.account_store import account_access
-            access=account_access(account_id)
-        else:
-            access = require_run_access(account_id)
-        if not access["free_access"] and not confirmed:
-            raise AccessError("Confirm the 10-credit cost before starting or restarting this run.")
-    run_id = room.run_id if retry and room.run_id else secrets.token_hex(24)
-    if live_mode():
-        from backend.account_store import account_access
-        if not account_access(account_id)['free_access']:
-            from backend.payments_live import settings
-            try:settings()
-            except HTTPException:
-                raise AccessError('Paid defenses are temporarily unavailable. Your credits are retained.') from None
-        LiveStore().reserve_run(account_id,run_id,SERVICE_ID,room.code,
-                                replace_id=room.run_id if run_id!=room.run_id else None)
-    else:
-        reserve_run(account_id, run_id)
-    if not live_mode() and run_id != room.run_id:
-        release_run(room.run_id)
-    room.run_id = run_id
-    room.settled = False
-    room.terminal_ms = None
-    if not retry:
-        room.ai_budget.reset_run(room.research_budget_preview or 8)
-    room.absent_since_ms = None
-    room.absence_elapsed_ms = 0
-
-
 def _coordinator(room: Room) -> RoomCoordinator:
-    """Compose one coordinator; legacy workflow adapters disappear during migration."""
+    """Compose one coordinator with real clock and service identity."""
     if room.coordinator is None:
         RoomCoordinator(room, RoomWorkflows(
             now=lambda: _now_ms(),
-            legacy_action=lambda state, actor, command: _handle_legacy_action(state, actor, command),
+            service_id=SERVICE_ID,
         ))
     return room.coordinator
 
@@ -525,152 +500,6 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
     result = await _coordinator(room).execute(command, actor)
     if not result.accepted:
         await _send_error(socket, result.error, result.reason)
-
-
-async def _handle_legacy_action(room: Room, actor: VerifiedActor, command: LegacyCommand) -> CommandResult:
-    """Temporary execution adapter for lifecycle workflows scheduled for ticket 06."""
-    action = command.action
-    message = command.payload
-    account = {"id": actor.account_id}
-    error = None
-    error_reason = None
-    generate_first = None
-    generation_id = None
-    feedback_generation_id = None
-    async with room.lock:
-        if room.closed:
-            return CommandResult(False, "Room not found. Create a fresh room.")
-        player = room.players.get(actor.token)
-        if player is None:
-            return CommandResult(False, "This room link is no longer valid. Join again.")
-        # Authorize before mutation or scheduling any paid AI work.
-        try:
-            if player.is_host and action == "start" and room.phase == "lobby" and room.defense is None:
-                # Budget/map validation below must precede a reservation.
-                if room.defense_type == "code" or (room.research_plan and room.research_plan_approved
-                        and message.get("plan_id") == room.research_plan.id
-                        and type(message.get("question_budget")) is int
-                        and message["question_budget"] == room.research_budget_preview):
-                    _reserve_room_run(room, account["id"], message.get("confirm_cost") is True)
-            if player.is_host and action == "restart" and (room.defense_type == "code" or (room.research_plan and room.research_plan_approved)):
-                _reserve_room_run(room, account["id"], message.get("confirm_cost") is True)
-            if player.is_host and action == "retry" and room.phase == "retry" and (room.defense is None or not room.defense.turns):
-                _reserve_room_run(room, account["id"], True, retry=True)
-        except AccessError as failure:
-            return CommandResult(False, str(failure))
-        if action in {"start", "restart", "retry", "end_defense", "end_unavailable"} and not player.is_host:
-            error = "Only the host can control the defense."
-        elif action == "start":
-            if room.phase != "lobby" or room.defense is not None:
-                error = "The defense has already started."
-            elif room.research_planning_status == "planning":
-                error = "Wait for the research map to finish before starting."
-            elif room.defense_type != "code" and (
-                    room.research_plan is None or not room.research_plan_approved
-                    or message.get("plan_id") != room.research_plan.id
-                    or type(message.get("question_budget")) is not int
-                    or message.get("question_budget") != room.research_budget_preview):
-                error = "Prepare and confirm the current research map and question budget before starting."
-            else:
-                if room.defense_type != "code":
-                    room.defense = ResearchDefenseSession.create(room.research_plan, room.research_budget_preview,
-                                                                 room.defense_type, room.research_stage)
-                room.phase = "generating"
-                room.error = None
-                room.generation_id += 1
-                generation_id = room.generation_id
-                room.revision += 1
-                generate_first = True
-        elif action == "end_unavailable":
-            if not live_mode() or not room.run_id:
-                error = "There is no unavailable live defense to end."
-            else:
-                try:
-                    LiveStore().end_unavailable(account["id"],room.run_id)
-                except AccessError as failure:
-                    error = str(failure)
-                else:
-                    room.generation_id += 1
-                    room.feedback_generation_id += 1
-                    room.discard_pending()
-                    _coordinator(room)._clear_clock()
-                    if isinstance(room.defense,ResearchDefenseSession) and not room.defense.completed:
-                        room.defense.end()
-                    room.phase = "complete"
-                    room.settled = True
-                    room.terminal_ms = _now_ms()
-                    room.feedback_status = "none"
-                    room.error = "The unavailable defense was ended. Check Account for any returned credits."
-                    room.revision += 1
-        elif action == "end_defense":
-            if room.defense_type == "code" or not isinstance(room.defense, ResearchDefenseSession):
-                error = "Ending early is available for an active research defense."
-            elif room.defense.completed:
-                error = "The defense is already complete."
-            else:
-                room.generation_id += 1
-                room.discard_pending()
-                _coordinator(room)._clear_clock()
-                room.defense.end()
-                release_run(room.run_id)
-                if live_mode() and room.run_id:
-                    LiveStore().finish_run(room.run_id,"ended")
-                room.phase = "complete"
-                room.error = None
-                room.feedback_status = "generating"
-                room.feedback_generation_id += 1
-                feedback_generation_id = room.feedback_generation_id
-                room.revision += 1
-        elif action == "restart":
-            # Cancel an in-flight map without letting it mutate an active defense.
-            room.research_plan_generation_id += 1
-            if room.research_planning_status == "planning":
-                room.research_planning_status = "none"
-                room.research_plan_error = None
-            room.discard_pending()
-            _coordinator(room)._clear_clock()
-            room.defense = None
-            room.answered_by.clear()
-            room.answered_by_seat.clear()
-            room.chat.clear()
-            room.chat_seq = 0
-            room.phase = "generating"
-            room.error = None
-            room.generation_id += 1
-            generation_id = room.generation_id
-            room.feedback_status = "none"
-            room.feedback = None
-            room.feedback_generation_id += 1
-            room.revision += 1
-            generate_first = True
-            if room.defense_type != "code":
-                if room.research_plan is not None and room.research_plan_approved:
-                    room.defense = ResearchDefenseSession.create(room.research_plan, room.research_budget_preview,
-                                                                 room.defense_type, room.research_stage)
-                else:
-                    room.phase = "lobby"
-                    generate_first = None
-        elif action == "retry":
-            if room.phase != "retry":
-                error = "There is no failed question to retry."
-            else:
-                generate_first = room.defense is None
-                room.phase = "generating"
-                room.error = None
-                room.generation_id += 1
-                generation_id = room.generation_id
-                room.revision += 1
-        else:
-            error = "Unknown room action."
-    if error:
-        return CommandResult(False, error, error_reason)
-    await _coordinator(room).execute(PublishRoom())
-    if generate_first is not None and generation_id is not None:
-        _coordinator(room)._schedule_question(generation_id, generate_first)
-    if feedback_generation_id is not None:
-        _coordinator(room)._schedule_coaching(feedback_generation_id)
-
-    return CommandResult(True)
 
 
 @app.websocket("/ws/{code}")

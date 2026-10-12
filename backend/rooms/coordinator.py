@@ -1,4 +1,4 @@
-"""Room command boundary; unmigrated workflows stay in the transport entry."""
+"""Room commands, captured work and fenced lifecycle coordination."""
 
 from __future__ import annotations
 
@@ -8,10 +8,11 @@ from collections.abc import Awaitable, Callable
 from typing import get_args
 
 from backend.rooms.commands import (
-    SendChat, CastVote, GenerateQuestion, CatchUpDeadline, LegacyCommand,
+    SendChat, CastVote, GenerateQuestion, CatchUpDeadline,
     Command, CommandResult, VerifiedActor, decode_command,
     SubmissionCommand, InterpretSubmission, PlanCommand, GenerateResearchPlan,
     RetryCoaching, GenerateCoaching, PublishRoom, ObserveAbsence, DefenderConnected, DefenderDisconnected,
+    LifecycleCommand, ReclaimRoom,
 )
 from backend.rooms.submissions import (
     InterpretationWork, InterpretationRequest, request_interpretation,
@@ -25,6 +26,7 @@ from backend.rooms.planning import (
 )
 from backend.rooms.publication import SocketDelivery, SocketClose, deliver_socket, close_socket, publish
 from backend.rooms.presence import connect, disconnect, observe_absence
+from backend.rooms.lifecycle import handle_lifecycle, reclaim_room
 from backend.rooms.model import Room, now_ms
 from backend.timed_turn import DeadlineExpired
 from backend.financial_policy import live_mode
@@ -45,12 +47,12 @@ class ClockWork:
 
 @dataclass(frozen=True)
 class RoomWorkflows:
-    """Real transport/clock adapters; remaining workflows migrate in later tickets."""
+    """Real provider, transport, clock and service-identity dependencies."""
 
     deliver: SocketDelivery = deliver_socket
     close: SocketClose = close_socket
     now: Callable[[], int] = now_ms
-    legacy_action: Callable[[Room, VerifiedActor, LegacyCommand], Awaitable[CommandResult]] | None = None
+    service_id: str | None = None
     plan_request: PlanRequest = request_plan
     interpretation_request: InterpretationRequest = request_interpretation
     question_request: QuestionRequest = request_question
@@ -64,7 +66,7 @@ class RoomCoordinator:
             raise ValueError("This room already has a coordinator.")
         self._room = room
         self._workflows = workflows
-        self._shutdown_started = False
+        self._shutdown_task: asyncio.Task | None = None
         self._question_tasks: dict[tuple[str | None, int], asyncio.Task] = {}
         self._interpretation_tasks: dict[tuple[str | None, int], asyncio.Task] = {}
         self._plan_tasks: dict[tuple[str | None, int], asyncio.Task] = {}
@@ -90,6 +92,8 @@ class RoomCoordinator:
         if self._workflows is None:
             raise RuntimeError("Room workflows must be configured before executing commands.")
         room = self._room
+        if isinstance(command, ReclaimRoom):
+            return await reclaim_room(self, command.expired_only)
         if isinstance(command, PublishRoom):
             await self._publish()
             return CommandResult(True)
@@ -137,10 +141,8 @@ class RoomCoordinator:
             return await handle_plan_command(self, actor, command)
         if isinstance(command, get_args(SubmissionCommand)):
             return await handle_submission(self, actor, command)
-        if isinstance(command, LegacyCommand):
-            if self._workflows.legacy_action is None:
-                raise RuntimeError("Unmigrated room workflows are not configured.")
-            return await self._workflows.legacy_action(room, actor, command)
+        if isinstance(command, get_args(LifecycleCommand)):
+            return await handle_lifecycle(self, actor, command)
         expired = False
         result = CommandResult(True)
         async with room.lock:
@@ -180,25 +182,46 @@ class RoomCoordinator:
             await self._publish()
         return result
 
+    def _retire_work(self) -> set[asyncio.Task]:
+        """Under room.lock: fence all lanes before cancelling their old work."""
+        room = self._room
+        room.generation_id += 1
+        room.research_plan_generation_id += 1
+        room.feedback_generation_id += 1
+        room.discard_pending()
+        room.question_retry_generation_id = None
+        self._clear_clock()
+        tasks = {task for task in self._tasks if task is not asyncio.current_task()}
+        for task in tasks:
+            task.cancel()
+        return tasks
+
     async def shutdown(self) -> None:
-        """Fence room work before cancellation; service lifecycle wiring comes later."""
+        """Fence first, bound cancellation, then drain already captured delivery."""
         room = self._room
         async with room.lock:
-            if self._shutdown_started:
-                return
-            self._shutdown_started = True
-            room.closed = True
-            room.generation_id += 1
-            room.research_plan_generation_id += 1
-            room.feedback_generation_id += 1
-            room.discard_pending()
-            room.clear_clock()
-            self._cancel_clock()
-            tasks = {task for task in self._tasks if task is not asyncio.current_task()}
-            for task in tasks:
-                task.cancel()
+            if self._shutdown_task is None:
+                room.closed = True
+                tasks = self._retire_work()
+                # Cleanup belongs to the room, not whichever maintenance or
+                # lifespan caller first requested it. A cancelled caller cannot
+                # falsely complete the drain or cancel another caller's wait.
+                self._shutdown_task = asyncio.create_task(self._drain_shutdown(tasks))
+            shutdown_task = self._shutdown_task
+        await asyncio.shield(shutdown_task)
+
+    async def _drain_shutdown(self, tasks: set[asyncio.Task]) -> None:
         if tasks:
             await asyncio.wait(tasks, timeout=.25)
+        # External socket handlers can already be delivering a captured
+        # revision. Each parallel send is bounded to one second; take the
+        # lock outside room.lock before relinquishing service ownership.
+        try:
+            async with asyncio.timeout(1.25):
+                async with self._room.broadcast_lock:
+                    pass
+        except TimeoutError:
+            pass
 
     def _retain(self, task: asyncio.Task) -> asyncio.Task:
         self._tasks.add(task)

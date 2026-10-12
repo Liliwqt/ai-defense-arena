@@ -1,3 +1,4 @@
+from backend.defense_session import PANELIST_ORDER
 from backend.rooms import submissions as submission_workflow
 from backend.rooms import questions as question_workflow
 from tests.room_commands import catch_up_deadline
@@ -57,7 +58,7 @@ class GameServerTests(unittest.TestCase):
         ]
         self.short_moves = [
             PanelMove(role, question)
-            for role, question in zip(game_server.PANELIST_ORDER[1:], self.questions[1:])
+            for role, question in zip(PANELIST_ORDER[1:], self.questions[1:])
         ] + [PanelMove(None, None)]
 
     def create_room(self):
@@ -133,7 +134,7 @@ class GameServerTests(unittest.TestCase):
         for repeats in (1, 2):
             with self.subTest(turns=4 * repeats):
                 game_server.rooms.clear()
-                roles = [role for role in game_server.PANELIST_ORDER for _ in range(repeats)]
+                roles = [role for role in PANELIST_ORDER for _ in range(repeats)]
                 questions = [GroundedQuestion(f'Question {index + 1}?', 'queue.py', 5,
                     self.questions[0].evidence_text, '' if index == 0 else f'You described choice {index}. Let us examine the next detail.')
                     for index in range(len(roles))]
@@ -242,7 +243,7 @@ class GameServerTests(unittest.TestCase):
                     history = later_calls.call_args.kwargs["history"]
                     self.assertEqual([item.speaker_name for item in history], ["Alex"] * 4)
                     self.assertEqual([item.citation for item in history], self.questions)
-                    self.assertEqual([turn["panelist"] for turn in state["turns"]], list(game_server.PANELIST_ORDER))
+                    self.assertEqual([turn["panelist"] for turn in state["turns"]], list(PANELIST_ORDER))
                 finally:
                     guest_socket.__exit__(None, None, None)
             finally:
@@ -303,7 +304,7 @@ class GameServerTests(unittest.TestCase):
 
     def test_eight_turn_defense_allows_one_followup_per_role_then_coaches(self):
         lines = Path("sample_project/queue.py").read_text().splitlines()
-        role_sequence = [role for role in game_server.PANELIST_ORDER for _ in range(2)]
+        role_sequence = [role for role in PANELIST_ORDER for _ in range(2)]
         questions = [GroundedQuestion(f"Question {i + 1}?", "queue.py", line, lines[line - 1], "" if i == 0 else "You explained the previous choice. Let's look at the next detail.")
                      for i, line in enumerate((5, 8, 9, 33, 5, 8, 9, 33))]
         moves = [PanelMove(role, question) for role, question in zip(role_sequence[1:], questions[1:])]

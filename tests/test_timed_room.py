@@ -1,3 +1,4 @@
+from backend.defense_session import PANELIST_ORDER
 from backend.timed_turn import VOTE_MS, ANSWER_MS
 from backend.rooms import questions as question_workflow
 from backend.rooms.coordinator import RoomCoordinator
@@ -153,7 +154,7 @@ class TimedRoomTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(kwargs["history"][0].timed_out)
             self.assertIsNone(kwargs["history"][0].answer)
             self.assertNotIn("private strategy", repr(kwargs["history"]))
-            return PanelMove(server.PANELIST_ORDER[0], followup)
+            return PanelMove(PANELIST_ORDER[0], followup)
         with patch.object(question_workflow, 'generate_next_move', side_effect=next_move):
             await generate_question(self.room, self.room.generation_id, False)
         self.assertEqual(self.room.phase, "voting", self.room.error)
