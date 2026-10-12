@@ -12,7 +12,7 @@ import secrets
 import threading
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -37,6 +37,7 @@ from backend.payments import router as test_payment_router
 from backend.payments_live import router as live_payment_router
 from backend.project_files import MAX_ARCHIVE_BYTES, MAX_FILE_BYTES, ProjectFile, read_project_files
 from backend.research_files import MAX_RESEARCH_BYTES, read_research_files, combine_sources
+from backend.room_documents import DocumentStore
 
 
 SERVICE_ID = secrets.token_hex(24)
@@ -131,12 +132,14 @@ async def lifespan(app):
         if network.strip():
             ip_network(network.strip())
     creation_pending.clear()
+    app.state.documents = DocumentStore()
     creation_rate.__init__()
     ai_rate.__init__()
     for admission in (join_rate, join_capacity, socket_capacity, socket_connect_rate,
                       socket_player_rate, socket_message_rate, socket_room_rate):
         admission.__init__()
     if not live_mode():
+        app.state.documents.start()
         app.state.room_service_status = "ready"
         release_orphaned_reservations()
         maintenance = asyncio.create_task(_room_maintenance())
@@ -147,6 +150,7 @@ async def lifespan(app):
             await asyncio.gather(maintenance, return_exceptions=True)
             app.state.room_service_status = "stopped"
             await _shutdown_rooms()
+            app.state.documents.close()
         return
     SERVICE_ID=secrets.token_hex(24)
     service=SERVICE_ID
@@ -162,6 +166,11 @@ async def lifespan(app):
         logging.getLogger(__name__).info("Waiting for previous room service to stop.")
     else:
         owns_lease = True
+        try:
+            app.state.documents.start()
+        except BaseException:
+            LiveStore().stop_service(service)
+            raise
         app.state.room_service_status = "ready"
 
     async def maintain():
@@ -175,6 +184,7 @@ async def lifespan(app):
                         await asyncio.sleep(SERVICE_POLL_SECONDS)
                         continue
                     owns_lease = True
+                    app.state.documents.start()
                     app.state.room_service_status = "ready"
                     logging.getLogger(__name__).info("Room service lease acquired.")
                 LiveStore().heartbeat(service)
@@ -202,6 +212,7 @@ async def lifespan(app):
         await asyncio.gather(*tasks,return_exceptions=True)
         app.state.room_service_status = "stopped"
         await _shutdown_rooms()
+        app.state.documents.close()
         if owns_lease:
             LiveStore().stop_service(service)
 
@@ -349,40 +360,57 @@ async def create_room(
         if len(data) > MAX_RESEARCH_BYTES:
             raise HTTPException(413, f"{filename or 'Research document'} exceeds the 10 MB limit.")
         research_uploads.append(UploadedBytes(filename, data))
-    stop_parsing = threading.Event()
-    def extract():
-        project_files, errors = read_project_files(uploads) if uploads else ([], [])
-        if errors:
-            return [], errors
-        papers, errors = read_research_files(research_uploads, cancel=stop_parsing) if research_uploads else ([], [])
-        return ([], errors) if errors else combine_sources(project_files, papers)
-    await parser_slots.acquire()
-    if (creation_pending.get(getattr(request.state, 'room_admission', None)) != account['id']
-            or asyncio.get_running_loop().time() >= request.state.room_deadline):
-        parser_slots.release()
-        raise HTTPException(408, 'Room creation expired. Please retry.')
-    future = asyncio.get_running_loop().run_in_executor(parser_pool, extract)
-    slots = parser_slots
-    future.add_done_callback(lambda _: slots.release())
+    documents = request.app.state.documents.reserve(research_uploads)
+    published = False
     try:
-        project_files, errors = await asyncio.shield(future)
-    finally:
-        stop_parsing.set()
-    if errors:
-        raise HTTPException(422, errors[0])
-    async with registry_lock:
+        stop_parsing = threading.Event()
+        def extract():
+            project_files, errors = read_project_files(uploads) if uploads else ([], [])
+            if errors:
+                return [], errors
+            papers, errors = read_research_files(research_uploads, cancel=stop_parsing) if research_uploads else ([], [])
+            if errors:
+                return [], errors
+            accepted, errors = combine_sources(project_files, papers)
+            if not errors:
+                documents.stage(accepted, research_uploads)
+            return accepted, errors
+        await parser_slots.acquire()
         if (creation_pending.get(getattr(request.state, 'room_admission', None)) != account['id']
                 or asyncio.get_running_loop().time() >= request.state.room_deadline):
+            parser_slots.release()
             raise HTTPException(408, 'Room creation expired. Please retry.')
-        code = _room_code()
-        while code in rooms:
+        future = asyncio.get_running_loop().run_in_executor(parser_pool, extract)
+        slots = parser_slots
+        def parser_finished(done):
+            slots.release()
+            if not done.cancelled():
+                done.exception()  # Observe a parser that outlives HTTP cancellation.
+        future.add_done_callback(parser_finished)
+        try:
+            project_files, errors = await asyncio.shield(future)
+        finally:
+            stop_parsing.set()
+        if errors:
+            raise HTTPException(422, errors[0])
+        async with registry_lock:
+            if (creation_pending.get(getattr(request.state, 'room_admission', None)) != account['id']
+                    or asyncio.get_running_loop().time() >= request.state.room_deadline):
+                raise HTTPException(408, 'Room creation expired. Please retry.')
             code = _room_code()
-        token = _new_token()
-        room = Room(code, project_files, {token: Player(token, name, 0, True)}, defense_type, research_stage,
-                    owner_account_id=account["id"], created_ms=_now_ms(), activity_ms=_now_ms())
-        _coordinator(room)
-        rooms[code] = room
-    return {"room_code": code, "player_token": token}
+            while code in rooms:
+                code = _room_code()
+            token = _new_token()
+            room = Room(code, project_files, {token: Player(token, name, 0, True)}, defense_type, research_stage,
+                        owner_account_id=account["id"], created_ms=_now_ms(), activity_ms=_now_ms(), documents=documents)
+            _coordinator(room)
+            rooms[code] = room
+        published = True
+        return {"room_code": code, "player_token": token}
+    finally:
+        if not published:
+            documents.release()
+
 
 
 @app.get('/api/rooms')
@@ -393,6 +421,33 @@ async def list_owned_rooms(request: Request):
         {'room_code': room.code, 'phase': room.phase, 'expires_at_ms': room.expires_at(),
          'can_close': room.expires_at() is not None}
         for room in rooms.values() if room.owner_account_id == account['id']]}
+
+
+@app.get('/api/rooms/{code}/documents/{document_id}')
+async def room_document(code: str, document_id: str, request: Request):
+    if live_mode() and app.state.room_service_status != 'ready':
+        raise HTTPException(503, SERVICE_STARTING_MESSAGE)
+    room = rooms.get(code.upper())
+    if room is None:
+        raise HTTPException(404, 'Paper unavailable. Create a fresh room.')
+    async with room.lock:
+        player = room.players.get(request.headers.get('X-Player-Token', ''))
+        if player is None:
+            raise HTTPException(403, 'Join this room to view its papers.')
+        if player.is_host and require_account(request)['id'] != room.owner_account_id:
+            raise HTTPException(403, 'Sign in as the room owner to view its papers.')
+        expiry = room.expires_at()
+        if room.closed or (expiry is not None and _now_ms() >= expiry) or room.documents is None:
+            raise HTTPException(404, 'Paper unavailable. Create a fresh room.')
+        stream = room.documents.open(document_id)
+    async def chunks():
+        try:
+            while data := await asyncio.to_thread(stream.read, 65536):
+                yield data
+        finally:
+            stream.close()
+    return StreamingResponse(chunks(), media_type='application/pdf',
+                             headers={'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'})
 
 
 @app.post('/api/rooms/{code}/resume')

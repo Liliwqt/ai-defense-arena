@@ -7,6 +7,7 @@ from backend.rooms.coordinator import RoomCoordinator, RoomWorkflows
 from backend.rooms.commands import CatchUpDeadline, GenerateQuestion, InterpretSubmission
 from tests.async_room import wait_until
 from tests.offline_accounts import authenticate
+from tests.test_research_defense import pdf_bytes
 """Coverage policy and real room protocol with offline AI and clocks."""
 import asyncio
 from copy import deepcopy
@@ -22,7 +23,7 @@ from backend.defense_session import ResearchDefenseSession, advance_defense
 from backend.project_files import ProjectFile
 from backend.question_generator import (RESEARCH_PANELISTS, ResearchMove, ResearchMoveDraft, TopicAssessmentDraft,
     GroundedQuestion, GroundedCitation, QuestionGenerationError, generate_research_move,
-    generate_coaching_report, CoachingDraft, CoachingPoint, CoachingReport, SubmissionDecision, AnsweredQuestion)
+    generate_coaching_report, CoachingDraft, CoachingPoint, CoachingReport, SubmissionDecision, AnsweredQuestion, ProbeRequest)
 from backend.research_plan import ResearchPlan, ResearchTopic
 
 PAPER = '\n'.join(f'Section {i}: The proposal will examine campus queue pilot decision {i}.' for i in range(1, 13))
@@ -483,15 +484,28 @@ class CoverageProtocolTests(unittest.TestCase):
         self.fail('Missing room state')
 
     def test_twelve_question_research_and_mixed_with_vote_clarification_timeout_retry_reconnect_coaching(self):
+        self.twelve_question_defense(pdf=False)
+
+    def test_twelve_question_pdf_research_and_mixed_preserve_private_originals_and_citations(self):
+        self.twelve_question_defense(pdf=True)
+
+    def twelve_question_defense(self, *, pdf):
         for mode in ('research','mixed'):
             with self.subTest(mode=mode):
-                files=[('research_files',('paper.md',PAPER.encode(),'text/markdown'))]
+                paper = pdf_bytes(*PAPER.splitlines()) if pdf else PAPER.encode()
+                filename = 'paper.pdf' if pdf else 'paper.md'
+                files=[('research_files',(filename,paper,'application/pdf' if pdf else 'text/markdown'))]
                 if mode=='mixed': files.append(('files',('queue.py',b'    save_reservation(student_id)\n','text/x-python')))
                 response=self.client.post('/api/rooms', data={'host_name':'Host', 'host_passcode':'offline-passcode', 'defense_type':mode, 'research_stage':'proposal'}, files=files)
                 self.assertEqual(response.status_code,201,response.text)
                 host=response.json(); code=host['room_code']
                 guest=self.client.post(f'/api/rooms/{code}/join',json={'name':'Sam'}).json()
                 p=plan()
+                if pdf:
+                    p=ResearchPlan(tuple(ResearchTopic(topic.id, topic.title, topic.objective, topic.panelist,
+                        tuple(GroundedCitation(filename, ref.evidence_line, ref.evidence_text,
+                            f'Page {ref.evidence_line} · extracted line 1', 'research_pdf') for ref in topic.references))
+                        for topic in p.topics))
                 failed=False
                 def generate(files,key,*,history,context,**kwargs):
                     nonlocal failed
@@ -507,6 +521,8 @@ class CoverageProtocolTests(unittest.TestCase):
                         output['source_file']=next(i for i,f in enumerate(files,1) if f.kind.startswith('research') != code_citation)
                     return generate_research_move(files,'offline-key',history=history,context=context,client=Client(output),**kwargs)
                 def interpret(*args,submission,**kwargs):
+                    if submission == 'Probe this decision':
+                        return SubmissionDecision('probe', probe=ProbeRequest('Which recruitment criterion do you mean?'))
                     return SubmissionDecision('clarify','Explain the same pilot decision, in simple terms.') if submission=='Simpler please' else SubmissionDecision('answer')
                 def coach(files,history,key,model,**kwargs):
                     self.assertEqual(history[0].answer, None)
@@ -541,6 +557,16 @@ class CoverageProtocolTests(unittest.TestCase):
                                 turn=state['turns'][-1]
                                 expected='    save_reservation(student_id)' if turn['filename']=='queue.py' else PAPER.splitlines()[turn['evidence_line']-1]
                                 self.assertEqual(turn['evidence_text'],expected)
+                                if pdf:
+                                    document = state['documents'][0]
+                                    self.assertEqual(document['page_count'], 12)
+                                    if turn['filename'] == filename:
+                                        self.assertEqual(turn['evidence_document_id'], document['id'])
+                                        self.assertEqual(turn['evidence_page'], turn['evidence_line'])
+                                    else:
+                                        self.assertNotIn('evidence_document_id', turn)
+                                    url = f'/api/rooms/{code}/documents/{document["id"]}'
+                                    self.assertEqual(self.client.get(url,headers={'X-Player-Token':guest['player_token']}).content, paper)
                                 if index > 1:
                                     self.assertEqual(turn['lead_in'], 'One option is to narrow the pilot claim if recruitment access is limited.')
                             h.send_json({'type':'cast_vote','seat':index%2})
@@ -560,7 +586,12 @@ class CoverageProtocolTests(unittest.TestCase):
                                         state=self.until(ws,'question',index+1)
                                         self.assertEqual(len(state['turns'][-1]['clarifications']),1)
                                         self.assertEqual(len(state['turns']),4)
-                                speaker.send_json({'type':'submit_answer','turn':index,'answer':'We will compare queue times with a documented pilot method.'})
+                                speaker.send_json({'type':'submit_answer','turn':index,'answer':'Probe this decision' if pdf and index==4 else 'We will compare queue times with a documented pilot method.'})
+                                if pdf and index==4:
+                                    for ws in (h,g):
+                                        state=self.until(ws,'probe',5)
+                                        self.assertEqual(state['turns'][-1]['evidence_document_id'],state['documents'][0]['id'])
+                                    speaker.send_json({'type':'submit_probe_reply','turn':index,'probe_id':state['turns'][-1]['probe']['id'],'answer':'Specified recruitment criteria.'})
                         for ws in(h,g):
                             final=self.until(ws,'complete',12,feedback_status='ready')
                             self.assertEqual(final['completion_reason'],'budget exhausted')
@@ -574,6 +605,7 @@ class CoverageProtocolTests(unittest.TestCase):
                         self.assertEqual(restored['coverage'],final['coverage'])
                         self.assertEqual(restored['completion_reason'],final['completion_reason'])
                         self.assertEqual(restored['turns'],final['turns'])
+                        self.assertEqual(restored['documents'],final['documents'])
                     self.assertEqual(generator.call_count,14) # opening, 12 assessments, one retry
 
 class CoverageStreamlitTests(unittest.TestCase):

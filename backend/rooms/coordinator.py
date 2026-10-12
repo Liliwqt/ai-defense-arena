@@ -224,6 +224,8 @@ class RoomCoordinator:
                     pass
         except TimeoutError:
             pass
+        if self._room.documents:
+            self._room.documents.release()
 
     def _retain(self, task: asyncio.Task) -> asyncio.Task:
         self._tasks.add(task)

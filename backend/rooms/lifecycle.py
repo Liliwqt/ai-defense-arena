@@ -140,6 +140,7 @@ async def handle_lifecycle(owner: "RoomCoordinator", actor: VerifiedActor, comma
                 room.research_planning_status = "none"
                 room.research_plan_error = None
             room.defense = None
+            room.defense_view_id = secrets.token_hex(12)
             room.answered_by.clear()
             room.answered_by_seat.clear()
             room.chat.clear()

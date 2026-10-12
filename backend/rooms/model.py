@@ -3,6 +3,7 @@
 import asyncio
 from dataclasses import dataclass, field, asdict
 import time
+import secrets
 from typing import Any, TYPE_CHECKING
 
 from fastapi import WebSocket
@@ -13,6 +14,7 @@ from backend.question_generator import CoachingReport
 from backend.research_plan import ResearchPlan
 from backend.resource_limits import AIBudget, limit
 from backend.timed_turn import TimedTurn
+from backend.room_documents import RoomDocuments
 
 if TYPE_CHECKING:
     from backend.rooms.coordinator import RoomCoordinator
@@ -65,6 +67,8 @@ class Room(TimedTurn):
     closed: bool = False
     ai_budget: AIBudget = field(default_factory=AIBudget)
     coordinator: "RoomCoordinator | None" = field(default=None, init=False, repr=False, compare=False)
+    documents: RoomDocuments | None = field(default=None, repr=False, compare=False)
+    defense_view_id: str = field(default_factory=lambda: secrets.token_hex(12))
 
     def online_players(self) -> dict[str, int]:
         return {player.token: player.seat for player in self.players.values() if player.sockets}
@@ -85,6 +89,7 @@ class Room(TimedTurn):
             for index, turn in enumerate(self.defense.turns):
                 turns.append(
                     {
+                        **(self.documents.citation(turn.question.filename, turn.question.evidence_location) if self.documents else {}),
                         "panelist": turn.panelist,
                         "lead_in": turn.question.lead_in,
                         "question": turn.question.question,
@@ -126,6 +131,8 @@ class Room(TimedTurn):
             }
         return {
             "room_code": self.code,
+            "defense_view_id": self.defense_view_id,
+            "documents": self.documents.snapshot() if self.documents else [],
             "expires_at_ms": self.expires_at(),
             "interpretation_attempts_left": max(0, limit('AI_INTERPRETATION_ATTEMPTS', 6, 20) - self.interpretation_attempts),
             "clock_paused": self.pause_deadline_ms is not None and now < self.pause_deadline_ms,

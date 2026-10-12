@@ -23,7 +23,7 @@ export function App() {
   const viewport = useRoomViewport();
   const {
     roomState: liveRoomState, connected, roomCode, waitingForAnswerAck,
-    actionError, actionErrorReason, sendEvent, useRoom, leaveRoom,
+    actionError, actionErrorReason, sendEvent, useRoom, leaveRoom, playerToken,
   } = useRoomSocket(previewMode);
   const [drawerOpen, setDrawerOpen] = useState(!previewMode || new URLSearchParams(window.location.search).get("plan") === "1");
   const [drawerMode, setDrawerMode] = useState<DrawerMode>(new URLSearchParams(location.search).get("account") === "1" ? "account" : "controls");
@@ -168,7 +168,7 @@ export function App() {
       <div id="stage" className="arena-stage">
         <HUD presentation={presentation} roomState={roomState} roomCode={roomCode} previewMode={previewMode} onOpenDrawer={openDrawer} onPreviewMoment={previewPresenter} />
         <PanelistSeats presentation={presentation} roomState={roomState} />
-        <QuestionCard presentation={presentation} roomState={roomState} />
+        <QuestionCard presentation={presentation} roomState={roomState} playerToken={playerToken} />
         <DefenderSeats presentation={presentation} roomState={roomState} presenterMoment={presenterMoment} />
       </div>
       <RoomDock presentation={presentation} roomState={roomState} connected={connected} previewMode={previewMode}

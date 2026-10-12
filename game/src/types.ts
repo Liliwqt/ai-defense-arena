@@ -27,6 +27,8 @@ export interface ClarificationExchange {
 }
 
 export interface Turn {
+  evidence_document_id?: string;
+  evidence_page?: number;
   probe?: PanelistProbe | null;
   resolved?: boolean;
   panelist: string;
@@ -101,6 +103,8 @@ export interface ResearchPlan {
 }
 
 export interface RoomState {
+  defense_view_id?: string;
+  documents?: {id: string; filename: string; page_count: number}[];
   probe_recovery_available?: boolean;
   room_code: string;
   self_seat: number | null;

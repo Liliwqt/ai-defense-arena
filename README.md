@@ -457,13 +457,27 @@ Research uploads are separate, direct files. PDFs must contain readable text on 
 Every excerpt is resolved from server-owned text and validated before displaying a question:
 
 - **Code:** filename, source line number, and exact line in a near-black monospaced panel with horizontal scrolling.
-- **PDF:** filename, page, extracted line, and exact extracted text in a document-style panel.
+- **PDF:** filename, physical page, extracted line, exact extracted quote and a private original-PDF viewer in the multiplayer room.
 - **DOCX:** filename and paragraph or table/row/cell location.
 - **Research TXT/Markdown:** filename and text line location.
 
 Research excerpts may include up to three surrounding lines on each side, with PDF context confined to the cited page. The cited line remains emphasized and unchanged. Code citations do not include neighbouring lines.
 
-The document panel shows **extracted text**, not a rendered original PDF. Extraction order may differ from visual reading order, especially in columns or slide decks. Original layout and figures are not preserved. A validated excerpt establishes its location, not the correctness of the AI's interpretation.
+The multiplayer room shows the question above the original PDF, with **Question / Paper** tabs on phones. Browse documents and pages, zoom, use **Fit width**, **Return to citation**, or **Expand paper**. Reading positions are personal: same-question updates and reconnect retain your page and zoom; a new question follows its PDF citation. Code excerpts remain prominent when the question cites code. DOCX, TXT, Markdown and Streamlit retain extracted-text presentation.
+
+PDF.js renders one page at a time with selectable text and locally bundled fonts/worker. A unique, confidently mapped text run gets a visual highlight; repeated, split, rotated or unmappable text shows **Precise highlight unavailable** with the unchanged exact quotation. Extracted lines are not visual PDF line numbers. Rendering figures for readers does not give the AI figure interpretation; a validated excerpt does not certify the AI's interpretation.
+
+Original PDFs are retained privately only during the room's lifetime. Joined defenders use their player credentials; hosts also need the account that owns the room. Header authentication keeps credentials out of file URLs. Files are not published as static assets, and this release adds no PDF download button. Restarting the defense in the same room keeps the originals; closing/expiring the room or stopping the server removes them. Exclusive storage ownership prevents a replacement process from deleting an active predecessor's files; startup removes abandoned directories after acquiring ownership.
+
+| Original-PDF storage setting | Default |
+| --- | --- |
+| `ROOM_DOCUMENT_DIR` | Repository-root `.local/room-pdfs` |
+| `ROOM_DOCUMENT_BYTES` | 110,000,000 original bytes per room |
+| `ROOM_DOCUMENT_TOTAL_BYTES` | 500,000,000 original bytes across the service |
+
+These limits add bounded temporary retention; the existing upload, page, file-count and extracted-context limits still apply. Reservations include uploads being processed, and rejected/cancelled creations release capacity. Keep one room-service worker/instance; temporary originals are not durable storage.
+
+For a credential-free local viewer review, build the frontend and run `.venv/bin/python -m tests.pdf_viewer_preview`, then open [the local PDF fixture](http://127.0.0.1:8842/__fixture/login). This loopback-only wrapper uses disposable synthetic accounts/papers, never mounts fixture login in production, and makes no external provider requests. Its deadline is a visual fixture, not timer-validation evidence. See [the PDF viewer review guide](docs/PDF_VIEWER_REVIEW.md) for screenshots and separate test evidence.
 
 ## Architecture
 

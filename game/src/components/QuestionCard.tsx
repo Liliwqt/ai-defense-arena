@@ -1,17 +1,22 @@
 import { ProbeExchange } from "./ProbeExchange";
 import { PageCitation } from "./PageCitation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { PDFViewer } from "./PDFViewer";
 import { isResearchCitation } from "../lib/citation";
 import type { RoomState } from "../types";
 
 import { deriveRoomPresentation, type RoomPresentation } from "../lib/roomPresentation";
 
 interface QuestionCardProps {
+  playerToken?: string | null;
   presentation?: RoomPresentation;
   roomState: RoomState | null;
 }
 
-export function QuestionCard({ roomState, presentation = deriveRoomPresentation(roomState) }: QuestionCardProps) {
+export function QuestionCard({ roomState, playerToken, presentation = deriveRoomPresentation(roomState) }: QuestionCardProps) {
+  const hasPaper = Boolean(roomState?.documents?.length);
+  const [paperTab, setPaperTab] = useState("question");
+  const [expanded, setExpanded] = useState(false);
   const content = presentation.card;
   const { clarification } = presentation;
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -39,7 +44,8 @@ export function QuestionCard({ roomState, presentation = deriveRoomPresentation(
     );
   }
   return (
-    <section id="question-card" aria-labelledby="panelist-name">
+    <section id="question-card" className={hasPaper ? "has-paper" : undefined} data-paper-tab={paperTab} data-paper-expanded={expanded} aria-labelledby="panelist-name">
+      <div className="question-card-header">
       <div className="question-heading">
         <div>
           <p className="question-kicker">{clarification ? "THE PANEL CLARIFIES" : "THE PANEL ASKS"}</p>
@@ -47,15 +53,22 @@ export function QuestionCard({ roomState, presentation = deriveRoomPresentation(
         </div>
         <span className="question-number">{content.number}</span>
       </div>
+      {hasPaper && <div className="paper-tabs" role="tablist" aria-label="Question or paper">
+        {(["question", "paper"] as const).map(tab => <button key={tab} id={`paper-tab-${tab}`} type="button" role="tab" aria-controls={tab === "paper" ? "paper-reading-panel" : "paper-question-panel"} aria-selected={paperTab === tab} tabIndex={paperTab === tab ? 0 : -1}
+          onKeyDown={event => { if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) { event.preventDefault(); const next = event.key === "Home" ? "question" : event.key === "End" ? "paper" : tab === "paper" ? "question" : "paper"; setPaperTab(next); if (next === "question") setExpanded(false); document.getElementById(`paper-tab-${next}`)?.focus(); } }}
+          onClick={() => { setPaperTab(tab); if (tab === "question") setExpanded(false); }}>{tab === "paper" ? "Paper" : "Question"}</button>)}
+      </div>}
+      </div>
       {content.reviewStatus && <p className="question-review-status" aria-live="polite">{content.reviewStatus}</p>}
       <div className="question-scroll" ref={scrollRef} tabIndex={0} aria-label="Question and cited source">
+      <div className="question-copy" id="paper-question-panel" role={hasPaper ? "tabpanel" : undefined} aria-labelledby={hasPaper ? "paper-tab-question" : undefined}>
       {roomState?.current_topic && <p className="question-topic">Topic: {roomState.research_plan?.topics.find(t => t.id === roomState.current_topic)?.title}</p>}
       {clarification && <p className="clarification-request"><strong>Defender asks:</strong> {clarification.request}</p>}
       <p id="question-text" aria-live={clarification ? "polite" : undefined}>{clarification?.reply ?? content.question}</p>
       {content.initialAnswer && <p className="question-previous-answer"><strong>Original answer:</strong> <span>{content.initialAnswer}</span></p>}
       <ProbeExchange probe={content.probe} panelist={content.name} />
       {content.previousAnswer && <p className="question-previous-answer">{content.previousAnswer}</p>}
-      {content.filename !== undefined && (
+      {content.filename !== undefined && !(hasPaper && roomState?.turns.at(-1)?.evidence_document_id) && (
         isResearchCitation(content.kind) ? (
           <PageCitation
             filename={content.filename}
@@ -77,6 +90,8 @@ export function QuestionCard({ roomState, presentation = deriveRoomPresentation(
         </div>
         )
       )}
+      </div>
+      {hasPaper && roomState && <PDFViewer roomState={roomState} playerToken={playerToken} expanded={expanded} onExpandedChange={value => { setExpanded(value); if (value) setPaperTab("paper"); }} />}
       </div>
     </section>
   );

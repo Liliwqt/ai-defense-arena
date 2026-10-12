@@ -478,15 +478,17 @@ class AccountCreditTests(unittest.TestCase):
             self.assertTrue(state["self_is_host"])
             self.assertNotIn(account["user"]["email"], json.dumps(state))
             self.assertNotIn(account["csrf_token"], json.dumps(state))
-        with TestClient(self.client.app, base_url=self.origin) as guest:
-            joined = guest.post("/api/rooms/"+room["room_code"]+"/join",json={"name":"Sam"})
-            self.assertEqual(joined.status_code, 200)
-            with guest.websocket_connect("/ws/"+room["room_code"], headers={"Origin":self.origin}) as socket:
-                socket.send_json({"type":"hello","token":joined.json()["player_token"]})
-                self.assertFalse(socket.receive_json()["state"]["self_is_host"])
-            with guest.websocket_connect("/ws/"+room["room_code"], headers={"Origin":self.origin}) as socket:
-                socket.send_json({"type":"hello","token":room["player_token"]})
-                self.assertEqual(socket.receive_json()["type"], "error")
+        # A second browser shares the running service; do not start another lifespan.
+        guest = TestClient(self.client.app, base_url=self.origin)
+        self.addCleanup(guest.close)
+        joined = guest.post("/api/rooms/"+room["room_code"]+"/join",json={"name":"Sam"})
+        self.assertEqual(joined.status_code, 200)
+        with guest.websocket_connect("/ws/"+room["room_code"], headers={"Origin":self.origin}) as socket:
+            socket.send_json({"type":"hello","token":joined.json()["player_token"]})
+            self.assertFalse(socket.receive_json()["state"]["self_is_host"])
+        with guest.websocket_connect("/ws/"+room["room_code"], headers={"Origin":self.origin}) as socket:
+            socket.send_json({"type":"hello","token":room["player_token"]})
+            self.assertEqual(socket.receive_json()["type"], "error")
 
 
 if __name__ == "__main__":

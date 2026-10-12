@@ -4,6 +4,8 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Current status
 
+- PDF viewer implemented locally, 2026-10-13: all four approved tickets are ready-for-human with private bounded originals, authenticated delivery, PDF.js original-page rendering, personal reading controls, phone tabs and conservative citation highlights. Final gate: 505 Python tests (AI/Google/PayMongo mocked), 268 React tests and production build pass. Actual synthetic-PDF desktop/portrait/landscape and independent-browser reading checks completed; review guide/screenshots at docs/PDF_VIEWER_REVIEW.md. User visual approval, independent code review and local implementation commit pending; no push/deployment. Review baseline ea4c671; unrelated footprint research preserved.
+
 - Render startup mismatch diagnosed, 2026-10-13: user-provided deploy log shows a successful build followed by obsolete game_server:app imports. Local Uvicorn importer reproduces that error; backend.game_server:app loads successfully. render.yaml/README already specify the package-qualified command. Feature-service dashboard correction/redeployment and hosted health remain unverified; no server-setting change performed by this session.
 
 - Logo icon generated, integrated and published in dba75a7, 2026-10-13: generated shield/speech-bubble PNG now supplies the React desktop header and browser favicon through game/public/ai-defense-arena-icon.png. Original/prompt remain under presentation/branding/. Frontend gate: 261 tests/build pass; synthetic desktop/portrait/landscape checks confirm asset loading and no overflow. Compact mobile timer layout and native launcher icons retain their current behavior. Source publication verified; user visual review and deployment remain pending.
@@ -165,6 +167,11 @@ Use this file to track completed updates across agents and session windows. See 
 - Generated questions carry a validated conversational `lead_in`: distinct panelist voices briefly react to the latest answer, match a substantive answer's language, and stay separate from the grounded question and citation. The previous exchange remains visible while the next response is generated.
 
 ## Active work
+
+- root-pdf-viewer-implementation, started 2026-10-13: implement approved PDF viewer tickets 01–04 on feature/question-first-room. Intended areas: private original store, room creation/snapshots/lifecycle, React viewer/controls/highlights, tests, README and review evidence. Baseline ea4c671 proposed for final review; pre-existing PDF planning docs and unrelated footprint research are distinguished. Closes with dated verification/review/commit handoff; no push or deployment.
+
+
+
 
 
 
@@ -2266,3 +2273,93 @@ Append new entries to the **end** of this file in date order:
 - Session: root-logo-publish; closes its active-work claim with this dated receipt. Logo integration and original/prompt committed as dba75a7 on feature/question-first-room.
 - Verification: git push succeeded from d4e8fcf to dba75a7; independent git ls-remote confirms origin/feature/question-first-room at dba75a744433d2ac5677863ee23bf506a60c0b94 and frozen origin/main unchanged at 866e923c40c3cf431e66984861dd7dbefb223f8b. Existing frontend/build/synthetic preview checks remain the executable evidence; no new hosted or provider verification.
 - Changed: this publication receipt/current status only, committed and pushed separately with [skip render]. Deployment is held; unrelated docs/PROJECT_SIZE_RESEARCH.md remains untracked and untouched. No main merge, Render redeploy, native launcher update or PDF viewer added.
+
+
+### 2026-10-13 — Central PDF viewer planning resumed
+
+- Session: root-pdf-viewer-planning; active while the user settles the first layout/navigation/format round. Ask Matt / Grill With Docs resumes the interrupted viewer discussion after the logo publication.
+- Changed: docs/PDF_VIEWER_PLAN.md and this log only. Recorded extraction versus original rendering, existing physical-page locations, absence of highlight geometry, authenticated room membership, retention limits and native download boundaries. Proposed PDF.js page rendering and exact-excerpt fallback; no choices are marked user-confirmed.
+- Verification: read-only source inspection by root and a fact-finding sub-agent; checked Mozilla PDF.js examples, setup and display/text API documentation. git diff --check passes. No runtime tests, AI/payment/provider calls, live viewer, screenshot review or installed-device evidence.
+- Remaining: user answers to layout, navigation and PDF-only scope, followed by dependent access/retention/highlight decisions and final planning confirmation. No runtime implementation, commit, push or deployment; frozen main and unrelated docs/PROJECT_SIZE_RESEARCH.md preserved.
+
+
+### 2026-10-13 — PDF viewer layout and navigation confirmed
+
+- Session: root-pdf-viewer-planning; remains active. User confirmed the question above the PDF, Question/Paper tabs on narrow phones, automatic cited-page navigation with personal browsing, and PDF-only original rendering with other document formats retaining extracted-text display.
+- Changed: docs/PDF_VIEWER_PLAN.md and current status record those choices as confirmed. Asked the next frontier: whole-paper room-member access/lifetime, verified highlighting fallback and first-release controls/download scope.
+- Verification: documentation inspection and git diff --check only; no runtime tests, viewer implementation or provider calls.
+- Remaining: second-round decisions, bounded-retention details, verification scope and consolidated planning confirmation. No commit, push or deployment; frozen main and unrelated local files preserved.
+
+
+### 2026-10-13 — PDF access, highlighting and controls confirmed
+
+- Session: root-pdf-viewer-planning; remains active. User confirmed whole-paper access for joined room members during room lifetime, confident citation highlighting with a written exact-quote fallback, and page/zoom/Fit width/Return to citation/expanded reading controls with downloads deferred.
+- Changed: docs/PDF_VIEWER_PLAN.md and this log record the confirmed choices. Asked bounded temporary-disk retention, browsing continuity across updates, and offline/mocked/responsive verification with local preview before publication.
+- Verification: existing upload bounds rechecked in README.md/backend/game_server.py; documentation inspection and git diff --check pass. No runtime tests, AI/provider calls or viewer implementation.
+- Remaining: third-round decisions and consolidated planning confirmation. Frozen main, current runtime and unrelated local files remain unchanged; no commit, push or deployment.
+
+
+### 2026-10-13 — PDF viewer plan consolidated for final confirmation
+
+- Session: root-pdf-viewer-planning; remains active until shared-understanding confirmation. User confirmed bounded private temporary storage (110 MB/room, 500 MB/global, operator configurable), same-turn/reconnect reading continuity with new-turn citation navigation, and the offline/mocked/responsive local verification and preview boundary.
+- Changed: docs/PDF_VIEWER_PLAN.md consolidates all nine decisions, lifecycle/access requirements, exact-quote fallback, personal browsing/phone tabs, three proposed local checkpoints and verification. Read CONTEXT.md and domain guidance; retained room/defense-turn/grounded-citation distinctions. No existing payment ADR conflicts were introduced.
+- Verification: source/documentation inspection and git diff --check pass; no runtime tests, provider calls, screenshots, viewer implementation or visual approval.
+- Remaining: user consolidated-plan confirmation, then specification/tickets/implementation when requested. No commit, push or deployment; frozen main, current app and unrelated local files preserved.
+
+
+### 2026-10-13 — PDF viewer planning completed and user-confirmed
+
+- Session: root-pdf-viewer-planning; closes its active-work claim with this dated handoff. User accepted the consolidated Q10 scope after confirming all nine design and verification choices.
+- Changed: docs/PDF_VIEWER_PLAN.md marks the plan confirmed and records the specification/ticket/implementation handoff. This log updates current status and removes only this session's active claim. Q9 provides the test-scope agreement; Q10 provides shared-understanding confirmation, not implementation or publication authorization.
+- Verification: documentation consistency inspection and git diff --check pass. No runtime tests, AI/provider calls, screenshots, viewer implementation or user visual approval.
+- Remaining: To Spec, To Tickets and Implement when requested, followed by the agreed local preview. Frozen main, current app and unrelated docs/PROJECT_SIZE_RESEARCH.md preserved; no commit, push or deployment.
+
+
+### 2026-10-13 — PDF viewer specification published to the local tracker
+
+- Session: root-pdf-viewer-spec; closes its active-work claim with this dated handoff. Used To Spec to synthesize the confirmed plan without another discovery interview. Existing local Markdown tracker and triage conventions require no setup or GitHub issue writes.
+- Changed: .scratch/pdf-viewer/spec.md is ready-for-agent with the seven template sections and 54 user stories. Implementation decisions cover bounded private temporary originals, authenticated room delivery, safe reconnect metadata, PDF.js/current-page/selectable rendering, personal navigation, phone tabs, confident highlighting/fallback and lifecycle cleanup. docs/PDF_VIEWER_PLAN.md links the canonical specification; current status records the handoff.
+- Test agreement: reused accepted Q9 verification boundaries and Q10 consolidated confirmation. Prefer authenticated FastAPI HTTP/WebSocket room flows and whole-room React behavior; extend the same HTTP boundary for private original delivery. Include actual fixture-PDF browser rendering, cleanup/quota races, mocked two-client research/mixed twelve-question defenses and responsive keyboard review. Installed-device, live/provider and hosted evidence remain separate.
+- Verification: a local documentation check validates all seven sections, 54 consecutively numbered story-format entries, ready-for-agent status, prose-only implementation decisions and existing relative links; git diff --check passes. No runtime tests, screenshots, AI/provider calls or viewer implementation.
+- Remaining: To Tickets, then implementation and the agreed local preview when requested. No commit, push or deployment; frozen main, current runtime and unrelated docs/PROJECT_SIZE_RESEARCH.md preserved.
+
+
+### 2026-10-13 — PDF viewer ticket breakdown drafted for review
+
+- Session: root-pdf-viewer-tickets; active pending user breakdown review and local ticket publication. Applied To Tickets to the complete confirmed specification using existing local tracker conventions.
+- Changed: .scratch/pdf-viewer/ticket-breakdown-draft.md and this log only. Proposed four runnable vertical slices: private cited-page viewing (storage/access/metadata/minimal real viewer), personal browsing/reading controls, confident highlights/quote fallback, and complete two-client/real-rendering/responsive review. Linear blocking edges reflect actual delivery, viewport/zoom and integrated-verification prerequisites. The initial slice includes cleanup/authentication tests rather than deferring them to the last checkpoint.
+- Verification: documentation/dependency review and git diff --check pass. No separate issue files, runtime tests, AI/provider calls, screenshots or implementation. Parent specification untouched; no horizontal prefactor or database migration is required by the scope.
+- Remaining: user granularity/dependency/merge-split approval, then one ready-for-agent local issue per approved slice. Implementation, visual approval and publication remain separate; unrelated files and frozen main preserved. No commit, push or deployment.
+
+
+### 2026-10-13 — Approved PDF viewer tickets published locally
+
+- Session: root-pdf-viewer-tickets; closes its active-work claim with this dated handoff. User approved the drafted four-ticket granularity and blocking edges without changes.
+- Changed: four separate files under .scratch/pdf-viewer/issues cover private cited-page viewing, personal browsing/reading controls, confident citation highlighting/fallback and integrated local review. Each is ready-for-agent with explicit blockers and unchecked acceptance criteria; graph 01 -> 02 -> 03 -> 04. The breakdown document records approval/publication. Only 01 is initially unblocked; no implementation started.
+- Verification: local document checks confirm four files in dependency order, required template fields, ready-for-agent metadata, 39 unchecked criteria, consistent blocker titles and an acyclic graph, with prose-only descriptions. SHA-256 comparisons confirm the parent specification and unrelated footprint research unchanged; git diff --check passes. No runtime tests, screenshots, AI/provider calls or visual review.
+- Remaining: Implement beginning with ticket 01 when requested, then the agreed local verification/preview. Preserved frozen main, current runtime and unrelated files; no commit, Git push, remote issue write or deployment.
+
+
+### 2026-10-13 — PDF viewer first local implementation slice
+
+- Session: root-pdf-viewer-implementation; active across approved tickets. User confirmed ea4c671 as the final review baseline. Used Implement and TDD at the previously agreed authenticated room and question-card boundaries.
+- Changed: private original-document store, room creation/snapshot/lifecycle wiring, original delivery resource, additive React metadata, a lazy PDF.js cited-page renderer with phone tabs and loading/error retry, and focused document/UI tests. Installed pinned pdfjs-dist 6.4.299 after checking official API/Node compatibility. A late parser exception is observed after HTTP cancellation; original stage/release ownership prevents late file recreation. Existing upload/AI/timer/charging policies unchanged.
+- Verification: new HTTP/WebSocket test first failed for missing document metadata, then passes with host/guest/reconnect access and original-byte fidelity. Three new document tests plus admission/service-handoff checks pass (27 total, providers mocked). New whole-card test first failed for missing paper tabs, then passes; combined new viewer/existing question-card tests pass 27 checks with the PDF API mocked. Typechecking exposed two renderer API/type issues; corrected them and reran typechecking. No actual rendered-PDF screenshot, full gate or code review yet.
+- Remaining: personal controls/reading continuity, confident visual matching, additional quota/lifecycle races, actual fixture PDF browser verification, complete defense/full gates, final review and authorized local commit. Preserved parent specification, unrelated files and frozen main; no Git push/deployment or user visual approval.
+
+
+### 2026-10-13 — PDF navigation, precision and private-storage checks
+
+- Session: root-pdf-viewer-implementation; remains active. Added document/page/zoom/Fit width/Return to citation and expanded reading, personal session-only reading positions, same-turn/reconnect continuity and new-turn citation navigation. Unique single-run text matches use real DOM geometry; cross-run, rotated, repeated or missing matches deliberately retain the exact quote with a precision-unavailable label. Filename and extracted locations remain visible in either phone tab.
+- Changed: viewer/navigation/highlight modules and CSS, preview helper, whole-card tests, document HTTP/storage tests, PDF research/mixed protocol extension and startup cleanup failure handling. Stale loads are fenced by document identity; canvas allocations are bounded. Failed parser/publication and owner/expiry/storage-owner cases leave no unauthorized originals or overbooked capacity.
+- Verification: 31 focused Python room-document/admission/service-handoff tests pass with providers mocked; 33 whole-card React tests pass with PDF API mocked. Extended twelve-question research and mixed PDF defenses pass alongside the existing text-paper flows, covering private original reads, citations, voting, reaction, timeout, retry, clarification, same-question probe, reconnect and coaching. Production build passes; actual Chromium PDF.js worker renders a synthetic original with selectable text and a unique geometry highlight. Initial 1440x900 and 390x844 views inspected; no horizontal body overflow.
+- Remaining: final actual-PDF ambiguous/column/zoom/two-browser/landscape checks, documented screenshot handoff, full gates and independent baseline review/local commit. User visual approval, live AI/providers, hosted service and installed Android/iOS remain unverified. No push/deployment; unrelated footprint research and frozen main preserved.
+
+
+### 2026-10-13 — PDF viewer complete local gate and review handoff
+
+- Session: root-pdf-viewer-implementation; active until final code review/local commit receipt. All four approved slices implemented and local tickets marked ready-for-human. Parent specification SHA remains unchanged; existing PDF planning notes are distinguished from this implementation in baseline review. Superseded the five historical pending PDF-planning/ticket current-status bullets using their dated completion entries and this implemented checkpoint.
+- Changed: complete viewer/storage integration, navigation/highlights, synthetic preview helper, HTTP/protocol/React regression checks, README, docs/PDF_VIEWER_REVIEW.md and nine fixture-only screenshots. On short landscape screens the tabs share the heading row to recover reading space; the center alone scrolls. Adjusted an existing mobile-account test to share the running app lifespan instead of starting a second storage-owning service for its guest client.
+- Verification: full .venv/bin/python -m unittest discover -v passes 505 tests (AI/Google/PayMongo mocked; local disposable stores). Initial gate exposed the nested-lifespan fixture; focused regression and full repeat pass. Full npm test passes 268 React tests; npm run build passes with expected large lazy PDF.js chunk warning. No new AI requests or provider calls were added. Mocked research/mixed twelve-turn PDF flows include private original delivery, source locations, voting, timeout, reactions, retry, clarification, same-turn probe, reconnect and coaching; existing code four/eight-turn flows and charging checks pass.
+- Actual rendering: Chromium at 1440x900, 390x844 and 844x390 used the production PDF.js worker on synthetic multi-page/multi-document PDFs. Unique highlight alignment stayed within 0.02 CSS pixels at 100%, 125% and Fit width; repeated text in two columns yielded zero markers and exact-quote fallback. Two independent browser contexts kept separate pages, restored page 3/125% on guest reload and returned to cited page 2. Injected paper-load failure retained the draft and question through local retry with no page exception. Keyboard tabs, expanded Escape/focus return, long-question internal scrolling and horizontal-body bounds checked. Screenshot capture briefly overlapped a local rebuild, causing temporary asset 404s; reloading after build completed restored the screen.
+- Remaining: independent Standards/Spec review against ea4c671, fixes if required and authorized local commit. Preview http://127.0.0.1:8842/__fixture/login is available for user review. User visual approval, actual AI/providers, hosted checks, physical second device and installed Android/iOS remain unverified. No Git push/deployment; frozen main and unrelated docs/PROJECT_SIZE_RESEARCH.md preserved.
