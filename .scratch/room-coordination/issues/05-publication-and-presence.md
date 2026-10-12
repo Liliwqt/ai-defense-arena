@@ -6,21 +6,21 @@ without resetting the answer clock or blocking the room.
 
 **Blocked by:** 02 — Coordinate questions, retries and authoritative deadlines.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 **Checkpoint:** 3 — action and lifecycle routing.
 
 ## Acceptance criteria
 
-- [ ] Move publication sequencing and presence transitions behind the coordinator;
+- [x] Move publication sequencing and presence transitions behind the coordinator;
   retain existing bounded socket delivery and message/connection limits.
-- [ ] Preserve ordered/coalesced revisions, recipient-specific pending/vote fields,
+- [x] Preserve ordered/coalesced revisions, recipient-specific pending/vote fields,
   private account exclusion and guest/host reconnect rules.
-- [ ] Failed delivery feeds presence/reassignment/observed-absence handling without
+- [x] Failed delivery feeds presence/reassignment/observed-absence handling without
   recursive publication under its lock or reversed lock acquisition.
-- [ ] Preserve partial disconnects across multiple tabs and the running deadline
+- [x] Preserve partial disconnects across multiple tabs and the running deadline
   when the chosen defender changes.
-- [ ] Verify slow/failing recipients, concurrent revision delivery, private views,
+- [x] Verify slow/failing recipients, concurrent revision delivery, private views,
   reconnect and reassignment through captured delivery and real mocked sockets.
 
 ## Scope and execution constraints
@@ -53,3 +53,13 @@ without resetting the answer clock or blocking the room.
 
 - 2026-10-12: User approved the seven-ticket size and blocking graph. Published
   to the local Markdown tracker; implementation has not started.
+
+- 2026-10-12: Implemented locally. Publication and authenticated presence now
+  use the coordinator command boundary, with ordered/coalesced private snapshots,
+  bounded parallel delivery, corrected failed-socket presence, unchanged tab and
+  message limits, and deadline-preserving reassignment/reconnect. Six captured
+  transport tests cover concurrent updates, privacy, slow/failing delivery,
+  multiple tabs, host identity and cancellation during initial send/failed close.
+  Independent Standards and Spec rechecks report zero remaining findings after
+  fixing the reproduced cancellation cleanup cases. User visual review is not
+  claimed; no push/deployment. Lifecycle/service integration remains ticket 06.

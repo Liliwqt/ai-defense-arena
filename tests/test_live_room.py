@@ -4,6 +4,7 @@ import os
 from unittest.mock import patch
 from unittest.mock import AsyncMock
 from tests.test_game_server import GameServerTests
+from tests.room_commands import observe_absence
 
 
 class LiveRoomTests(GameServerTests):
@@ -48,7 +49,7 @@ class LiveRoomTests(GameServerTests):
             socket.__exit__(None,None,None)
             for _ in range(61):
                 self.clock_ms+=10_000
-                self.client.portal.call(game_server._observe_absence,game_server.rooms[host['room_code']])
+                self.client.portal.call(observe_absence,game_server.rooms[host['room_code']])
             reconnected,state=self.connect(host['room_code'],host['player_token'])
             self.assertEqual(state['phase'],'complete')
             self.assertIn('abandoned',state['error'])
@@ -63,7 +64,7 @@ class LiveRoomTests(GameServerTests):
             socket,_=self.connect(host['room_code'],host['player_token']);socket.send_json({'type':'start'})
             self.receive_phase(socket,'voting');socket.__exit__(None,None,None)
             self.clock_ms+=600_001
-            self.client.portal.call(game_server._observe_absence,game_server.rooms[host['room_code']])
+            self.client.portal.call(observe_absence,game_server.rooms[host['room_code']])
             self.assertIsNotNone(LiveStore().overview(self._offline_credentials[2]['id'])['active_run'])
 
     def test_coaching_persistence_failure_never_publishes_ready_and_can_retry(self):

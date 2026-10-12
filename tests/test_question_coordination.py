@@ -12,7 +12,7 @@ from backend.defense_session import DefenseSession
 
 class QuestionCoordinationTests(unittest.IsolatedAsyncioTestCase):
     async def test_invalid_candidate_recovers_once_without_replaying_answer(self):
-        guest = Player("guest", "Sam", 1)
+        guest = Player("guest", "Sam", 1, sockets={object()})
         room = Room("ROOMA", [ProjectFile("queue.py", "queue = []")], {guest.token: guest},
                     phase="generating", generation_id=2)
         question = GroundedQuestion("Why a queue?", "queue.py", 1, "queue = []")
@@ -31,12 +31,13 @@ class QuestionCoordinationTests(unittest.IsolatedAsyncioTestCase):
             if seconds != 1:
                 await never.wait()
 
-        async def publish(state):
-            states.append(coordinator.view(actor))
-            if state.phase == "voting":
+        async def deliver(socket, payload):
+            state = payload["state"]
+            states.append(state)
+            if state["phase"] == "voting":
                 published.set()
 
-        coordinator = RoomCoordinator(room, RoomWorkflows(publish=publish, question_request=ask,
+        coordinator = RoomCoordinator(room, RoomWorkflows(deliver=deliver, question_request=ask,
                                                          now=lambda: 1000, sleep=sleep))
         self.addAsyncCleanup(coordinator.shutdown)
         await coordinator.execute(GenerateQuestion(2, False))
@@ -62,14 +63,15 @@ class QuestionCoordinationTests(unittest.IsolatedAsyncioTestCase):
             await release.wait()
             return PanelMove("Security Reviewer", GroundedQuestion("Who may change it?", "queue.py", 1, "queue = []"))
 
-        async def publish(state):
-            if state.phase == "voting":
+        async def deliver(socket, payload):
+            state = payload["state"]
+            if state["phase"] == "voting":
                 published.set()
 
         async def sleep(seconds):
             await never.wait()
 
-        coordinator = RoomCoordinator(room, RoomWorkflows(publish=publish, question_request=ask,
+        coordinator = RoomCoordinator(room, RoomWorkflows(deliver=deliver, question_request=ask,
                                                          now=lambda: 1000, sleep=sleep))
         self.addAsyncCleanup(coordinator.shutdown)
         old_clock = room.clock_id
@@ -88,7 +90,7 @@ class QuestionCoordinationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state["vote_deadline_ms"], 16_000)
 
     async def test_stale_opening_cannot_publish_when_run_changes(self):
-        guest = Player("guest", "Sam", 1)
+        guest = Player("guest", "Sam", 1, sockets={object()})
         room = Room("ROOMA", [ProjectFile("queue.py", "queue = []")], {guest.token: guest},
                     phase="generating", generation_id=1, run_id="old-run")
         started, release, finished = asyncio.Event(), asyncio.Event(), asyncio.Event()
@@ -100,10 +102,11 @@ class QuestionCoordinationTests(unittest.IsolatedAsyncioTestCase):
             finished.set()
             return GroundedQuestion("Why?", "queue.py", 1, "queue = []")
 
-        async def publish(state):
-            published.append(state.snapshot(guest))
+        async def deliver(socket, payload):
+            state = payload["state"]
+            published.append(state)
 
-        coordinator = RoomCoordinator(room, RoomWorkflows(publish=publish, question_request=ask))
+        coordinator = RoomCoordinator(room, RoomWorkflows(deliver=deliver, question_request=ask))
         self.addAsyncCleanup(coordinator.shutdown)
         await coordinator.execute(GenerateQuestion(1, True))
         await asyncio.wait_for(started.wait(), 2)
@@ -115,7 +118,7 @@ class QuestionCoordinationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(room.phase, "generating")
 
     async def test_duplicate_question_work_admits_once_and_publishes_one_opening(self):
-        guest = Player("guest", "Sam", 1)
+        guest = Player("guest", "Sam", 1, sockets={object()})
         room = Room("ROOMA", [ProjectFile("queue.py", "queue = []")], {guest.token: guest},
                     phase="generating", generation_id=1)
         started, release, published, clock_started, never = (asyncio.Event() for _ in range(5))
@@ -128,8 +131,9 @@ class QuestionCoordinationTests(unittest.IsolatedAsyncioTestCase):
             await release.wait()
             return GroundedQuestion("How does the queue work?", "queue.py", 1, "queue = []")
 
-        async def publish(state):
-            if state.phase == "voting":
+        async def deliver(socket, payload):
+            state = payload["state"]
+            if state["phase"] == "voting":
                 published.set()
 
         async def sleep(seconds):
@@ -137,7 +141,7 @@ class QuestionCoordinationTests(unittest.IsolatedAsyncioTestCase):
             clock_started.set()
             await never.wait()
 
-        coordinator = RoomCoordinator(room, RoomWorkflows(publish=publish, now=lambda: 1000,
+        coordinator = RoomCoordinator(room, RoomWorkflows(deliver=deliver, now=lambda: 1000,
                                                          question_request=ask, sleep=sleep))
         self.addAsyncCleanup(coordinator.shutdown)
         actor = VerifiedActor(guest.token)

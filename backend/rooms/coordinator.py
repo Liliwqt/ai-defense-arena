@@ -11,7 +11,7 @@ from backend.rooms.commands import (
     SendChat, CastVote, GenerateQuestion, CatchUpDeadline, LegacyCommand,
     Command, CommandResult, VerifiedActor, decode_command,
     SubmissionCommand, InterpretSubmission, PlanCommand, GenerateResearchPlan,
-    RetryCoaching, GenerateCoaching,
+    RetryCoaching, GenerateCoaching, PublishRoom, ObserveAbsence, DefenderConnected, DefenderDisconnected,
 )
 from backend.rooms.submissions import (
     InterpretationWork, InterpretationRequest, request_interpretation,
@@ -23,6 +23,8 @@ from backend.rooms.coaching import (
 from backend.rooms.planning import (
     PlanWork, PlanInput, PlanRequest, request_plan, run_plan, handle_plan_command,
 )
+from backend.rooms.publication import SocketDelivery, SocketClose, deliver_socket, close_socket, publish
+from backend.rooms.presence import connect, disconnect, observe_absence
 from backend.rooms.model import Room, now_ms
 from backend.timed_turn import DeadlineExpired
 from backend.financial_policy import live_mode
@@ -45,7 +47,8 @@ class ClockWork:
 class RoomWorkflows:
     """Real transport/clock adapters; remaining workflows migrate in later tickets."""
 
-    publish: Callable[[Room], Awaitable[None]]
+    deliver: SocketDelivery = deliver_socket
+    close: SocketClose = close_socket
     now: Callable[[], int] = now_ms
     legacy_action: Callable[[Room, VerifiedActor, LegacyCommand], Awaitable[CommandResult]] | None = None
     plan_request: PlanRequest = request_plan
@@ -87,6 +90,15 @@ class RoomCoordinator:
         if self._workflows is None:
             raise RuntimeError("Room workflows must be configured before executing commands.")
         room = self._room
+        if isinstance(command, PublishRoom):
+            await self._publish()
+            return CommandResult(True)
+        if isinstance(command, ObserveAbsence):
+            if await observe_absence(self):
+                await self._publish()
+            return CommandResult(True)
+        if isinstance(command, DefenderDisconnected):
+            return await disconnect(self, command)
         if isinstance(command, GenerateQuestion):
             async with room.lock:
                 task = self._schedule_question(command.generation_id, command.first)
@@ -116,6 +128,8 @@ class RoomCoordinator:
                 self._player(actor)
             except ValueError as failure:
                 return CommandResult(False, str(failure))
+        if isinstance(command, DefenderConnected):
+            return await connect(self, actor, command)
         await self._expire_deadline()
         if isinstance(command, RetryCoaching):
             return await retry_coaching(self, actor)
@@ -163,7 +177,7 @@ class RoomCoordinator:
         if expired:
             await self._expire_deadline()
         if result.accepted:
-            await self._workflows.publish(room)
+            await self._publish()
         return result
 
     async def shutdown(self) -> None:
@@ -257,6 +271,16 @@ class RoomCoordinator:
         task.add_done_callback(finished)
         return task
 
+    async def _publish(self) -> None:
+        await publish(self)
+
+    def _clear_clock(self) -> None:
+        room = self._room
+        if room.defense and room.defense.turns and room.defense.turns[-1].probe and room.defense.turns[-1].probe.status == "pending":
+            room.defense.resolve_probe(status="ended_early")
+        room.clear_clock()
+        self._cancel_clock()
+
     def _cancel_clock(self) -> None:
         room = self._room
         if room.clock_task and room.clock_task is not asyncio.current_task():
@@ -329,7 +353,7 @@ class RoomCoordinator:
             if not outcome:
                 return
             room.revision += 1
-        await self._workflows.publish(room)
+        await self._publish()
         if next_clock:
             self._schedule_clock(*next_clock)
         if generation_id is not None:

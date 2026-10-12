@@ -14,7 +14,7 @@ from tests.test_research_plan import PAPER, fixture_plan
 
 
 def completed_room(account, *, run_id=None):
-    host, guest = Player("host", "Alex", 0, True), Player("guest", "Sam", 1)
+    host, guest = Player("host", "Alex", 0, True, {object()}), Player("guest", "Sam", 1, sockets={object()})
     question = GroundedQuestion("Why?", "queue.py", 1, "queue = []")
     session = DefenseSession.start(question)
     for index, role in enumerate(PANELIST_ORDER):
@@ -46,13 +46,14 @@ class PlanningCoachingCoordinationTests(unittest.IsolatedAsyncioTestCase):
                 raise ValueError("Offline coaching failure")
             return report
 
-        async def publish(state):
-            if state.feedback_status == "failed":
+        async def deliver(socket, payload):
+            state = payload["state"]
+            if state["feedback_status"] == "failed":
                 failed.set()
-            if state.feedback_status == "ready":
+            if state["feedback_status"] == "ready":
                 ready.set()
 
-        coordinator = RoomCoordinator(room, RoomWorkflows(publish=publish, coaching_request=coach, now=lambda: 1000))
+        coordinator = RoomCoordinator(room, RoomWorkflows(deliver=deliver, coaching_request=coach, now=lambda: 1000))
         self.addAsyncCleanup(coordinator.shutdown)
         await coordinator.execute(GenerateCoaching(1))
         await asyncio.wait_for(started.wait(), 1)
@@ -78,7 +79,7 @@ class PlanningCoachingCoordinationTests(unittest.IsolatedAsyncioTestCase):
         account = authenticate(self)
         for fails in (False, True):
             with self.subTest(failure=fails):
-                host = Player("host", "Alex", 0, True)
+                host = Player("host", "Alex", 0, True, {object()})
                 room = Room("ROOM", [ProjectFile("study.md", PAPER, "research_text")],
                             {host.token: host}, "research", "proposal",
                             owner_account_id=account["id"], run_id="old")
@@ -93,12 +94,13 @@ class PlanningCoachingCoordinationTests(unittest.IsolatedAsyncioTestCase):
                         raise ValueError("Obsolete planning failure")
                     return fixture_plan()
 
-                async def publish(state):
-                    states.append(coordinator.view(actor))
+                async def deliver(socket, payload):
+                    state = payload["state"]
+                    states.append(state)
 
                 actor = VerifiedActor(host.token, account["id"])
                 coordinator = RoomCoordinator(room, RoomWorkflows(
-                    publish=publish, plan_request=prepare, now=lambda: 1000))
+                    deliver=deliver, plan_request=prepare, now=lambda: 1000))
                 self.addAsyncCleanup(coordinator.shutdown)
                 await coordinator.execute(decode_command({"type": "prepare_research_plan"}), actor)
                 await asyncio.wait_for(started.wait(), 1)
@@ -127,12 +129,13 @@ class PlanningCoachingCoordinationTests(unittest.IsolatedAsyncioTestCase):
                         raise ValueError("Obsolete coaching failure")
                     return CoachingReport("Old report", [], [], "Review.")
 
-                async def publish(state):
-                    states.append(coordinator.view(actor))
+                async def deliver(socket, payload):
+                    state = payload["state"]
+                    states.append(state)
 
                 actor = VerifiedActor("host", account["id"])
                 coordinator = RoomCoordinator(room, RoomWorkflows(
-                    publish=publish, coaching_request=coach, now=lambda: 1000))
+                    deliver=deliver, coaching_request=coach, now=lambda: 1000))
                 self.addAsyncCleanup(coordinator.shutdown)
                 await coordinator.execute(GenerateCoaching(1))
                 await asyncio.wait_for(started.wait(), 1)
@@ -148,7 +151,7 @@ class PlanningCoachingCoordinationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_map_retry_keeps_uploads_and_generates_no_questions_on_failure(self):
         account = authenticate(self)
-        host = Player("host", "Alex", 0, True)
+        host = Player("host", "Alex", 0, True, {object()})
         room = Room("ROOM", [ProjectFile("study.md", PAPER, "research_text")],
                     {host.token: host}, "research", "proposal", owner_account_id=account["id"])
         actor = VerifiedActor(host.token, account["id"])
@@ -161,13 +164,14 @@ class PlanningCoachingCoordinationTests(unittest.IsolatedAsyncioTestCase):
                 raise ValueError("Offline map failure")
             return plan
 
-        async def publish(state):
-            if state.research_planning_status == "failed":
+        async def deliver(socket, payload):
+            state = payload["state"]
+            if state["research_planning_status"] == "failed":
                 failed.set()
-            if state.research_planning_status == "ready":
+            if state["research_planning_status"] == "ready":
                 ready.set()
 
-        coordinator = RoomCoordinator(room, RoomWorkflows(publish=publish, plan_request=prepare))
+        coordinator = RoomCoordinator(room, RoomWorkflows(deliver=deliver, plan_request=prepare))
         self.addAsyncCleanup(coordinator.shutdown)
         await coordinator.execute(decode_command({"type": "prepare_research_plan"}), actor)
         await asyncio.wait_for(failed.wait(), 1)
@@ -184,7 +188,7 @@ class PlanningCoachingCoordinationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_empty_session_summary_makes_no_ai_request_or_admission(self):
         account = authenticate(self)
-        host = Player("host", "Alex", 0, True)
+        host = Player("host", "Alex", 0, True, {object()})
         session = ResearchDefenseSession.create(fixture_plan(), 8, "research", "proposal")
         session.end()
         room = Room("ROOM", [ProjectFile("study.md", PAPER, "research_text")],
@@ -196,10 +200,11 @@ class PlanningCoachingCoordinationTests(unittest.IsolatedAsyncioTestCase):
             requests.append(request)
             raise AssertionError("Empty sessions must not request AI coaching")
 
-        async def publish(state):
+        async def deliver(socket, payload):
+            state = payload["state"]
             ready.set()
 
-        coordinator = RoomCoordinator(room, RoomWorkflows(publish=publish, coaching_request=coach))
+        coordinator = RoomCoordinator(room, RoomWorkflows(deliver=deliver, coaching_request=coach))
         self.addAsyncCleanup(coordinator.shutdown)
         await coordinator.execute(GenerateCoaching(1))
         await asyncio.wait_for(ready.wait(), 1)
@@ -225,10 +230,11 @@ class PlanningCoachingCoordinationTests(unittest.IsolatedAsyncioTestCase):
                 return CoachingReport("Obsolete report", [], [], "Review.")
             return CoachingReport("Current closing report", [], [], "Review.")
 
-        async def publish(state):
+        async def deliver(socket, payload):
+            state = payload["state"]
             ready.set()
 
-        coordinator = RoomCoordinator(room, RoomWorkflows(publish=publish, coaching_request=coach))
+        coordinator = RoomCoordinator(room, RoomWorkflows(deliver=deliver, coaching_request=coach))
         self.addAsyncCleanup(coordinator.shutdown)
         await coordinator.execute(GenerateCoaching(1))
         await asyncio.wait_for(started.wait(), 1)
@@ -244,8 +250,8 @@ class PlanningCoachingCoordinationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_host_prepares_once_and_only_current_map_can_be_approved(self):
         account = authenticate(self)
-        host = Player("host", "Alex", 0, True)
-        guest = Player("guest", "Sam", 1)
+        host = Player("host", "Alex", 0, True, {object()})
+        guest = Player("guest", "Sam", 1, sockets={object()})
         room = Room("ROOM", [ProjectFile("study.md", PAPER, "research_text")],
                     {host.token: host, guest.token: guest}, "research", "proposal",
                     owner_account_id=account["id"])
@@ -260,11 +266,12 @@ class PlanningCoachingCoordinationTests(unittest.IsolatedAsyncioTestCase):
             await release.wait()
             return plan
 
-        async def publish(state):
-            if state.research_planning_status == "ready":
+        async def deliver(socket, payload):
+            state = payload["state"]
+            if state["research_planning_status"] == "ready":
                 ready.set()
 
-        coordinator = RoomCoordinator(room, RoomWorkflows(publish=publish, plan_request=prepare))
+        coordinator = RoomCoordinator(room, RoomWorkflows(deliver=deliver, plan_request=prepare))
         self.addAsyncCleanup(coordinator.shutdown)
         command = decode_command({"type": "prepare_research_plan"})
         self.assertFalse((await coordinator.execute(command, teammate)).accepted)

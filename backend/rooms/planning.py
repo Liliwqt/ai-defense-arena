@@ -55,7 +55,7 @@ async def run_plan(owner: "RoomCoordinator", work: PlanWork, request: PlanInput)
             room.research_planning_status = "failed"
             room.research_plan_error = safe_generation_error(error)
             room.revision += 1
-        await owner._workflows.publish(room)
+        await owner._publish()
         return
     async with room.lock:
         if not owner._plan_current(work):
@@ -66,7 +66,7 @@ async def run_plan(owner: "RoomCoordinator", work: PlanWork, request: PlanInput)
         room.research_budget_preview = plan.suggested_budget
         room.research_plan_approved = False
         room.revision += 1
-    await owner._workflows.publish(room)
+    await owner._publish()
 
 
 async def handle_plan_command(owner: "RoomCoordinator", actor: VerifiedActor, command: PlanCommand) -> CommandResult:
@@ -107,5 +107,5 @@ async def handle_plan_command(owner: "RoomCoordinator", actor: VerifiedActor, co
         except (ValueError, AccessError) as error:
             return CommandResult(False, str(error))
         room.revision += 1
-    await owner._workflows.publish(room)
+    await owner._publish()
     return CommandResult(True)

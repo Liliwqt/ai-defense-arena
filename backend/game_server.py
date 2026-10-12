@@ -21,7 +21,8 @@ from backend.rooms.coordinator import (
     RoomCoordinator, RoomWorkflows,
 )
 from backend.rooms.commands import (
-    VerifiedActor, LegacyCommand, CommandResult, decode_command, CatchUpDeadline,
+    VerifiedActor, LegacyCommand, CommandResult, decode_command,
+    ObserveAbsence, DefenderConnected, DefenderDisconnected, PublishRoom,
 )
 
 from backend.defense_session import DefenseSession, ResearchDefenseSession, MAX_ANSWER_CHARS, PANELIST_ORDER
@@ -79,7 +80,7 @@ async def _remove_room(room, expired_only=False):
             room.feedback_generation_id += 1
             room.research_plan_generation_id += 1
             room.discard_pending()
-            _clear_clock_locked(room)
+            _coordinator(room)._clear_clock()
             del rooms[room.code]
             sockets = [socket for player in room.players.values() for socket in player.sockets]
     for socket in sockets:
@@ -109,51 +110,9 @@ async def _room_maintenance():
     while True:
         if not live_mode():
             for room in list(rooms.values()):
-                await _observe_absence(room)
+                await _coordinator(room).execute(ObserveAbsence())
         await _cleanup_rooms()
         await asyncio.sleep(5)
-
-async def _observe_absence(room):
-    if not room.run_id:
-        return
-    changed=False
-    async with room.lock:
-        if room.phase == "complete" and room.feedback_status not in {"generating","failed"}:
-            return
-        if any(player.sockets for player in room.players.values()):
-            room.absent_since_ms=None
-            room.absence_elapsed_ms=0
-            return
-        now=_now_ms()
-        if room.absent_since_ms is None:
-            room.absent_since_ms=now
-        else:
-            elapsed=now-room.absent_since_ms
-            # Unobserved process stalls/suspension are not defender abandonment.
-            if 0<=elapsed<=30_000:
-                room.absence_elapsed_ms+=elapsed
-            room.absent_since_ms=now
-        if room.absence_elapsed_ms>=600_000:
-            if live_mode():
-                LiveStore().finish_run(room.run_id,"abandoned")
-            else:
-                release_run(room.run_id)
-            room.generation_id+=1
-            room.feedback_generation_id+=1
-            room.discard_pending()
-            _clear_clock_locked(room)
-            if isinstance(room.defense,ResearchDefenseSession) and not room.defense.completed:
-                room.defense.end()
-            room.phase="complete"
-            room.settled=True
-            room.terminal_ms=now
-            room.feedback_status="none"
-            room.error="This defense was abandoned after everyone disconnected for ten minutes."
-            room.revision+=1
-            changed=True
-    if changed:
-        await publish(room)
-
 
 @asynccontextmanager
 async def lifespan(app):
@@ -216,7 +175,7 @@ async def lifespan(app):
                     logging.getLogger(__name__).info("Room service lease acquired.")
                 LiveStore().heartbeat(service)
                 for room in list(rooms.values()):
-                    await _observe_absence(room)
+                    await _coordinator(room).execute(ObserveAbsence())
                 await asyncio.sleep(SERVICE_HEARTBEAT_SECONDS)
         except Exception:
             # Never reacquire after losing ownership or advertise a dead heartbeat.
@@ -337,53 +296,8 @@ def _new_token() -> str:
     return secrets.token_urlsafe(32)
 
 
-async def publish(room: Room) -> None:
-    """Send the latest state to every connected player in message order."""
-    async with room.broadcast_lock:
-        async with room.lock:
-            if room.published_revision == room.revision:
-                return  # Coalesce queued publications of the same/latest revision.
-            room.published_revision = room.revision
-            deliveries = []
-            for player in room.players.values():
-                if player.sockets:
-                    payload = {"type": "snapshot", "state": _coordinator(room).view(VerifiedActor(player.token, room.owner_account_id if player.is_host else None))}
-                    deliveries.extend((socket, payload) for socket in player.sockets)
-
-        async def deliver(socket, payload):
-            try:
-                await asyncio.wait_for(socket.send_json(payload), 1)
-            except (asyncio.TimeoutError, RuntimeError, OSError, WebSocketDisconnect):
-                async with room.lock:
-                    for player in room.players.values():
-                        if socket in player.sockets:
-                            player.sockets.discard(socket)
-                            room.revision += 1
-                    _reassign_if_offline_locked(room)
-                try:
-                    await asyncio.wait_for(socket.close(code=1013), .25)
-                except (asyncio.TimeoutError, RuntimeError, OSError, WebSocketDisconnect):
-                    pass
-
-        await asyncio.gather(*(deliver(socket, payload) for socket, payload in deliveries))
-
-
 def _set_selected_locked(room: Room, seat: int | None) -> None:
     room.set_selected(seat, room.defense)
-
-
-def _reassign_if_offline_locked(room: Room) -> bool:
-    changed = room.reassign(room.online_players(), room.defense)
-    if changed:
-        room.revision += 1
-    return changed
-
-
-def _clear_clock_locked(room: Room) -> None:
-    if room.defense and room.defense.turns and room.defense.turns[-1].probe and room.defense.turns[-1].probe.status == "pending":
-        room.defense.resolve_probe(status="ended_early")
-    room.clear_clock()
-    _coordinator(room)._cancel_clock()
 
 
 @app.get("/health")
@@ -530,7 +444,7 @@ async def join_room(code: str, request: JoinRequest) -> dict[str, str]:
         room.activity_ms = _now_ms()
         room.players[token] = Player(token, name, seat)
         room.revision += 1
-    await publish(room)
+    await _coordinator(room).execute(PublishRoom())
     return {"room_code": room.code, "player_token": token}
 
 
@@ -585,7 +499,6 @@ def _coordinator(room: Room) -> RoomCoordinator:
     """Compose one coordinator; legacy workflow adapters disappear during migration."""
     if room.coordinator is None:
         RoomCoordinator(room, RoomWorkflows(
-            publish=lambda state: publish(state),
             now=lambda: _now_ms(),
             legacy_action=lambda state, actor, command: _handle_legacy_action(state, actor, command),
         ))
@@ -680,7 +593,7 @@ async def _handle_legacy_action(room: Room, actor: VerifiedActor, command: Legac
                     room.generation_id += 1
                     room.feedback_generation_id += 1
                     room.discard_pending()
-                    _clear_clock_locked(room)
+                    _coordinator(room)._clear_clock()
                     if isinstance(room.defense,ResearchDefenseSession) and not room.defense.completed:
                         room.defense.end()
                     room.phase = "complete"
@@ -697,7 +610,7 @@ async def _handle_legacy_action(room: Room, actor: VerifiedActor, command: Legac
             else:
                 room.generation_id += 1
                 room.discard_pending()
-                _clear_clock_locked(room)
+                _coordinator(room)._clear_clock()
                 room.defense.end()
                 release_run(room.run_id)
                 if live_mode() and room.run_id:
@@ -715,7 +628,7 @@ async def _handle_legacy_action(room: Room, actor: VerifiedActor, command: Legac
                 room.research_planning_status = "none"
                 room.research_plan_error = None
             room.discard_pending()
-            _clear_clock_locked(room)
+            _coordinator(room)._clear_clock()
             room.defense = None
             room.answered_by.clear()
             room.answered_by_seat.clear()
@@ -751,7 +664,7 @@ async def _handle_legacy_action(room: Room, actor: VerifiedActor, command: Legac
             error = "Unknown room action."
     if error:
         return CommandResult(False, error, error_reason)
-    await publish(room)
+    await _coordinator(room).execute(PublishRoom())
     if generate_first is not None and generation_id is not None:
         _coordinator(room)._schedule_question(generation_id, generate_first)
     if feedback_generation_id is not None:
@@ -802,30 +715,8 @@ async def _serve_room_socket(socket: WebSocket, code: str) -> None:
         return
     except (asyncio.TimeoutError, json.JSONDecodeError, KeyError):
         token = None
-    await _observe_absence(room)
     async with room.lock:
         player = room.players.get(token) if isinstance(token, str) else None
-        if player is not None and player.is_host:
-            try:
-                _host_account(room, socket)
-            except HTTPException as failure:
-                await _send_error(socket, failure.detail)
-                await asyncio.wait_for(socket.close(code=1008), 1)
-                return
-        if player is not None:
-            try:
-                socket_player_rate.admit(player.token, 12)
-                if len(player.sockets) >= 2 or sum(len(item.sockets) for item in room.players.values()) >= 8:
-                    raise HTTPException(429, 'Room connection limit reached. Close an extra tab and retry.')
-            except HTTPException as failure:
-                await _send_error(socket, failure.detail, 'socket_admission')
-                await asyncio.wait_for(socket.close(code=1013), 1)
-                return
-            player.sockets.add(socket)
-            room.absent_since_ms = None
-            room.absence_elapsed_ms = 0
-            _reassign_if_offline_locked(room)
-            room.revision += 1
     if player is None:
         await _send_error(socket, "This room link is no longer valid. Join again.")
         try:
@@ -833,9 +724,21 @@ async def _serve_room_socket(socket: WebSocket, code: str) -> None:
         except (RuntimeError, OSError, WebSocketDisconnect):
             pass
         return
+    account = None
+    if player.is_host:
+        try:
+            account = _host_account(room, socket)
+        except HTTPException as failure:
+            await _send_error(socket, failure.detail)
+            await asyncio.wait_for(socket.close(code=1008), 1)
+            return
     try:
-        await _coordinator(room).execute(CatchUpDeadline())
-        await publish(room)
+        result = await _coordinator(room).execute(
+            DefenderConnected(socket), VerifiedActor(player.token, account["id"] if account else None))
+        if not result.accepted:
+            await _send_error(socket, result.error, result.reason)
+            await asyncio.wait_for(socket.close(code=1013 if result.reason == "socket_admission" else 1008), 1)
+            return
         while True:
             event = await socket.receive()
             if event['type'] == 'websocket.disconnect':
@@ -867,12 +770,7 @@ async def _serve_room_socket(socket: WebSocket, code: str) -> None:
     except (WebSocketDisconnect, asyncio.TimeoutError, RuntimeError, OSError):
         pass
     finally:
-        async with room.lock:
-            player.sockets.discard(socket)
-            _reassign_if_offline_locked(room)
-            room.revision += 1
-        await _observe_absence(room)
-        await publish(room)
+        await _coordinator(room).execute(DefenderDisconnected(player.token, socket))
 
 
 app.include_router(test_payment_router)

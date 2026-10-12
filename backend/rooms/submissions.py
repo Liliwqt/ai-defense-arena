@@ -113,7 +113,7 @@ async def run_interpretation(owner: "RoomCoordinator", work: InterpretationWork,
         elif outcome == "answered":
             generation_id, feedback_id = owner._resolve_turn_locked()
         room.revision += 1
-    await owner._workflows.publish(room)
+    await owner._publish()
     if next_clock:
         owner._schedule_clock(*next_clock)
     if generation_id is not None:
@@ -196,7 +196,7 @@ async def handle_submission(owner: "RoomCoordinator", actor: VerifiedActor,
         await owner._expire_deadline()
     if not result.accepted:
         return result
-    await owner._workflows.publish(room)
+    await owner._publish()
     if generation_id is not None:
         owner._schedule_question(generation_id, False)
     if feedback_id is not None:

@@ -89,9 +89,9 @@ async def run_coaching(owner: "RoomCoordinator", work: CoachingWork, request: Co
                 except Exception:
                     room.error = "The coaching state could not be saved. Your answers are retained; retry when the service recovers."
             room.revision += 1
-        await owner._workflows.publish(room)
+        await owner._publish()
         return
-    await owner._workflows.publish(room)
+    await owner._publish()
 
 
 async def retry_coaching(owner: "RoomCoordinator", actor: VerifiedActor) -> CommandResult:
@@ -112,5 +112,5 @@ async def retry_coaching(owner: "RoomCoordinator", actor: VerifiedActor) -> Comm
         room.feedback_generation_id += 1
         owner._schedule_coaching(room.feedback_generation_id)
         room.revision += 1
-    await owner._workflows.publish(room)
+    await owner._publish()
     return CommandResult(True)

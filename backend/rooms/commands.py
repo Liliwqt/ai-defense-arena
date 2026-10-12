@@ -94,6 +94,27 @@ class GenerateCoaching:
     generation_id: int
 
 
+@dataclass(frozen=True)
+class PublishRoom:
+    pass
+
+
+@dataclass(frozen=True)
+class ObserveAbsence:
+    pass
+
+
+@dataclass(frozen=True)
+class DefenderConnected:
+    socket: object
+
+
+@dataclass(frozen=True)
+class DefenderDisconnected:
+    token: str
+    socket: object
+
+
 PlanCommand = PrepareResearchPlan | ApproveResearchPlan
 SubmissionCommand = SubmitAnswer | SubmitDirectAnswer | SubmitProbeReply | FinishProbe | RetryInterpretation | UsePendingAnswer
 
@@ -111,7 +132,7 @@ class LegacyCommand:
     payload: Mapping[str, object]
 
 
-Command = CastVote | SendChat | LegacyCommand | GenerateQuestion | CatchUpDeadline | SubmissionCommand | InterpretSubmission | PlanCommand | GenerateResearchPlan | RetryCoaching | GenerateCoaching
+Command = CastVote | SendChat | LegacyCommand | GenerateQuestion | CatchUpDeadline | SubmissionCommand | InterpretSubmission | PlanCommand | GenerateResearchPlan | RetryCoaching | GenerateCoaching | PublishRoom | ObserveAbsence | DefenderConnected | DefenderDisconnected
 
 
 def decode_command(message: dict) -> Command:

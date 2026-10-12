@@ -78,7 +78,7 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
                         raise
                     room.question_retry_generation_id = work.generation_id
                     room.revision += 1
-                await owner._workflows.publish(room)
+                await owner._publish()
                 await owner._workflows.sleep(1)
                 continue
             break
@@ -118,9 +118,9 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
             except Exception:
                 room.error="The defense state could not be saved. Your answers are retained; retry when the service recovers."
             room.revision += 1
-        await owner._workflows.publish(room)
+        await owner._publish()
         return
-    await owner._workflows.publish(room)
+    await owner._publish()
     if next_clock:
         owner._schedule_clock(*next_clock)
     if feedback_id is not None:

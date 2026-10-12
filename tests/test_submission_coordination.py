@@ -27,7 +27,7 @@ class SubmissionCoordinationTests(unittest.IsolatedAsyncioTestCase):
                 room.pending_submission = PendingSubmission(0, guest.token, guest.name, 1, "Saved text.", 1)
                 times, never, requests = iter([999, 1000]), asyncio.Event(), []
 
-                async def publish(state):
+                async def deliver(socket, payload):
                     pass
 
                 async def ask(request, files):
@@ -38,7 +38,7 @@ class SubmissionCoordinationTests(unittest.IsolatedAsyncioTestCase):
                     return SubmissionDecision("answer")
 
                 coordinator = RoomCoordinator(room, RoomWorkflows(
-                    publish=publish, question_request=ask, interpretation_request=interpret,
+                    deliver=deliver, question_request=ask, interpretation_request=interpret,
                     now=lambda: next(times, 1000),
                 ))
                 self.addAsyncCleanup(coordinator.shutdown)
@@ -69,16 +69,17 @@ class SubmissionCoordinationTests(unittest.IsolatedAsyncioTestCase):
             await release.wait()
             return SubmissionDecision("clarify", "Which arrival will be handled first?")
 
-        async def publish(state):
-            states.append(coordinator.view(actor))
-            if state.phase == "question":
+        async def deliver(socket, payload):
+            state = payload["state"]
+            states.append(state)
+            if state["phase"] == "question":
                 published.set()
 
         async def sleep(seconds):
             await never.wait()
 
         coordinator = RoomCoordinator(room, RoomWorkflows(
-            publish=publish, interpretation_request=interpret, now=lambda: now[0], sleep=sleep,
+            deliver=deliver, interpretation_request=interpret, now=lambda: now[0], sleep=sleep,
         ))
         self.addAsyncCleanup(coordinator.shutdown)
         command = decode_command({"type": "submit_answer", "turn": 0, "answer": "Please explain."})
@@ -116,14 +117,15 @@ class SubmissionCoordinationTests(unittest.IsolatedAsyncioTestCase):
             finished.set()
             raise ValueError("Obsolete provider failure")
 
-        async def publish(state):
-            states.append(coordinator.view(actor))
+        async def deliver(socket, payload):
+            state = payload["state"]
+            states.append(state)
 
         async def sleep(seconds):
             await never.wait()
 
         coordinator = RoomCoordinator(room, RoomWorkflows(
-            publish=publish, interpretation_request=interpret, now=lambda: 1000, sleep=sleep,
+            deliver=deliver, interpretation_request=interpret, now=lambda: 1000, sleep=sleep,
         ))
         self.addAsyncCleanup(coordinator.shutdown)
         await coordinator.execute(decode_command({"type": "submit_answer", "turn": 0, "answer": "Old answer."}), actor)
@@ -157,15 +159,16 @@ class SubmissionCoordinationTests(unittest.IsolatedAsyncioTestCase):
             histories.append(request.session.answered_history())
             return PanelMove("Security Reviewer", GroundedQuestion("Who may change it?", "queue.py", 1, "queue = []"))
 
-        async def publish(state):
-            if state.phase == "voting":
+        async def deliver(socket, payload):
+            state = payload["state"]
+            if state["phase"] == "voting":
                 published.set()
 
         async def sleep(seconds):
             await never.wait()
 
         coordinator = RoomCoordinator(room, RoomWorkflows(
-            publish=publish, interpretation_request=interpret, question_request=ask,
+            deliver=deliver, interpretation_request=interpret, question_request=ask,
             now=lambda: now[0], sleep=sleep,
         ))
         self.addAsyncCleanup(coordinator.shutdown)
@@ -207,19 +210,20 @@ class SubmissionCoordinationTests(unittest.IsolatedAsyncioTestCase):
         async def ask(request, files):
             return PanelMove("Security Reviewer", GroundedQuestion("Who may change it?", "queue.py", 1, "queue = []"))
 
-        async def publish(state):
-            if state.phase == "probe":
+        async def deliver(socket, payload):
+            state = payload["state"]
+            if state["phase"] == "probe":
                 probed.set()
-            if state.phase == "interpretation_retry":
+            if state["phase"] == "interpretation_retry":
                 failed.set()
-            if state.phase == "voting":
+            if state["phase"] == "voting":
                 advanced.set()
 
         async def sleep(seconds):
             await never.wait()
 
         coordinator = RoomCoordinator(room, RoomWorkflows(
-            publish=publish, interpretation_request=interpret, question_request=ask,
+            deliver=deliver, interpretation_request=interpret, question_request=ask,
             now=lambda: now[0], sleep=sleep,
         ))
         self.addAsyncCleanup(coordinator.shutdown)

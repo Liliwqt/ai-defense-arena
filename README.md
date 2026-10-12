@@ -163,6 +163,14 @@ Host retries use fresh work identities, and an empty ended defense receives the
 existing factual summary without an AI call. Settlement and recovery retain the
 existing financial policy.
 
+Ordered publication and defender presence now belong to the coordinator. It sends
+recipient-private snapshots with bounded parallel delivery, coalesces queued
+revisions and publishes corrected presence after a failed socket is removed.
+Another open tab keeps its defender online; reassignment and reconnect preserve
+the existing answer deadline. Interrupted initial delivery also cleans up presence
+and publishes any pending correction. Connection and message limits remain unchanged.
+Observed absence retains the existing abandonment policy.
+
 Lifecycle actions retain an explicit temporary adapter for the later checkpoint.
 The shutdown seam cancels migrated question, interpretation, planning, coaching
 and clock tasks; service lifecycle integration remains pending.

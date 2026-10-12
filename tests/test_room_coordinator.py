@@ -11,14 +11,15 @@ from backend.timed_turn import PendingSubmission
 
 class RoomCoordinatorTests(unittest.IsolatedAsyncioTestCase):
     async def test_wrong_owner_unknown_actor_and_shutdown_cannot_change_chat(self):
-        host = Player("host", "Alex", 0, True)
+        host = Player("host", "Alex", 0, True, {object()})
         room = Room("ROOMA", [], {host.token: host}, owner_account_id="owner")
         published = []
 
-        async def publish(state):
-            published.append(state.snapshot(host))
+        async def deliver(socket, payload):
+            state = payload["state"]
+            published.append(state)
 
-        coordinator = RoomCoordinator(room, RoomWorkflows(publish))
+        coordinator = RoomCoordinator(room, RoomWorkflows(deliver))
         wrong_owner = await coordinator.execute(SendChat("secret"), VerifiedActor(host.token, "other"))
         self.assertIn("account that created", wrong_owner.error)
         missing = await coordinator.execute(SendChat("secret"), VerifiedActor("missing"))
@@ -41,10 +42,12 @@ class RoomCoordinatorTests(unittest.IsolatedAsyncioTestCase):
         now = 1000
         published = []
 
-        async def publish(state):
-            published.append(state.snapshot(guest, now=now))
+        async def deliver(socket, payload):
+            state = payload["state"]
+            if socket in guest.sockets:
+                published.append(state)
 
-        coordinator = RoomCoordinator(room, RoomWorkflows(publish, now=lambda: now))
+        coordinator = RoomCoordinator(room, RoomWorkflows(deliver, now=lambda: now))
         actor = VerifiedActor(guest.token)
         await coordinator.execute(CastVote(0), actor)
         await coordinator.execute(CastVote(1), actor)
@@ -63,10 +66,11 @@ class RoomCoordinatorTests(unittest.IsolatedAsyncioTestCase):
         room = Room("ROOMA", [], {guest.token: guest})
         published = []
 
-        async def publish(state):
-            published.append(state.snapshot(guest))
+        async def deliver(socket, payload):
+            state = payload["state"]
+            published.append(state)
 
-        coordinator = RoomCoordinator(room, RoomWorkflows(publish, now=lambda: 1000))
+        coordinator = RoomCoordinator(room, RoomWorkflows(deliver, now=lambda: 1000))
         actor = VerifiedActor(guest.token)
         rejected = await coordinator.execute(SendChat(" "), actor)
         self.assertEqual(rejected.error, "Write a team message before sending.")

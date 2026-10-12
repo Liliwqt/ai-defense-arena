@@ -8,6 +8,7 @@ from tests.offline_accounts import authenticate
 
 import asyncio
 import unittest
+from backend.rooms.presence import reassign_if_offline
 from unittest.mock import patch
 
 from backend import game_server as server
@@ -81,7 +82,7 @@ class TimedRoomTests(unittest.IsolatedAsyncioTestCase):
             await catch_up_deadline(self.room)
             self.assertEqual(choose.call_args.args[0], [0, 1])
             self.assertEqual(self.room.selected_seat, 1)
-        server._clear_clock_locked(self.room)
+        server._coordinator(self.room)._clear_clock()
         self.room.phase = "voting"
         self.room.vote_deadline_ms = self.now + VOTE_MS
         with patch.object(server.secrets, "choice", return_value=0) as choose:
@@ -116,14 +117,14 @@ class TimedRoomTests(unittest.IsolatedAsyncioTestCase):
         self.room.answer_deadline_ms = self.now + ANSWER_MS
         server._set_selected_locked(self.room, 1)
         self.guest.sockets.clear()
-        self.assertTrue(server._reassign_if_offline_locked(self.room))
+        self.assertTrue(reassign_if_offline(server._coordinator(self.room)))
         self.assertEqual(self.room.selected_seat, 0)
         self.assertEqual(self.room.answer_deadline_ms, self.now + ANSWER_MS)
         self.host.sockets.clear()
-        self.assertTrue(server._reassign_if_offline_locked(self.room))
+        self.assertTrue(reassign_if_offline(server._coordinator(self.room)))
         self.assertIsNone(self.room.selected_seat)
         self.guest.sockets.add(self.guest_socket)
-        self.assertTrue(server._reassign_if_offline_locked(self.room))
+        self.assertTrue(reassign_if_offline(server._coordinator(self.room)))
         self.assertEqual(self.room.selected_seat, 1)
         self.assertEqual(self.room.answer_deadline_ms, self.now + ANSWER_MS)
 

@@ -44,3 +44,13 @@ async def generate_coaching(room, version):
             return
         request = capture_coaching(room)
     await run_coaching(owner, work, request)
+
+
+async def publish_room(room):
+    from backend.rooms.commands import PublishRoom
+    await server._coordinator(room).execute(PublishRoom())
+
+
+async def observe_absence(room):
+    from backend.rooms.commands import ObserveAbsence
+    await server._coordinator(room).execute(ObserveAbsence())
