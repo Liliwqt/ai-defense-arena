@@ -1,4 +1,6 @@
-from tests.room_commands import prepare_research_plan
+from backend.rooms.coordinator import RoomCoordinator, RoomWorkflows
+from backend.rooms.commands import GenerateResearchPlan
+from tests.async_room import wait_until
 from tests.offline_accounts import authenticate
 """Offline paper-map checks; all AI calls mocked, no paid requests."""
 
@@ -303,22 +305,26 @@ class ResearchPlanRaceTests(unittest.IsolatedAsyncioTestCase):
             events.append(event)
         await game_server._handle_action(room, host, socket, {"type": "start"})
         self.assertIn("Wait for", events[-1]["message"])
-        with patch('backend.rooms.coordinator.RoomCoordinator._schedule_research_plan') as schedule:
-            await game_server._handle_action(room, host, socket, {"type": "prepare_research_plan"})
-            self.assertIn("already being prepared", events[-1]["message"])
-            schedule.assert_not_called()
+        await game_server._handle_action(room, host, socket, {"type": "prepare_research_plan"})
+        self.assertIn("already being prepared", events[-1]["message"])
         plan = fixture_plan()
         started, release = asyncio.Event(), asyncio.Event()
         async def delayed(*args, **kwargs):
             started.set()
             await release.wait()
             return plan
-        with patch('backend.game_server.asyncio.to_thread', side_effect=delayed), patch('backend.rooms.coordinator.RoomCoordinator._schedule_question'):
-            task = asyncio.create_task(prepare_research_plan(room, 1))
-            await started.wait()
-            await game_server._handle_action(room, host, socket, {"type": "restart"})
-            release.set()
-            await task
+        # The earlier rejected commands already composed this room; use a fresh
+        # fixture with the controlled provider for the asynchronous race.
+        room = game_server.Room("RACE", list(room.files), {host.token: host}, "research",
+                                owner_account_id=room.owner_account_id,
+                                research_planning_status="planning", research_plan_generation_id=1)
+        coordinator = RoomCoordinator(room, RoomWorkflows(plan_request=delayed))
+        self.addAsyncCleanup(coordinator.shutdown)
+        await coordinator.execute(GenerateResearchPlan(1))
+        await asyncio.wait_for(started.wait(), 1)
+        await game_server._handle_action(room, host, socket, {"type": "restart"})
+        release.set()
+        await coordinator.shutdown()
         self.assertEqual(room.phase, "lobby")
         self.assertEqual(room.research_planning_status, "none")
         self.assertIsNone(room.research_plan)

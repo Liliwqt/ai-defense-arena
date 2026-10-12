@@ -11,7 +11,7 @@ from backend.rooms.commands import (
     SendChat, CastVote, GenerateQuestion, CatchUpDeadline,
     Command, CommandResult, VerifiedActor, decode_command,
     SubmissionCommand, InterpretSubmission, PlanCommand, GenerateResearchPlan,
-    RetryCoaching, GenerateCoaching, PublishRoom, ObserveAbsence, DefenderConnected, DefenderDisconnected,
+    RetryCoaching, GenerateCoaching, PublishRoom, ObserveAbsence, JoinDefender, DefenderConnected, DefenderDisconnected,
     LifecycleCommand, ReclaimRoom,
 )
 from backend.rooms.submissions import (
@@ -25,7 +25,7 @@ from backend.rooms.planning import (
     PlanWork, PlanInput, PlanRequest, request_plan, run_plan, handle_plan_command,
 )
 from backend.rooms.publication import SocketDelivery, SocketClose, deliver_socket, close_socket, publish
-from backend.rooms.presence import connect, disconnect, observe_absence
+from backend.rooms.presence import join, connect, disconnect, observe_absence
 from backend.rooms.lifecycle import handle_lifecycle, reclaim_room
 from backend.rooms.model import Room, now_ms
 from backend.timed_turn import DeadlineExpired
@@ -92,6 +92,8 @@ class RoomCoordinator:
         if self._workflows is None:
             raise RuntimeError("Room workflows must be configured before executing commands.")
         room = self._room
+        if isinstance(command, JoinDefender):
+            return await join(self, command)
         if isinstance(command, ReclaimRoom):
             return await reclaim_room(self, command.expired_only)
         if isinstance(command, PublishRoom):

@@ -5,7 +5,7 @@ from io import BytesIO
 import json
 import os
 import unittest
-from tests.room_commands import publish_room
+from backend.rooms.commands import PublishRoom
 from unittest.mock import patch
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -208,12 +208,12 @@ class TransportBoundaryTests(unittest.IsolatedAsyncioTestCase):
         a = server.Player('a', 'Alex', 0, False, {slow})
         b = server.Player('b', 'Sam', 1, False, {fast})
         room = server.Room('BOUNDED', [], {'a': a, 'b': b})
-        await asyncio.wait_for(publish_room(room), 2)
+        await asyncio.wait_for(server._coordinator(room).execute(PublishRoom()), 2)
         self.assertTrue(slow.closed)
         self.assertFalse(a.sockets)
         self.assertEqual(len(fast.messages), 2)
         self.assertTrue(b.sockets)
-        await publish_room(room)
+        await server._coordinator(room).execute(PublishRoom())
         self.assertFalse(fast.messages[-1]['state']['players'][0]['online'])
 
     async def test_pending_hello_uses_and_releases_global_capacity(self):

@@ -1,7 +1,7 @@
+from backend.rooms.commands import CatchUpDeadline
 from backend.defense_session import PANELIST_ORDER
 from backend.rooms import submissions as submission_workflow
 from backend.rooms import questions as question_workflow
-from tests.room_commands import catch_up_deadline
 from tests.offline_accounts import authenticate
 """Offline multiplayer room checks; all AI calls are mocked."""
 
@@ -87,7 +87,7 @@ class GameServerTests(unittest.TestCase):
                 room = game_server.rooms[state["room_code"]]
                 if room.phase == "reacting":
                     self.clock_ms = max(self.clock_ms, state["reaction_deadline_ms"])
-                    self.client.portal.call(catch_up_deadline, room)
+                    self.client.portal.call(game_server._coordinator(room).execute, CatchUpDeadline(None, room.run_id))
             # Existing defense tests exercise progression; focused vote tests use voting snapshots directly.
             if phase == "question" and state["phase"] == "voting":
                 room = game_server.rooms[state["room_code"]]
@@ -99,7 +99,7 @@ class GameServerTests(unittest.TestCase):
                             room.votes[voter.token] = seat
                     self.client.portal.call(choose)
                     self.clock_ms = max(self.clock_ms, state["vote_deadline_ms"] + 1)
-                    self.client.portal.call(catch_up_deadline, room)
+                    self.client.portal.call(game_server._coordinator(room).execute, CatchUpDeadline(None, room.run_id))
         self.fail(f"Never received phase {phase}")
 
     def connect(self, code, token):
@@ -166,8 +166,8 @@ class GameServerTests(unittest.TestCase):
                                     self.assertEqual(restored['reaction_deadline_ms'], snapshots[0]['reaction_deadline_ms'])
                                     self.assertEqual(restored['turns'], snapshots[0]['turns'])
                                 self.clock_ms = snapshots[0]['reaction_deadline_ms']
-                                self.client.portal.call(catch_up_deadline, room, old_clock)
-                                self.client.portal.call(catch_up_deadline, room, old_clock)
+                                self.client.portal.call(game_server._coordinator(room).execute, CatchUpDeadline(old_clock, room.run_id))
+                                self.client.portal.call(game_server._coordinator(room).execute, CatchUpDeadline(old_clock, room.run_id))
                                 self.assertEqual(room.vote_deadline_ms, self.clock_ms + 15_000)
                             states = [self.receive_phase(ws, 'question') for ws in (hs, gs)]
                             self.assertEqual(states[0]['turns'], states[1]['turns'])

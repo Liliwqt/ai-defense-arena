@@ -1,9 +1,9 @@
+from backend.rooms.commands import CatchUpDeadline
 from backend.defense_session import PANELIST_ORDER
 from backend.rooms import coaching as coaching_workflow
 from backend.rooms import planning as planning_workflow
 from backend.rooms import submissions as submission_workflow
 from backend.rooms import questions as question_workflow
-from tests.room_commands import catch_up_deadline
 """Same-question panelist probes at the shared turn and generator boundaries."""
 import unittest
 from backend.defense_session import DefenseSession
@@ -389,7 +389,7 @@ class ProbeProtocolTests(unittest.TestCase):
                             probe=states[0]['turns'][-1]['probe']
                             if i==0:
                                 self.clock_ms = states[0]['probe_deadline_ms']
-                                self.client.portal.call(catch_up_deadline,server.rooms[host['room_code']])
+                                self.client.portal.call(server._coordinator(server.rooms[host['room_code']]).execute, CatchUpDeadline())
                             else:
                                 speaker.send_json({'type':'submit_probe_reply','turn':i,'probe_id':probe['id'],'answer':'It is only a proposal.'})
                                 for ws in (hs,gs): self.receive_phase(ws,'interpretation_retry')

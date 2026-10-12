@@ -1,6 +1,7 @@
 from backend.rooms import questions as question_workflow
-from backend.rooms.coordinator import RoomCoordinator
-from tests.room_commands import generate_question
+from backend.rooms.coordinator import RoomWorkflows
+from backend.rooms.commands import GenerateQuestion
+from tests.async_room import wait_until
 """Offline room-account/voucher/credit tests; Google, payment and AI calls mocked."""
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -39,8 +40,24 @@ class RoomAccessTests(unittest.TestCase):
         self.events = []
         self.files = [('files', ('queue.py', b'    queue = []\n', 'text/x-python'))]
         self.question = GroundedQuestion('How is the queue stored?', 'queue.py', 1, '    queue = []')
-        self.schedule = patch.object(RoomCoordinator, '_schedule_question'); self.schedule.start(); self.addCleanup(self.schedule.stop)
-        clock = patch.object(RoomCoordinator, '_schedule_clock'); clock.start(); self.addCleanup(clock.stop)
+        self.question_gates = asyncio.Queue()
+        self.plan_requests = []
+        never = asyncio.Event()
+
+        async def ask(request, files):
+            await self.question_gates.get()
+            return await question_workflow.request_question(request, files)
+
+        async def blocked(*args):
+            await never.wait()
+
+        async def plan(request):
+            self.plan_requests.append(request)
+            await never.wait()
+
+        composition = patch.object(server, 'RoomWorkflows', side_effect=lambda **kwargs: RoomWorkflows(
+            **kwargs, question_request=ask, plan_request=plan, coaching_request=blocked, sleep=blocked))
+        composition.start(); self.addCleanup(composition.stop)
 
     async def capture(self, event): self.events.append(event)
 
@@ -67,9 +84,18 @@ class RoomAccessTests(unittest.TestCase):
     def act(self, room, host, action, **extra):
         self.client.portal.call(server._handle_action,room,host,self.socket,{'type':action,**extra})
 
+    async def publish_question(self, room, generation=None):
+        generation = room.generation_id if generation is None else generation
+        if generation == room.generation_id:
+            self.question_gates.put_nowait(True)
+        result = await server._coordinator(room).execute(GenerateQuestion(generation, True))
+        if result.accepted:
+            await wait_until(lambda: room.phase != 'generating' or room.generation_id != generation)
+        return result
+
     def generate(self, room, question=None, error=None):
         with patch.object(question_workflow, 'generate_first_question',side_effect=error,return_value=question or self.question):
-            self.client.portal.call(generate_question,room,room.generation_id,True)
+            self.client.portal.call(self.publish_question, room)
 
     def test_upload_is_free_but_owner_and_csrf_are_required(self):
         room,host,credentials=self.create()
@@ -174,7 +200,7 @@ class RoomAccessTests(unittest.TestCase):
         self.seed(20);room,host,_=self.create();self.act(room,host,'start',confirm_cost=True)
         generation=room.generation_id;rid=room.run_id
         self.act(room,host,'restart',confirm_cost=True)
-        with patch.object(question_workflow, 'generate_first_question',return_value=self.question):self.client.portal.call(generate_question,room,generation,True)
+        with patch.object(question_workflow, 'generate_first_question',return_value=self.question):self.client.portal.call(self.publish_question,room,generation)
         self.assertIsNone(room.defense);self.assertEqual(store.account_access(self.account['id'])['spent_credits'],0)
         with store.connect_store(self.db) as db:self.assertEqual(db.execute('SELECT status FROM defense_runs WHERE id=?',(rid,)).fetchone()[0],'released')
 
@@ -192,7 +218,8 @@ class RoomAccessTests(unittest.TestCase):
         room,host,_=self.create();room.defense_type='research'
         self.act(room,host,'prepare_research_plan');self.assertEqual(room.research_planning_status,'none')
         self.seed(10)
-        with patch('backend.rooms.coordinator.RoomCoordinator._schedule_research_plan') as scheduled:self.act(room,host,'prepare_research_plan');scheduled.assert_called_once()
+        self.act(room,host,'prepare_research_plan')
+        self.client.portal.call(wait_until, lambda: len(self.plan_requests) == 1)
         self.assertEqual(store.account_access(self.account['id'])['test_credits'],10)
 
     def test_failed_charge_does_not_publish_opening_question(self):
@@ -217,8 +244,8 @@ class RoomAccessTests(unittest.TestCase):
                 if publish:
                     q=GroundedQuestion('How will the pilot work?','study.md',4,PAPER.splitlines()[3],evidence_kind='research_text')
                     with patch.object(question_workflow, 'generate_research_move',return_value=ResearchMove('Methodology Reviewer',q,'topic-1',False,None)):
-                        self.client.portal.call(generate_question,room,room.generation_id,True)
-                with patch('backend.rooms.coordinator.RoomCoordinator._schedule_coaching'):self.act(room,host,'end_defense')
+                        self.client.portal.call(self.publish_question,room)
+                self.act(room,host,'end_defense')
                 access=store.account_access(self.account['id'])
                 self.assertEqual(access['reserved_credits'],0)
                 self.assertEqual(access['spent_credits'],before+(10 if publish else 0))

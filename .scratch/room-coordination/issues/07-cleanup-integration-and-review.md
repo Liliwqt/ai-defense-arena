@@ -7,24 +7,24 @@ or deploying the release.
 
 **Blocked by:** 06 — Coordinate restart, ending, reclamation and shutdown.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 **Checkpoint:** 4 — cleanup, integration and review.
 
 ## Acceptance criteria
 
-- [ ] Remove temporary delegation and obsolete mutation/scheduling helpers; do not
+- [x] Remove temporary delegation and obsolete mutation/scheduling helpers; do not
   retain forwarding symbols solely to preserve old test patch paths.
-- [ ] Keep meaningful domain tests; focused tests cross the coordinator seam and
+- [x] Keep meaningful domain tests; focused tests cross the coordinator seam and
   external HTTP/WebSocket tests remain authoritative.
-- [ ] Complete mocked two-client code four/eight-turn and research twelve-question
+- [x] Complete mocked two-client code four/eight-turn and research twelve-question
   defenses covering votes, timeout, clarification/probe, retry, reconnect,
   transcript, exact citations and coaching.
-- [ ] Run the full Python/React suites and production build, required real-local
+- [x] Run the full Python/React suites and production build, required real-local
   accounting/handoff checks and desktop/portrait/landscape keyboard smoke checks.
-- [ ] Complete Standards/Spec review; update README, agent navigation as needed and
+- [x] Complete Standards/Spec review; update README, agent navigation as needed and
   the shared log with honest mocked/local/live evidence distinctions.
-- [ ] Preserve pending recovery and unrelated work, frozen main and current live
+- [x] Preserve pending recovery and unrelated work, frozen main and current live
   services. No push, deployment or live provider transaction in this ticket set.
 
 ## Scope and execution constraints
@@ -57,3 +57,16 @@ or deploying the release.
 
 - 2026-10-12: User approved the seven-ticket size and blocking graph. Published
   to the local Markdown tracker; implementation has not started.
+- 2026-10-12: Completed migration cleanup and overall review against approved
+  baseline 85c8589. Removed test-worker/seat forwarding helpers; fixtures now
+  drive tracked commands and observe state/delivery. Review found transport-owned
+  joining; a trusted coordinator command now owns atomic allocation/revision and
+  publication, preserving full/closed HTTP responses. Concurrent-join regression
+  reproduces red then green. Final gate: 495 Python tests (providers mocked),
+  261 React tests, production build and 167 real disposable local PostgreSQL
+  checks (providers mocked). Complete mocked two-client code four/eight-turn
+  and research/mixed twelve-question/probe flows pass. Synthetic desktop,
+  portrait/landscape and keyboard evidence is in docs/ROOM_COORDINATION_REVIEW.md.
+  Independent Standards/Spec rechecks report zero remaining findings. Human
+  visual review, live providers, hosted checks and installed devices remain
+  separate/unverified. No push/deployment; unrelated local files and main preserved.

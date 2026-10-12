@@ -1,13 +1,11 @@
-from tests.room_commands import generate_coaching
 from backend.rooms import coaching as coaching_workflow
 from backend.rooms import planning as planning_workflow
 from backend.timed_turn import VOTE_MS, ANSWER_MS
-from tests.room_commands import interpret_pending
 from backend.rooms import submissions as submission_workflow
-from tests.room_commands import generate_question
 from backend.rooms import questions as question_workflow
-from backend.rooms.coordinator import RoomCoordinator
-from tests.room_commands import catch_up_deadline
+from backend.rooms.coordinator import RoomCoordinator, RoomWorkflows
+from backend.rooms.commands import CatchUpDeadline, GenerateQuestion, InterpretSubmission
+from tests.async_room import wait_until
 from tests.offline_accounts import authenticate
 """Coverage policy and real room protocol with offline AI and clocks."""
 import asyncio
@@ -353,6 +351,23 @@ class CoverageRoomTests(unittest.IsolatedAsyncioTestCase):
         self.events = []
         async def send(event): self.events.append(event)
         self.socket = SimpleNamespace(send_json=send)
+        self.ask = question_workflow.request_question
+        never = asyncio.Event()
+
+        async def ask(request, files):
+            return await self.ask(request, files)
+
+        async def blocked(*args):
+            await never.wait()
+
+        self.coach = blocked
+
+        async def coach(request):
+            return await self.coach(request)
+
+        self.coordinator = RoomCoordinator(self.room, RoomWorkflows(
+            question_request=ask, coaching_request=coach, sleep=blocked))
+        self.addAsyncCleanup(self.coordinator.shutdown)
 
     async def test_research_start_requires_current_approved_budget_and_host(self):
         for player, message in ((self.guest, {'type':'start'}), (self.host, {'type':'start'})):
@@ -364,9 +379,14 @@ class CoverageRoomTests(unittest.IsolatedAsyncioTestCase):
         for budget in (None, True, 20):
             await game_server._handle_action(self.room, self.host, self.socket, {'type':'start', 'plan_id':self.room.research_plan.id, 'question_budget':budget})
             self.assertEqual(self.events[-1]['type'], 'error')
-        with patch('backend.rooms.coordinator.RoomCoordinator._schedule_question') as schedule:
-            await game_server._handle_action(self.room, self.host, self.socket, {'type':'start', 'plan_id':self.room.research_plan.id, 'question_budget':12})
-            schedule.assert_called_once()
+        started = asyncio.Event()
+        never = asyncio.Event()
+        async def blocked(request, files):
+            started.set()
+            await never.wait()
+        self.ask = blocked
+        await game_server._handle_action(self.room, self.host, self.socket, {'type':'start', 'plan_id':self.room.research_plan.id, 'question_budget':12})
+        await asyncio.wait_for(started.wait(), 1)
         self.assertIsInstance(self.room.defense, ResearchDefenseSession)
         self.assertEqual(self.room.snapshot()['question_budget'], 12)
 
@@ -377,18 +397,19 @@ class CoverageRoomTests(unittest.IsolatedAsyncioTestCase):
         async def delayed(*args, **kwargs):
             started.set(); await release.wait()
             return ResearchMove(RESEARCH_PANELISTS[0], GroundedQuestion('How?', 'paper.md', 1, PAPER.splitlines()[0]), 'topic-1', False, None)
-        with patch('backend.game_server.asyncio.to_thread', side_effect=delayed), patch('backend.rooms.coordinator.RoomCoordinator._schedule_coaching'):
-            task = asyncio.create_task(generate_question(self.room, 1, True))
-            await started.wait()
+        self.ask = delayed
+        self.coach = coaching_workflow.request_coaching
+        with patch('backend.rooms.coaching.generate_coaching_report') as coach:
+            await self.coordinator.execute(GenerateQuestion(1, True))
+            await asyncio.wait_for(started.wait(), 1)
             await game_server._handle_action(self.room, self.guest, self.socket, {'type':'end_defense'})
             self.assertEqual(self.room.phase, 'generating')
             await game_server._handle_action(self.room, self.host, self.socket, {'type':'end_defense'})
-            release.set(); await task
+            release.set()
+            await wait_until(lambda: self.room.feedback_status == 'ready')
+            coach.assert_not_called()
         self.assertEqual(self.room.phase, 'complete')
         self.assertEqual(self.room.defense.turns, [])
-        with patch('backend.rooms.coaching.generate_coaching_report') as coach:
-            await generate_coaching(self.room, self.room.feedback_generation_id)
-            coach.assert_not_called()
         self.assertEqual(self.room.feedback.strengths, [])
         self.assertIn('before any answer', self.room.feedback.summary)
 
@@ -403,7 +424,8 @@ class CoverageRoomTests(unittest.IsolatedAsyncioTestCase):
         output['topic_id'] = 'unknown'
         invalid = generate_research_move(FILES, 'offline-key', history=session.answered_history(), context=session.context(), client=Client(output))
         with patch('backend.rooms.questions.generate_research_move', return_value=invalid):
-            await generate_question(self.room, 1, False)
+            await self.coordinator.execute(GenerateQuestion(1, False))
+            await wait_until(lambda: self.room.phase == "retry")
         self.assertEqual(self.room.phase, 'retry')
         self.assertEqual(session.coverage, before)
         restored = self.room.snapshot(self.guest)
@@ -411,14 +433,14 @@ class CoverageRoomTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(restored['coverage'], before)
         self.room.generation_id += 1
         self.room.phase = "generating"
-        with patch('backend.rooms.questions.generate_research_move', side_effect=mocked_move), patch('backend.rooms.coordinator.RoomCoordinator._schedule_clock'):
-            await generate_question(self.room, 2, False)
+        with patch('backend.rooms.questions.generate_research_move', side_effect=mocked_move):
+            await self.coordinator.execute(GenerateQuestion(2, False))
+            await wait_until(lambda: self.room.phase == "reacting")
         self.assertEqual(self.room.phase, 'reacting')
         self.assertIsNotNone(self.room.reaction_deadline_ms)
-        self.room.clock_task = asyncio.create_task(asyncio.sleep(60))
+        self.assertIsNotNone(self.room.clock_task)
         self.room.pending_submission = None
-        with patch('backend.rooms.coordinator.RoomCoordinator._schedule_coaching'):
-            await game_server._handle_action(self.room, self.host, self.socket, {'type':'end_defense'})
+        await game_server._handle_action(self.room, self.host, self.socket, {'type':'end_defense'})
         self.assertIsNone(self.room.vote_deadline_ms)
         self.assertIsNone(self.room.reaction_deadline_ms)
         self.assertIsNone(self.room.clock_task)
@@ -455,7 +477,7 @@ class CoverageProtocolTests(unittest.TestCase):
                 room = game_server.rooms[state['room_code']]
                 if room.phase == 'reacting':
                     self.now = max(self.now, state['reaction_deadline_ms'])
-                    self.client.portal.call(catch_up_deadline, room)
+                    self.client.portal.call(game_server._coordinator(room).execute, CatchUpDeadline())
             if ((phase is None or state['phase']==phase) and (count is None or len(state['turns'])==count)
                 and all(state.get(k)==v for k,v in conditions.items())): return state
         self.fail('Missing room state')
@@ -524,12 +546,12 @@ class CoverageProtocolTests(unittest.TestCase):
                             h.send_json({'type':'cast_vote','seat':index%2})
                             for ws in(h,g):self.until(ws,'voting',index+1)
                             self.now+=VOTE_MS+1
-                            self.client.portal.call(catch_up_deadline,game_server.rooms[code])
+                            self.client.portal.call(game_server._coordinator(game_server.rooms[code]).execute, CatchUpDeadline())
                             for ws in(h,g):
                                 state=self.until(ws,'question',index+1);self.assertEqual(state['selected_seat'],index%2)
                             if index==0:
                                 self.now+=ANSWER_MS+1
-                                self.client.portal.call(catch_up_deadline,game_server.rooms[code])
+                                self.client.portal.call(game_server._coordinator(game_server.rooms[code]).execute, CatchUpDeadline())
                             else:
                                 speaker=h if index%2==0 else g
                                 if index==3:
@@ -610,11 +632,14 @@ class CoverageAdditionalTests(unittest.IsolatedAsyncioTestCase):
         async def delayed(*args, **kwargs):
             started.set(); await release.wait(); return SubmissionDecision('answer')
         async def send(event): pass
-        with patch('backend.game_server.asyncio.to_thread', side_effect=delayed), patch('backend.rooms.coordinator.RoomCoordinator._schedule_coaching'):
-            task=asyncio.create_task(interpret_pending(room, 1))
-            await asyncio.wait_for(started.wait(), 2)
-            await game_server._handle_action(room, host, SimpleNamespace(send_json=send), {'type':'end_defense'})
-            release.set(); await task
+        coordinator = RoomCoordinator(room, RoomWorkflows(
+            interpretation_request=delayed, coaching_request=coaching_workflow.request_coaching))
+        self.addAsyncCleanup(coordinator.shutdown)
+        await coordinator.execute(InterpretSubmission(1))
+        await asyncio.wait_for(started.wait(), 2)
+        await game_server._handle_action(room, host, SimpleNamespace(send_json=send), {'type':'end_defense'})
+        release.set()
+        await wait_until(lambda: room.feedback_status == 'ready')
         self.assertEqual(room.phase, 'complete')
         self.assertIsNone(room.defense.turns[0].answer)
         self.assertTrue(room.defense.turns[0].ended_early)

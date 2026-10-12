@@ -185,10 +185,23 @@ returns and service lease transactions keep their financial implementations.
 Cancelling an await does not terminate an already running provider thread; late
 success and failure remain harmless through version and closure checks.
 
-This is a local implementation on `feature/question-first-room`, with no new
-browser protocol, UI, payment policy or Streamlit behavior. See the approved
-[room-coordination tickets](.scratch/room-coordination/issues/) for the remaining
-migration and final integration checks. Publication and deployment are separate.
+The migration is complete locally on `feature/question-first-room`. FastAPI in
+`backend/game_server.py` owns authenticated HTTP/WebSocket handling, uploads,
+registry admission and service ownership. `backend/rooms/commands.py` defines
+browser and trusted commands; `coordinator.py` owns command execution, captured
+work, task ordering and clocks. `model.py` owns recipient snapshots. Question,
+submission, planning, coaching, publication, presence and lifecycle modules
+group their respective rules and real dependency adapters. `TimedTurn` and
+`PreparedProgression` retain timing semantics and detached domain validation.
+
+The runtime has no legacy command bridge or transport-owned generation workers.
+Offline fixtures use commands and observable state rather than invoking workers
+directly; provider/time/transport dependencies can be controlled without an
+alternate scheduling path. The existing browser protocol, UI, payment policy and
+Streamlit behavior are preserved. See the approved
+[room-coordination tickets](.scratch/room-coordination/issues/) and the
+[local integration review](docs/ROOM_COORDINATION_REVIEW.md) for evidence and
+remaining review boundaries. Publication and deployment are separate.
 
 The timed-turn, purchase persistence and shared progression modules are published
 on the feature service, with checkout UI compatible with account-owned receipts. The isolated committed release passed **212 Python tests with external

@@ -10,10 +10,12 @@ record, not an implementation specification or publication instruction.
 
 Specification handoff completed on 2026-10-12:
 [room-coordination specification](../.scratch/room-coordination/spec.md),
-published to the local Markdown tracker with `Status: ready-for-agent`.
+published to the local Markdown tracker, now `Status: ready-for-human`.
 That specification is the implementation handoff; this document retains the
-confirmed discovery and design context. Ticket breakdown and implementation
-remain subsequent steps.
+confirmed discovery and design context. All seven implementation tickets are
+complete locally; [the review record](ROOM_COORDINATION_REVIEW.md) distinguishes
+offline/store/browser evidence from pending human and live checks. Publication
+and deployment remain later requested steps.
 
 ## Purpose
 

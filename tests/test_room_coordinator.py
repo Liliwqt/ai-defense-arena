@@ -1,5 +1,6 @@
 """Observable room command/view checks; no providers are contacted."""
 
+import asyncio
 import unittest
 
 from backend.rooms.coordinator import CastVote, RoomCoordinator, RoomWorkflows, SendChat, VerifiedActor
@@ -10,6 +11,36 @@ from backend.timed_turn import PendingSubmission
 
 
 class RoomCoordinatorTests(unittest.IsolatedAsyncioTestCase):
+    async def test_concurrent_join_allocates_unique_seats_and_preserves_full_closed_errors(self):
+        from backend.rooms.commands import JoinDefender, decode_command
+        host = Player("host", "Alex", 0, True, {object()})
+        room = Room("JOIN", [], {host.token: host}, owner_account_id="owner")
+        states = []
+
+        async def deliver(socket, payload):
+            states.append(payload["state"])
+
+        coordinator = RoomCoordinator(room, RoomWorkflows(deliver=deliver, now=lambda: 1000))
+        self.addAsyncCleanup(coordinator.shutdown)
+        results = await asyncio.gather(*(coordinator.execute(JoinDefender(f"guest-{i}", f"Guest {i}"))
+                                         for i in range(5)))
+        self.assertEqual(sum(result.accepted for result in results), 3)
+        for result in results:
+            if not result.accepted:
+                self.assertEqual(result.error, "This room already has four defenders.")
+                self.assertEqual(result.reason, "room_full")
+        state = coordinator.view(VerifiedActor(host.token, "owner"))
+        self.assertEqual(sorted(player["seat"] for player in state["players"]), [0, 1, 2, 3])
+        self.assertEqual(states[-1]["players"], state["players"])
+        self.assertNotIn("guest-0", repr(state))
+        with self.assertRaises(ValueError):
+            decode_command({"type": "join_defender", "token": "forged", "name": "Forged"})
+        await coordinator.shutdown()
+        closed = await coordinator.execute(JoinDefender("late", "Late"))
+        self.assertFalse(closed.accepted)
+        self.assertEqual(closed.error, "Room not found. Create a fresh room.")
+        self.assertEqual(closed.reason, "room_closed")
+
     async def test_wrong_owner_unknown_actor_and_shutdown_cannot_change_chat(self):
         host = Player("host", "Alex", 0, True, {object()})
         room = Room("ROOMA", [], {host.token: host}, owner_account_id="owner")

@@ -1,12 +1,15 @@
 # Room coordination and lifecycle reliability
 
-Status: ready-for-agent
+Status: ready-for-human
 
 Created: 2026-10-12. Work branch: feature/question-first-room.
 
-The user confirmed the planning scope and test expectations. This specification
-is published to the local Markdown tracker; runtime implementation and remote
-publication are separate steps.
+The user confirmed the planning scope and test expectations. All seven local
+implementation tickets are complete and code-reviewed; evidence and remaining
+human/live review boundaries are in
+[the local review](../../docs/ROOM_COORDINATION_REVIEW.md). Remote publication
+and deployment remain separate steps. The problem statement below describes
+the original migration trigger; requirements remain the agreed contract.
 
 ## Problem Statement
 
@@ -286,6 +289,6 @@ pending despite later source and verification records; do not reinterpret that
 as authorization to rewrite financial behavior. No new domain definition or
 financial decision is introduced here.
 
-Next handoff: dependency-ordered local tickets for the four runnable checkpoints,
-then requested implementation and review. Publication and deployment require a
-later request. Main and the live services remain frozen during this local work.
+Implementation handoff: all seven dependency-ordered local tickets are complete.
+Review the local screen and evidence before a later requested publication or
+deployment. Main and the live services remain unchanged during this local work.

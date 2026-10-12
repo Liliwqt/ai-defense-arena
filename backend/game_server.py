@@ -22,7 +22,7 @@ from backend.rooms.coordinator import (
 )
 from backend.rooms.commands import (
     VerifiedActor, decode_command,
-    ObserveAbsence, DefenderConnected, DefenderDisconnected, PublishRoom, ReclaimRoom,
+    ObserveAbsence, JoinDefender, DefenderConnected, DefenderDisconnected, ReclaimRoom,
 )
 
 from backend.defense_session import MAX_ANSWER_CHARS
@@ -43,7 +43,6 @@ SERVICE_ID = secrets.token_hex(24)
 SERVICE_POLL_SECONDS = 2
 SERVICE_HEARTBEAT_SECONDS = 10
 SERVICE_STARTING_MESSAGE = "The room service is restarting. Please retry shortly."
-MAX_PLAYERS = 4
 MAX_ROOMS = 20
 MAX_REQUEST_BYTES = 110_000_000
 ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -303,10 +302,6 @@ def _new_token() -> str:
     return secrets.token_urlsafe(32)
 
 
-def _set_selected_locked(room: Room, seat: int | None) -> None:
-    room.set_selected(seat, room.defense)
-
-
 @app.get("/health")
 async def health() -> dict[str, str]:
     if live_mode() and app.state.room_service_status != "ready":
@@ -439,19 +434,10 @@ async def join_room(code: str, request: JoinRequest) -> dict[str, str]:
     room = rooms.get(code.upper())
     if room is None:
         raise HTTPException(404, "Room not found. Check the invite code.")
-    _coordinator(room)
-    async with room.lock:
-        if room.closed:
-            raise HTTPException(404, "Room not found. Create a fresh room.")
-        if len(room.players) >= MAX_PLAYERS:
-            raise HTTPException(409, "This room already has four defenders.")
-        occupied = {player.seat for player in room.players.values()}
-        seat = next(index for index in range(MAX_PLAYERS) if index not in occupied)
-        token = _new_token()
-        room.activity_ms = _now_ms()
-        room.players[token] = Player(token, name, seat)
-        room.revision += 1
-    await _coordinator(room).execute(PublishRoom())
+    token = _new_token()
+    result = await _coordinator(room).execute(JoinDefender(token, name))
+    if not result.accepted:
+        raise HTTPException(409 if result.reason == "room_full" else 404, result.error)
     return {"room_code": room.code, "player_token": token}
 
 

@@ -8,10 +8,30 @@ from backend.defense_session import ResearchDefenseSession
 from backend.financial_policy import live_mode
 from backend.live_store import LiveStore
 from backend.resource_limits import socket_player_rate
-from backend.rooms.commands import CommandResult, VerifiedActor, DefenderConnected, DefenderDisconnected
+from backend.rooms.commands import CommandResult, VerifiedActor, JoinDefender, DefenderConnected, DefenderDisconnected
+from backend.rooms.model import Player
 
 if TYPE_CHECKING:
     from backend.rooms.coordinator import RoomCoordinator
+
+MAX_PLAYERS = 4
+
+
+async def join(owner: "RoomCoordinator", command: JoinDefender) -> CommandResult:
+    """Allocate a guest seat atomically after transport admission/validation."""
+    room = owner._room
+    async with room.lock:
+        if room.closed:
+            return CommandResult(False, "Room not found. Create a fresh room.", "room_closed")
+        if len(room.players) >= MAX_PLAYERS:
+            return CommandResult(False, "This room already has four defenders.", "room_full")
+        occupied = {player.seat for player in room.players.values()}
+        seat = next(index for index in range(MAX_PLAYERS) if index not in occupied)
+        room.activity_ms = owner._workflows.now()
+        room.players[command.token] = Player(command.token, command.name, seat)
+        room.revision += 1
+    await owner._publish()
+    return CommandResult(True)
 
 
 def reassign_if_offline(owner: "RoomCoordinator") -> bool:

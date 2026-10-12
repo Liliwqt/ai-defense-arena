@@ -103,6 +103,12 @@ class ObserveAbsence:
 
 
 @dataclass(frozen=True)
+class JoinDefender:
+    token: str
+    name: str
+
+
+@dataclass(frozen=True)
 class DefenderConnected:
     socket: object
 
@@ -152,7 +158,7 @@ class ReclaimRoom:
 LifecycleCommand = StartDefense | RestartDefense | RetryQuestion | EndDefense | EndUnavailable
 
 
-Command = CastVote | SendChat | LifecycleCommand | ReclaimRoom | GenerateQuestion | CatchUpDeadline | SubmissionCommand | InterpretSubmission | PlanCommand | GenerateResearchPlan | RetryCoaching | GenerateCoaching | PublishRoom | ObserveAbsence | DefenderConnected | DefenderDisconnected
+Command = CastVote | SendChat | LifecycleCommand | ReclaimRoom | GenerateQuestion | CatchUpDeadline | SubmissionCommand | InterpretSubmission | PlanCommand | GenerateResearchPlan | RetryCoaching | GenerateCoaching | PublishRoom | ObserveAbsence | JoinDefender | DefenderConnected | DefenderDisconnected
 
 
 def decode_command(message: dict) -> Command:
