@@ -4,6 +4,10 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Current status
 
+- Render startup mismatch diagnosed, 2026-10-13: user-provided deploy log shows a successful build followed by obsolete game_server:app imports. Local Uvicorn importer reproduces that error; backend.game_server:app loads successfully. render.yaml/README already specify the package-qualified command. Feature-service dashboard correction/redeployment and hosted health remain unverified; no server-setting change performed by this session.
+
+- Logo icon generated and integrated locally, 2026-10-13: generated shield/speech-bubble PNG now supplies the React desktop header and browser favicon through game/public/ai-defense-arena-icon.png. Original/prompt remain under presentation/branding/. Frontend gate: 261 tests/build pass; synthetic desktop/portrait/landscape checks confirm asset loading and no overflow. Compact mobile timer layout and native launcher icons retain their current behavior. User visual review and publication/deployment remain pending.
+
 - Reviewed room-coordination source published, 2026-10-12: origin/feature/question-first-room independently verified at 2e56c86d4abfb5d9e852b98bb03d74b6eb4221da, including prerequisite recovery, all seven migration commits and the final review report. Deployment held with [skip render]; frozen main verified unchanged at 866e923c40c3cf431e66984861dd7dbefb223f8b. User visual/live/hosted/device checks remain separate.
 
 - Final seven-ticket room-coordination review complete, 2026-10-12: independently reviewed 85c8589 through c09c618, separating prerequisite d8c8b7f. Standards: zero violations/actionable optional findings; Spec: zero actionable findings across all seven tickets and 38 acceptance criteria. Fresh 72-check mocked coordinator/protocol/local-store run and independent 37/38-check runs pass. Final report: docs/ROOM_COORDINATION_FINAL_REVIEW.md. Runtime unchanged; report/log are included in verified feature-branch source publication 2e56c86. Human/live/hosted/device evidence remains pending; no deployment.
@@ -161,6 +165,10 @@ Use this file to track completed updates across agents and session windows. See 
 - Generated questions carry a validated conversational `lead_in`: distinct panelist voices briefly react to the latest answer, match a substantive answer's language, and stay separate from the grounded question and citation. The previous exchange remains visible while the next response is generated.
 
 ## Active work
+
+- root-logo-publish, started 2026-10-13: user authorized pushing the logo integration, original asset/prompt and related handoff notes to origin/feature/question-first-room. Close with a dated remote verification receipt; [skip render], no deployment or main changes. Preserve unrelated footprint research.
+
+
 
 
 
@@ -2222,3 +2230,33 @@ Append new entries to the **end** of this file in date order:
 - Session: root-room-coordination-publish; closes its active-work claim with this dated receipt. Final review documentation commit 2e56c86 includes the report and shared handoff, above implementation c09c618 and the preceding six migration commits/prerequisite d8c8b7f.
 - Verification: git push origin HEAD:refs/heads/feature/question-first-room succeeded from remote 85c8589 to 2e56c86. Independent git ls-remote confirms origin/feature/question-first-room at 2e56c86d4abfb5d9e852b98bb03d74b6eb4221da and origin/main unchanged at 866e923c40c3cf431e66984861dd7dbefb223f8b. Existing mocked Python/React/build and final review evidence remains unchanged; this source push made no provider calls or new runtime changes.
 - Changed: this publication receipt/current status only, to be committed and pushed as a documentation receipt with [skip render]. Unrelated docs/PROJECT_SIZE_RESEARCH.md remains untracked and untouched. No merge, Render deployment, user visual approval, hosted verification or physical-device confirmation is claimed.
+
+
+### 2026-10-13 — AI Defense Arena logo icon concept generated
+
+- Session: root-logo-icon; closes its active-work claim with this dated asset handoff. Used the Image Generation skill and built-in image tool for the user's new logo request.
+- Changed: presentation/branding/ai-defense-arena-icon-v1.png and logo-prompt.md. Created a separate black-and-white shield/speech-bubble logo concept and saved the exact generation prompt; existing logos/screenshots/presentation covers are preserved.
+- Verification: generated image displayed and visually inspected; Pillow metadata inspection confirms a 1254x1254 RGBA PNG with alpha spanning 0–255. The project asset is copied from the generated output with transparency preserved. No image edit, application runtime change, AI conversation/provider payment, full-suite rerun, hosted or device check.
+- Remaining: user concept review and any requested branding integration/refinement. No commit, push or deployment. Frozen main and unrelated footprint research remain untouched.
+
+
+### 2026-10-13 — Render startup module mismatch diagnosed
+
+- Changed: this handoff log only; no runtime/configuration/branding edits. The user's Render log builds the frontend successfully but starts uvicorn game_server:app, which no longer matches the backend package layout.
+- Verification: local .venv Uvicorn import_from_string reproduces Could not import module "game_server" for game_server:app, while backend.game_server:app imports a FastAPI app. render.yaml, README Render instructions and run_local.sh already use the correct package-qualified path. Checked official Render FastAPI/start-command guidance; no hosted settings access or live provider request.
+- Remaining: update the feature Render service's Start Command to the existing render.yaml command, run from the repository root, redeploy and check /health. The build's npm audit warnings are separate from the demonstrated import failure. No deployment, hosted-health success, new tests, commit or push claimed; frozen main and unrelated local files remain unchanged.
+
+
+### 2026-10-13 — Generated logo applied to web branding
+
+- Session: root-logo-integration; closes its active-work claim with this dated handoff. User requested using the generated logo and paused the PDF-viewer discussion.
+- Changed: game/public/ai-defense-arena-icon.png is an unchanged copy of the generated transparent PNG. HUD.tsx replaces the diamond symbol with a decorative logo image beside the existing accessible title; index.css gives it explicit desktop/short-screen dimensions; game/index.html uses the same asset as favicon. Updated presentation/branding/logo-prompt.md to record usage. Existing compact phone header retains its centered timer; no native launcher-icon rebuild or document-viewer implementation.
+- Verification: npm test passes 261 tests in 22 files (/tmp/logo-integration-react.log); npm run build passes (/tmp/logo-integration-build.log). Playwright production-preview checks at 1440x900, 390x844 and 844x390 confirm PNG decoding, favicon reference, HTTP 200/image/png and no horizontal page overflow. Desktop logo is 35px; mobile branding remains hidden by existing responsive rules. Temporary screenshots saved under /tmp/arena-logo-*.png. cmp confirms the served PNG is identical to the original; git diff --check passes. No AI/provider call, backend change or redundant Python gate.
+- Remaining: user local visual review, any requested native branding update and later requested publication/deployment. Preview http://127.0.0.1:8840/?preview=1. Preserved unrelated footprint research, presentation covers and frozen main; no commit, push or deployment.
+
+
+### 2026-10-13 — Web logo publication prepared
+
+- Session: root-logo-publish; user requested pushing the completed logo integration. Selected game/public/ai-defense-arena-icon.png, game/index.html, HUD.tsx, index.css, the original/prompt under presentation/branding/ and related handoff notes. Included the earlier local Render-startup diagnosis in the shared log; no configuration change.
+- Verification: local diff check passes; origin/feature/question-first-room is d4e8fcfe7087f9e1453bf03588572b0530d23b49 and origin/main remains 866e923c40c3cf431e66984861dd7dbefb223f8b. The unchanged logo patch already passed 261 frontend tests, production build and synthetic desktop/portrait/landscape asset/overflow checks; no redundant tests or provider calls. Unrelated docs/PROJECT_SIZE_RESEARCH.md remains untracked and unchanged.
+- Remaining: push and independently verify the remote SHA. [skip render] holds deployment; hosted logo/startup and user visual/device confirmation remain separate.

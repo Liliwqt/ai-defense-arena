@@ -25,7 +25,7 @@ export function HUD({ roomState, roomCode, previewMode, onOpenDrawer, onPreviewM
       className="arena-hud"
     >
       <div className="brand-plate">
-        <span className="brand-cube" aria-hidden="true">◆</span>
+        <img className="brand-icon" src="/ai-defense-arena-icon.png" width="35" height="35" alt="" />
         <div>
         <h1>AI Defense Arena</h1>
         <p

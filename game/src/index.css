@@ -99,7 +99,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .arena-stage { flex: 1 1 auto; min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 8px; padding: 10px clamp(16px, 2.2vw, 36px) 8px; }
 #arena-hud { grid-row: 1; display: flex; align-items: center; justify-content: space-between; gap: 14px; min-width: 0; }
 .brand-plate { display: flex; align-items: center; gap: 11px; min-width: 0; }
-.brand-cube { display: grid; place-items: center; width: 35px; height: 35px; flex: none; border: 1px solid transparent; border-radius: 12px; background: var(--base); color: var(--ink); box-shadow: var(--raise-sm); font-size: 1.12rem; }
+.brand-icon { display: block; width: 35px; height: 35px; flex: none; object-fit: contain; }
 .brand-plate h1 { margin: 0; color: var(--ink); font-size: clamp(1rem, 1.45vw, 1.26rem); font-weight: 850; letter-spacing: -.035em; line-height: 1.1; white-space: nowrap; }
 .hud-kicker { margin: 3px 0 0; color: var(--subtle); font-size: .61rem; font-weight: 700; letter-spacing: .12em; white-space: nowrap; }
 .hud-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
@@ -304,7 +304,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 @media (orientation: portrait) and (max-width: 900px) { .rotate-prompt { display: grid; } }
 @media (max-height: 640px) and (orientation: landscape) {
   .arena-stage { gap: 5px; padding: 6px 10px 5px; }
-  .brand-cube { width: 27px; height: 27px; font-size: .85rem; }
+  .brand-icon { width: 27px; height: 27px; }
   .brand-plate { gap: 7px; }
   .brand-plate h1 { font-size: .83rem; }
   .hud-kicker { display: none; }
