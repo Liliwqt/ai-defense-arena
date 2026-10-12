@@ -1,3 +1,4 @@
+from tests.room_commands import catch_up_deadline
 from tests.offline_accounts import authenticate
 """Offline same-turn clarification and answer-clock checks."""
 
@@ -85,11 +86,13 @@ class ClarificationRoomTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.room.snapshot(self.host)['turns'][0]['answered_by'], 'Sam')
 
     async def asyncSetUp(self):
-        for name in ['_schedule_generation', '_schedule_coaching']:
+        for name in ['_schedule_coaching']:
             mocked = patch.object(server, name)
             mocked.start()
             self.addCleanup(mocked.stop)
         authenticate(self, unit_server=server)
+        question_schedule = patch("backend.rooms.coordinator.RoomCoordinator._schedule_question")
+        question_schedule.start(); self.addCleanup(question_schedule.stop)
         self.now = 1_000_000
         self.clock = patch.object(server, "_now_ms", side_effect=lambda: self.now)
         self.clock.start()
@@ -170,7 +173,7 @@ class ClarificationRoomTests(unittest.IsolatedAsyncioTestCase):
         await self.send(self.guest, self.guest_socket, type="submit_answer", turn=0,
                         answer="Can you give an example?")
         self.now += 100_000
-        await server._expire_deadline(self.room, old_clock_id)
+        await catch_up_deadline(self.room, old_clock_id)
         self.assertEqual(self.room.phase, "interpreting")
         self.assertFalse(self.room.defense.turns[0].timed_out)
         await self.resolve(SubmissionDecision("clarify", "For example, test a pilot with volunteers."))
@@ -179,7 +182,7 @@ class ClarificationRoomTests(unittest.IsolatedAsyncioTestCase):
                         answer="Another example?")
         await self.resolve(SubmissionDecision("clarify", "Observe whether the pilot works."))
         self.now = self.room.answer_deadline_ms
-        await server._expire_deadline(self.room)
+        await catch_up_deadline(self.room)
         self.assertTrue(self.room.defense.turns[0].timed_out)
         self.assertEqual(len(self.room.defense.answered_history()), 1)
         self.assertIsNone(self.room.defense.answered_history()[0].answer)

@@ -1,3 +1,5 @@
+from backend.rooms import questions as question_workflow
+from tests.room_commands import catch_up_deadline
 from tests.offline_accounts import authenticate
 """Offline multiplayer room checks; all AI calls are mocked."""
 
@@ -83,7 +85,7 @@ class GameServerTests(unittest.TestCase):
                 room = game_server.rooms[state["room_code"]]
                 if room.phase == "reacting":
                     self.clock_ms = max(self.clock_ms, state["reaction_deadline_ms"])
-                    self.client.portal.call(game_server._expire_deadline, room)
+                    self.client.portal.call(catch_up_deadline, room)
             # Existing defense tests exercise progression; focused vote tests use voting snapshots directly.
             if phase == "question" and state["phase"] == "voting":
                 room = game_server.rooms[state["room_code"]]
@@ -95,7 +97,7 @@ class GameServerTests(unittest.TestCase):
                             room.votes[voter.token] = seat
                     self.client.portal.call(choose)
                     self.clock_ms = max(self.clock_ms, state["vote_deadline_ms"] + 1)
-                    self.client.portal.call(game_server._expire_deadline, room)
+                    self.client.portal.call(catch_up_deadline, room)
         self.fail(f"Never received phase {phase}")
 
     def connect(self, code, token):
@@ -137,8 +139,8 @@ class GameServerTests(unittest.TestCase):
                 moves = [PanelMove(role, question) for role, question in zip(roles[1:], questions[1:])] + [PanelMove(None, None)]
                 report = CoachingReport('Review.', [], [], 'Practice.')
                 with patch.dict(os.environ, {'OPENAI_API_KEY': 'offline'}), \
-                     patch('backend.game_server.generate_first_question', return_value=questions[0]), \
-                     patch('backend.game_server.generate_next_move', side_effect=moves) as generation, \
+                     patch('backend.rooms.questions.generate_first_question', return_value=questions[0]), \
+                     patch('backend.rooms.questions.generate_next_move', side_effect=moves) as generation, \
                      patch('backend.game_server.generate_coaching_report', return_value=report):
                     host = self.create_room()
                     guest = self.join_room(host['room_code'])
@@ -162,8 +164,8 @@ class GameServerTests(unittest.TestCase):
                                     self.assertEqual(restored['reaction_deadline_ms'], snapshots[0]['reaction_deadline_ms'])
                                     self.assertEqual(restored['turns'], snapshots[0]['turns'])
                                 self.clock_ms = snapshots[0]['reaction_deadline_ms']
-                                self.client.portal.call(game_server._expire_deadline, room, old_clock)
-                                self.client.portal.call(game_server._expire_deadline, room, old_clock)
+                                self.client.portal.call(catch_up_deadline, room, old_clock)
+                                self.client.portal.call(catch_up_deadline, room, old_clock)
                                 self.assertEqual(room.vote_deadline_ms, self.clock_ms + 15_000)
                             states = [self.receive_phase(ws, 'question') for ws in (hs, gs)]
                             self.assertEqual(states[0]['turns'], states[1]['turns'])
@@ -190,8 +192,8 @@ class GameServerTests(unittest.TestCase):
     def test_two_clients_share_four_turns_and_first_answer_wins(self):
         with (
             patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}),
-            patch('backend.game_server.generate_first_question', return_value=self.questions[0]) as first_call,
-            patch('backend.game_server.generate_next_move', side_effect=self.short_moves) as later_calls,
+            patch('backend.rooms.questions.generate_first_question', return_value=self.questions[0]) as first_call,
+            patch('backend.rooms.questions.generate_next_move', side_effect=self.short_moves) as later_calls,
         ):
             host = self.create_room()
             # Duplicate display names are allowed; presenter focus must use the seat.
@@ -248,12 +250,12 @@ class GameServerTests(unittest.TestCase):
     def test_two_clients_share_clarification_without_advancing_or_revote(self):
         with (
             patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}),
-            patch('backend.game_server.generate_first_question', return_value=self.questions[0]),
+            patch('backend.rooms.questions.generate_first_question', return_value=self.questions[0]),
             patch('backend.game_server.interpret_submission', side_effect=[
                 SubmissionDecision("clarify", "I mean why SQLite fits this prototype."),
                 SubmissionDecision("answer"),
             ]),
-            patch('backend.game_server.generate_next_move', return_value=self.short_moves[0]),
+            patch('backend.rooms.questions.generate_next_move', return_value=self.short_moves[0]),
         ):
             host = self.create_room()
             guest = self.join_room(host["room_code"])
@@ -310,8 +312,8 @@ class GameServerTests(unittest.TestCase):
                                 "Review both tradeoffs.")
         with (
             patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}),
-            patch('backend.game_server.generate_first_question', return_value=questions[0]),
-            patch('backend.game_server.generate_next_move', side_effect=moves) as next_call,
+            patch('backend.rooms.questions.generate_first_question', return_value=questions[0]),
+            patch('backend.rooms.questions.generate_next_move', side_effect=moves) as next_call,
             patch('backend.game_server.generate_coaching_report', return_value=report) as coaching_call,
         ):
             host = self.create_room()
@@ -349,8 +351,8 @@ class GameServerTests(unittest.TestCase):
     def test_two_clients_resume_automatically_after_a_rejected_next_question(self):
         from backend.question_generator import InvalidQuestionResponse
         with patch.dict(os.environ, {"OPENAI_API_KEY": "offline-key"}), \
-             patch.object(game_server, 'generate_first_question', return_value=self.questions[0]), \
-             patch.object(game_server, 'generate_next_move', side_effect=[InvalidQuestionResponse('Invalid cited line'), self.short_moves[0]]) as generator:
+             patch.object(question_workflow, 'generate_first_question', return_value=self.questions[0]), \
+             patch.object(question_workflow, 'generate_next_move', side_effect=[InvalidQuestionResponse('Invalid cited line'), self.short_moves[0]]) as generator:
             host = self.create_room()
             guest = self.join_room(host['room_code'])
             host_socket, _ = self.connect(host['room_code'], host['player_token'])
@@ -381,8 +383,8 @@ class GameServerTests(unittest.TestCase):
     def test_failure_retains_answer_then_host_retries_and_guest_reconnects(self):
         with (
             patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}),
-            patch('backend.game_server.generate_first_question', return_value=self.questions[0]),
-            patch('backend.game_server.generate_next_move', side_effect=[OpenAIError("temporary outage"), self.short_moves[0]]),
+            patch('backend.rooms.questions.generate_first_question', return_value=self.questions[0]),
+            patch('backend.rooms.questions.generate_next_move', side_effect=[OpenAIError("temporary outage"), self.short_moves[0]]),
         ):
             host = self.create_room()
             guest = self.join_room(host["room_code"])
@@ -449,8 +451,8 @@ class GameServerTests(unittest.TestCase):
         )
         with (
             patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}),
-            patch('backend.game_server.generate_first_question', return_value=self.questions[0]),
-            patch('backend.game_server.generate_next_move', side_effect=self.short_moves),
+            patch('backend.rooms.questions.generate_first_question', return_value=self.questions[0]),
+            patch('backend.rooms.questions.generate_next_move', side_effect=self.short_moves),
             patch('backend.game_server.generate_coaching_report', return_value=mock_report) as coaching_call,
         ):
             host = self.create_room()
@@ -482,8 +484,8 @@ class GameServerTests(unittest.TestCase):
         )
         with (
             patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}),
-            patch('backend.game_server.generate_first_question', return_value=self.questions[0]),
-            patch('backend.game_server.generate_next_move', side_effect=self.short_moves),
+            patch('backend.rooms.questions.generate_first_question', return_value=self.questions[0]),
+            patch('backend.rooms.questions.generate_next_move', side_effect=self.short_moves),
             patch('backend.game_server.generate_coaching_report',
                   side_effect=[OpenAIError("coaching timeout"), mock_report]) as coaching_call,
         ):
@@ -542,8 +544,8 @@ class GameServerTests(unittest.TestCase):
         )
         with (
             patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}),
-            patch('backend.game_server.generate_first_question', return_value=self.questions[0]),
-            patch('backend.game_server.generate_next_move', side_effect=self.short_moves * 2),
+            patch('backend.rooms.questions.generate_first_question', return_value=self.questions[0]),
+            patch('backend.rooms.questions.generate_next_move', side_effect=self.short_moves * 2),
             patch('backend.game_server.generate_coaching_report', return_value=mock_report) as coaching_call,
         ):
             host = self.create_room()
@@ -582,8 +584,8 @@ class GameServerTests(unittest.TestCase):
         )
         with (
             patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}),
-            patch('backend.game_server.generate_first_question', return_value=self.questions[0]),
-            patch('backend.game_server.generate_next_move', side_effect=self.short_moves),
+            patch('backend.rooms.questions.generate_first_question', return_value=self.questions[0]),
+            patch('backend.rooms.questions.generate_next_move', side_effect=self.short_moves),
             patch('backend.game_server.generate_coaching_report', return_value=mock_report),
         ):
             host = self.create_room()

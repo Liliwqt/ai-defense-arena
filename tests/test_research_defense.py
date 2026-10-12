@@ -1,3 +1,5 @@
+from backend.rooms import questions as question_workflow
+from tests.room_commands import catch_up_deadline
 from tests.offline_accounts import authenticate
 """Offline research extraction, grounded questions, and room protocol checks."""
 
@@ -363,7 +365,7 @@ class ResearchTwoClientTests(unittest.TestCase):
                 start = self.prepare(host, len(roles))
                 report = CoachingReport('Review complete.', [{'turn': 0, 'text': 'Specific plan.'}],
                                          [{'turn': 1, 'text': 'Clarify ethics.'}], 'Run a pilot.')
-                with patch.object(game_server, 'generate_research_move', side_effect=moves), \
+                with patch.object(question_workflow, 'generate_research_move', side_effect=moves), \
                      patch.object(game_server, 'generate_coaching_report', return_value=report):
                     with self.client.websocket_connect(f"/ws/{host['room_code']}") as host_ws, \
                          self.client.websocket_connect(f"/ws/{host['room_code']}") as guest_ws:
@@ -384,13 +386,13 @@ class ResearchTwoClientTests(unittest.TestCase):
                                 self.assertEqual(voted['vote_counts'].get('0'), 1)
                             self.now += game_server.VOTE_MS + 1
                             room = game_server.rooms[host['room_code']]
-                            self.client.portal.call(game_server._expire_deadline, room)
+                            self.client.portal.call(catch_up_deadline, room)
                             for ws in (host_ws, guest_ws):
                                 state = self.until(ws, 'question', turn + 1)
                                 self.assertEqual(state['selected_seat'], 0)
                             if followups and turn == 1:
                                 self.now += game_server.ANSWER_MS + 1
-                                self.client.portal.call(game_server._expire_deadline, room)
+                                self.client.portal.call(catch_up_deadline, room)
                             else:
                                 host_ws.send_json({'type': 'submit_answer', 'turn': turn,
                                                    'answer': f'Answer {turn + 1}'})
@@ -422,7 +424,7 @@ class ResearchTwoClientTests(unittest.TestCase):
         second = GroundedQuestion('How will consent work?', 'study.md', 1,
                                   'Pilot interviews are planned.', evidence_kind='research_text', evidence_location='Line 1')
         start = self.prepare(host, 8)
-        with patch.object(game_server, 'generate_research_move', side_effect=[
+        with patch.object(question_workflow, 'generate_research_move', side_effect=[
                 ResearchMove(METHODOLOGY_REVIEWER, first, 'topic-1', False, None),
                 QuestionGenerationError('The AI cited an invalid source line. Please try again.'),
                 ResearchMove(ETHICS_REVIEWER, second, 'topic-2', False, TopicAssessmentDraft(topic_id='topic-1', turn=0, status='addressed', reason='Volunteer recruitment was described.'))]):
@@ -434,7 +436,7 @@ class ResearchTwoClientTests(unittest.TestCase):
                 host_ws.send_json({'type': 'cast_vote', 'seat': 0})
                 self.until(host_ws, 'voting', 1)
                 self.now += game_server.VOTE_MS + 1
-                self.client.portal.call(game_server._expire_deadline, game_server.rooms[host['room_code']])
+                self.client.portal.call(catch_up_deadline, game_server.rooms[host['room_code']])
                 self.until(host_ws, 'question', 1)
                 host_ws.send_json({'type': 'submit_answer', 'turn': 0, 'answer': 'We will recruit volunteers.'})
                 state = self.until(host_ws, 'retry', 1)

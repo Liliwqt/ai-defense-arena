@@ -139,14 +139,21 @@ See [PROJECT_LOG.md](PROJECT_LOG.md) for evidence and publication history. Agent
 
 ## Architecture release checkpoint
 
-The first local room-coordination checkpoint groups the multiplayer state and
+The local room-coordination checkpoints group the multiplayer state and
 snapshot serializer in `backend/rooms/model.py`. Each multiplayer room has one
 `RoomCoordinator`; voting and team chat pass through its typed command boundary,
 and connected clients receive recipient-specific views. FastAPI still verifies
-tokens and host accounts for each invocation. The remaining AI, timer and
-lifecycle workflows use an explicit temporary adapter while later tickets migrate
-them. The coordinator shutdown seam is available locally; service shutdown and
-complete task ownership are part of the later lifecycle checkpoint.
+tokens and host accounts for each invocation. The coordinator now retains question
+and clock tasks, deduplicates work for the same question version, and checks the
+run/version/phase before publishing results or errors. It preserves detached
+validation, charge-before-publication, the bounded next-question retry, and one
+authoritative deadline path for both callbacks and incoming actions. TimedTurn
+owns phase-specific deadline selection; the coordinator owns scheduling.
+
+Submission interpretation, paper mapping, coaching and lifecycle actions retain
+an explicit temporary adapter while later tickets migrate them. The shutdown
+seam cancels the migrated question/clock tasks; full task ownership and service
+shutdown integration belong to the later lifecycle checkpoint.
 
 This is a local implementation on `feature/question-first-room`, with no new
 browser protocol, UI, payment policy or Streamlit behavior. See the approved

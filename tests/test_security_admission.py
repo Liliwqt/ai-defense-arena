@@ -1,3 +1,6 @@
+from backend.question_generator import QuestionGenerationError
+from backend.rooms import questions as question_workflow
+from tests.room_commands import generate_question
 """Resource admission through authenticated HTTP; providers remain mocked."""
 import unittest
 import asyncio
@@ -189,10 +192,10 @@ class RoomAdmissionTests(unittest.TestCase):
     def test_opening_generation_attempts_are_bounded_before_provider(self):
         room, _, _ = self.create()
         room.phase = 'generating'
-        with patch.object(server, 'generate_first_question', side_effect=server.QuestionGenerationError('Offline failure')) as provider:
+        with patch.object(question_workflow, 'generate_first_question', side_effect=QuestionGenerationError('Offline failure')) as provider:
             for _ in range(4):
                 room.phase = 'generating'  # Each explicit host retry re-enters generation.
-                self.client.portal.call(server._generate_question, room, room.generation_id, True)
+                self.client.portal.call(generate_question, room, room.generation_id, True)
         self.assertEqual(provider.call_count, 3)
         self.assertEqual(room.phase, 'retry')
         self.assertIn('allowance', room.error)

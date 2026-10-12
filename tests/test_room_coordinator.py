@@ -18,10 +18,7 @@ class RoomCoordinatorTests(unittest.IsolatedAsyncioTestCase):
         async def publish(state):
             published.append(state.snapshot(host))
 
-        async def expire(state):
-            pass
-
-        coordinator = RoomCoordinator(room, RoomWorkflows(publish, expire))
+        coordinator = RoomCoordinator(room, RoomWorkflows(publish))
         wrong_owner = await coordinator.execute(SendChat("secret"), VerifiedActor(host.token, "other"))
         self.assertIn("account that created", wrong_owner.error)
         missing = await coordinator.execute(SendChat("secret"), VerifiedActor("missing"))
@@ -47,13 +44,7 @@ class RoomCoordinatorTests(unittest.IsolatedAsyncioTestCase):
         async def publish(state):
             published.append(state.snapshot(guest, now=now))
 
-        async def expire(state):
-            outcome = state.expire(now, {"host": 0, "guest": 1}, state.defense, choose=lambda seats: seats[0])
-            if outcome:
-                state.revision += 1
-                await publish(state)
-
-        coordinator = RoomCoordinator(room, RoomWorkflows(publish, expire, now=lambda: now))
+        coordinator = RoomCoordinator(room, RoomWorkflows(publish, now=lambda: now))
         actor = VerifiedActor(guest.token)
         await coordinator.execute(CastVote(0), actor)
         await coordinator.execute(CastVote(1), actor)
@@ -75,10 +66,7 @@ class RoomCoordinatorTests(unittest.IsolatedAsyncioTestCase):
         async def publish(state):
             published.append(state.snapshot(guest))
 
-        async def expire(state):
-            pass  # Lobby has no deadline.
-
-        coordinator = RoomCoordinator(room, RoomWorkflows(publish, expire, now=lambda: 1000))
+        coordinator = RoomCoordinator(room, RoomWorkflows(publish, now=lambda: 1000))
         actor = VerifiedActor(guest.token)
         rejected = await coordinator.execute(SendChat(" "), actor)
         self.assertEqual(rejected.error, "Write a team message before sending.")

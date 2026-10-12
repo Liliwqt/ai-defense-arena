@@ -214,7 +214,7 @@ class ResearchPlanRoomTests(unittest.TestCase):
     def test_two_clients_prepare_confirm_and_reconnect_without_extra_call(self):
         for mode in ("research", "mixed"):
             with self.subTest(mode=mode), patch('backend.game_server.generate_research_plan', return_value=self.plan) as generator, \
-                 patch('backend.game_server.generate_first_question') as question_call:
+                 patch('backend.rooms.questions.generate_first_question') as question_call:
                 host = self.create(mode)
                 guest = self.client.post(f"/api/rooms/{host['room_code']}/join", json={"name": "Guest"}).json()
                 with self.client.websocket_connect(f"/ws/{host['room_code']}") as h, \
@@ -250,7 +250,7 @@ class ResearchPlanRoomTests(unittest.TestCase):
     def test_failure_retry_and_stale_or_invalid_approval_preserve_uploads(self):
         host = self.create()
         with patch('backend.game_server.generate_research_plan', side_effect=[QuestionGenerationError("The AI cited an invalid source line."), self.plan]) as generator, \
-             patch('backend.game_server.generate_first_question') as question_call, \
+             patch('backend.rooms.questions.generate_first_question') as question_call, \
              self.client.websocket_connect(f"/ws/{host['room_code']}") as h:
             self.hello(h, host["player_token"])
             h.send_json({"type": "prepare_research_plan"})
@@ -275,7 +275,7 @@ class ResearchPlanRoomTests(unittest.TestCase):
         room.research_plan_approved = True
         room.research_budget_preview = 20
         q = GroundedQuestion("Explain the pilot design.", "study.md", 4, PAPER.splitlines()[3])
-        with patch('backend.game_server.generate_research_move', return_value=__import__('backend.question_generator', fromlist=["*"]).ResearchMove(RESEARCH_PANELISTS[0], q, "topic-1", False, None)), \
+        with patch('backend.rooms.questions.generate_research_move', return_value=__import__('backend.question_generator', fromlist=["*"]).ResearchMove(RESEARCH_PANELISTS[0], q, "topic-1", False, None)), \
              self.client.websocket_connect(f"/ws/{host['room_code']}") as h:
             self.hello(h, host["player_token"])
             h.send_json({"type": "start", "plan_id": self.plan.id, "question_budget": 20})
@@ -312,7 +312,7 @@ class ResearchPlanRaceTests(unittest.IsolatedAsyncioTestCase):
             started.set()
             await release.wait()
             return plan
-        with patch('backend.game_server.asyncio.to_thread', side_effect=delayed), patch('backend.game_server._schedule_generation'):
+        with patch('backend.game_server.asyncio.to_thread', side_effect=delayed), patch('backend.rooms.coordinator.RoomCoordinator._schedule_question'):
             task = asyncio.create_task(game_server._prepare_research_plan(room, 1))
             await started.wait()
             await game_server._handle_action(room, host, socket, {"type": "restart"})

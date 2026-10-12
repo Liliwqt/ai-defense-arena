@@ -1,3 +1,7 @@
+from backend.rooms import questions as question_workflow
+from backend.rooms.coordinator import RoomCoordinator
+from tests.room_commands import generate_question
+from tests.room_commands import catch_up_deadline
 from tests.offline_accounts import authenticate
 """Fake-clock checks for room-owned voting, answer deadlines, and private chat."""
 
@@ -34,7 +38,7 @@ class TimedRoomTests(unittest.IsolatedAsyncioTestCase):
         self.room.phase = "voting"
         self.room.vote_deadline_ms = self.now + server.VOTE_MS
         self.generated = []
-        self.generation_patch = patch.object(server, "_schedule_generation", side_effect=lambda *args: self.generated.append(args))
+        self.generation_patch = patch.object(RoomCoordinator, '_schedule_question', side_effect=lambda *args: self.generated.append(args))
         self.generation_patch.start()
         self.addCleanup(self.generation_patch.stop)
 
@@ -59,7 +63,7 @@ class TimedRoomTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.room.snapshot(self.guest)["my_vote"], 1)
         self.assertGreater(self.room.snapshot(self.guest)["vote_deadline_ms"] - self.now, 0)
         self.now += server.VOTE_MS
-        await server._expire_deadline(self.room)
+        await catch_up_deadline(self.room)
         self.assertEqual(self.room.phase, "question")
         self.assertEqual(self.room.selected_seat, 1)
         self.assertEqual(self.room.answer_deadline_ms, self.now + server.ANSWER_MS)
@@ -73,7 +77,7 @@ class TimedRoomTests(unittest.IsolatedAsyncioTestCase):
             await self.action(self.host, self.host_socket, type="cast_vote", seat=0)
             await self.action(self.guest, self.guest_socket, type="cast_vote", seat=1)
             self.now += server.VOTE_MS
-            await server._expire_deadline(self.room)
+            await catch_up_deadline(self.room)
             self.assertEqual(choose.call_args.args[0], [0, 1])
             self.assertEqual(self.room.selected_seat, 1)
         server._clear_clock_locked(self.room)
@@ -81,7 +85,7 @@ class TimedRoomTests(unittest.IsolatedAsyncioTestCase):
         self.room.vote_deadline_ms = self.now + server.VOTE_MS
         with patch.object(server.secrets, "choice", return_value=0) as choose:
             self.now += server.VOTE_MS
-            await server._expire_deadline(self.room)
+            await catch_up_deadline(self.room)
             self.assertEqual(choose.call_args.args[0], [0, 1])
             self.assertEqual(self.room.selected_seat, 0)
 
@@ -129,11 +133,11 @@ class TimedRoomTests(unittest.IsolatedAsyncioTestCase):
         server._set_selected_locked(self.room, 0)
         await self.action(self.host, self.host_socket, type="send_chat", text="private strategy")
         self.now += server.ANSWER_MS
-        await server._expire_deadline(self.room)
+        await catch_up_deadline(self.room)
         self.assertTrue(self.room.defense.turns[0].timed_out)
         generation_id = self.room.generation_id
-        with patch.object(server, "generate_next_move", side_effect=RuntimeError("mock AI failure")):
-            await server._generate_question(self.room, generation_id, False)
+        with patch.object(question_workflow, 'generate_next_move', side_effect=RuntimeError("mock AI failure")):
+            await generate_question(self.room, generation_id, False)
         self.assertEqual(self.room.phase, "retry")
         self.assertTrue(self.room.defense.turns[0].timed_out)
         await self.action(self.guest, self.guest_socket, type="retry")
@@ -148,8 +152,8 @@ class TimedRoomTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(kwargs["history"][0].answer)
             self.assertNotIn("private strategy", repr(kwargs["history"]))
             return PanelMove(server.PANELIST_ORDER[0], followup)
-        with patch.object(server, "generate_next_move", side_effect=next_move):
-            await server._generate_question(self.room, self.room.generation_id, False)
+        with patch.object(question_workflow, 'generate_next_move', side_effect=next_move):
+            await generate_question(self.room, self.room.generation_id, False)
         self.assertEqual(self.room.phase, "voting", self.room.error)
         self.assertEqual(len(self.room.defense.turns), 2)
         self.assertTrue(self.room.defense.turns[0].timed_out)
@@ -179,7 +183,7 @@ class TimedRoomTests(unittest.IsolatedAsyncioTestCase):
             await self.action(self.host, self.host_socket, type="send_chat", text=f"note {index}")
         self.assertEqual(len(self.room.chat), 100)
         self.assertEqual(self.room.chat[-1]["text"], "note 104")
-        with patch.object(server, "_schedule_generation"):
+        with patch.object(RoomCoordinator, '_schedule_question'):
             await self.action(self.host, self.host_socket, type="restart")
         self.assertEqual(self.room.chat, [])
         self.assertEqual(self.room.votes, {})

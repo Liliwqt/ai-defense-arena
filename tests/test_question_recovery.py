@@ -1,3 +1,6 @@
+from backend.rooms import questions as question_workflow
+from backend.rooms.coordinator import RoomCoordinator
+from tests.room_commands import generate_question
 """Post-answer generation recovery through the real asynchronous room boundary."""
 import os
 import unittest
@@ -23,10 +26,10 @@ class QuestionRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.next_move = PanelMove('Security Reviewer', GroundedQuestion('Who can change it?', 'queue.py', 1, 'queue = []'))
 
     async def test_invalid_next_question_recovers_without_manual_host_retry(self):
-        with patch.object(server, 'generate_next_move', side_effect=[
+        with patch.object(question_workflow, 'generate_next_move', side_effect=[
             InvalidQuestionResponse('The AI cited an invalid source line. Please try again.'), self.next_move
-        ]) as generator, patch.object(server, 'publish', new_callable=AsyncMock), patch.object(server, '_schedule_clock'):
-            await server._generate_question(self.room, self.room.generation_id, False)
+        ]) as generator, patch.object(server, 'publish', new_callable=AsyncMock), patch.object(RoomCoordinator, '_schedule_clock'):
+            await generate_question(self.room, self.room.generation_id, False)
         self.assertEqual(generator.call_count, 2, 'A single rejected next question should recover without opening Controls.')
         self.assertEqual(self.room.phase, 'voting')
         self.assertEqual(len(self.room.defense.turns), 2)
@@ -38,8 +41,8 @@ class QuestionRecoveryTests(unittest.IsolatedAsyncioTestCase):
         snapshots = []
         async def capture(room):
             snapshots.append(room.snapshot())
-        with patch.object(server, 'generate_next_move', side_effect=failure) as generator, patch.object(server, 'publish', side_effect=capture):
-            await server._generate_question(self.room, self.room.generation_id, False)
+        with patch.object(question_workflow, 'generate_next_move', side_effect=failure) as generator, patch.object(server, 'publish', side_effect=capture):
+            await generate_question(self.room, self.room.generation_id, False)
         self.assertEqual(generator.call_count, 2)
         self.assertEqual(self.room.phase, 'retry')
         self.assertEqual(snapshots[0]['phase'], 'generating')
@@ -49,8 +52,8 @@ class QuestionRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(snapshots[-1]['question_attempts_left'], 1)
         self.room.phase = 'generating'
         self.room.generation_id += 1
-        with patch.object(server, 'generate_next_move', return_value=self.next_move), patch.object(server, 'publish', new_callable=AsyncMock), patch.object(server, '_schedule_clock'):
-            await server._generate_question(self.room, self.room.generation_id, False)
+        with patch.object(question_workflow, 'generate_next_move', return_value=self.next_move), patch.object(server, 'publish', new_callable=AsyncMock), patch.object(RoomCoordinator, '_schedule_clock'):
+            await generate_question(self.room, self.room.generation_id, False)
         self.assertEqual(len(self.room.defense.turns), 2)
         self.assertEqual(len(self.room.defense.answered_history()), 1)
 
@@ -66,8 +69,8 @@ class QuestionRecoveryTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(error=type(failure).__name__, status=getattr(failure, 'status_code', None)):
                 self.room.phase = 'generating'
                 self.room.ai_budget.reset_run(8)
-                with patch.object(server, 'generate_next_move', side_effect=failure) as generator, patch.object(server, 'publish', new_callable=AsyncMock):
-                    await server._generate_question(self.room, self.room.generation_id, False)
+                with patch.object(question_workflow, 'generate_next_move', side_effect=failure) as generator, patch.object(server, 'publish', new_callable=AsyncMock):
+                    await generate_question(self.room, self.room.generation_id, False)
                 self.assertEqual(generator.call_count, 1)
                 self.assertEqual(self.room.phase, 'retry')
                 self.assertEqual(self.room.defense.turns[0].answer, 'We preserve arrival order.')
@@ -76,9 +79,9 @@ class QuestionRecoveryTests(unittest.IsolatedAsyncioTestCase):
         async def end_during_backoff(_):
             self.room.generation_id += 1
             self.room.phase = 'complete'
-        with patch.object(server, 'generate_next_move', side_effect=InvalidQuestionResponse('Invalid citation')) as generator, \
+        with patch.object(question_workflow, 'generate_next_move', side_effect=InvalidQuestionResponse('Invalid citation')) as generator, \
              patch.object(server, 'publish', new_callable=AsyncMock), patch.object(server.asyncio, 'sleep', side_effect=end_during_backoff):
-            await server._generate_question(self.room, 0, False)
+            await generate_question(self.room, 0, False)
         self.assertEqual(generator.call_count, 1)
         self.assertEqual(self.room.phase, 'complete')
         self.room.phase = 'generating'
@@ -92,8 +95,8 @@ class QuestionRecoveryTests(unittest.IsolatedAsyncioTestCase):
         clients = [FakeClient(draft) for draft in drafts]
         def generate(files, key, **kwargs):
             return generate_next_move(files, key, client=clients.pop(0), **kwargs)
-        with patch.object(server, 'generate_next_move', side_effect=generate) as generator, patch.object(server, 'publish', new_callable=AsyncMock), patch.object(server, '_schedule_clock'):
-            await server._generate_question(self.room, 0, False)
+        with patch.object(question_workflow, 'generate_next_move', side_effect=generate) as generator, patch.object(server, 'publish', new_callable=AsyncMock), patch.object(RoomCoordinator, '_schedule_clock'):
+            await generate_question(self.room, 0, False)
         self.assertEqual(generator.call_count, 2)
         self.assertEqual(self.room.defense.turns[-1].question.evidence_text, 'queue = []')
         self.assertEqual(self.room.phase, 'voting')
@@ -114,8 +117,8 @@ class QuestionRecoveryTests(unittest.IsolatedAsyncioTestCase):
             calls.append(kwargs['history'][0].answer)
             if len(calls) == 1: raise InvalidQuestionResponse('Invalid citation')
             return mocked_move(files, key, **kwargs)
-        with patch.object(server, 'generate_research_move', side_effect=generate), patch.object(server, 'publish', new_callable=AsyncMock), patch.object(server, '_schedule_clock'), patch.object(server, 'charge_run') as charge:
-            await server._generate_question(self.room, 0, False)
+        with patch.object(question_workflow, 'generate_research_move', side_effect=generate), patch.object(server, 'publish', new_callable=AsyncMock), patch.object(RoomCoordinator, '_schedule_clock'), patch.object(question_workflow, 'charge_run') as charge:
+            await generate_question(self.room, 0, False)
         self.assertEqual(calls, ['We will compare measured wait times.'] * 2)
         self.assertEqual(len(session.turns), 2)
         self.assertEqual(session.coverage['topic-1']['status'], 'addressed')
@@ -131,19 +134,19 @@ class QuestionRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 self.room.ai_budget.reset_run(8)
                 self.room.defense = DefenseSession.start(self.question)
                 self.room.defense.submit_answer('We preserve arrival order.')
-                with patch.object(server, 'generate_next_move', side_effect=[failure, self.next_move]) as generator, patch.object(server, 'publish', new_callable=AsyncMock), patch.object(server, '_schedule_clock'):
-                    await server._generate_question(self.room, 0, False)
+                with patch.object(question_workflow, 'generate_next_move', side_effect=[failure, self.next_move]) as generator, patch.object(server, 'publish', new_callable=AsyncMock), patch.object(RoomCoordinator, '_schedule_clock'):
+                    await generate_question(self.room, 0, False)
                 self.assertEqual(generator.call_count, 2)
                 self.assertEqual(self.room.phase, 'voting')
 
     async def test_opening_and_last_allowed_attempt_do_not_recover_automatically(self):
         self.room.ai_budget.attempts['question:1'] = 2
-        with patch.object(server, 'generate_next_move', side_effect=InvalidQuestionResponse('Invalid response')) as generator, patch.object(server, 'publish', new_callable=AsyncMock):
-            await server._generate_question(self.room, 0, False)
+        with patch.object(question_workflow, 'generate_next_move', side_effect=InvalidQuestionResponse('Invalid response')) as generator, patch.object(server, 'publish', new_callable=AsyncMock):
+            await generate_question(self.room, 0, False)
         self.assertEqual(generator.call_count, 1)
         self.assertEqual(self.room.snapshot()['question_attempts_left'], 0)
         self.room.defense, self.room.phase = None, 'generating'
-        with patch.object(server, 'generate_first_question', side_effect=InvalidQuestionResponse('Invalid response')) as generator, patch.object(server, 'publish', new_callable=AsyncMock):
-            await server._generate_question(self.room, 0, True)
+        with patch.object(question_workflow, 'generate_first_question', side_effect=InvalidQuestionResponse('Invalid response')) as generator, patch.object(server, 'publish', new_callable=AsyncMock):
+            await generate_question(self.room, 0, True)
         self.assertEqual(generator.call_count, 1)
         self.assertEqual(self.room.phase, 'retry')

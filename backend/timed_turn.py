@@ -50,6 +50,17 @@ class TimedTurn:
     pause_started_ms: int | None = None
     pause_deadline_ms: int | None = None
 
+    @property
+    def active_deadline_ms(self) -> int | None:
+        """The next transition to schedule for the current timed phase."""
+        if self.phase == "reacting":
+            return self.reaction_deadline_ms
+        if self.phase == "voting":
+            return self.vote_deadline_ms
+        if self.phase in {"question", "probe", "interpreting", "interpretation_retry"}:
+            return self.pause_deadline_ms or self.answer_deadline_ms
+        return None
+
     def present_question(self, session: DefenseSession, now: int) -> None:
         """Let the validated reaction speak before starting either player clock."""
         self.clear_clock()

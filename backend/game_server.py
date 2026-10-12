@@ -14,18 +14,17 @@ import threading
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from openai import OpenAIError, APIConnectionError, APIStatusError
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
+from backend.rooms.errors import safe_generation_error
 from backend.rooms.model import Player, Room, now_ms as _now_ms
 from backend.rooms.coordinator import (
-    RoomCoordinator, RoomWorkflows, VerifiedActor, LegacyCommand, CommandResult, decode_command,
+    RoomCoordinator, RoomWorkflows, VerifiedActor, LegacyCommand, CommandResult, decode_command, CatchUpDeadline,
 )
 
 from backend.defense_session import DefenseSession, ResearchDefenseSession, MAX_ANSWER_CHARS, PANELIST_ORDER
-from backend.defense_progression import prepare_progression, commit_progression
 from backend.accounts import configure_auth, require_account, check_csrf, auth_settings
-from backend.account_store import (AccessError, require_run_access, reserve_run, charge_run,
+from backend.account_store import (AccessError, require_run_access, reserve_run,
                            release_run, release_orphaned_reservations)
 from backend.financial_policy import live_mode
 from backend.live_store import LiveStore, ServiceAlreadyActive
@@ -42,13 +41,7 @@ from backend.question_generator import (
     DEFAULT_MODEL,
     CoachingReport,
     interpret_submission,
-    QuestionGenerationError,
-    InvalidQuestionResponse,
-    describe_openai_error,
     generate_coaching_report,
-    generate_first_question,
-    generate_next_move,
-    generate_research_move,
 )
 
 
@@ -350,18 +343,6 @@ def _new_token() -> str:
     return secrets.token_urlsafe(32)
 
 
-def _safe_generation_error(error: Exception) -> str:
-    if isinstance(error, HTTPException):
-        return str(error.detail)
-    if isinstance(error, QuestionGenerationError):
-        return str(error)
-    if isinstance(error, OpenAIError):
-        return describe_openai_error(error, os.getenv("OPENAI_MODEL") or DEFAULT_MODEL, os.getenv("OPENAI_API_KEY"))
-    if isinstance(error, ValidationError):
-        return "The AI returned an unexpected response. Please try again."
-    return "The AI request failed. Please try again."
-
-
 async def publish(room: Room) -> None:
     """Send the latest state to every connected player in message order."""
     async with room.broadcast_lock:
@@ -408,160 +389,7 @@ def _clear_clock_locked(room: Room) -> None:
     if room.defense and room.defense.turns and room.defense.turns[-1].probe and room.defense.turns[-1].probe.status == "pending":
         room.defense.resolve_probe(status="ended_early")
     room.clear_clock()
-    _cancel_clock_task(room)
-
-
-def _cancel_clock_task(room: Room) -> None:
-    if room.clock_task and room.clock_task is not asyncio.current_task():
-        room.clock_task.cancel()
-    room.clock_task = None
-
-
-def _resolve_turn_locked(room: Room) -> tuple[int | None, int | None]:
-    """Finish a resolved turn and return the next question/coaching generation id."""
-    _cancel_clock_task(room)
-    assert room.defense is not None
-    if room.phase == "complete":
-        if live_mode() and room.run_id:
-            LiveStore().service_state(room.run_id,"coaching")
-        room.feedback_status = "generating"
-        room.feedback_generation_id += 1
-        return None, room.feedback_generation_id
-    room.generation_id += 1
-    return room.generation_id, None
-
-
-def _schedule_clock(room: Room, clock_id: int, deadline_ms: int) -> None:
-    _cancel_clock_task(room)
-    async def wait_then_advance() -> None:
-        try:
-            await asyncio.sleep(max(0, (deadline_ms - _now_ms()) / 1000))
-            await _expire_deadline(room, clock_id)
-        except asyncio.CancelledError:
-            pass
-    room.clock_task = asyncio.create_task(wait_then_advance())
-
-
-async def _expire_deadline(room: Room, expected_id: int | None = None) -> None:
-    """Apply a deadline under the room lock; action handlers also call this before validation."""
-    changed = False
-    next_clock = None
-    generation_id = None
-    feedback_id = None
-    async with room.lock:
-        outcome = room.expire(_now_ms(), room.online_players(), room.defense, expected_id)
-        if outcome == "reaction_finished":
-            room.revision += 1
-            changed = True
-            next_clock = (room.clock_id, room.vote_deadline_ms)
-        elif outcome == "voting_closed":
-            room.revision += 1
-            changed = True
-            next_clock = (room.clock_id, room.answer_deadline_ms)
-        elif outcome == "pause_ended":
-            next_clock = (room.clock_id, room.answer_deadline_ms)
-            room.revision += 1
-            changed = True
-        elif outcome in {"timed_out", "probe_expired"}:
-            generation_id, feedback_id = _resolve_turn_locked(room)
-            room.revision += 1
-            changed = True
-    if not changed:
-        return
-    await publish(room)
-    if next_clock:
-        _schedule_clock(room, *next_clock)
-    if generation_id is not None:
-        _schedule_generation(room, generation_id, False)
-    if feedback_id is not None:
-        _schedule_coaching(room, feedback_id)
-
-
-async def _generate_question(room: Room, generation_id: int, first: bool) -> None:
-    api_key = os.getenv("OPENAI_API_KEY")
-    model = os.getenv("OPENAI_MODEL") or DEFAULT_MODEL
-    next_clock = None
-    feedback_id = None
-    try:
-        # One extra attempt after a resolved turn; both attempts use the existing
-        # admission budget and detached session. No answer or charge is replayed.
-        for attempt in range(2):
-            async with room.lock:
-                if room.closed or room.generation_id != generation_id or room.phase != "generating":
-                    return
-                cap = limit('AI_QUESTION_ATTEMPTS', 3, 10)
-                attempt_key = f'question:{len(room.defense.turns) if room.defense else 0}'
-                room.ai_budget.admit(attempt_key, cap, room.owner_account_id or room.code)
-                request = prepare_progression(room.defense, defense_type=room.defense_type,
-                                              research_stage=room.research_stage)
-            try:
-                result = await asyncio.to_thread(request.generate, room.files, api_key, model,
-                    first_question=generate_first_question, next_move=generate_next_move,
-                    research_move=generate_research_move)
-                try:
-                    session = request.apply(result)
-                except ValueError as error:
-                    raise InvalidQuestionResponse(str(error)) from error
-            except (InvalidQuestionResponse, ValidationError, APIConnectionError, APIStatusError) as error:
-                # Authentication, quota/rate limits, request errors and storage
-                # failures need explicit recovery rather than another AI call.
-                recoverable = not isinstance(error, APIStatusError) or error.status_code >= 500
-                async with room.lock:
-                    if room.closed or room.generation_id != generation_id or room.phase != "generating":
-                        return
-                    resolved = room.defense is not None and bool(room.defense.turns) and (
-                        room.defense.turns[-1].answer is not None or room.defense.turns[-1].timed_out)
-                    if attempt or first or not recoverable or not resolved or not room.ai_budget.remaining(attempt_key, cap):
-                        raise
-                    room.question_retry_generation_id = generation_id
-                    room.revision += 1
-                await publish(room)
-                await asyncio.sleep(1)
-                continue
-            break
-        async with room.lock:
-            if room.closed or room.generation_id != generation_id or room.phase != "generating":
-                return
-            room.question_retry_generation_id = None
-            opening=room.defense is None or not room.defense.turns
-            if room.run_id and opening and session.turns:
-                charge_run(room.owner_account_id, room.run_id)
-            elif live_mode() and room.run_id:
-                LiveStore().service_state(room.run_id,"coaching" if session.completed else "active")
-            room.defense = commit_progression(room.defense, session)
-            if room.defense.completed:
-                room.phase = "complete"
-                room.feedback_status = "generating"
-                room.feedback_generation_id += 1
-                feedback_id = room.feedback_generation_id
-            else:
-                room.present_question(room.defense, _now_ms())
-                next_clock = (room.clock_id, room.reaction_deadline_ms or room.vote_deadline_ms)
-            room.error = None
-            room.revision += 1
-    except Exception as error:
-        async with room.lock:
-            if room.closed or room.generation_id != generation_id or room.phase != "generating":
-                return
-            room.question_retry_generation_id = None
-            room.phase = "retry"
-            room.error = _safe_generation_error(error)
-            try:
-                if room.defense is None or not room.defense.turns:
-                    release_run(room.run_id)
-                    room.settled = True
-                elif live_mode() and room.run_id and not isinstance(error, HTTPException):
-                    LiveStore().service_state(room.run_id,"unavailable","question")
-            except Exception:
-                room.error="The defense state could not be saved. Your answers are retained; retry when the service recovers."
-            room.revision += 1
-        await publish(room)
-        return
-    await publish(room)
-    if next_clock:
-        _schedule_clock(room, *next_clock)
-    if feedback_id is not None:
-        _schedule_coaching(room, feedback_id)
+    _coordinator(room)._cancel_clock()
 
 
 async def _interpret_pending(room: Room, interpretation_id: int) -> None:
@@ -587,7 +415,7 @@ async def _interpret_pending(room: Room, interpretation_id: int) -> None:
         )
     except Exception as error:
         async with room.lock:
-            if not room.interpretation_failed(interpretation_id, pending, _safe_generation_error(error)):
+            if not room.interpretation_failed(interpretation_id, pending, safe_generation_error(error)):
                 return
             room.revision += 1
         await publish(room)
@@ -595,7 +423,7 @@ async def _interpret_pending(room: Room, interpretation_id: int) -> None:
     next_clock = None
     generation_id = None
     feedback_id = None
-    await _expire_deadline(room)
+    await _coordinator(room).execute(CatchUpDeadline())
     async with room.lock:
         if room.defense is None:
             return
@@ -610,24 +438,19 @@ async def _interpret_pending(room: Room, interpretation_id: int) -> None:
         if outcome in {"clarified", "probed"}:
             next_clock = (room.clock_id, room.answer_deadline_ms)
         elif outcome == "answered":
-            generation_id, feedback_id = _resolve_turn_locked(room)
+            generation_id, feedback_id = _coordinator(room)._resolve_turn_locked()
         room.revision += 1
     await publish(room)
     if next_clock:
-        _schedule_clock(room, *next_clock)
+        _coordinator(room)._schedule_clock(*next_clock)
     if generation_id is not None:
-        _schedule_generation(room, generation_id, False)
+        _coordinator(room)._schedule_question(generation_id, False)
     if feedback_id is not None:
         _schedule_coaching(room, feedback_id)
 
 
 def _schedule_interpretation(room: Room, interpretation_id: int) -> None:
     task = asyncio.create_task(_interpret_pending(room, interpretation_id))
-    task.add_done_callback(lambda finished: finished.exception() if not finished.cancelled() else None)
-
-
-def _schedule_generation(room: Room, generation_id: int, first: bool) -> None:
-    task = asyncio.create_task(_generate_question(room, generation_id, first))
     task.add_done_callback(lambda finished: finished.exception() if not finished.cancelled() else None)
 
 
@@ -647,7 +470,7 @@ async def _prepare_research_plan(room: Room, plan_generation_id: int) -> None:
             if room.research_plan_generation_id != plan_generation_id or room.phase != "lobby":
                 return
             room.research_planning_status = "failed"
-            room.research_plan_error = _safe_generation_error(error)
+            room.research_plan_error = safe_generation_error(error)
             room.revision += 1
         await publish(room)
         return
@@ -705,7 +528,7 @@ async def _generate_coaching(room: Room, feedback_generation_id: int) -> None:
             if room.feedback_generation_id != feedback_generation_id:
                 return
             room.feedback_status = "failed"
-            room.error = _safe_generation_error(error)
+            room.error = safe_generation_error(error)
             if live_mode() and room.run_id and not isinstance(error, HTTPException):
                 try:LiveStore().service_state(room.run_id,"unavailable","coaching")
                 except Exception:
@@ -922,9 +745,9 @@ def _coordinator(room: Room) -> RoomCoordinator:
     if room.coordinator is None:
         RoomCoordinator(room, RoomWorkflows(
             publish=lambda state: publish(state),
-            expire_deadline=lambda state: _expire_deadline(state),
             now=lambda: _now_ms(),
             legacy_action=lambda state, actor, command: _handle_legacy_action(state, actor, command),
+            coaching=lambda state, version: _schedule_coaching(state, version),
         ))
     return room.coordinator
 
@@ -1156,7 +979,7 @@ async def _handle_legacy_action(room: Room, actor: VerifiedActor, command: Legac
             except ValueError as failure:
                 error = str(failure)
             else:
-                generation_id, feedback_generation_id = _resolve_turn_locked(room)
+                generation_id, feedback_generation_id = _coordinator(room)._resolve_turn_locked()
                 if generation_id is not None:
                     generate_first = False
                 room.revision += 1
@@ -1169,7 +992,7 @@ async def _handle_legacy_action(room: Room, actor: VerifiedActor, command: Legac
                 error = str(failure)
                 expired_action = isinstance(failure, DeadlineExpired)
             else:
-                generation_id, feedback_generation_id = _resolve_turn_locked(room)
+                generation_id, feedback_generation_id = _coordinator(room)._resolve_turn_locked()
                 if generation_id is not None:
                     generate_first = False
                 room.revision += 1
@@ -1183,7 +1006,7 @@ async def _handle_legacy_action(room: Room, actor: VerifiedActor, command: Legac
                 error = str(failure)
                 expired_action = isinstance(failure, DeadlineExpired)
             else:
-                generation_id, feedback_generation_id = _resolve_turn_locked(room)
+                generation_id, feedback_generation_id = _coordinator(room)._resolve_turn_locked()
                 generate_first = False
                 room.revision += 1
         elif action == "submit_probe_reply":
@@ -1205,11 +1028,11 @@ async def _handle_legacy_action(room: Room, actor: VerifiedActor, command: Legac
                 expired_action = isinstance(failure, DeadlineExpired)
             else:
                 if direct:
-                    generation_id, feedback_generation_id = _resolve_turn_locked(room)
+                    generation_id, feedback_generation_id = _coordinator(room)._resolve_turn_locked()
                     generate_first = False
                 else:
-                    _cancel_clock_task(room)
-                    _schedule_clock(room, room.clock_id, room.pause_deadline_ms or room.answer_deadline_ms)
+                    _coordinator(room)._cancel_clock()
+                    _coordinator(room)._schedule_clock(room.clock_id, room.pause_deadline_ms or room.answer_deadline_ms)
                     interpretation_id = room.interpretation_id
                 room.revision += 1
         elif action == "submit_answer":
@@ -1226,21 +1049,21 @@ async def _handle_legacy_action(room: Room, actor: VerifiedActor, command: Legac
                 error = str(failure)
                 expired_action = isinstance(failure, DeadlineExpired)
             else:
-                _cancel_clock_task(room)
-                _schedule_clock(room, room.clock_id, room.pause_deadline_ms or room.answer_deadline_ms)
+                _coordinator(room)._cancel_clock()
+                _coordinator(room)._schedule_clock(room.clock_id, room.pause_deadline_ms or room.answer_deadline_ms)
                 interpretation_id = room.interpretation_id
                 room.revision += 1
         else:
             error = "Unknown room action."
     if expired_action:
-        await _expire_deadline(room)
+        await _coordinator(room).execute(CatchUpDeadline())
     if error:
         return CommandResult(False, error, error_reason)
     await publish(room)
     if plan_generation_id is not None:
         _schedule_research_plan(room, plan_generation_id)
     if generate_first is not None and generation_id is not None:
-        _schedule_generation(room, generation_id, generate_first)
+        _coordinator(room)._schedule_question(generation_id, generate_first)
     if feedback_generation_id is not None:
         _schedule_coaching(room, feedback_generation_id)
     if interpretation_id is not None:
@@ -1323,7 +1146,7 @@ async def _serve_room_socket(socket: WebSocket, code: str) -> None:
             pass
         return
     try:
-        await _expire_deadline(room)
+        await _coordinator(room).execute(CatchUpDeadline())
         await publish(room)
         while True:
             event = await socket.receive()

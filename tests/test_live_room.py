@@ -1,3 +1,4 @@
+from backend.rooms import questions as question_workflow
 """Existing two-client room contracts in live voucher mode; AI mocked."""
 import os
 from unittest.mock import patch
@@ -40,7 +41,7 @@ class LiveRoomTests(GameServerTests):
         from backend.live_store import LiveStore
         from unittest.mock import patch
         host=self.create_room()
-        with patch.object(game_server,'generate_first_question',return_value=self.questions[0]):
+        with patch.object(question_workflow, 'generate_first_question',return_value=self.questions[0]):
             socket,_=self.connect(host['room_code'],host['player_token'])
             socket.send_json({'type':'start'})
             self.receive_phase(socket,'voting')
@@ -58,7 +59,7 @@ class LiveRoomTests(GameServerTests):
         from backend import game_server
         from backend.live_store import LiveStore
         host=self.create_room()
-        with patch.object(game_server,'generate_first_question',return_value=self.questions[0]):
+        with patch.object(question_workflow, 'generate_first_question',return_value=self.questions[0]):
             socket,_=self.connect(host['room_code'],host['player_token']);socket.send_json({'type':'start'})
             self.receive_phase(socket,'voting');socket.__exit__(None,None,None)
             self.clock_ms+=600_001
@@ -74,7 +75,7 @@ class LiveRoomTests(GameServerTests):
             calls.append(outcome)
             if len(calls)==1:raise RuntimeError('Offline database write failure')
             return original(store,ident,outcome)
-        with patch.object(game_server,'generate_first_question',return_value=self.questions[0]),patch.object(game_server,'generate_next_move',side_effect=self.short_moves),patch.object(LiveStore,'finish_run',finish):
+        with patch.object(question_workflow, 'generate_first_question',return_value=self.questions[0]),patch.object(question_workflow, 'generate_next_move',side_effect=self.short_moves),patch.object(LiveStore,'finish_run',finish):
             host=self.create_room();guest=self.join_room(host['room_code'])
             hs,_=self.connect(host['room_code'],host['player_token']);gs,_=self.connect(guest['room_code'],guest['player_token'])
             try:

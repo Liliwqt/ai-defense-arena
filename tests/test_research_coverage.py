@@ -1,3 +1,7 @@
+from tests.room_commands import generate_question
+from backend.rooms import questions as question_workflow
+from backend.rooms.coordinator import RoomCoordinator
+from tests.room_commands import catch_up_deadline
 from tests.offline_accounts import authenticate
 """Coverage policy and real room protocol with offline AI and clocks."""
 import asyncio
@@ -354,7 +358,7 @@ class CoverageRoomTests(unittest.IsolatedAsyncioTestCase):
         for budget in (None, True, 20):
             await game_server._handle_action(self.room, self.host, self.socket, {'type':'start', 'plan_id':self.room.research_plan.id, 'question_budget':budget})
             self.assertEqual(self.events[-1]['type'], 'error')
-        with patch('backend.game_server._schedule_generation') as schedule:
+        with patch('backend.rooms.coordinator.RoomCoordinator._schedule_question') as schedule:
             await game_server._handle_action(self.room, self.host, self.socket, {'type':'start', 'plan_id':self.room.research_plan.id, 'question_budget':12})
             schedule.assert_called_once()
         self.assertIsInstance(self.room.defense, ResearchDefenseSession)
@@ -368,7 +372,7 @@ class CoverageRoomTests(unittest.IsolatedAsyncioTestCase):
             started.set(); await release.wait()
             return ResearchMove(RESEARCH_PANELISTS[0], GroundedQuestion('How?', 'paper.md', 1, PAPER.splitlines()[0]), 'topic-1', False, None)
         with patch('backend.game_server.asyncio.to_thread', side_effect=delayed), patch('backend.game_server._schedule_coaching'):
-            task = asyncio.create_task(game_server._generate_question(self.room, 1, True))
+            task = asyncio.create_task(generate_question(self.room, 1, True))
             await started.wait()
             await game_server._handle_action(self.room, self.guest, self.socket, {'type':'end_defense'})
             self.assertEqual(self.room.phase, 'generating')
@@ -392,8 +396,8 @@ class CoverageRoomTests(unittest.IsolatedAsyncioTestCase):
         output = proposal(session.context(), session.answered_history())
         output['topic_id'] = 'unknown'
         invalid = generate_research_move(FILES, 'offline-key', history=session.answered_history(), context=session.context(), client=Client(output))
-        with patch('backend.game_server.generate_research_move', return_value=invalid):
-            await game_server._generate_question(self.room, 1, False)
+        with patch('backend.rooms.questions.generate_research_move', return_value=invalid):
+            await generate_question(self.room, 1, False)
         self.assertEqual(self.room.phase, 'retry')
         self.assertEqual(session.coverage, before)
         restored = self.room.snapshot(self.guest)
@@ -401,8 +405,8 @@ class CoverageRoomTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(restored['coverage'], before)
         self.room.generation_id += 1
         self.room.phase = "generating"
-        with patch('backend.game_server.generate_research_move', side_effect=mocked_move), patch('backend.game_server._schedule_clock'):
-            await game_server._generate_question(self.room, 2, False)
+        with patch('backend.rooms.questions.generate_research_move', side_effect=mocked_move), patch('backend.rooms.coordinator.RoomCoordinator._schedule_clock'):
+            await generate_question(self.room, 2, False)
         self.assertEqual(self.room.phase, 'reacting')
         self.assertIsNotNone(self.room.reaction_deadline_ms)
         self.room.clock_task = asyncio.create_task(asyncio.sleep(60))
@@ -424,7 +428,7 @@ class CoverageProtocolTests(unittest.TestCase):
         self.now = 1_000_000
         for mock in (patch.dict(os.environ, {'GAME_HOST_PASSCODE':'offline-passcode', 'OPENAI_API_KEY':'offline-key'}),
                      patch.object(game_server, '_now_ms', side_effect=lambda: self.now),
-                     patch.object(game_server, '_schedule_clock')):
+                     patch.object(RoomCoordinator, '_schedule_clock')):
             mock.start(); self.addCleanup(mock.stop)
         authenticate(self)
         self.client = TestClient(game_server.app).__enter__()
@@ -445,7 +449,7 @@ class CoverageProtocolTests(unittest.TestCase):
                 room = game_server.rooms[state['room_code']]
                 if room.phase == 'reacting':
                     self.now = max(self.now, state['reaction_deadline_ms'])
-                    self.client.portal.call(game_server._expire_deadline, room)
+                    self.client.portal.call(catch_up_deadline, room)
             if ((phase is None or state['phase']==phase) and (count is None or len(state['turns'])==count)
                 and all(state.get(k)==v for k,v in conditions.items())): return state
         self.fail('Missing room state')
@@ -485,7 +489,7 @@ class CoverageProtocolTests(unittest.TestCase):
                         improvements=[CoachingPoint(turn=0,text='The opening question received no answer.')],next_step='Review remaining topics.')
                     return generate_coaching_report(files,history,'offline-key',client=Client(draft),**kwargs)
                 with patch.object(game_server,'generate_research_plan',return_value=p), \
-                     patch.object(game_server,'generate_research_move',side_effect=generate) as generator, \
+                     patch.object(question_workflow, 'generate_research_move',side_effect=generate) as generator, \
                      patch.object(game_server,'interpret_submission',side_effect=interpret), \
                      patch.object(game_server,'generate_coaching_report',side_effect=coach):
                     with self.client.websocket_connect(f'/ws/{code}') as h, self.client.websocket_connect(f'/ws/{code}') as g:
@@ -514,12 +518,12 @@ class CoverageProtocolTests(unittest.TestCase):
                             h.send_json({'type':'cast_vote','seat':index%2})
                             for ws in(h,g):self.until(ws,'voting',index+1)
                             self.now+=game_server.VOTE_MS+1
-                            self.client.portal.call(game_server._expire_deadline,game_server.rooms[code])
+                            self.client.portal.call(catch_up_deadline,game_server.rooms[code])
                             for ws in(h,g):
                                 state=self.until(ws,'question',index+1);self.assertEqual(state['selected_seat'],index%2)
                             if index==0:
                                 self.now+=game_server.ANSWER_MS+1
-                                self.client.portal.call(game_server._expire_deadline,game_server.rooms[code])
+                                self.client.portal.call(catch_up_deadline,game_server.rooms[code])
                             else:
                                 speaker=h if index%2==0 else g
                                 if index==3:
