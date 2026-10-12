@@ -1,3 +1,4 @@
+from backend.timed_turn import VOTE_MS, ANSWER_MS
 from backend.rooms import questions as question_workflow
 from backend.rooms.coordinator import RoomCoordinator
 from tests.room_commands import generate_question
@@ -36,7 +37,7 @@ class TimedRoomTests(unittest.IsolatedAsyncioTestCase):
         self.room = server.Room("ROOMA", [], {"host": self.host, "guest": self.guest})
         self.room.defense = DefenseSession.start(GroundedQuestion("Why?", "queue.py", 1, "value = 1"))
         self.room.phase = "voting"
-        self.room.vote_deadline_ms = self.now + server.VOTE_MS
+        self.room.vote_deadline_ms = self.now + VOTE_MS
         self.generated = []
         self.generation_patch = patch.object(RoomCoordinator, '_schedule_question', side_effect=lambda *args: self.generated.append(args))
         self.generation_patch.start()
@@ -62,11 +63,11 @@ class TimedRoomTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.room.snapshot(self.host)["my_vote"], 1)
         self.assertEqual(self.room.snapshot(self.guest)["my_vote"], 1)
         self.assertGreater(self.room.snapshot(self.guest)["vote_deadline_ms"] - self.now, 0)
-        self.now += server.VOTE_MS
+        self.now += VOTE_MS
         await catch_up_deadline(self.room)
         self.assertEqual(self.room.phase, "question")
         self.assertEqual(self.room.selected_seat, 1)
-        self.assertEqual(self.room.answer_deadline_ms, self.now + server.ANSWER_MS)
+        self.assertEqual(self.room.answer_deadline_ms, self.now + ANSWER_MS)
         self.assertEqual(self.room.snapshot(self.guest)["selected_seat"], 1)
         self.assertEqual(self.room.snapshot(self.guest)["vote_counts"], {"0": 0, "1": 0})
         await self.action(self.host, self.host_socket, type="cast_vote", seat=0)
@@ -76,15 +77,15 @@ class TimedRoomTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(server.secrets, "choice", return_value=1) as choose:
             await self.action(self.host, self.host_socket, type="cast_vote", seat=0)
             await self.action(self.guest, self.guest_socket, type="cast_vote", seat=1)
-            self.now += server.VOTE_MS
+            self.now += VOTE_MS
             await catch_up_deadline(self.room)
             self.assertEqual(choose.call_args.args[0], [0, 1])
             self.assertEqual(self.room.selected_seat, 1)
         server._clear_clock_locked(self.room)
         self.room.phase = "voting"
-        self.room.vote_deadline_ms = self.now + server.VOTE_MS
+        self.room.vote_deadline_ms = self.now + VOTE_MS
         with patch.object(server.secrets, "choice", return_value=0) as choose:
-            self.now += server.VOTE_MS
+            self.now += VOTE_MS
             await catch_up_deadline(self.room)
             self.assertEqual(choose.call_args.args[0], [0, 1])
             self.assertEqual(self.room.selected_seat, 0)
@@ -92,12 +93,12 @@ class TimedRoomTests(unittest.IsolatedAsyncioTestCase):
     async def test_answer_authority_late_rejection_and_timeout_progression(self):
         self.room.phase = "question"
         self.room.vote_deadline_ms = None
-        self.room.answer_deadline_ms = self.now + server.ANSWER_MS
+        self.room.answer_deadline_ms = self.now + ANSWER_MS
         server._set_selected_locked(self.room, 1)
         await self.action(self.host, self.host_socket, type="submit_answer", turn=0, answer="wrong seat")
         self.assertIn("chosen defender", self.last_error(self.host_socket))
         self.assertIsNone(self.room.defense.turns[0].answer)
-        self.now += server.ANSWER_MS
+        self.now += ANSWER_MS
         await self.action(self.guest, self.guest_socket, type="submit_answer", turn=0, answer="too late")
         self.assertTrue(self.room.defense.turns[0].timed_out)
         self.assertIsNone(self.room.defense.turns[0].answer)
@@ -112,27 +113,27 @@ class TimedRoomTests(unittest.IsolatedAsyncioTestCase):
     async def test_disconnect_reassigns_without_resetting_answer_clock(self):
         self.room.phase = "question"
         self.room.vote_deadline_ms = None
-        self.room.answer_deadline_ms = self.now + server.ANSWER_MS
+        self.room.answer_deadline_ms = self.now + ANSWER_MS
         server._set_selected_locked(self.room, 1)
         self.guest.sockets.clear()
         self.assertTrue(server._reassign_if_offline_locked(self.room))
         self.assertEqual(self.room.selected_seat, 0)
-        self.assertEqual(self.room.answer_deadline_ms, self.now + server.ANSWER_MS)
+        self.assertEqual(self.room.answer_deadline_ms, self.now + ANSWER_MS)
         self.host.sockets.clear()
         self.assertTrue(server._reassign_if_offline_locked(self.room))
         self.assertIsNone(self.room.selected_seat)
         self.guest.sockets.add(self.guest_socket)
         self.assertTrue(server._reassign_if_offline_locked(self.room))
         self.assertEqual(self.room.selected_seat, 1)
-        self.assertEqual(self.room.answer_deadline_ms, self.now + server.ANSWER_MS)
+        self.assertEqual(self.room.answer_deadline_ms, self.now + ANSWER_MS)
 
     async def test_retry_after_timed_out_turn_preserves_it_and_excludes_chat(self):
         self.room.phase = "question"
         self.room.vote_deadline_ms = None
-        self.room.answer_deadline_ms = self.now + server.ANSWER_MS
+        self.room.answer_deadline_ms = self.now + ANSWER_MS
         server._set_selected_locked(self.room, 0)
         await self.action(self.host, self.host_socket, type="send_chat", text="private strategy")
-        self.now += server.ANSWER_MS
+        self.now += ANSWER_MS
         await catch_up_deadline(self.room)
         self.assertTrue(self.room.defense.turns[0].timed_out)
         generation_id = self.room.generation_id

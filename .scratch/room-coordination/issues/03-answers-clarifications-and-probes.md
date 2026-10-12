@@ -6,21 +6,21 @@ retain their current timers and attribution, then advance the defense once.
 
 **Blocked by:** 02 — Coordinate questions, retries and authoritative deadlines.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 **Checkpoint:** 2 — asynchronous workflows.
 
 ## Acceptance criteria
 
-- [ ] Capture stable pending input/history and track interpretation work; validate
+- [x] Capture stable pending input/history and track interpretation work; validate
   its identity, phase and deadline before applying success or failure.
-- [ ] Preserve selected-defender checks, accepted names, bounded pause/admission,
+- [x] Preserve selected-defender checks, accepted names, bounded pause/admission,
   clarification/probe limits and existing direct/pending-answer recovery actions.
-- [ ] Keep the original answer, question number and citation during same-question
+- [x] Keep the original answer, question number and citation during same-question
   replies; rejected or obsolete results do not lose accepted turns.
-- [ ] Use shared deadline and progression ownership rather than arranging timers or
+- [x] Use shared deadline and progression ownership rather than arranging timers or
   new generation from transport handlers.
-- [ ] Verify duplicate submission/interpretation, late result, timeout race, probe
+- [x] Verify duplicate submission/interpretation, late result, timeout race, probe
   reply, recovery and two-client/reconnect transcript behavior.
 
 ## Scope and execution constraints
@@ -53,3 +53,22 @@ retain their current timers and attribution, then advance the defense once.
 
 - 2026-10-12: User approved the seven-ticket size and blocking graph. Published
   to the local Markdown tracker; implementation has not started.
+
+- 2026-10-12: Implemented locally. Closed typed submission commands now execute
+  through the coordinator. It captures pending input, source/question, probe,
+  attribution and detached history before scheduling one interpretation task per
+  run/version. Both success and failure recheck identity/phase/deadline. Existing
+  clarification/probe/direct/saved-answer paths share authoritative timing and
+  progression; no browser field, AI prompt, price or fallback changes.
+- Verification: 470 Python tests pass (offline, AI/Google/PayMongo mocked), 261
+  React tests pass and production build succeeds. Five new command/view tests
+  cover duplicate work, same-question clarification, stale failures, timeout
+  races, original-answer preservation and private saved-probe recovery. Existing
+  two-client four/eight code and twelve-question research/mixed protocols pass.
+- Review: zero remaining Standards and Spec findings. Fixed an inherited race
+  where the deadline could pass between catch-up and saved-answer/retry handling;
+  the regression failed for both actions before the fix and now passes. Shared
+  task registration removes optional duplicated bookkeeping. No provider calls.
+- Local human review and later workflow/lifecycle/cleanup tickets remain. No live
+  AI/provider, PostgreSQL, hosted, new visual or installed-device check claimed.
+  Explicit Implement authorizes a local commit; no push/deployment requested.

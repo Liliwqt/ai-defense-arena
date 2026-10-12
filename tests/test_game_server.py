@@ -1,3 +1,4 @@
+from backend.rooms import submissions as submission_workflow
 from backend.rooms import questions as question_workflow
 from tests.room_commands import catch_up_deadline
 from tests.offline_accounts import authenticate
@@ -28,7 +29,7 @@ class GameServerTests(unittest.TestCase):
         clock_patch = patch.object(game_server, "_now_ms", side_effect=lambda: self.clock_ms)
         clock_patch.start()
         self.addCleanup(clock_patch.stop)
-        interpretation_patch = patch.object(game_server, "interpret_submission", return_value=SubmissionDecision("answer"))
+        interpretation_patch = patch.object(submission_workflow, "interpret_submission", return_value=SubmissionDecision("answer"))
         interpretation_patch.start()
         self.addCleanup(interpretation_patch.stop)
         authenticate(self)
@@ -251,7 +252,7 @@ class GameServerTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}),
             patch('backend.rooms.questions.generate_first_question', return_value=self.questions[0]),
-            patch('backend.game_server.interpret_submission', side_effect=[
+            patch('backend.rooms.submissions.interpret_submission', side_effect=[
                 SubmissionDecision("clarify", "I mean why SQLite fits this prototype."),
                 SubmissionDecision("answer"),
             ]),

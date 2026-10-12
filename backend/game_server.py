@@ -19,7 +19,10 @@ from pydantic import BaseModel
 from backend.rooms.errors import safe_generation_error
 from backend.rooms.model import Player, Room, now_ms as _now_ms
 from backend.rooms.coordinator import (
-    RoomCoordinator, RoomWorkflows, VerifiedActor, LegacyCommand, CommandResult, decode_command, CatchUpDeadline,
+    RoomCoordinator, RoomWorkflows,
+)
+from backend.rooms.commands import (
+    VerifiedActor, LegacyCommand, CommandResult, decode_command, CatchUpDeadline,
 )
 
 from backend.defense_session import DefenseSession, ResearchDefenseSession, MAX_ANSWER_CHARS, PANELIST_ORDER
@@ -31,7 +34,6 @@ from backend.live_store import LiveStore, ServiceAlreadyActive
 from backend.resource_limits import (limit, creation_rate, ai_rate, client_network,
     JoinAdmissionMiddleware, join_rate, join_capacity, socket_capacity,
     socket_connect_rate, socket_player_rate, socket_message_rate, socket_room_rate)
-from backend.timed_turn import DeadlineExpired, VOTE_MS, ANSWER_MS
 from backend.payments import router as test_payment_router
 from backend.payments_live import router as live_payment_router
 from backend.project_files import MAX_ARCHIVE_BYTES, MAX_FILE_BYTES, ProjectFile, read_project_files
@@ -40,7 +42,6 @@ from backend.research_plan import ResearchPlan, generate_research_plan, validate
 from backend.question_generator import (
     DEFAULT_MODEL,
     CoachingReport,
-    interpret_submission,
     generate_coaching_report,
 )
 
@@ -392,68 +393,6 @@ def _clear_clock_locked(room: Room) -> None:
     _coordinator(room)._cancel_clock()
 
 
-async def _interpret_pending(room: Room, interpretation_id: int) -> None:
-    async with room.lock:
-        pending = room.pending_submission
-        if room.interpretation_id != interpretation_id or pending is None or room.defense is None:
-            return
-        turn = room.defense.turns[pending.turn]
-        question = turn.question
-        panelist = turn.panelist
-        probe = turn.probe if pending.probe_id else None
-        original_speaker_name = turn.speaker_name
-        clarifications = tuple(turn.clarifications)
-        history = room.defense.answered_history()
-    try:
-        decision = await asyncio.to_thread(
-            interpret_submission, room.files, os.getenv("OPENAI_API_KEY"),
-            panelist=panelist, question=question, submission=pending.text,
-            clarifications=clarifications, history=history, model=os.getenv("OPENAI_MODEL") or DEFAULT_MODEL,
-            defense_type=room.defense_type, research_stage=room.research_stage,
-            **({"probe": probe, "original_answer": turn.answer,
-                "original_speaker_name": original_speaker_name, "speaker_name": pending.name} if probe else {}),
-        )
-    except Exception as error:
-        async with room.lock:
-            if not room.interpretation_failed(interpretation_id, pending, safe_generation_error(error)):
-                return
-            room.revision += 1
-        await publish(room)
-        return
-    next_clock = None
-    generation_id = None
-    feedback_id = None
-    await _coordinator(room).execute(CatchUpDeadline())
-    async with room.lock:
-        if room.defense is None:
-            return
-        try:
-            outcome = room.interpret(room.defense, decision, interpretation_id, pending, room.online_players(), _now_ms())
-        except ValueError as failure:
-            if not room.interpretation_failed(interpretation_id, pending, str(failure)):
-                return
-            outcome = "failed"
-        if outcome is None:
-            return
-        if outcome in {"clarified", "probed"}:
-            next_clock = (room.clock_id, room.answer_deadline_ms)
-        elif outcome == "answered":
-            generation_id, feedback_id = _coordinator(room)._resolve_turn_locked()
-        room.revision += 1
-    await publish(room)
-    if next_clock:
-        _coordinator(room)._schedule_clock(*next_clock)
-    if generation_id is not None:
-        _coordinator(room)._schedule_question(generation_id, False)
-    if feedback_id is not None:
-        _schedule_coaching(room, feedback_id)
-
-
-def _schedule_interpretation(room: Room, interpretation_id: int) -> None:
-    task = asyncio.create_task(_interpret_pending(room, interpretation_id))
-    task.add_done_callback(lambda finished: finished.exception() if not finished.cancelled() else None)
-
-
 async def _prepare_research_plan(room: Room, plan_generation_id: int) -> None:
     async with room.lock:
         if room.closed or room.research_plan_generation_id != plan_generation_id or room.phase != "lobby":
@@ -775,17 +714,15 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
 
 
 async def _handle_legacy_action(room: Room, actor: VerifiedActor, command: LegacyCommand) -> CommandResult:
-    """Temporary execution adapter for workflows scheduled for tickets 02–06."""
+    """Temporary execution adapter for workflows scheduled for tickets 04–06."""
     action = command.action
     message = command.payload
     account = {"id": actor.account_id}
     error = None
     error_reason = None
-    expired_action = False
     generate_first = None
     generation_id = None
     feedback_generation_id = None
-    interpretation_id = None
     plan_generation_id = None
     async with room.lock:
         if room.closed:
@@ -954,109 +891,8 @@ async def _handle_legacy_action(room: Room, actor: VerifiedActor, command: Legac
                 room.feedback_generation_id += 1
                 feedback_generation_id = room.feedback_generation_id
                 room.revision += 1
-        elif action == "retry_interpretation":
-            try:
-                if room.phase != 'interpretation_retry' or room.pending_submission is None or not (player.is_host or room.selected_seat == player.seat):
-                    raise ValueError('Only the host or chosen defender can retry a failed submission.')
-                if room.interpretation_attempts >= limit('AI_INTERPRETATION_ATTEMPTS', 6, 20):
-                    raise ValueError('Interpretation allowance used. Use the saved submission as an answer.')
-                room.ai_budget.admit(f'interpret:{len(room.defense.turns)-1}', limit('AI_INTERPRETATION_ATTEMPTS', 6, 20), room.owner_account_id or room.code)
-                room.retry_interpretation(is_host=player.is_host, seat=player.seat)
-            except HTTPException as failure:
-                error = str(failure.detail)
-                if failure.status_code == 429:
-                    error_reason = "ai_admission"
-            except ValueError as failure:
-                error = str(failure)
-            else:
-                interpretation_id = room.interpretation_id
-                room.revision += 1
-        elif action == "use_pending_as_answer":
-            try:
-                room.accept_saved_answer(room.defense, player.token, player.seat)
-            except HTTPException as failure:
-                error = str(failure.detail)
-            except ValueError as failure:
-                error = str(failure)
-            else:
-                generation_id, feedback_generation_id = _coordinator(room)._resolve_turn_locked()
-                if generation_id is not None:
-                    generate_first = False
-                room.revision += 1
-        elif action == 'submit_direct_answer':
-            try:
-                room.submit_direct(player.token, player.name, player.seat, message.get('turn'), message.get('answer'), room.defense, _now_ms())
-            except HTTPException as failure:
-                error = str(failure.detail)
-            except ValueError as failure:
-                error = str(failure)
-                expired_action = isinstance(failure, DeadlineExpired)
-            else:
-                generation_id, feedback_generation_id = _coordinator(room)._resolve_turn_locked()
-                if generation_id is not None:
-                    generate_first = False
-                room.revision += 1
-        elif action == "finish_probe":
-            try:
-                cap = limit('AI_INTERPRETATION_ATTEMPTS', 6, 20)
-                if room.phase != "interpretation_retry" and not room.probe_recovery_available and room.interpretation_attempts < cap and room.ai_budget.remaining(f'interpret:{len(room.defense.turns)-1}' if room.defense else '', cap) > 0:
-                    raise ValueError("Continue with the original answer is available during probe recovery.")
-                room.finish_probe(player.seat, message.get("turn"), message.get("probe_id"), room.defense, _now_ms())
-            except ValueError as failure:
-                error = str(failure)
-                expired_action = isinstance(failure, DeadlineExpired)
-            else:
-                generation_id, feedback_generation_id = _coordinator(room)._resolve_turn_locked()
-                generate_first = False
-                room.revision += 1
-        elif action == "submit_probe_reply":
-            try:
-                probe_id = message.get("probe_id")
-                direct = message.get("direct") is True
-                room.validate_submit(player.seat, message.get("turn"), message.get("answer"), room.defense, _now_ms(), direct=direct, probe_id=probe_id)
-                if not isinstance(probe_id, str) or not probe_id:
-                    raise ValueError("A current panelist probe identifier is required.")
-                if not direct:
-                    room.ai_budget.admit(f'interpret:{len(room.defense.turns)-1}', limit('AI_INTERPRETATION_ATTEMPTS', 6, 20), room.owner_account_id or room.code)
-                room.submit_probe_reply(player.token, player.name, player.seat, message.get("turn"), probe_id, message.get("answer"), room.defense, _now_ms(), direct=direct)
-            except HTTPException as failure:
-                error, error_reason = str(failure.detail), "ai_admission" if failure.status_code == 429 else None
-                if failure.status_code == 429:
-                    room.probe_recovery_available = True
-            except ValueError as failure:
-                error = str(failure)
-                expired_action = isinstance(failure, DeadlineExpired)
-            else:
-                if direct:
-                    generation_id, feedback_generation_id = _coordinator(room)._resolve_turn_locked()
-                    generate_first = False
-                else:
-                    _coordinator(room)._cancel_clock()
-                    _coordinator(room)._schedule_clock(room.clock_id, room.pause_deadline_ms or room.answer_deadline_ms)
-                    interpretation_id = room.interpretation_id
-                room.revision += 1
-        elif action == "submit_answer":
-            try:
-                room.validate_submit(player.seat, message.get('turn'), message.get('answer'), room.defense, _now_ms())
-                room.ai_budget.admit(f'interpret:{len(room.defense.turns)-1}', limit('AI_INTERPRETATION_ATTEMPTS', 6, 20), room.owner_account_id or room.code)
-                room.submit(player.token, player.name, player.seat, message.get("turn"), message.get("answer"),
-                            room.defense, _now_ms())
-            except HTTPException as failure:
-                error = str(failure.detail)
-                if failure.status_code == 429:
-                    error_reason = "ai_admission"
-            except ValueError as failure:
-                error = str(failure)
-                expired_action = isinstance(failure, DeadlineExpired)
-            else:
-                _coordinator(room)._cancel_clock()
-                _coordinator(room)._schedule_clock(room.clock_id, room.pause_deadline_ms or room.answer_deadline_ms)
-                interpretation_id = room.interpretation_id
-                room.revision += 1
         else:
             error = "Unknown room action."
-    if expired_action:
-        await _coordinator(room).execute(CatchUpDeadline())
     if error:
         return CommandResult(False, error, error_reason)
     await publish(room)
@@ -1066,8 +902,6 @@ async def _handle_legacy_action(room: Room, actor: VerifiedActor, command: Legac
         _coordinator(room)._schedule_question(generation_id, generate_first)
     if feedback_generation_id is not None:
         _schedule_coaching(room, feedback_generation_id)
-    if interpretation_id is not None:
-        _schedule_interpretation(room, interpretation_id)
 
     return CommandResult(True)
 

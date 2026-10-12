@@ -1,3 +1,5 @@
+from tests.room_commands import interpret_pending
+from backend.rooms import submissions as submission_workflow
 from tests.room_commands import catch_up_deadline
 from tests.offline_accounts import authenticate
 """Offline same-turn clarification and answer-clock checks."""
@@ -71,11 +73,11 @@ class InterpretationTests(unittest.TestCase):
 class ClarificationRoomTests(unittest.IsolatedAsyncioTestCase):
     async def test_six_failed_interpretations_then_direct_answer_never_calls_ai_again(self):
         await self.send(self.guest, self.guest_socket, type='submit_answer', turn=0, answer='Explain?')
-        with patch.object(server, 'interpret_submission', side_effect=QuestionGenerationError('offline failure')) as provider:
+        with patch.object(submission_workflow, 'interpret_submission', side_effect=QuestionGenerationError('offline failure')) as provider:
             for index in range(6):
                 if index:
                     await self.send(self.guest, self.guest_socket, type='retry_interpretation')
-                await server._interpret_pending(self.room, self.room.interpretation_id)
+                await interpret_pending(self.room, self.room.interpretation_id)
             self.assertEqual(provider.call_count, 6)
             await self.send(self.guest, self.guest_socket, type='retry_interpretation')
             self.assertEqual(self.room.phase, 'interpretation_retry')
@@ -97,7 +99,7 @@ class ClarificationRoomTests(unittest.IsolatedAsyncioTestCase):
         self.clock = patch.object(server, "_now_ms", side_effect=lambda: self.now)
         self.clock.start()
         self.addCleanup(self.clock.stop)
-        self.scheduled = patch.object(server, "_schedule_interpretation")
+        self.scheduled = patch("backend.rooms.coordinator.RoomCoordinator._schedule_interpretation")
         self.scheduled.start()
         self.addCleanup(self.scheduled.stop)
         self.host_socket = FakeSocket()
@@ -121,9 +123,9 @@ class ClarificationRoomTests(unittest.IsolatedAsyncioTestCase):
         await server._handle_action(self.room, player, socket, message)
 
     async def resolve(self, result):
-        with patch.object(server, "interpret_submission", side_effect=result if isinstance(result, Exception) else None,
+        with patch.object(submission_workflow, "interpret_submission", side_effect=result if isinstance(result, Exception) else None,
                           return_value=None if isinstance(result, Exception) else result):
-            await server._interpret_pending(self.room, self.room.interpretation_id)
+            await interpret_pending(self.room, self.room.interpretation_id)
 
     async def test_clarification_keeps_turn_speaker_and_remaining_time(self):
         self.now += 20_000
@@ -213,6 +215,6 @@ class ClarificationRoomTests(unittest.IsolatedAsyncioTestCase):
         await self.send(self.host, self.host_socket, type="restart")
         self.assertIsNone(self.room.pending_submission)
         self.assertEqual(self.room.phase, "lobby")
-        with patch.object(server, "interpret_submission") as ai:
-            await server._interpret_pending(self.room, old_id)
+        with patch.object(submission_workflow, "interpret_submission") as ai:
+            await interpret_pending(self.room, old_id)
             ai.assert_not_called()

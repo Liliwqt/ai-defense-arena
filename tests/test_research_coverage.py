@@ -1,3 +1,6 @@
+from backend.timed_turn import VOTE_MS, ANSWER_MS
+from tests.room_commands import interpret_pending
+from backend.rooms import submissions as submission_workflow
 from tests.room_commands import generate_question
 from backend.rooms import questions as question_workflow
 from backend.rooms.coordinator import RoomCoordinator
@@ -490,7 +493,7 @@ class CoverageProtocolTests(unittest.TestCase):
                     return generate_coaching_report(files,history,'offline-key',client=Client(draft),**kwargs)
                 with patch.object(game_server,'generate_research_plan',return_value=p), \
                      patch.object(question_workflow, 'generate_research_move',side_effect=generate) as generator, \
-                     patch.object(game_server,'interpret_submission',side_effect=interpret), \
+                     patch.object(submission_workflow,'interpret_submission',side_effect=interpret), \
                      patch.object(game_server,'generate_coaching_report',side_effect=coach):
                     with self.client.websocket_connect(f'/ws/{code}') as h, self.client.websocket_connect(f'/ws/{code}') as g:
                         h.send_json({'type':'hello','token':host['player_token']});self.until(h,'lobby')
@@ -517,12 +520,12 @@ class CoverageProtocolTests(unittest.TestCase):
                                     self.assertEqual(turn['lead_in'], 'One option is to narrow the pilot claim if recruitment access is limited.')
                             h.send_json({'type':'cast_vote','seat':index%2})
                             for ws in(h,g):self.until(ws,'voting',index+1)
-                            self.now+=game_server.VOTE_MS+1
+                            self.now+=VOTE_MS+1
                             self.client.portal.call(catch_up_deadline,game_server.rooms[code])
                             for ws in(h,g):
                                 state=self.until(ws,'question',index+1);self.assertEqual(state['selected_seat'],index%2)
                             if index==0:
-                                self.now+=game_server.ANSWER_MS+1
+                                self.now+=ANSWER_MS+1
                                 self.client.portal.call(catch_up_deadline,game_server.rooms[code])
                             else:
                                 speaker=h if index%2==0 else g
@@ -598,14 +601,15 @@ class CoverageAdditionalTests(unittest.IsolatedAsyncioTestCase):
         room.defense = ResearchDefenseSession.create(plan(4), 8, 'research', 'proposal')
         room.defense.apply_move(mocked_move(FILES, None, history=[], context=room.defense.context()))
         room.phase, room.interpretation_id, room.selected_seat = 'interpreting', 1, 0
+        room.answer_deadline_ms = game_server._now_ms() + 60000
         room.pending_submission = PendingSubmission(0, host.token, host.name, 0, 'Text awaiting interpretation.', 60000)
         started, release = asyncio.Event(), asyncio.Event()
         async def delayed(*args, **kwargs):
             started.set(); await release.wait(); return SubmissionDecision('answer')
         async def send(event): pass
         with patch('backend.game_server.asyncio.to_thread', side_effect=delayed), patch('backend.game_server._schedule_coaching'):
-            task=asyncio.create_task(game_server._interpret_pending(room, 1))
-            await started.wait()
+            task=asyncio.create_task(interpret_pending(room, 1))
+            await asyncio.wait_for(started.wait(), 2)
             await game_server._handle_action(room, host, SimpleNamespace(send_json=send), {'type':'end_defense'})
             release.set(); await task
         self.assertEqual(room.phase, 'complete')

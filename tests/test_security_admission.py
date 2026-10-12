@@ -208,7 +208,7 @@ class RoomAdmissionTests(unittest.TestCase):
         room.phase = 'question'
         room.selected_seat = host.seat
         room.answer_deadline_ms = server._now_ms() + 120_000
-        with patch.object(room.ai_budget, 'admit', side_effect=HTTPException(429, 'The service is busy. Retry shortly.')), patch.object(server, '_schedule_interpretation') as provider:
+        with patch.object(room.ai_budget, 'admit', side_effect=HTTPException(429, 'The service is busy. Retry shortly.')), patch('backend.rooms.coordinator.RoomCoordinator._schedule_interpretation') as provider:
             self.client.portal.call(server._handle_action, room, host, self.socket,
                 {'type': 'submit_answer', 'turn': 0, 'answer': 'We store arrivals in order.'})
         self.assertEqual(self.events[-1]['reason'], 'ai_admission')

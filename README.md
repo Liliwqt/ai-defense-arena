@@ -150,10 +150,16 @@ validation, charge-before-publication, the bounded next-question retry, and one
 authoritative deadline path for both callbacks and incoming actions. TimedTurn
 owns phase-specific deadline selection; the coordinator owns scheduling.
 
-Submission interpretation, paper mapping, coaching and lifecycle actions retain
-an explicit temporary adapter while later tickets migrate them. The shutdown
-seam cancels the migrated question/clock tasks; full task ownership and service
-shutdown integration belong to the later lifecycle checkpoint.
+Submission commands and interpretation now use the same coordinator. It captures
+pending text, attribution and detached history before requesting AI, deduplicates
+interpretation work, and rejects obsolete or late results without losing accepted
+answers. Same-question clarifications, probes and direct-answer recovery retain
+their existing limits and clocks.
+
+Paper mapping, coaching and lifecycle actions retain an explicit temporary adapter
+while later tickets migrate them. The shutdown seam cancels migrated question,
+interpretation and clock tasks; full task ownership and service shutdown integration
+belong to the later lifecycle checkpoint.
 
 This is a local implementation on `feature/question-first-room`, with no new
 browser protocol, UI, payment policy or Streamlit behavior. See the approved

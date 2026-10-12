@@ -5,9 +5,17 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from collections.abc import Awaitable, Callable
-from types import MappingProxyType
-from typing import Literal, Mapping, get_args
+from typing import get_args
 
+from backend.rooms.commands import (
+    SendChat, CastVote, GenerateQuestion, CatchUpDeadline, LegacyCommand,
+    Command, CommandResult, VerifiedActor, decode_command,
+    SubmissionCommand, InterpretSubmission,
+)
+from backend.rooms.submissions import (
+    InterpretationWork, InterpretationRequest, request_interpretation,
+    capture_interpretation, run_interpretation, handle_submission,
+)
 from backend.rooms.model import Room, now_ms
 from backend.timed_turn import DeadlineExpired
 from backend.financial_policy import live_mode
@@ -20,69 +28,10 @@ MAX_CHAT_CHARS = 500
 
 
 @dataclass(frozen=True)
-class SendChat:
-    text: object
-
-
-@dataclass(frozen=True)
-class CastVote:
-    seat: object
-
-
-@dataclass(frozen=True)
-class GenerateQuestion:
-    generation_id: int
-    first: bool
-
-
-@dataclass(frozen=True)
-class CatchUpDeadline:
-    clock_id: int | None = None
-    run_id: str | None = None
-
-
-@dataclass(frozen=True)
 class ClockWork:
     clock_id: int
     deadline_ms: int
     run_id: str | None
-
-
-LegacyAction = Literal[
-    "start", "restart", "retry", "retry_coaching", "prepare_research_plan",
-    "retry_research_plan", "approve_research_plan", "end_defense", "end_unavailable",
-    "retry_interpretation", "use_pending_as_answer", "submit_direct_answer",
-    "finish_probe", "submit_probe_reply", "submit_answer",
-]
-
-
-@dataclass(frozen=True)
-class LegacyCommand:
-    """Temporary bridge for the existing workflows, removed as each migrates."""
-
-    action: LegacyAction
-    payload: Mapping[str, object]
-
-
-Command = CastVote | SendChat | LegacyCommand | GenerateQuestion | CatchUpDeadline
-
-
-def decode_command(message: dict) -> Command:
-    action = message.get("type")
-    if action == "cast_vote":
-        return CastVote(message.get("seat"))
-    if action == "send_chat":
-        return SendChat(message.get("text"))
-    if action in get_args(LegacyAction):
-        return LegacyCommand(action, MappingProxyType(dict(message)))
-    raise ValueError("Unknown room action.")
-
-
-@dataclass(frozen=True)
-class CommandResult:
-    accepted: bool
-    error: str | None = None
-    reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -92,17 +41,10 @@ class RoomWorkflows:
     publish: Callable[[Room], Awaitable[None]]
     now: Callable[[], int] = now_ms
     legacy_action: Callable[[Room, VerifiedActor, LegacyCommand], Awaitable[CommandResult]] | None = None
+    interpretation_request: InterpretationRequest = request_interpretation
     question_request: QuestionRequest = request_question
     sleep: Callable[[float], Awaitable[None]] = lambda seconds: asyncio.sleep(seconds)
     coaching: Callable[[Room, int], None] | None = None
-
-
-@dataclass(frozen=True)
-class VerifiedActor:
-    """Identity established by server token/session checks for this invocation."""
-
-    token: str
-    account_id: str | None = None
 
 
 class RoomCoordinator:
@@ -113,6 +55,7 @@ class RoomCoordinator:
         self._workflows = workflows
         self._shutdown_started = False
         self._question_tasks: dict[tuple[str | None, int], asyncio.Task] = {}
+        self._interpretation_tasks: dict[tuple[str | None, int], asyncio.Task] = {}
         self._tasks: set[asyncio.Task] = set()
         self._clock_work: ClockWork | None = None
         room.coordinator = self
@@ -138,6 +81,10 @@ class RoomCoordinator:
             async with room.lock:
                 task = self._schedule_question(command.generation_id, command.first)
             return CommandResult(task is not None)
+        if isinstance(command, InterpretSubmission):
+            async with room.lock:
+                task = self._schedule_interpretation(command.interpretation_id)
+            return CommandResult(task is not None)
         if isinstance(command, CatchUpDeadline):
             await self._expire_deadline(command.clock_id, command.run_id)
             return CommandResult(True)
@@ -152,6 +99,8 @@ class RoomCoordinator:
             except ValueError as failure:
                 return CommandResult(False, str(failure))
         await self._expire_deadline()
+        if isinstance(command, get_args(SubmissionCommand)):
+            return await handle_submission(self, actor, command)
         if isinstance(command, LegacyCommand):
             if self._workflows.legacy_action is None:
                 raise RuntimeError("Unmigrated room workflows are not configured.")
@@ -228,6 +177,27 @@ class RoomCoordinator:
         room = self._room
         return not room.closed and room.run_id == work.run_id and room.generation_id == work.generation_id and room.phase == "generating"
 
+    def _interpretation_current(self, work: InterpretationWork) -> bool:
+        room = self._room
+        return (not room.closed and room.run_id == work.run_id
+                and room.interpretation_id == work.interpretation_id
+                and room.pending_submission is work.pending
+                and room.phase == "interpreting" and room.defense is not None
+                and room.answer_deadline_ms is not None
+                and self._workflows.now() < room.answer_deadline_ms)
+
+    def _schedule_interpretation(self, interpretation_id: int) -> asyncio.Task | None:
+        room = self._room
+        work = InterpretationWork(interpretation_id, room.run_id, room.pending_submission)
+        if not self._interpretation_current(work):
+            return None
+        key = (work.run_id, work.interpretation_id)
+        if key in self._interpretation_tasks:
+            return self._interpretation_tasks[key]
+        request = capture_interpretation(room, work.pending)
+        return self._retain_work_task(self._interpretation_tasks, key,
+                                      asyncio.create_task(run_interpretation(self, work, request)))
+
     def _schedule_question(self, generation_id: int, first: bool) -> asyncio.Task | None:
         work = QuestionWork(generation_id, first, self._room.run_id)
         if not self._question_current(work):
@@ -235,11 +205,15 @@ class RoomCoordinator:
         key = (work.run_id, work.generation_id)
         if key in self._question_tasks:
             return self._question_tasks[key]
-        task = self._retain(asyncio.create_task(run_question(self, work)))
-        self._question_tasks[key] = task
+        return self._retain_work_task(self._question_tasks, key,
+                                      asyncio.create_task(run_question(self, work)))
+
+    def _retain_work_task(self, active_tasks: dict, key: tuple, task: asyncio.Task) -> asyncio.Task:
+        self._retain(task)
+        active_tasks[key] = task
         def finished(done):
-            if self._question_tasks.get(key) is done:
-                self._question_tasks.pop(key)
+            if active_tasks.get(key) is done:
+                active_tasks.pop(key)
         task.add_done_callback(finished)
         return task
 

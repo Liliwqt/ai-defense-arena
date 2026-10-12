@@ -1,3 +1,5 @@
+from backend.timed_turn import VOTE_MS, ANSWER_MS
+from backend.rooms import submissions as submission_workflow
 from backend.rooms import questions as question_workflow
 from tests.room_commands import catch_up_deadline
 from tests.offline_accounts import authenticate
@@ -301,7 +303,7 @@ class ResearchTwoClientTests(unittest.TestCase):
         clock.start()
         self.addCleanup(clock.stop)
         from backend.question_generator import SubmissionDecision
-        interpretation_patch = patch.object(game_server, 'interpret_submission', return_value=SubmissionDecision('answer'))
+        interpretation_patch = patch.object(submission_workflow, 'interpret_submission', return_value=SubmissionDecision('answer'))
         interpretation_patch.start()
         self.addCleanup(interpretation_patch.stop)
         authenticate(self)
@@ -384,14 +386,14 @@ class ResearchTwoClientTests(unittest.TestCase):
                             for ws in (host_ws, guest_ws):
                                 voted = self.until(ws, 'voting', turn + 1)
                                 self.assertEqual(voted['vote_counts'].get('0'), 1)
-                            self.now += game_server.VOTE_MS + 1
+                            self.now += VOTE_MS + 1
                             room = game_server.rooms[host['room_code']]
                             self.client.portal.call(catch_up_deadline, room)
                             for ws in (host_ws, guest_ws):
                                 state = self.until(ws, 'question', turn + 1)
                                 self.assertEqual(state['selected_seat'], 0)
                             if followups and turn == 1:
-                                self.now += game_server.ANSWER_MS + 1
+                                self.now += ANSWER_MS + 1
                                 self.client.portal.call(catch_up_deadline, room)
                             else:
                                 host_ws.send_json({'type': 'submit_answer', 'turn': turn,
@@ -435,7 +437,7 @@ class ResearchTwoClientTests(unittest.TestCase):
                 self.until(host_ws, 'voting', 1)
                 host_ws.send_json({'type': 'cast_vote', 'seat': 0})
                 self.until(host_ws, 'voting', 1)
-                self.now += game_server.VOTE_MS + 1
+                self.now += VOTE_MS + 1
                 self.client.portal.call(catch_up_deadline, game_server.rooms[host['room_code']])
                 self.until(host_ws, 'question', 1)
                 host_ws.send_json({'type': 'submit_answer', 'turn': 0, 'answer': 'We will recruit volunteers.'})
