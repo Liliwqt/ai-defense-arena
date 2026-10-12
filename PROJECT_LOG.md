@@ -4,6 +4,8 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Current status
 
+- Final seven-ticket room-coordination review complete, 2026-10-12: independently reviewed 85c8589 through c09c618, separating prerequisite d8c8b7f. Standards: zero violations/actionable optional findings; Spec: zero actionable findings across all seven tickets and 38 acceptance criteria. Fresh 72-check mocked coordinator/protocol/local-store run and independent 37/38-check runs pass. Final report: docs/ROOM_COORDINATION_FINAL_REVIEW.md. Runtime unchanged; report/log are prepared for the user-requested source publication. Human/live/hosted/device evidence remains pending; no publication/deployment.
+
 - Room-coordination tickets 01–07 implemented and code-reviewed locally, 2026-10-12: backend/rooms/ owns state, typed commands, tracked/deduplicated AI and clock tasks, private ordered publication, joining/presence and lifecycle fencing. Removed migration-only worker/test forwarding paths. Final gate: 495 Python tests (AI/Google/PayMongo mocked), 261 React tests and production build. Earlier checkpoint-07 evidence includes 167 disposable local PostgreSQL checks (providers mocked), complete mocked two-client code four/eight-turn and research/mixed twelve-question flows, and synthetic desktop/portrait/landscape keyboard checks. Overall Standards/Spec review against 85c8589 has zero remaining findings. All tickets/spec are ready-for-human; preview and evidence: docs/ROOM_COORDINATION_REVIEW.md. Prerequisite recovery/planning remains separate d8c8b7f. No push/deployment or live-provider/user visual review; frozen main and live services unchanged.
 
 - Room-coordination specification complete locally, 2026-10-12: .scratch/room-coordination/spec.md is now ready-for-human with seven required sections, 58 user stories, the confirmed command-oriented design, four runnable checkpoints and agreed test seams. Linked from docs/ROOM_COORDINATION_PLAN.md. Specification remains the migration contract; all seven tickets are implemented and code-reviewed below. The specification step itself ran no runtime tests or deployment.
@@ -157,6 +159,9 @@ Use this file to track completed updates across agents and session windows. See 
 - Generated questions carry a validated conversational `lead_in`: distinct panelist voices briefly react to the latest answer, match a substantive answer's language, and stay separate from the grounded question and citation. The previous exchange remains visible while the next response is generated.
 
 ## Active work
+
+- root-room-coordination-publish, started 2026-10-12: user authorized pushing the reviewed feature branch. Commit the final review/report log, push origin/feature/question-first-room and verify its remote SHA; close with a dated publication receipt. Use [skip render], preserve unrelated footprint research and frozen main; no deployment.
+
 
 
 
@@ -2193,3 +2198,19 @@ Append new entries to the **end** of this file in date order:
 - Responsive evidence: earlier synthetic desktop/portrait/landscape keyboard checks cover internal question/citation scrolling, Controls focus/Escape, Account, Transcript and chat; preview submissions are disabled, so draft/submission guarantees come from tests. Restarted the credential-free isolated preview at http://127.0.0.1:8840/?preview=1&research=1&clarify=1; fresh Playwright screenshots at 1440x900, 390x844 and 844x390 confirm no horizontal page overflow. Temporary captures remain outside Git. No live AI, real account/payment, hosted/proxy, installed-device or user visual review is claimed.
 - Code review: independent Standards/Spec reviewers inspected the complete migration against 85c8589. Final Standards: zero hard violations and zero actionable optional findings. Final Spec: zero remaining findings after coordinator-owned joining; the reviewer independently reran all five coordinator tests.
 - Remaining: user local review and any later requested publication/deployment. Preserved unrelated docs/PROJECT_SIZE_RESEARCH.md, frozen main and live services. The earlier disposable PostgreSQL fixture was stopped; only the credential-free local preview remains for review.
+
+
+### 2026-10-12 — Final independent review of all seven room-coordination tickets
+
+- Session: root-room-coordination-final-review; closes its own active-work claim with this dated entry. Reviewed immutable c09c618ebe6df8e75e7b1829e6b1c678323be734 against approved 85c8589f2e1ef2a9780dca9723261444fbaaee03; distinguished prerequisite recovery/planning d8c8b7f from the seven migration commits.
+- Changed: docs/ROOM_COORDINATION_FINAL_REVIEW.md and this log only. Recorded per-ticket outcomes, independent Standards/Spec review, fresh focused evidence and remaining human/live boundaries. All seven ticket files are ready-for-human with 38 checked acceptance criteria; runtime/test inspection, rather than markers alone, supports completion. No runtime source edits or automatic fixes.
+- Standards: zero documented violations and zero actionable optional findings. Spec: zero actionable findings across ownership/views, questions/deadlines, submissions/clarifications/probes, research/coaching, publication/presence, lifecycle/shutdown and migration cleanup. Deadline catch-up before command-specific host rejection is inherited; it does not execute a forbidden host action or bypass charging, so the reviewer did not misreport it as an introduced defect.
+- Verification: fresh env -u DATABASE_URL .venv/bin/python -m unittest on coordinator/protocol/question/submission/planning-coaching/presence/lifecycle/recovery/two-client code/research/probe/service-handoff modules passes 72 tests in 9.991 seconds (/tmp/room-coordination-final-review-tests.log), AI/Google/PayMongo mocked with actual local-store fixtures. Independent Standards reviewer passed 37 focused tests in 4.052 seconds; Spec reviewer passed 38 coordinator/protocol tests in 4.137 seconds. The Spec review's initial sandbox-stalled attempt was terminated and not counted. Inspected unchanged c09c618 full-gate logs confirming 495 Python tests, 261 React tests and production build; did not redundantly repeat the full gate. git diff --check against the pinned range and local documentation passes.
+- Remaining: user visual approval and separate live AI/provider, hosted/proxy and installed/physical-device checks. Prior PostgreSQL and browser evidence is historical checkpoint evidence, not newly repeated verification. Preserved unrelated docs/PROJECT_SIZE_RESEARCH.md and frozen main; no commit, push, deployment or provider call in this final review.
+
+
+### 2026-10-12 — Room-coordination source publication prepared
+
+- Session: root-room-coordination-publish; user requested push after the final all-ticket review. Prepared docs/ROOM_COORDINATION_FINAL_REVIEW.md and the shared review log for a documentation commit above c09c618; prerequisite recovery and all seven reviewed migration commits remain intact.
+- Verification: git ls-remote confirms origin/feature/question-first-room currently at approved baseline 85c8589 and frozen origin/main at 866e923c40c3cf431e66984861dd7dbefb223f8b. Local diff check passes; unrelated docs/PROJECT_SIZE_RESEARCH.md hash is unchanged. Runtime has not changed since the passing 495 Python/261 React/build and 72-check final review gates, so no redundant tests or provider calls were performed.
+- Remaining: push the feature branch and independently verify the remote hash, then record the receipt. Commit messages retain [skip render]; deployment, user visual review and live/hosted/device verification are separate and not authorized by this push request.
