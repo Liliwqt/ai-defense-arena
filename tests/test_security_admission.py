@@ -191,6 +191,7 @@ class RoomAdmissionTests(unittest.TestCase):
         room.phase = 'generating'
         with patch.object(server, 'generate_first_question', side_effect=server.QuestionGenerationError('Offline failure')) as provider:
             for _ in range(4):
+                room.phase = 'generating'  # Each explicit host retry re-enters generation.
                 self.client.portal.call(server._generate_question, room, room.generation_id, True)
         self.assertEqual(provider.call_count, 3)
         self.assertEqual(room.phase, 'retry')

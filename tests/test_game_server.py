@@ -346,6 +346,38 @@ class GameServerTests(unittest.TestCase):
             finally:
                 host_socket.__exit__(None, None, None)
 
+    def test_two_clients_resume_automatically_after_a_rejected_next_question(self):
+        from backend.question_generator import InvalidQuestionResponse
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "offline-key"}), \
+             patch.object(game_server, 'generate_first_question', return_value=self.questions[0]), \
+             patch.object(game_server, 'generate_next_move', side_effect=[InvalidQuestionResponse('Invalid cited line'), self.short_moves[0]]) as generator:
+            host = self.create_room()
+            guest = self.join_room(host['room_code'])
+            host_socket, _ = self.connect(host['room_code'], host['player_token'])
+            guest_socket, _ = self.connect(guest['room_code'], guest['player_token'])
+            try:
+                host_socket.send_json({'type': 'start'})
+                self.receive_phase(host_socket, 'question')
+                self.receive_phase(guest_socket, 'question')
+                guest_socket.send_json({'type': 'submit_answer', 'turn': 0, 'answer': 'Keep the accepted answer.'})
+                host_recovery = self.receive_phase(host_socket, 'generating')
+                while not host_recovery.get('question_retrying'):
+                    host_recovery = self.receive_phase(host_socket, 'generating')
+                self.assertEqual(host_recovery['turns'][0]['answer'], 'Keep the accepted answer.')
+                guest_socket.__exit__(None, None, None)
+                guest_socket, restored = self.connect(guest['room_code'], guest['player_token'])
+                self.assertEqual(restored['turns'][0]['answer'], 'Keep the accepted answer.')
+                for socket in (host_socket, guest_socket):
+                    state = self.receive_phase(socket, 'question')
+                    self.assertEqual(len(state['turns']), 2)
+                    self.assertEqual(state['turns'][0]['answer'], 'Keep the accepted answer.')
+                    self.assertFalse(state['question_retrying'])
+                    self.assertEqual(state['turns'][1]['evidence_text'], self.questions[1].evidence_text)
+                self.assertEqual(generator.call_count, 2)
+            finally:
+                guest_socket.__exit__(None, None, None)
+                host_socket.__exit__(None, None, None)
+
     def test_failure_retains_answer_then_host_retries_and_guest_reconnects(self):
         with (
             patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}),

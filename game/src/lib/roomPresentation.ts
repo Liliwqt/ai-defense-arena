@@ -76,7 +76,7 @@ function deriveContent(state: Readonly<RoomState> | null, currentIndex: number, 
         name: previous.panelist,
         question: previous.question,
         number: "REVIEWING",
-        reviewStatus: previous.timed_out ? "Reviewing the missed turn…" : "Reviewing your answer…",
+        reviewStatus: state?.question_retrying ? previous.timed_out ? "Preparing the next question again… The missed turn is saved." : "Preparing the next question again… Your answer is saved." : previous.timed_out ? "Reviewing the missed turn…" : "Reviewing your answer…",
         previousAnswer: previous.timed_out
           ? "Time expired · question passed to the panel."
           : `Team answer${previous.answered_by ? ` · ${previous.answered_by}` : ""}: ${previous.answer}`,
@@ -152,6 +152,7 @@ function roomStatus(state: Readonly<RoomState> | null): string {
   if (state?.phase === "retry") return "Retry needed";
   if (state?.phase === "reacting") return "Panelist speaking…";
   if (state?.phase === "generating") {
+    if (state.question_retrying) return "Retrying next question…";
     const previous = state.turns?.at(-1);
     return previous?.timed_out ? "Reviewing missed turn…" : previous?.answer ? "Reviewing answer…" : "Preparing question…";
   }
@@ -177,13 +178,18 @@ function lifecycleGuidance(state: Readonly<RoomState> | null): string {
     return state.self_is_host ? "Start the defense from Controls when your team is ready." : "Waiting for the host to start the defense.";
   }
   if (state.phase === "generating") {
+    if (state.question_retrying) return "Preparing the next question again… The resolved turn is saved; no need to resubmit.";
     const previous = state.turns?.at(-1);
     return previous?.timed_out ? "Reviewing missed turn… No answer was given; wait for the next question."
       : previous?.answer ? "Reviewing answer… The accepted answer is saved; wait for the panel."
       : "Preparing the first question… Wait for the panel.";
   }
   if (state.phase === "reacting") return "Listen to the panelist. Your full voting and answer time starts afterward.";
-  if (state.phase === "retry") return recoveryGuidance(state, "question", state.question_attempts_left);
+  if (state.phase === "retry") {
+    if (state.question_attempts_left === 0) return recoveryGuidance(state, "question", 0);
+    const saved = state.turns.some(turn => isResolved(turn)) ? "Your resolved turns are saved. " : "Your uploads are retained. ";
+    return saved + (state.self_is_host ? "Retry the question below or in Controls." : "The host can retry the question; you do not need to resubmit.");
+  }
   if (state.phase === "complete") {
     if (state.feedback_status === "generating") return "Preparing the team's coaching report… Your answers are saved.";
     if (state.feedback_status === "failed") return recoveryGuidance(state, "coaching report", state.coaching_attempts_left);

@@ -75,7 +75,20 @@ explains the clock and the defender is **Selected**. Recovery guidance names the
 existing permitted actions and respects remaining attempts; pending sends disable
 repeat recovery actions. Drafts, reconnect, server timers and answer rules retain
 their existing owners. Research mapping, first-question preparation, missed-turn
-review and coaching each show their own status. Exhausted retries are described
+review and coaching each show their own status.
+
+After an accepted answer or timeout, the web room automatically makes **one**
+additional attempt if the next AI question fails response/citation validation or
+hits a temporary connection/server error. It stays in preparation, shows
+**Retrying next question…**, and keeps the resolved exchange readable. The extra
+attempt uses the existing per-turn/account limits and does not replay the answer,
+advance coverage, or charge another defense. No new vote or answer clock starts
+until a valid question is published. Failed recovery exposes **Retry next
+question** in the bottom dock for the host; Controls remains an alternative.
+Guests keep their saved turn and wait for the host. Authentication, configuration,
+quota/rate limits, storage errors and exhausted attempts require manual recovery.
+Opening questions, submission interpretation, coaching and the Streamlit fallback
+retain their existing recovery behavior. Exhausted retries are described
 in the dock, Controls and coaching report rather than suggesting an available retry.
 
 Review the running [local reply preview](http://127.0.0.1:8832/?preview=1&research=1&probe=1).

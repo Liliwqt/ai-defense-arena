@@ -19,6 +19,7 @@ export function AnswerComposer({ roomState, connected, previewMode, waitingForAn
   const [localError, setLocalError] = useState("");
   const [writeRecovery, setWriteRecovery] = useState(false);
   const [interpretationLimited, setInterpretationLimited] = useState(false);
+  const [questionRetryPending, setQuestionRetryPending] = useState(false);
   const turnIndex = presentation.answerTurnIndex;
   const { submission } = presentation;
   const { probe, probing, turnKey, clarificationCount: allClarifications } = submission;
@@ -38,6 +39,8 @@ export function AnswerComposer({ roomState, connected, previewMode, waitingForAn
   }, [actionErrorReason]);
   useEffect(() => { if (allClarifications > 0) { setDraft(""); setLocalError(""); } }, [allClarifications, turnKey]);
   useEffect(() => { if (roomState?.my_pending_submission) setDraft(roomState.my_pending_submission); }, [roomState?.my_pending_submission]);
+  useEffect(() => { setQuestionRetryPending(false); }, [roomState?.phase, roomState?.room_code]);
+  useEffect(() => { if (actionError) setQuestionRetryPending(false); }, [actionError]);
 
   function submitAnswer(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -52,7 +55,20 @@ export function AnswerComposer({ roomState, connected, previewMode, waitingForAn
 
   return (
     <section id="answer-composer" aria-label="Answer area">
-      {submission.showRecovery && !canWrite && roomState ? (
+      {presentation.controls.questionRetry && roomState ? (
+        <div className="submission-retry" role="status">
+          <p>{localError || actionError || (!connected ? "Reconnecting… Your saved turns are retained." : presentation.guidance)}</p>
+          {roomState.self_is_host && <button type="button"
+            disabled={recoveryDisabled || questionRetryPending || !presentation.controls.questionRetryAvailable}
+            onClick={() => {
+              setLocalError("");
+              if (onSendEvent({ type: "retry" })) setQuestionRetryPending(true);
+              else setLocalError("Could not send the retry. Reconnect and try again; your saved turns are retained.");
+            }}>
+            {roomState.turns.some(turn => turn.answer || turn.timed_out) ? "Retry next question" : "Retry first question"}
+          </button>}
+        </div>
+      ) : submission.showRecovery && !canWrite && roomState ? (
         <div className="submission-retry" role="status">
           <p>{reviewGuidance}</p>
           {roomState.my_pending_submission && <p className="pending-text">{roomState.my_pending_submission}</p>}

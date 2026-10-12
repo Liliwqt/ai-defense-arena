@@ -19,6 +19,41 @@ const defaults = {
 };
 
 describe("AnswerComposer", () => {
+  it("offers the host an inline next-question retry without resubmitting the answer", async () => {
+    const send = vi.fn(() => true);
+    const state: RoomState = { ...questionState, phase: "retry", question_attempts_left: 1,
+      error: "The AI returned an invalid source line.", turns: [{ ...questionState.turns[0], answer: "Keep my accepted explanation." }] };
+    render(<AnswerComposer {...defaults} roomState={state} onSendEvent={send} />);
+    const retry = screen.getByRole("button", { name: "Retry next question" });
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    await userEvent.click(retry);
+    await userEvent.click(retry);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith({ type: "retry" });
+    expect(retry).toBeDisabled();
+  });
+
+  it("waits for retry acknowledgment when an earlier error clears, then permits recovery after a new server error", async () => {
+    const send = vi.fn(() => true);
+    const state: RoomState = { ...questionState, phase: "retry", turns: [{ ...questionState.turns[0], answer: "Accepted answer" }] };
+    const { rerender } = render(<AnswerComposer {...defaults} roomState={state} onSendEvent={send} actionError="Earlier request failed" />);
+    await userEvent.tab();
+    expect(screen.getByRole("button", { name: "Retry next question" })).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+    rerender(<AnswerComposer {...defaults} roomState={state} onSendEvent={send} actionError={null} />);
+    expect(screen.getByRole("button", { name: "Retry next question" })).toBeDisabled();
+    rerender(<AnswerComposer {...defaults} roomState={state} onSendEvent={send} actionError="Sign in again to retry" />);
+    expect(screen.getByRole("button", { name: "Retry next question" })).not.toBeDisabled();
+    expect(screen.getByText("Sign in again to retry")).toBeInTheDocument();
+  });
+
+  it("keeps inline question recovery host-only and disabled without attempts", () => {
+    const { rerender } = render(<AnswerComposer {...defaults} roomState={{ ...questionState, phase: "retry", self_is_host: false }} />);
+    expect(screen.queryByRole("button", { name: /Retry.*question/ })).not.toBeInTheDocument();
+    rerender(<AnswerComposer {...defaults} roomState={{ ...questionState, phase: "retry", question_attempts_left: 0 }} />);
+    expect(screen.getByRole("button", { name: "Retry first question" })).toBeDisabled();
+  });
+
   it("retains a throttled draft and offers an explicit AI-free answer", async () => {
     const send = vi.fn(() => true);
     const { rerender } = render(<AnswerComposer {...defaults} roomState={questionState} onSendEvent={send} />);

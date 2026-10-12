@@ -137,6 +137,7 @@ export interface RoomState {
   pause_deadline_ms?: number | null;
   interpretation_attempts_left?: number;
   question_attempts_left?: number;
+  question_retrying?: boolean;
   coaching_attempts_left?: number;
   plan_attempts_left?: number;
   my_pending_submission?: string | null;

@@ -41,3 +41,16 @@ it("keeps legacy interpretation clocks paused unless the snapshot explicitly run
   expect(deriveRoomPresentation(state).timer).toMatchObject({ mode: "paused", savedSeconds: 45, deadline: null });
   expect(deriveRoomPresentation({ ...state, clock_paused: false }).timer).toMatchObject({ mode: "running", deadline: 121000 });
 });
+
+it("keeps the accepted exchange and citation readable during automatic question recovery", () => {
+  const state: RoomState = { ...previewState, phase: "generating", question_retrying: true,
+    turns: [{ ...previewState.turns[0], answer: "We will measure the queue pilot.", resolved: true }] };
+  const view = deriveRoomPresentation(state);
+  expect(view.status).toBe("Retrying next question…");
+  expect(view.guidance).toContain("no need to resubmit");
+  expect(view.card.question).toBe(state.turns[0].question);
+  expect(view.card.previousAnswer).toContain("We will measure the queue pilot.");
+  expect(view.card.evidence).toBe(state.turns[0].evidence_text);
+  expect(view.card.reviewStatus).toContain("Your answer is saved");
+  expect(view.controls.questionRetry).toBe(false);
+});

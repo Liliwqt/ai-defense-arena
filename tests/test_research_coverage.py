@@ -399,6 +399,7 @@ class CoverageRoomTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(restored['turns'][0]['answer'], session.turns[0].answer)
         self.assertEqual(restored['coverage'], before)
         self.room.generation_id += 1
+        self.room.phase = "generating"
         with patch('backend.game_server.generate_research_move', side_effect=mocked_move), patch('backend.game_server._schedule_clock'):
             await game_server._generate_question(self.room, 2, False)
         self.assertEqual(self.room.phase, 'reacting')

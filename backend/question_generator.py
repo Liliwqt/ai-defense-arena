@@ -35,6 +35,10 @@ class QuestionGenerationError(Exception):
     """The project or model response cannot produce a grounded question."""
 
 
+class InvalidQuestionResponse(QuestionGenerationError):
+    """A generated question failed validation; a fresh response may recover."""
+
+
 @dataclass(frozen=True)
 class GroundedCitation:
     filename: str
@@ -742,12 +746,12 @@ def _research_advice_guidance(
 
 def _clean_lead_in(value: object) -> str:
     if not isinstance(value, str):
-        raise QuestionGenerationError("The AI returned an invalid panelist reaction. Please try again.")
+        raise InvalidQuestionResponse("The AI returned an invalid panelist reaction. Please try again.")
     lead_in = " ".join(value.split())
     if len(lead_in) > MAX_LEAD_IN_CHARS:
-        raise QuestionGenerationError("The AI reaction was too long. Please try again.")
+        raise InvalidQuestionResponse("The AI reaction was too long. Please try again.")
     if len(re.findall(r"[.!?]+(?=\s|$)", lead_in)) > 2:
-        raise QuestionGenerationError("The AI reaction used more than two sentences. Please try again.")
+        raise InvalidQuestionResponse("The AI reaction used more than two sentences. Please try again.")
     return lead_in
 
 
@@ -794,11 +798,11 @@ def _citation_context(cited_file: ProjectFile, cited_lines: dict[int, str], line
 def ground_source_reference(source_file: int, evidence_line: int, lookup: dict, eligible_ids: set[int]) -> GroundedCitation:
     """Resolve a source reference from accepted text; never trust AI excerpt text."""
     if type(source_file) is not int or source_file not in lookup or source_file not in eligible_ids:
-        raise QuestionGenerationError("The AI cited an invalid project file. Please try again.")
+        raise InvalidQuestionResponse("The AI cited an invalid project file. Please try again.")
     cited_file, cited_lines = lookup[source_file]
     evidence = cited_lines.get(evidence_line) if type(evidence_line) is int else None
     if evidence is None or not evidence.strip():
-        raise QuestionGenerationError("The AI cited an invalid source line. Please try again.")
+        raise InvalidQuestionResponse("The AI cited an invalid source line. Please try again.")
     # Only research documents need prose context. A code citation is already a
     # complete logical line and is shown with a line-number gutter, where extra
     # surrounding lines would blur which line was actually cited.
@@ -809,7 +813,7 @@ def ground_source_reference(source_file: int, evidence_line: int, lookup: dict, 
 
 def _ground_question(draft, lookup: dict, eligible_ids: set[int]) -> GroundedQuestion:
     if not isinstance(draft.question, str) or not draft.question.strip():
-        raise QuestionGenerationError("The AI returned no question. Please try again.")
+        raise InvalidQuestionResponse("The AI returned no question. Please try again.")
     citation = ground_source_reference(draft.source_file, draft.evidence_line, lookup, eligible_ids)
     return GroundedQuestion(
         draft.question.strip(), citation.filename, citation.evidence_line, citation.evidence_text,
@@ -980,15 +984,15 @@ def generate_next_move(
     )
     draft = response.output_parsed
     if draft is None:
-        raise QuestionGenerationError("The AI returned no next move. Please try again.")
+        raise InvalidQuestionResponse("The AI returned no next move. Please try again.")
     if draft.action == "complete":
         if not may_complete or any(value is not None for value in
                                    (draft.panelist, draft.lead_in, draft.question,
                                     draft.source_file, draft.evidence_line)):
-            raise QuestionGenerationError("The AI ended the defense too early. Please retry.")
+            raise InvalidQuestionResponse("The AI ended the defense too early. Please retry.")
         return PanelMove(None, None)
     if draft.panelist not in allowed:
-        raise QuestionGenerationError("The AI chose an invalid panelist. Please retry.")
+        raise InvalidQuestionResponse("The AI chose an invalid panelist. Please retry.")
     eligible = _eligible_ids(draft.panelist, lookup, code_ids, defense_type)
     return PanelMove(draft.panelist, _ground_question(draft, lookup, eligible))
 
@@ -1046,21 +1050,21 @@ def generate_research_move(
     )
     draft = response.output_parsed
     if draft is None:
-        raise QuestionGenerationError("The AI returned no research move. Please retry.")
+        raise InvalidQuestionResponse("The AI returned no research move. Please retry.")
     if isinstance(draft, dict):
         draft = ResearchMoveDraft.model_validate(draft)
     if draft.action == "complete":
         if any(value is not None for value in (draft.panelist, draft.lead_in, draft.question,
                                                draft.source_file, draft.evidence_line, draft.topic_id)) or draft.is_follow_up:
-            raise QuestionGenerationError("The AI returned dialogue after completion. Please retry.")
+            raise InvalidQuestionResponse("The AI returned dialogue after completion. Please retry.")
         return ResearchMove(None, None, None, False, draft.assessment)
     if draft.panelist not in RESEARCH_PANELISTS:
-        raise QuestionGenerationError("The AI chose an invalid research reviewer. Please retry.")
+        raise InvalidQuestionResponse("The AI chose an invalid research reviewer. Please retry.")
     eligible = set(lookup) if defense_type == "mixed" else {
         i for i, (file, _) in lookup.items() if file.kind.startswith("research")}
     question = _ground_question(draft, lookup, eligible)
     if not history and question.lead_in:
-        raise QuestionGenerationError("The opening question must have no reaction. Please retry.")
+        raise InvalidQuestionResponse("The opening question must have no reaction. Please retry.")
     return ResearchMove(draft.panelist, question, draft.topic_id, draft.is_follow_up, draft.assessment)
 
 

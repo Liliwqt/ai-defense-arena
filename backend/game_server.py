@@ -16,7 +16,7 @@ from typing import Any
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from openai import OpenAIError
+from openai import OpenAIError, APIConnectionError, APIStatusError
 from pydantic import BaseModel, ValidationError
 
 from backend.defense_session import DefenseSession, ResearchDefenseSession, MAX_ANSWER_CHARS, PANELIST_ORDER
@@ -40,6 +40,7 @@ from backend.question_generator import (
     CoachingReport,
     interpret_submission,
     QuestionGenerationError,
+    InvalidQuestionResponse,
     describe_openai_error,
     generate_coaching_report,
     generate_first_question,
@@ -90,6 +91,7 @@ class Room(TimedTurn):
     revision: int = 0
     published_revision: int = -1
     generation_id: int = 0
+    question_retry_generation_id: int | None = None
     feedback_status: str = "none"   # none | generating | ready | failed
     feedback: CoachingReport | None = None
     research_planning_status: str = "none"  # none | planning | ready | failed
@@ -177,6 +179,7 @@ class Room(TimedTurn):
             "clock_paused": self.pause_deadline_ms is not None and _now_ms() < self.pause_deadline_ms,
             "pause_deadline_ms": self.pause_deadline_ms,
             "question_attempts_left": self.ai_budget.remaining(f'question:{len(self.defense.turns) if self.defense else 0}', limit('AI_QUESTION_ATTEMPTS', 3, 10)),
+            "question_retrying": self.phase == "generating" and self.question_retry_generation_id == self.generation_id,
             "coaching_attempts_left": self.ai_budget.remaining('coaching', limit('AI_COACHING_ATTEMPTS', 3, 10)),
             "plan_attempts_left": self.ai_budget.remaining('plan', limit('AI_PLAN_ATTEMPTS', 3, 10)),
             "self_seat": recipient.seat if recipient is not None else None,
@@ -650,19 +653,46 @@ async def _generate_question(room: Room, generation_id: int, first: bool) -> Non
     next_clock = None
     feedback_id = None
     try:
+        # One extra attempt after a resolved turn; both attempts use the existing
+        # admission budget and detached session. No answer or charge is replayed.
+        for attempt in range(2):
+            async with room.lock:
+                if room.closed or room.generation_id != generation_id or room.phase != "generating":
+                    return
+                cap = limit('AI_QUESTION_ATTEMPTS', 3, 10)
+                attempt_key = f'question:{len(room.defense.turns) if room.defense else 0}'
+                room.ai_budget.admit(attempt_key, cap, room.owner_account_id or room.code)
+                request = prepare_progression(room.defense, defense_type=room.defense_type,
+                                              research_stage=room.research_stage)
+            try:
+                result = await asyncio.to_thread(request.generate, room.files, api_key, model,
+                    first_question=generate_first_question, next_move=generate_next_move,
+                    research_move=generate_research_move)
+                try:
+                    session = request.apply(result)
+                except ValueError as error:
+                    raise InvalidQuestionResponse(str(error)) from error
+            except (InvalidQuestionResponse, ValidationError, APIConnectionError, APIStatusError) as error:
+                # Authentication, quota/rate limits, request errors and storage
+                # failures need explicit recovery rather than another AI call.
+                recoverable = not isinstance(error, APIStatusError) or error.status_code >= 500
+                async with room.lock:
+                    if room.closed or room.generation_id != generation_id or room.phase != "generating":
+                        return
+                    resolved = room.defense is not None and bool(room.defense.turns) and (
+                        room.defense.turns[-1].answer is not None or room.defense.turns[-1].timed_out)
+                    if attempt or first or not recoverable or not resolved or not room.ai_budget.remaining(attempt_key, cap):
+                        raise
+                    room.question_retry_generation_id = generation_id
+                    room.revision += 1
+                await publish(room)
+                await asyncio.sleep(1)
+                continue
+            break
         async with room.lock:
-            if room.closed or room.generation_id != generation_id:
+            if room.closed or room.generation_id != generation_id or room.phase != "generating":
                 return
-            room.ai_budget.admit(f'question:{len(room.defense.turns) if room.defense else 0}', limit('AI_QUESTION_ATTEMPTS', 3, 10), room.owner_account_id or room.code)
-            request = prepare_progression(room.defense, defense_type=room.defense_type,
-                                          research_stage=room.research_stage)
-        result = await asyncio.to_thread(request.generate, room.files, api_key, model,
-            first_question=generate_first_question, next_move=generate_next_move,
-            research_move=generate_research_move)
-        async with room.lock:
-            if room.generation_id != generation_id:
-                return
-            session = request.apply(result)
+            room.question_retry_generation_id = None
             opening=room.defense is None or not room.defense.turns
             if room.run_id and opening and session.turns:
                 charge_run(room.owner_account_id, room.run_id)
@@ -681,8 +711,9 @@ async def _generate_question(room: Room, generation_id: int, first: bool) -> Non
             room.revision += 1
     except Exception as error:
         async with room.lock:
-            if room.generation_id != generation_id:
+            if room.closed or room.generation_id != generation_id or room.phase != "generating":
                 return
+            room.question_retry_generation_id = None
             room.phase = "retry"
             room.error = _safe_generation_error(error)
             try:
