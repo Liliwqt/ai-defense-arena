@@ -8,6 +8,16 @@ import { highlightCitation } from "../lib/pdfHighlight";
 
 interface Props { roomState: RoomState; playerToken?: string | null; expanded?: boolean; onExpandedChange?: (value: boolean) => void; }
 
+function PaperIcon({kind}: {kind: "citation" | "expand" | "collapse" | "options"}) {
+  const paths = {
+    citation: "M9 3H5a2 2 0 0 0-2 2v4m12-6h4a2 2 0 0 1 2 2v4M3 15v4a2 2 0 0 0 2 2h4m12-6v4a2 2 0 0 1-2 2h-4M8 12h8m-4-4v8",
+    expand: "M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5",
+    collapse: "M3 8h5V3m13 5h-5V3M8 21v-5H3m13 5v-5h5",
+    options: "M4 6h16M4 12h16M4 18h16M8 4v4m8 2v4m-6 2v4",
+  };
+  return <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d={paths[kind]} /></svg>;
+}
+
 export function PDFViewer({roomState, playerToken, expanded = false, onExpandedChange}: Props) {
   const turn = roomState.turns.at(-1);
   const {document, page, zoom, selectDocument, selectPage, setZoom, returnToCitation} = usePaperNavigation(roomState);
@@ -19,6 +29,7 @@ export function PDFViewer({roomState, playerToken, expanded = false, onExpandedC
   const [loading, setLoading] = useState(true);
   const [retry, setRetry] = useState(0);
   const [highlighted, setHighlighted] = useState<boolean | null>(null);
+  const [viewOptionsOpen, setViewOptionsOpen] = useState(false);
   const pageRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const reading = readingRef.current;
@@ -99,17 +110,27 @@ export function PDFViewer({roomState, playerToken, expanded = false, onExpandedC
     </div>}
     <div className="pdf-reading" role="tabpanel" id="paper-reading-panel" aria-labelledby="paper-tab-paper">
     <div className="pdf-toolbar" role="group" aria-label="Paper reading controls">
-      <label>Document <select aria-label="PDF document" value={document?.id ?? ""} onChange={event => selectDocument(event.target.value)}>
+      <label className="pdf-document-picker"><span>Document</span> <select aria-label="PDF document" value={document?.id ?? ""} onChange={event => selectDocument(event.target.value)}>
         {roomState.documents?.map(item => <option key={item.id} value={item.id}>{item.filename}</option>)}
       </select></label>
+      <div className="pdf-primary-controls">
+      <div className="pdf-page-controls" role="group" aria-label="Page navigation">
       <button type="button" aria-label="Previous page" disabled={page <= 1} onClick={() => selectPage(page - 1)}>←</button>
       <button type="button" aria-label="Next page" disabled={page >= (document?.page_count ?? 1)} onClick={() => selectPage(page + 1)}>→</button>
+      <span className="pdf-page-count" aria-label={`Page ${page} of ${document?.page_count ?? 1}`}>{page}<span aria-hidden="true"> / </span>{document?.page_count ?? 1}</span>
+      </div>
+      <div className="pdf-reading-actions">
+      <button type="button" className="pdf-reading-action" aria-label="Return to citation" title="Return to citation" disabled={!turn?.evidence_document_id} onClick={returnToCitation}><PaperIcon kind="citation" /><span>Return to citation</span></button>
+      <button ref={expandRef} type="button" className="pdf-reading-action" aria-label={expanded ? "Exit expanded reading" : "Expand paper"} title={expanded ? "Exit expanded reading" : "Expand paper"} aria-expanded={expanded} onClick={() => expanded ? exitReading() : onExpandedChange?.(true)}><PaperIcon kind={expanded ? "collapse" : "expand"} /><span>{expanded ? "Exit expanded reading" : "Expand paper"}</span></button>
+      <button type="button" className="pdf-view-options-toggle" aria-label="Paper view options" title="Paper view options" aria-expanded={viewOptionsOpen} aria-controls="pdf-view-options" onClick={() => setViewOptionsOpen(value => !value)}><PaperIcon kind="options" /></button>
+      </div>
+      </div>
+      <div id="pdf-view-options" className="pdf-view-options" data-open={viewOptionsOpen} role="group" aria-label="Zoom controls">
       <button type="button" aria-label="Zoom out" disabled={zoom <= .5} onClick={() => setZoom(Math.max(.5, zoom - .25))}>−</button>
       <span aria-label="Zoom level">{Math.round(zoom * 100)}%</span>
       <button type="button" aria-label="Zoom in" disabled={zoom >= 3} onClick={() => setZoom(Math.min(3, zoom + .25))}>+</button>
       <button type="button" onClick={() => setZoom(1)}>Fit width</button>
-      <button type="button" disabled={!turn?.evidence_document_id} onClick={returnToCitation}>Return to citation</button>
-      <button ref={expandRef} type="button" aria-expanded={expanded} onClick={() => expanded ? exitReading() : onExpandedChange?.(true)}>{expanded ? "Exit expanded reading" : "Expand paper"}</button>
+      </div>
     </div>
     <p className="pdf-document-title">{document?.filename} · Physical page {page} of {document?.page_count}</p>
     {loading && <p role="status">Loading paper…</p>}

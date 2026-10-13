@@ -39,6 +39,25 @@ beforeEach(() => {
 });
 
 describe("Original paper in the question card", () => {
+  it("keeps reading position and zoom when opening and closing view options", async () => {
+    const user = userEvent.setup();
+    render(<QuestionCard roomState={state} playerToken="private-player" />);
+    await screen.findByText("Cited text highlighted");
+    const options = screen.getByRole("button", {name: "Paper view options"});
+    expect(options.getAttribute("aria-expanded")).toBe("false");
+    await user.click(options);
+    expect(options.getAttribute("aria-expanded")).toBe("true");
+    await user.click(screen.getByRole("button", {name: "Zoom in"}));
+    await user.click(screen.getByRole("button", {name: "Next page"}));
+    await waitFor(() => expect(provider.getPage).toHaveBeenLastCalledWith(3));
+    await user.click(options);
+    await user.click(options);
+    expect(screen.getByLabelText("Zoom level").textContent).toBe("125%");
+    expect(screen.getByLabelText("Page 3 of 3")).toBeTruthy();
+    await user.click(screen.getByRole("button", {name: "Fit width"}));
+    expect(screen.getByLabelText("Zoom level").textContent).toBe("100%");
+  });
+
   it("opens the server-cited physical page while keeping the question and exact quote", async () => {
     render(<QuestionCard roomState={state} playerToken="private-player" />);
     expect(screen.getByRole("tab", {name: "Paper"})).toBeTruthy();

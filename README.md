@@ -465,6 +465,11 @@ Research excerpts may include up to three surrounding lines on each side, with P
 
 The multiplayer room shows the question above the original PDF, with **Question / Paper** tabs on phones. Browse documents and pages, zoom, use **Fit width**, **Return to citation**, or **Expand paper**. Reading positions are personal: same-question updates and reconnect retain your page and zoom; a new question follows its PDF citation. Code excerpts remain prominent when the question cites code. DOCX, TXT, Markdown and Streamlit retain extracted-text presentation.
 
+On phones, the paper toolbar uses a full-width document selector, a page counter
+between navigation arrows, and icons for citation, expanded reading, and **Paper
+view options**. Open view options for zoom and Fit width. Every icon retains an
+accessible name and a 44-pixel touch target; desktop zoom controls stay visible.
+
 PDF.js renders one page at a time with selectable text and locally bundled fonts/worker. A unique, confidently mapped text run gets a visual highlight; repeated, split, rotated or unmappable text shows **Precise highlight unavailable** with the unchanged exact quotation. Extracted lines are not visual PDF line numbers. Rendering figures for readers does not give the AI figure interpretation; a validated excerpt does not certify the AI's interpretation.
 
 Original PDFs are retained privately only during the room's lifetime. Joined defenders use their player credentials; hosts also need the account that owns the room. Header authentication keeps credentials out of file URLs. Files are not published as static assets, and this release adds no PDF download button. Restarting the defense in the same room keeps the originals; closing/expiring the room or stopping the server removes them. Exclusive storage ownership prevents a replacement process from deleting an active predecessor's files; startup removes abandoned directories after acquiring ownership.

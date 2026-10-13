@@ -23,6 +23,13 @@ each visit; keep that host tab open and join from another browser using its room
 code. The synthetic clock freezes server progression for reading review; the
 browser countdown is illustrative. Do not submit answers in this visual fixture.
 
+The default sample now contains three fuller synthetic proposal pages, rather
+than one sentence per page. The cited recruitment passage appears among the
+methodology text on physical page 2. This matches the user's selected complete
+cited-page experience with Previous/Next navigation; it is not continuous
+scrolling through every page. Existing screenshots below predate this fixture
+content expansion.
+
 Use `?case=repeated` for repeated text in two columns and `?case=long` for a longer
 question. Other app states are available through the existing `/?preview=1`
 fixtures, which use synthetic room snapshots rather than an original PDF.
@@ -38,6 +45,10 @@ fixtures, which use synthetic room snapshots rather than an original PDF.
   answer dock stay available. On short landscape screens the smaller central
   region scrolls internally; paper controls and the full page are reachable by
   scrolling that region.
+- On phones, the simplified toolbar keeps the document selector, page arrows and
+  counter, citation and expanded-reading icons visible. The sliders icon opens
+  **Paper view options** for zoom and Fit width; closing it retains page and zoom.
+  Desktop zoom controls remain directly visible.
 - A unique mapped text run gets a real geometry highlight. Repeated, rotated,
   split or unmappable text keeps the exact quotation with **Precise highlight
   unavailable**. This conservative first release does not guess cross-run text
@@ -88,6 +99,9 @@ content only.
 | Repeated-text fallback | [Ambiguous match](review/pdf-viewer/pdf-viewer-ambiguous.png) |
 | Long question on desktop | [Long desktop](review/pdf-viewer/pdf-viewer-long-desktop.png) |
 | Long question on phone | [Long portrait](review/pdf-viewer/pdf-viewer-long-portrait.png) |
+| Compact mobile paper toolbar | [Portrait toolbar](review/pdf-viewer/mobile-toolbar-portrait.png) |
+| Compact landscape paper toolbar | [Landscape toolbar](review/pdf-viewer/mobile-toolbar-landscape.png) |
+| Mobile zoom and Fit width options | [View options](review/pdf-viewer/mobile-toolbar-options.png) |
 
 The PDF library is lazy-loaded, so its approximately 542 KB JavaScript chunk and
 1.32 MB worker do not join the initial approximately 284 KB application chunk.
