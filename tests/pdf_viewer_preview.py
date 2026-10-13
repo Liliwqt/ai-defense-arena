@@ -139,7 +139,30 @@ def preview_app():
         room.answer_deadline_ms = 1_120_000
         async def blocked(_):
             await asyncio.Event().wait()
-        RoomCoordinator(room, RoomWorkflows(now=lambda: 1_000_000, sleep=blocked))
+        if request.query_params.get('case') == 'mapping':
+            # Deliberately paced synthetic events for visual review, not an AI
+            # request or evidence of actual provider timing/quality.
+            from backend.research_plan import ResearchPlanProgress
+            async def preview_map(request):
+                await request.on_progress(ResearchPlanProgress('mapping'))
+                for count in range(1, len(plan.topics) + 1):
+                    await asyncio.sleep(1.5)
+                    if not await request.on_progress(ResearchPlanProgress('mapping', plan.topics[:count])):
+                        raise RuntimeError('Preview mapping cancelled')
+                await request.on_progress(ResearchPlanProgress('validating', plan.topics))
+                await asyncio.sleep(1)
+                return plan
+            room.phase = 'lobby'
+            room.defense = None
+            room.selected_seat = None
+            room.answer_deadline_ms = None
+            room.research_plan = None
+            room.research_plan_approved = False
+            room.research_planning_status = 'none'
+            room.research_budget_preview = None
+            RoomCoordinator(room, RoomWorkflows(plan_request=preview_map))
+        else:
+            RoomCoordinator(room, RoomWorkflows(now=lambda: 1_000_000, sleep=blocked))
         server.rooms[code] = room
         response = HTMLResponse('<script>localStorage.setItem("defense_room_code", '+json.dumps(code)+');'
             'localStorage.setItem("defense_player_token", '+json.dumps(player_token)+');location.replace("/");</script>')

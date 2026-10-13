@@ -1,15 +1,17 @@
 """Research preparation and approval; the coordinator owns retained tasks."""
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
+from threading import Event
+from concurrent.futures import TimeoutError as FutureTimeoutError
 import os
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
 from backend.account_store import AccessError, require_run_access
 from backend.project_files import ProjectFile
-from backend.question_generator import DEFAULT_MODEL
-from backend.research_plan import ResearchPlan, generate_research_plan, validate_question_budget
+from backend.question_generator import DEFAULT_MODEL, QuestionGenerationError
+from backend.research_plan import ResearchPlan, ResearchPlanProgress, generate_research_plan, validate_question_budget
 from backend.resource_limits import limit
 from backend.rooms.commands import CommandResult, VerifiedActor, PlanCommand, PrepareResearchPlan
 from backend.rooms.errors import safe_generation_error
@@ -29,30 +31,68 @@ class PlanInput:
     files: tuple[ProjectFile, ...]
     defense_type: str
     research_stage: str
+    on_progress: Callable[[ResearchPlanProgress], Awaitable[bool]] | None = field(default=None, compare=False, repr=False)
 
 
 PlanRequest = Callable[[PlanInput], Awaitable[ResearchPlan]]
 
 
 async def request_plan(request: PlanInput) -> ResearchPlan:
-    return await asyncio.to_thread(generate_research_plan, list(request.files), os.getenv("OPENAI_API_KEY"),
-        os.getenv("OPENAI_MODEL") or DEFAULT_MODEL,
-        defense_type=request.defense_type, research_stage=request.research_stage)
+    loop = asyncio.get_running_loop()
+    stopped = Event()
+
+    def report(progress: ResearchPlanProgress) -> None:
+        if stopped.is_set():
+            raise QuestionGenerationError("Research mapping was cancelled.")
+        future = asyncio.run_coroutine_threadsafe(request.on_progress(progress), loop)
+        try:
+            while not stopped.is_set():
+                try:
+                    if not future.result(timeout=.25):
+                        raise QuestionGenerationError("Research mapping was cancelled.")
+                    return
+                except FutureTimeoutError:
+                    if future.done():
+                        raise
+                    continue
+            raise QuestionGenerationError("Research mapping was cancelled.")
+        finally:
+            if not future.done():
+                future.cancel()
+
+    try:
+        return await asyncio.to_thread(generate_research_plan, list(request.files), os.getenv("OPENAI_API_KEY"),
+            os.getenv("OPENAI_MODEL") or DEFAULT_MODEL,
+            defense_type=request.defense_type, research_stage=request.research_stage,
+            on_progress=report if request.on_progress else None)
+    finally:
+        stopped.set()
 
 
 async def run_plan(owner: "RoomCoordinator", work: PlanWork, request: PlanInput) -> None:
     room = owner._room
+
+    async def progress(update: ResearchPlanProgress) -> bool:
+        async with room.lock:
+            if not owner._plan_current(work):
+                return False
+            room.research_plan_progress = update
+            room.revision += 1
+        await owner._publish()
+        return True
+
     try:
         async with room.lock:
             if not owner._plan_current(work):
                 return
             room.ai_budget.admit('plan', limit('AI_PLAN_ATTEMPTS', 3, 10), room.owner_account_id or room.code)
-        plan = await owner._workflows.plan_request(request)
+        plan = await owner._workflows.plan_request(replace(request, on_progress=progress))
     except Exception as error:
         async with room.lock:
             if not owner._plan_current(work):
                 return
             room.research_planning_status = "failed"
+            room.research_plan_progress = None
             room.research_plan_error = safe_generation_error(error)
             room.revision += 1
         await owner._publish()
@@ -62,6 +102,7 @@ async def run_plan(owner: "RoomCoordinator", work: PlanWork, request: PlanInput)
             return
         room.research_plan = plan
         room.research_planning_status = "ready"
+        room.research_plan_progress = None
         room.research_plan_error = None
         room.research_budget_preview = plan.suggested_budget
         room.research_plan_approved = False
@@ -90,6 +131,7 @@ async def handle_plan_command(owner: "RoomCoordinator", actor: VerifiedActor, co
                     return CommandResult(False, "There is no failed research map to retry.")
                 room.activity_ms = owner._workflows.now()
                 room.research_planning_status = "planning"
+                room.research_plan_progress = ResearchPlanProgress("preparing")
                 room.research_plan_error = None
                 room.research_plan = None
                 room.research_budget_preview = None

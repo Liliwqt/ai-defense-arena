@@ -1,6 +1,7 @@
 import type { RoomState, Turn } from "../types";
 
 export interface CardContent {
+  mapping?: boolean;
   name: string;
   question: string;
   number: string;
@@ -103,7 +104,7 @@ function deriveContent(state: Readonly<RoomState> | null, currentIndex: number, 
   }
   if (phase === "lobby") {
     if (state?.research_planning_status === "planning") {
-      return { name: "Preparing research coverage", question: "Mapping the uploaded research. The scope preview will appear in Controls for your team to inspect.", number: "MAPPING" };
+      return { name: "Preparing research coverage", question: "Mapping the uploaded research. The scope preview will appear in Controls for your team to inspect.", number: "MAPPING", mapping: true };
     }
     if (state?.research_planning_status === "failed") {
       return { name: "Research mapping failed", question: `${state.research_plan_error ?? "The paper map could not be prepared."} ${lifecycleGuidance(state)}`, number: "RETRY PLAN" };

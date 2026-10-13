@@ -4,6 +4,9 @@ from dataclasses import asdict, dataclass, field
 import json
 import secrets
 from typing import Literal
+from collections.abc import Callable
+
+from backend.research_plan_stream import CompletedTopicDecoder
 
 from openai import OpenAI
 from pydantic import BaseModel, StrictInt
@@ -64,6 +67,15 @@ class ResearchPlan:
                 "uncertainties": list(self.uncertainties), "suggested_budget": self.suggested_budget}
 
 
+@dataclass(frozen=True)
+class ResearchPlanProgress:
+    stage: Literal["preparing", "mapping", "validating"]
+    topics: tuple[ResearchTopic, ...] = ()
+
+    def snapshot(self) -> dict:
+        return {"stage": self.stage, "topics": [asdict(topic) for topic in self.topics]}
+
+
 def validate_question_budget(value: object) -> int:
     if type(value) is not int or not MIN_QUESTION_BUDGET <= value <= MAX_QUESTION_BUDGET:
         raise ValueError("Choose a whole-number question budget from 4 to 100.")
@@ -80,6 +92,7 @@ def _text(value: str, label: str, limit: int) -> str:
 def generate_research_plan(
     project_files: list[ProjectFile], api_key: str | None, model: str = DEFAULT_MODEL,
     *, defense_type: str = "research", research_stage: str = "infer", client=None,
+    on_progress: Callable[[ResearchPlanProgress], None] | None = None,
 ) -> ResearchPlan:
     """One structured request, with excerpts resolved entirely from accepted text."""
     if defense_type not in {"research", "mixed"} or research_stage not in {"proposal", "completed", "infer"}:
@@ -96,7 +109,7 @@ def generate_research_plan(
     eligible = set(lookup) if defense_type == "mixed" else research_ids
     if client is None:
         client = OpenAI(api_key=key, timeout=90.0, max_retries=0)
-    response = client.responses.parse(
+    request = dict(
         model=model, reasoning={"effort": "low"}, store=False,
         input=[
             {"role": "system", "content": (
@@ -130,24 +143,55 @@ def generate_research_plan(
         ],
         text_format=ResearchPlanDraft,
     )
+    streamed_topics: list[ResearchTopic] = []
+    if on_progress is None:
+        response = client.responses.parse(**request)
+    else:
+        on_progress(ResearchPlanProgress("mapping"))
+        decoder = CompletedTopicDecoder()
+        seen_titles: set[str] = set()
+        content_key = None
+        with client.responses.stream(**request) as stream:
+            for event in stream:
+                if event.type != "response.output_text.delta":
+                    continue
+                key = (event.output_index, event.content_index)
+                if content_key is None:
+                    content_key = key
+                if key != content_key:
+                    raise QuestionGenerationError("The AI returned multiple research maps. Retry preparing the defense.")
+                for raw_topic in decoder.feed(event.delta):
+                    if len(streamed_topics) >= 100:
+                        raise QuestionGenerationError("The AI returned an invalid research map size. Retry preparing the defense.")
+                    topic = _ground_topic(PlanTopicDraft.model_validate(raw_topic), len(streamed_topics) + 1,
+                                          seen_titles, lookup, eligible, research_ids)
+                    streamed_topics.append(topic)
+                    on_progress(ResearchPlanProgress("mapping", tuple(streamed_topics)))
+            response = stream.get_final_response()
+        on_progress(ResearchPlanProgress("validating", tuple(streamed_topics)))
     if response.output_parsed is None:
         raise QuestionGenerationError("The AI returned no research map. Retry preparing the defense.")
     draft = ResearchPlanDraft.model_validate(response.output_parsed)
+    set_seen: set[str] = set()
     if not 1 <= len(draft.topics) <= 100 or len(draft.uncertainties) > 20:
         raise QuestionGenerationError("The AI returned an invalid research map size. Retry preparing the defense.")
-    topics = []
-    seen_titles = set()
-    for index, topic in enumerate(draft.topics, 1):
-        title = _text(topic.title, "topic title", 120)
-        if title.casefold() in seen_titles or len(topic.gaps) > 4 or not 1 <= len(topic.references) <= 6:
-            raise QuestionGenerationError("The AI returned duplicate topics or invalid topic details. Retry preparing the defense.")
-        seen_titles.add(title.casefold())
-        references = tuple(ground_source_reference(ref.source_file, ref.evidence_line, lookup, eligible)
-                           for ref in topic.references)
-        if not any(ref.source_file in research_ids for ref in topic.references):
-            raise QuestionGenerationError("Each research topic must cite an uploaded paper. Retry preparing the defense.")
-        if len({(ref.filename, ref.evidence_line) for ref in references}) != len(references):
-            raise QuestionGenerationError("The AI repeated a topic reference. Retry preparing the defense.")
-        topics.append(ResearchTopic(f"topic-{index}", title, _text(topic.objective, "objective", 600),
-                                    topic.panelist, references, tuple(_text(gap, "gap", 300) for gap in topic.gaps)))
+    topics = [_ground_topic(topic, index, set_seen, lookup, eligible, research_ids)
+              for index, topic in enumerate(draft.topics, 1)]
+    if on_progress is not None and topics != streamed_topics:
+        raise QuestionGenerationError("The streamed research map changed. Retry preparing the defense.")
     return ResearchPlan(tuple(topics), tuple(_text(item, "uncertainty", 300) for item in draft.uncertainties))
+
+
+def _ground_topic(topic: PlanTopicDraft, index: int, seen_titles: set[str], lookup, eligible, research_ids) -> ResearchTopic:
+    title = _text(topic.title, "topic title", 120)
+    if title.casefold() in seen_titles or len(topic.gaps) > 4 or not 1 <= len(topic.references) <= 6:
+        raise QuestionGenerationError("The AI returned duplicate topics or invalid topic details. Retry preparing the defense.")
+    seen_titles.add(title.casefold())
+    references = tuple(ground_source_reference(ref.source_file, ref.evidence_line, lookup, eligible)
+                       for ref in topic.references)
+    if not any(ref.source_file in research_ids for ref in topic.references):
+        raise QuestionGenerationError("Each research topic must cite an uploaded paper. Retry preparing the defense.")
+    if len({(ref.filename, ref.evidence_line) for ref in references}) != len(references):
+        raise QuestionGenerationError("The AI repeated a topic reference. Retry preparing the defense.")
+    return ResearchTopic(f"topic-{index}", title, _text(topic.objective, "objective", 600),
+                                topic.panelist, references, tuple(_text(gap, "gap", 300) for gap in topic.gaps))

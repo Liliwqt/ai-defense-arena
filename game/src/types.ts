@@ -120,6 +120,7 @@ export interface RoomState {
   defense_type?: "code" | "research" | "mixed";
   research_stage?: "infer" | "proposal" | "completed";
   research_planning_status?: "none" | "planning" | "ready" | "failed";
+  research_plan_progress?: { stage: "preparing" | "mapping" | "validating"; topics: ResearchPlan["topics"] } | null;
   research_plan?: ResearchPlan | null;
   research_plan_error?: string | null;
   research_budget_preview?: number | null;

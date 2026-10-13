@@ -115,6 +115,8 @@ if (planPreview) {
   previewState.feedback_status = "none";
   previewState.research_planning_status = requestedStatus === "planning" || requestedStatus === "failed" ? requestedStatus : "ready";
   previewState.research_plan = previewState.research_planning_status === "ready" ? researchPlanPreview : null;
+  previewState.research_plan_progress = previewState.research_planning_status === "planning"
+    ? { stage: "mapping", topics: researchPlanPreview.topics.slice(0, 3) } : null;
   previewState.research_budget_preview = Number.isInteger(budget) && budget >= 4 && budget <= 100 ? budget : researchPlanPreview.suggested_budget;
   previewState.research_plan_approved = false;
   previewState.research_plan_error = requestedStatus === "failed" ? "The AI cited an invalid source line. Retry preparing the defense." : null;

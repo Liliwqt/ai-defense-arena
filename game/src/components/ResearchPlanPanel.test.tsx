@@ -88,11 +88,41 @@ describe("ResearchPlanPanel", () => {
     const p = props();
     const controls = { account: { authenticated: true, google_enabled: true, free_access: true }, ...p, onUseRoom: vi.fn(), onLeaveRoom: vi.fn(), onCloseDrawer: vi.fn(), showMessage: vi.fn() };
     const { rerender } = render(<ControlsPanel {...controls} roomState={{ ...state, research_plan: null, research_planning_status: "planning" }} />);
-    expect((screen.getByRole("button", { name: /Start defense/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: /Start defense/ })).toBeNull();
     expect(screen.getByRole("status").textContent).toContain("Mapping");
+    expect(screen.getByRole("progressbar", { name: "Paper mapping progress" })).not.toHaveAttribute("aria-valuenow");
     rerender(<ControlsPanel {...controls} roomState={{...state, research_plan_approved: true}} />);
+    expect(screen.queryByRole("progressbar", { name: "Paper mapping progress" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Start defense/ }));
     expect(p.onSendEvent).toHaveBeenCalledWith({ type: "start", confirm_cost: true, plan_id: researchPlanPreview.id, question_budget: 14 });
+  });
+
+  it("hides research Start until the server finishes mapping, then requires confirmation", () => {
+    const controls = { account: { authenticated: true, google_enabled: true, free_access: true }, ...props(), onUseRoom: vi.fn(), onLeaveRoom: vi.fn(), onCloseDrawer: vi.fn(), showMessage: vi.fn() };
+    const { rerender } = render(<ControlsPanel {...controls} roomState={{ ...state, research_planning_status: "none", research_plan: null }} />);
+    for (const status of ["none", "planning", "failed"] as const) {
+      rerender(<ControlsPanel {...controls} roomState={{ ...state, research_planning_status: status }} />);
+      expect(screen.queryByRole("button", { name: /Start defense/ })).toBeNull();
+    }
+    rerender(<ControlsPanel {...controls} />);
+    expect(screen.getByRole("button", { name: /Start defense/ })).toBeDisabled();
+    rerender(<ControlsPanel {...controls} roomState={{ ...state, research_plan_approved: true }} />);
+    expect(screen.getByRole("button", { name: /Start defense/ })).not.toBeDisabled();
+  });
+
+  it("shows server-streamed drafts and grounded references, clearing them on failure", () => {
+    const topic = researchPlanPreview.topics[0];
+    const planning = { ...state, research_planning_status: "planning" as const, research_plan: null,
+      research_plan_progress: { stage: "mapping" as const, topics: [topic] } };
+    const { rerender } = render(<ResearchPlanPanel {...props()} roomState={planning} />);
+    expect(screen.getByRole("status")).toHaveTextContent("1 draft topic received");
+    expect(screen.getByRole("list", { name: "Draft research topics" })).toHaveTextContent(topic.title);
+    expect(screen.getByText(topic.references[0].evidence_text)).toBeTruthy();
+    rerender(<ResearchPlanPanel {...props()} roomState={{ ...planning, research_plan_progress: { stage: "validating", topics: [topic] } }} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Checking the complete map");
+    rerender(<ResearchPlanPanel {...props()} roomState={{ ...planning, research_planning_status: "failed", research_plan_progress: null }} />);
+    expect(screen.queryByRole("list", { name: "Draft research topics" })).toBeNull();
+    expect(screen.getByRole("alert")).toHaveTextContent("Your uploads are retained");
   });
 
   it("preserves indentation and scrollable code references in mixed topics", () => {

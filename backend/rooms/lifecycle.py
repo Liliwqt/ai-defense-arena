@@ -138,6 +138,7 @@ async def handle_lifecycle(owner: "RoomCoordinator", actor: VerifiedActor, comma
             owner._retire_work()
             if room.research_planning_status == "planning":
                 room.research_planning_status = "none"
+                room.research_plan_progress = None
                 room.research_plan_error = None
             room.defense = None
             room.defense_view_id = secrets.token_hex(12)

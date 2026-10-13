@@ -247,7 +247,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .room-create-progress-fill { display: block; height: 100%; border-radius: inherit; background: var(--ink); transition: width .15s linear; }
 .room-create-progress-fill.is-indeterminate { width: 40%; animation: room-create-loading 1.5s ease-in-out infinite; }
 @keyframes room-create-loading { from { transform: translateX(-110%); } to { transform: translateX(350%); } }
-@media (prefers-reduced-motion: reduce) { .room-create-progress-fill { animation: none; transition: none; } .room-create-progress-fill.is-indeterminate { transform: translateX(75%); } }
+@media (prefers-reduced-motion: reduce) { .room-create-progress-fill, .room-create-progress-fill.is-indeterminate { animation: none; transition: none; } .room-create-progress-fill.is-indeterminate { transform: translateX(75%); } }
 .setup-input { width: 100%; min-width: 0; padding: 10px 13px; border: 1px solid transparent; border-radius: 12px; background: var(--base-deep); color: var(--ink); box-shadow: var(--press-sm); font-size: .84rem; }
 .setup-input::placeholder { color: var(--subtle); }
 .setup-input[type="file"] { font-size: .76rem; line-height: 1.3; }
@@ -412,3 +412,19 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .account-orders li { display: grid; gap: 4px; }
 .account-orders small { overflow-wrap: anywhere; }
 .account-message { padding: 10px; border: 1px solid currentColor; border-radius: 8px; }
+
+/* Live paper mapping uses server stages and completed, grounded draft topics. */
+#question-text.mapping-intro { font-size: .9rem; font-weight: 500; line-height: 1.5; }
+.mapping-stages { display: grid; gap: 8px; padding: 0; list-style: none; font-size: .8rem; }
+.mapping-stages li { display: flex; gap: 8px; align-items: baseline; color: var(--muted); }
+.mapping-stages li[aria-current="step"] { color: var(--ink); font-weight: 750; }
+.mapping-step-status { margin-left: auto; white-space: nowrap; font-size: .72rem; }
+.mapping-topics { display: grid; gap: 10px; padding: 0; list-style: none; }
+.mapping-topics > li { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--base); overflow-wrap: anywhere; }
+.mapping-topic-heading { display: flex; justify-content: space-between; gap: 10px; }
+.mapping-topic-heading > span { flex-shrink: 0; color: var(--muted); font-size: .7rem; }
+.paper-mapping-progress .mapping-reviewer { color: var(--muted); font-size: .75rem; }
+.mapping-topics p, .mapping-topics summary { font-size: .8rem; line-height: 1.5; }
+.mapping-topics summary { cursor: pointer; }
+.mapping-reference { margin-top: 10px; font-size: .75rem; }
+.mapping-reference pre { max-width: 100%; overflow-x: auto; margin-top: 6px; padding: 8px; background: var(--base-deep); font-size: .75rem; }
