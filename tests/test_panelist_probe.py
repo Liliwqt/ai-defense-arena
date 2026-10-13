@@ -378,7 +378,7 @@ class ProbeProtocolTests(unittest.TestCase):
                     while True:
                         state=hs.receive_json()
                         if state['type']=='snapshot' and state['state']['research_planning_status']=='ready': break
-                    hs.send_json({'type':'approve_research_plan','plan_id':planned.id,'question_budget':4})
+                    hs.send_json({'type':'approve_research_plan','plan_id':planned.id,'question_budget':4, 'confirm_profile': True})
                     hs.send_json({'type':'start','plan_id':planned.id,'question_budget':4})
                     for i in range(4):
                         for ws in (hs,gs): self.receive_phase(ws,'question')
@@ -419,7 +419,8 @@ class ProbeStreamlitTests(unittest.TestCase):
             app.file_uploader[0].set_value([('paper.md',PAPER.encode(),'text/markdown')]).run()
             next(b for b in app.button if b.label=='Prepare defense').click().run()
             app.number_input[0].set_value(12).run()
-            next(b for b in app.button if b.label=='Confirm question budget').click().run()
+            next(box for box in app.checkbox if box.label=='I reviewed the research profile').check().run()
+            next(b for b in app.button if b.label=='Confirm profile and budget').click().run()
             next(b for b in app.button if b.label=='Start defense').click().run()
             app.text_area[0].set_value('Randomly.').run()
             next(b for b in app.button if b.label=='Send to panelist').click().run()
@@ -446,7 +447,8 @@ class ProbeStreamlitTests(unittest.TestCase):
             app.file_uploader[0].set_value([('paper.md',PAPER.encode(),'text/markdown')]).run()
             next(b for b in app.button if b.label=='Prepare defense').click().run()
             app.number_input[0].set_value(12).run()
-            next(b for b in app.button if b.label=='Confirm question budget').click().run()
+            next(box for box in app.checkbox if box.label=='I reviewed the research profile').check().run()
+            next(b for b in app.button if b.label=='Confirm profile and budget').click().run()
             next(b for b in app.button if b.label=='Start defense').click().run()
             app.text_area[0].set_value('Randomly.').run()
             next(b for b in app.button if b.label=='Send to panelist').click().run()

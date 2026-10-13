@@ -327,7 +327,7 @@ export function ControlsPanel({
               {phase === "lobby" && (!roomState?.defense_type || roomState.defense_type === "code" || (roomState.research_planning_status === "ready" && roomState.research_plan)) && (
                 <button
                   type="button"
-                  disabled={!connected || !canRun || budgetDirty || (!!roomState?.defense_type && roomState.defense_type !== "code" && (!roomState.research_plan_approved || !roomState.research_plan || roomState.research_planning_status !== "ready"))}
+                  disabled={!connected || !canRun || budgetDirty || (!!roomState?.defense_type && roomState.defense_type !== "code" && (!roomState.research_plan_approved || !roomState.research_plan?.profile || roomState.research_planning_status !== "ready"))}
                   onClick={handleStart}
                   className={primaryBtn}
                 >

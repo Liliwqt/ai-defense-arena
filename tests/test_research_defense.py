@@ -1,3 +1,4 @@
+from tests.research_profile_fixtures import research_profile
 from backend.rooms.commands import CatchUpDeadline
 from backend.rooms import coaching as coaching_workflow
 from backend.timed_turn import VOTE_MS, ANSWER_MS
@@ -325,7 +326,7 @@ class ResearchTwoClientTests(unittest.TestCase):
         paper = next(file for file in room.files if file.kind.startswith('research'))
         ref = GroundedCitation(paper.name, 1, paper.content.splitlines()[0], paper.location_for(1), paper.kind)
         plan = ResearchPlan(tuple(ResearchTopic(f'topic-{i + 1}', f'Topic {i + 1}', 'Discuss the pilot.', role, (ref,))
-                                  for i, role in enumerate(RESEARCH_PANELISTS)))
+                                  for i, role in enumerate(RESEARCH_PANELISTS)), profile=research_profile(ref))
         room.research_plan, room.research_planning_status = plan, 'ready'
         room.research_plan_approved, room.research_budget_preview = True, budget
         return {'type': 'start', 'plan_id': plan.id, 'question_budget': budget}

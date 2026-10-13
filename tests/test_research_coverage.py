@@ -25,15 +25,17 @@ from backend.question_generator import (RESEARCH_PANELISTS, ResearchMove, Resear
     GroundedQuestion, GroundedCitation, QuestionGenerationError, generate_research_move,
     generate_coaching_report, CoachingDraft, CoachingPoint, CoachingReport, SubmissionDecision, AnsweredQuestion, ProbeRequest)
 from backend.research_plan import ResearchPlan, ResearchTopic
+from tests.research_profile_fixtures import research_profile
 
 PAPER = '\n'.join(f'Section {i}: The proposal will examine campus queue pilot decision {i}.' for i in range(1, 13))
 FILES = [ProjectFile('paper.md', PAPER, 'research_text')]
 
 
 def plan(count=12):
-    return ResearchPlan(tuple(ResearchTopic(f'topic-{i+1}', f'Pilot decision {i+1}', 'Explain the stated pilot decision and its evidence.',
+    topics = tuple(ResearchTopic(f'topic-{i+1}', f'Pilot decision {i+1}', 'Explain the stated pilot decision and its evidence.',
         RESEARCH_PANELISTS[i % 4], (GroundedCitation('paper.md', i+1, PAPER.splitlines()[i], f'Line {i+1}', 'research_text'),))
-        for i in range(count)))
+        for i in range(count))
+    return ResearchPlan(topics, profile=research_profile(topics[0].references[0]))
 
 
 class Client:
@@ -276,7 +278,7 @@ class CoveragePolicyTests(unittest.TestCase):
         # A mixed paper can assign its first topic to Critical rather than
         # Methodology. The model must choose an allowed Methodology topic.
         prepared = plan(4)
-        prepared = ResearchPlan((prepared.topics[3], *prepared.topics[:3]))
+        prepared = ResearchPlan((prepared.topics[3], *prepared.topics[:3]), profile=prepared.profile)
         session = ResearchDefenseSession.create(prepared, 12, 'mixed', 'proposal')
         client = Client(proposal(session.context(), []))
         generate_research_move(FILES, 'offline-key', history=[], context=session.context(), client=client)
@@ -376,7 +378,7 @@ class CoverageRoomTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(self.events[-1]['type'], 'error')
             self.assertEqual(self.room.phase, 'lobby')
         self.room.research_plan, self.room.research_planning_status = plan(), 'ready'
-        await game_server._handle_action(self.room, self.host, self.socket, {'type':'approve_research_plan', 'plan_id':self.room.research_plan.id, 'question_budget':12})
+        await game_server._handle_action(self.room, self.host, self.socket, {'type':'approve_research_plan', 'plan_id':self.room.research_plan.id, 'question_budget':12, 'confirm_profile': True})
         for budget in (None, True, 20):
             await game_server._handle_action(self.room, self.host, self.socket, {'type':'start', 'plan_id':self.room.research_plan.id, 'question_budget':budget})
             self.assertEqual(self.events[-1]['type'], 'error')
@@ -502,10 +504,11 @@ class CoverageProtocolTests(unittest.TestCase):
                 guest=self.client.post(f'/api/rooms/{code}/join',json={'name':'Sam'}).json()
                 p=plan()
                 if pdf:
-                    p=ResearchPlan(tuple(ResearchTopic(topic.id, topic.title, topic.objective, topic.panelist,
+                    topics=tuple(ResearchTopic(topic.id, topic.title, topic.objective, topic.panelist,
                         tuple(GroundedCitation(filename, ref.evidence_line, ref.evidence_text,
                             f'Page {ref.evidence_line} · extracted line 1', 'research_pdf') for ref in topic.references))
-                        for topic in p.topics))
+                        for topic in p.topics)
+                    p=ResearchPlan(topics, profile=research_profile(topics[0].references[0]))
                 failed=False
                 def generate(files,key,*,history,context,**kwargs):
                     nonlocal failed
@@ -541,7 +544,7 @@ class CoverageProtocolTests(unittest.TestCase):
                         g.send_json({'type':'hello','token':guest['player_token']});self.until(g,'lobby')
                         h.send_json({'type':'prepare_research_plan'})
                         for ws in (h,g):self.until(ws,research_planning_status='ready')
-                        h.send_json({'type':'approve_research_plan','plan_id':p.id,'question_budget':12})
+                        h.send_json({'type':'approve_research_plan','plan_id':p.id,'question_budget':12, 'confirm_profile': True})
                         for ws in (h,g):self.until(ws,research_plan_approved=True)
                         h.send_json({'type':'start','plan_id':p.id,'question_budget':12})
                         for index in range(12):
@@ -628,7 +631,8 @@ class CoverageStreamlitTests(unittest.TestCase):
             self.assertTrue(next(b for b in app.button if b.label=='Start defense').disabled)
             next(b for b in app.button if b.label=='Prepare defense').click().run()
             app.number_input[0].set_value(12).run()
-            next(b for b in app.button if b.label=='Confirm question budget').click().run()
+            next(box for box in app.checkbox if box.label=='I reviewed the research profile').check().run()
+            next(b for b in app.button if b.label=='Confirm profile and budget').click().run()
             next(b for b in app.button if b.label=='Start defense').click().run()
             for i in range(12):
                 self.assertFalse(app.exception)
@@ -702,7 +706,8 @@ class CoverageStreamlitRetryTests(unittest.TestCase):
             app.selectbox[0].select('Research paper').run()
             app.file_uploader[0].set_value([('paper.md',PAPER.encode(),'text/markdown')]).run()
             next(b for b in app.button if b.label=='Prepare defense').click().run()
-            next(b for b in app.button if b.label=='Confirm question budget').click().run()
+            next(box for box in app.checkbox if box.label=='I reviewed the research profile').check().run()
+            next(b for b in app.button if b.label=='Confirm profile and budget').click().run()
             next(b for b in app.button if b.label=='Start defense').click().run()
             self.assertFalse(app.exception)
             next(b for b in app.button if b.label=='Retry next question').click().run()

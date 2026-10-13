@@ -45,7 +45,7 @@ describe("Research coverage room",()=>{
    const {rerender}=render(<ControlsPanel {...controls} roomState={ready}/>);
    fireEvent.change(screen.getByLabelText("Question budget"),{target:{value:"20"}});
    expect((screen.getByRole("button",{name:/Start defense/}) as HTMLButtonElement).disabled).toBe(true);
-   fireEvent.click(screen.getByRole("button",{name:"Confirm question budget"}));
+   fireEvent.click(screen.getByRole("button",{name:"Confirm profile and budget"}));
    expect((screen.getByRole("button",{name:/Start defense/}) as HTMLButtonElement).disabled).toBe(true);
    rerender(<ControlsPanel {...controls} roomState={{...ready,research_budget_preview:20}}/>);
    expect((screen.getByRole("button",{name:/Start defense/}) as HTMLButtonElement).disabled).toBe(false);

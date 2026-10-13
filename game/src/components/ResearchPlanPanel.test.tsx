@@ -15,6 +15,26 @@ const state: RoomState = {
 function props() { return { roomState: state, connected: true, previewMode: false, onSendEvent: vi.fn(() => true) }; }
 
 describe("ResearchPlanPanel", () => {
+  it("requires profile review and uncertainty acknowledgment before confirming the map", () => {
+    const p = props();
+    const profile = { fields: ["Education"], approaches: ["unclear" as const], setting: null,
+      explanation: "The paper proposes interviews but leaves analysis unclear.",
+      references: [researchPlanPreview.topics[0].references[0]],
+      uncertainties: ["Analysis is not specified."], needs_uncertainty_acknowledgment: true };
+    render(<ResearchPlanPanel {...p} roomState={{ ...state,
+      research_plan: { ...researchPlanPreview, profile } }} />);
+    expect(screen.getByText(profile.explanation)).toBeTruthy();
+    const confirm = screen.getByRole("button", { name: "Confirm profile and budget" });
+    expect(confirm).toBeDisabled();
+    fireEvent.click(screen.getByLabelText("I reviewed the research profile"));
+    expect(confirm).toBeDisabled();
+    fireEvent.click(screen.getByLabelText("I understand the profile has unclear information"));
+    fireEvent.click(confirm);
+    expect(p.onSendEvent).toHaveBeenCalledWith({ type: "approve_research_plan", plan_id: researchPlanPreview.id,
+      question_budget: 14, confirm_profile: true, acknowledge_uncertainty: true });
+    expect(screen.queryByText("Profile confirmed by host")).toBeNull();
+  });
+
   it("shows ordered topics, role names, uncertainties and exact citations", () => {
     render(<ResearchPlanPanel {...props()} />);
     expect(screen.getByText("7 proposed topics")).toBeTruthy();
@@ -32,14 +52,17 @@ describe("ResearchPlanPanel", () => {
     render(<ResearchPlanPanel {...p} />);
     fireEvent.change(screen.getByLabelText("Question budget"), { target: { value: "4" } });
     expect(screen.getByText(/smaller than the topic count/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Confirm question budget" }));
-    expect(p.onSendEvent).toHaveBeenCalledWith({ type: "approve_research_plan", plan_id: researchPlanPreview.id, question_budget: 4 });
+    fireEvent.click(screen.getByLabelText("I reviewed the research profile"));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm profile and budget" }));
+    expect(p.onSendEvent).toHaveBeenCalledWith({ type: "approve_research_plan", plan_id: researchPlanPreview.id,
+      question_budget: 4, confirm_profile: true, acknowledge_uncertainty: false });
   });
 
   it("does not claim confirmation until a server snapshot acknowledges it", () => {
     const p = props();
     const { rerender } = render(<ResearchPlanPanel {...p} />);
-    fireEvent.click(screen.getByRole("button", { name: "Confirm question budget" }));
+    fireEvent.click(screen.getByLabelText("I reviewed the research profile"));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm profile and budget" }));
     expect(screen.queryByText(/Maximum confirmed:/)).toBeNull();
     rerender(<ResearchPlanPanel {...p} roomState={{ ...state, research_plan_approved: true }} />);
     expect(screen.getByText(/Maximum confirmed: 14/)).toBeTruthy();
@@ -51,14 +74,14 @@ describe("ResearchPlanPanel", () => {
     render(<ResearchPlanPanel {...props()} roomState={{ ...state, self_is_host: false, research_plan_approved: true }} />);
     expect(screen.getByText("Purpose and research gap")).toBeTruthy();
     expect(screen.queryByRole("spinbutton")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Confirm question budget" })).toBeNull();
-    expect(screen.getByText(/confirmed by host/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Confirm profile and budget" })).toBeNull();
+    expect(screen.getByText("Profile confirmed by host")).toBeTruthy();
   });
 
   it("makes disconnected and visual-preview host controls read-only", () => {
     const p = props();
     const { rerender } = render(<ResearchPlanPanel {...p} connected={false} />);
-    expect((screen.getByRole("button", { name: "Confirm question budget" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Confirm profile and budget" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.queryByRole("button", { name: "Prepare map again" })).toBeNull();
     rerender(<ResearchPlanPanel {...p} previewMode />);
     expect((screen.getByRole("spinbutton") as HTMLInputElement).disabled).toBe(true);
@@ -67,9 +90,11 @@ describe("ResearchPlanPanel", () => {
   it("resets a draft when the host receives a different map", () => {
     const p = props();
     const { rerender } = render(<ResearchPlanPanel {...p} />);
+    fireEvent.click(screen.getByLabelText("I reviewed the research profile"));
     fireEvent.change(screen.getByLabelText("Question budget"), { target: { value: "22" } });
     rerender(<ResearchPlanPanel {...p} roomState={{ ...state, research_plan: { ...researchPlanPreview, id: "new-map", suggested_budget: 18 }, research_budget_preview: 18 }} />);
     expect((screen.getByRole("spinbutton") as HTMLInputElement).value).toBe("18");
+    expect(screen.getByLabelText("I reviewed the research profile")).not.toBeChecked();
   });
 
   it("prepares and retries independently of starting the defense", () => {
@@ -95,6 +120,17 @@ describe("ResearchPlanPanel", () => {
     expect(screen.queryByRole("progressbar", { name: "Paper mapping progress" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Start defense/ }));
     expect(p.onSendEvent).toHaveBeenCalledWith({ type: "start", confirm_cost: true, plan_id: researchPlanPreview.id, question_budget: 14 });
+  });
+
+  it("requires remapping a legacy profile-less plan before start", () => {
+    const p = props();
+    const controls = { account: { authenticated: true, google_enabled: true, free_access: true }, ...p,
+      onUseRoom: vi.fn(), onLeaveRoom: vi.fn(), onCloseDrawer: vi.fn(), showMessage: vi.fn() };
+    render(<ControlsPanel {...controls} roomState={{ ...state, research_plan_approved: true,
+      research_plan: { ...researchPlanPreview, profile: null } }} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Prepare a new research map");
+    expect(screen.getByRole("button", { name: /Start defense/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Confirm profile and budget" })).toBeDisabled();
   });
 
   it("hides research Start until the server finishes mapping, then requires confirmation", () => {

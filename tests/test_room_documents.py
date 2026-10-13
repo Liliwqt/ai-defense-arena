@@ -1,3 +1,4 @@
+from tests.research_profile_fixtures import research_profile
 """Original PDF access through authenticated room HTTP/WebSocket boundaries."""
 
 import os
@@ -154,7 +155,7 @@ class RoomDocumentTests(unittest.TestCase):
         room = server.rooms[host['room_code']]
         account_store.redeem_voucher(self.account['id'], os.environ['FREE_ACCESS_VOUCHER'])
         reference = GroundedCitation('paper.pdf',1,'Planned interviews','Page 1 · extracted line 1','research_pdf')
-        plan = ResearchPlan(tuple(ResearchTopic(f'topic-{i}', 'Pilot method', 'Discuss the method.', role, (reference,)) for i,role in enumerate(RESEARCH_PANELISTS)))
+        plan = ResearchPlan(tuple(ResearchTopic(f'topic-{i}', 'Pilot method', 'Discuss the method.', role, (reference,)) for i,role in enumerate(RESEARCH_PANELISTS)), profile=research_profile(reference))
         room.research_plan = plan; room.research_plan_approved = True; room.research_budget_preview = 8
         room.defense = ResearchDefenseSession.create(plan,8,'research','proposal'); room.phase = 'complete'
         old_view = room.defense_view_id

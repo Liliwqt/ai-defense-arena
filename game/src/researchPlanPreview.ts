@@ -4,6 +4,14 @@ import type { ResearchPlan } from "./types";
 export const researchPlanPreview: ResearchPlan = {
   id: "synthetic-plan-preview",
   suggested_budget: 14,
+  profile: {
+    fields: ["Education", "Software engineering"], approaches: ["quantitative", "computational/design"],
+    setting: "University registrar", explanation: "The proposal evaluates a campus queue prototype using waiting times.",
+    references: [{ filename: "campus-queue-proposal.pdf", evidence_line: 3,
+      evidence_text: "We will compare wait times for reservation users and walk-in students.",
+      evidence_location: "Page 3 · extracted line 1", evidence_kind: "research_pdf" }],
+    uncertainties: [], needs_uncertainty_acknowledgment: false,
+  },
   uncertainties: ["The proposal does not specify the pilot sample size. No completed-study results are reported."],
   topics: [
     ["Purpose and research gap", "Discuss the registrar workflow and the evidence needed to establish the waiting-time problem.", "Impact Reviewer", "Students report long waits when requesting registrar services."],

@@ -3,6 +3,7 @@ import type { RoomState } from "../types";
 import { isResearchCitation } from "../lib/citation";
 import { PageCitation } from "./PageCitation";
 import { PaperMappingProgress } from "./PaperMappingProgress";
+import { ResearchProfileReview } from "./ResearchProfileReview";
 
 interface Props {
   roomState: RoomState;
@@ -20,7 +21,14 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState("");
   const [pendingBudget, setPendingBudget] = useState<number | null>(null);
+  const [reviewedProfile, setReviewedProfile] = useState(false);
+  const [acknowledgedUncertainty, setAcknowledgedUncertainty] = useState(false);
   const editable = state.self_is_host && state.phase === "lobby" && connected && !previewMode;
+
+  useEffect(() => {
+    setReviewedProfile(Boolean(state.research_plan_approved && plan?.profile));
+    setAcknowledgedUncertainty(Boolean(state.research_plan_approved && plan?.profile));
+  }, [plan?.id, state.research_plan_approved]);
 
   useEffect(() => {
     setBudget(String(state.research_budget_preview ?? plan?.suggested_budget ?? ""));
@@ -40,7 +48,11 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
     if (!Number.isInteger(value) || value < 4 || value > 100) {
       setError("Choose a whole-number question budget from 4 to 100."); return;
     }
-    if (onSendEvent({ type: "approve_research_plan", plan_id: plan?.id, question_budget: value })) {
+    if (!plan?.profile || !reviewedProfile || (plan.profile.needs_uncertainty_acknowledgment && !acknowledgedUncertainty)) {
+      setError("Review the research profile and acknowledge any unclear information before confirming."); return;
+    }
+    if (onSendEvent({ type: "approve_research_plan", plan_id: plan.id, question_budget: value,
+                      confirm_profile: true, acknowledge_uncertainty: acknowledgedUncertainty })) {
       setError(""); setPendingBudget(value);
     }
   }
@@ -59,6 +71,8 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
       {status === "failed" ? "Retry research map" : plan ? "Prepare map again" : "Prepare defense"}
     </button>}
     {plan && <>
+      {plan.profile ? <ResearchProfileReview profile={plan.profile} confirmed={Boolean(state.research_plan_approved)} />
+        : <p role="alert" className="drawer-error">Prepare a new research map to review and confirm its research profile.</p>}
       {state.completion_reason && <p role="status">Ending reason: {state.completion_reason}</p>}
       {state.coverage && <p className="plan-summary">{addressed} of {plan.topics.length} topics addressed</p>}
       <p className="plan-summary"><strong>{plan.topics.length} proposed topics</strong> · suggested maximum {plan.suggested_budget} questions</p>
@@ -90,7 +104,16 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
         </label>
         <p className="control-help">4–100 questions. The defense stops at this maximum or when all topics are addressed after every reviewer has spoken.</p>
         {Number(budget) > 0 && Number(budget) < plan.topics.length && <p className="plan-warning" role="status">This limit is smaller than the topic count. Some topics may remain unexplored.</p>}
-        <button type="submit" className="button-primary" disabled={!editable}>Confirm question budget</button>
+        {plan.profile && <>
+          <label className="profile-confirmation"><input type="checkbox" checked={reviewedProfile} disabled={!editable}
+            onChange={event => setReviewedProfile(event.target.checked)} />I reviewed the research profile</label>
+          {plan.profile.needs_uncertainty_acknowledgment && <label className="profile-confirmation">
+            <input type="checkbox" checked={acknowledgedUncertainty} disabled={!editable}
+              onChange={event => setAcknowledgedUncertainty(event.target.checked)} />I understand the profile has unclear information
+          </label>}
+        </>}
+        <button type="submit" className="button-primary" disabled={!editable || !plan.profile || !reviewedProfile ||
+          (plan.profile.needs_uncertainty_acknowledgment && !acknowledgedUncertainty)}>Confirm profile and budget</button>
         {state.research_plan_approved && !dirty && <p role="status">Maximum confirmed: {state.research_budget_preview} questions.</p>}
         {error && <p role="alert" className="drawer-error">{error}</p>}
       </form> : <p className="control-help">Maximum questions: {state.research_budget_preview ?? plan.suggested_budget} questions · {state.research_plan_approved ? "confirmed by host" : "awaiting host confirmation"}.</p>}

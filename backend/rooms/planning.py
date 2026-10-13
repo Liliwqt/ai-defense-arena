@@ -143,6 +143,13 @@ async def handle_plan_command(owner: "RoomCoordinator", actor: VerifiedActor, co
                     return CommandResult(False, "Prepare a research map before confirming its question budget.")
                 if command.plan_id != room.research_plan.id:
                     return CommandResult(False, "The research map changed. Review the current map before confirming.")
+                profile = room.research_plan.profile
+                if profile is None:
+                    return CommandResult(False, "Prepare a new research map with a research profile before confirming.")
+                if not command.confirm_profile:
+                    return CommandResult(False, "Review and explicitly confirm the research profile before starting.")
+                if profile.needs_uncertainty_acknowledgment and not command.acknowledge_uncertainty:
+                    return CommandResult(False, "Acknowledge the unclear research profile before confirming.")
                 room.research_budget_preview = validate_question_budget(command.question_budget)
                 room.activity_ms = owner._workflows.now()
                 room.research_plan_approved = True

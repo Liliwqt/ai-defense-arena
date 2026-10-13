@@ -41,6 +41,10 @@ An exact excerpt from accepted uploaded material with its validated location. It
 **Research coverage**:
 The discussion status of substantive topics identified in the research map. An addressed topic is sufficiently discussed, not proven correct.
 
+**Research profile**:
+A description of the research subject and approach, suggested from the uploaded material and confirmed or corrected by the host to guide the reviewers' perspectives. It does not establish examiner expertise or certify the study's correctness.
+_Avoid_: Reviewer credentials, research stage, research coverage.
+
 ### Sandbox access
 
 **Top-up**:

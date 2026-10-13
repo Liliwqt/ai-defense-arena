@@ -287,9 +287,9 @@ class PlanningCoachingCoordinationTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.wait_for(ready.wait(), 1)
         self.assertEqual(coordinator.view(actor)["research_plan"], coordinator.view(teammate)["research_plan"])
         self.assertFalse((await coordinator.execute(decode_command({
-            "type": "approve_research_plan", "plan_id": "obsolete", "question_budget": 12}), actor)).accepted)
+            "type": "approve_research_plan", "plan_id": "obsolete", "question_budget": 12, "confirm_profile": True}), actor)).accepted)
         self.assertTrue((await coordinator.execute(decode_command({
-            "type": "approve_research_plan", "plan_id": plan.id, "question_budget": 12}), actor)).accepted)
+            "type": "approve_research_plan", "plan_id": plan.id, "question_budget": 12, "confirm_profile": True}), actor)).accepted)
         self.assertTrue(coordinator.view(actor)["research_plan_approved"])
         self.assertEqual(coordinator.view(actor)["research_budget_preview"], 12)
         self.assertEqual(coordinator.view(actor)["turns"], [])

@@ -386,6 +386,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .plan-source strong { display: block; padding: 8px; font-size: .7rem; overflow-wrap: anywhere; }
 .plan-source pre { padding: 10px; overflow-x: auto; font: .76rem/1.6 ui-monospace, monospace; white-space: pre; }
 .plan-budget-form { display: grid; gap: 8px; margin: 16px 0; }
+.research-profile-review { margin: 16px 0; padding: 14px; border-radius: 12px; background: var(--surface-alt); overflow-wrap: anywhere; }
+.research-profile-review h4 { margin: 0 0 8px; }
+.research-profile-facts { display: grid; gap: 8px; margin: 12px 0; }
+.research-profile-facts dt { font-weight: 700; }
+.research-profile-facts dd { margin: 3px 0 0; }
+.profile-confirmation { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
+.profile-confirmation input { width: 20px; height: 20px; flex-shrink: 0; accent-color: var(--ink); }
 .plan-warning { font-size: .8rem; font-weight: 750; border-left: 3px solid var(--ink); padding-left: 8px; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }
 

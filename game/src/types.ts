@@ -94,10 +94,21 @@ export interface SourceReference {
   evidence_after?: string;
 }
 
+export interface ResearchProfile {
+  fields: string[];
+  approaches: ("quantitative" | "qualitative" | "mixed-methods" | "theoretical" | "computational/design" | "other" | "unclear")[];
+  setting: string | null;
+  explanation: string;
+  references: SourceReference[];
+  uncertainties: string[];
+  needs_uncertainty_acknowledgment: boolean;
+}
+
 export interface ResearchPlan {
   id: string;
   suggested_budget: number;
   uncertainties: string[];
+  profile?: ResearchProfile | null;
   topics: { id: string; title: string; objective: string; panelist: string;
     references: SourceReference[]; gaps: string[] }[];
 }

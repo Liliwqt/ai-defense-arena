@@ -35,7 +35,10 @@ def draft():
         for index, (title, role, line) in enumerate(zip(
             ("Study design", "Participant safeguards", "Expected impact", "Limitations"),
             RESEARCH_PANELISTS, (4, 6, 8, 10)))],
-        "uncertainties": ["No completed results are stated in the proposal."]}
+        "uncertainties": ["No completed results are stated in the proposal."],
+        "profile": {"fields": ["Education"], "approaches": ["quantitative"],
+                    "setting": "University campus", "explanation": "The pilot compares students' wait times.",
+                    "references": [{"source_file": 1, "evidence_line": 1}], "uncertainties": []}}
 
 
 class FakeClient:
@@ -233,7 +236,8 @@ class ResearchPlanRoomTests(unittest.TestCase):
                     for action in ("prepare_research_plan", "retry_research_plan", "approve_research_plan"):
                         g.send_json({"type": action})
                         self.assertIn("Only the host", g.receive_json()["message"])
-                    h.send_json({"type": "approve_research_plan", "plan_id": self.plan.id, "question_budget": 20})
+                    h.send_json({"type": "approve_research_plan", "plan_id": self.plan.id,
+                                 "question_budget": 20, "confirm_profile": True})
                     for socket in (h, g):
                         state = self.until(socket, research_plan_approved=True)
                         self.assertEqual(state["research_budget_preview"], 20)
@@ -264,7 +268,7 @@ class ResearchPlanRoomTests(unittest.TestCase):
             h.send_json({"type": "retry_research_plan"})
             self.until(h, research_planning_status="ready")
             for plan_id, value in (("stale-plan", 8), (self.plan.id, True), (self.plan.id, 101)):
-                h.send_json({"type": "approve_research_plan", "plan_id": plan_id, "question_budget": value})
+                h.send_json({"type": "approve_research_plan", "plan_id": plan_id, "question_budget": value, "confirm_profile": True})
                 self.assertEqual(h.receive_json()["type"], "error")
             self.assertFalse(game_server.rooms[host["room_code"]].research_plan_approved)
             self.assertEqual(generator.call_count, 2)
@@ -346,7 +350,8 @@ class ResearchPlanStreamlitTests(unittest.TestCase):
             self.assertFalse(app.exception)
             self.assertEqual(app.session_state["research_plan"].id, plan.id)
             app.number_input[0].set_value(20).run()
-            next(b for b in app.button if b.label == "Confirm question budget").click().run()
+            next(box for box in app.checkbox if box.label == "I reviewed the research profile").check().run()
+            next(b for b in app.button if b.label == "Confirm profile and budget").click().run()
             self.assertTrue(app.session_state["research_plan_approved"])
             self.assertEqual(app.session_state["research_confirmed_budget"], 20)
             question_call.assert_not_called()

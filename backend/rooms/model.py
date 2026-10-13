@@ -71,6 +71,10 @@ class Room(TimedTurn):
     documents: RoomDocuments | None = field(default=None, repr=False, compare=False)
     defense_view_id: str = field(default_factory=lambda: secrets.token_hex(12))
 
+    @property
+    def has_confirmed_research_profile(self) -> bool:
+        return bool(self.research_plan and self.research_plan.profile and self.research_plan_approved)
+
     def online_players(self) -> dict[str, int]:
         return {player.token: player.seat for player in self.players.values() if player.sockets}
 

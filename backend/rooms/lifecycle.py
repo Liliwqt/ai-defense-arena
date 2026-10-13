@@ -65,12 +65,12 @@ async def handle_lifecycle(owner: "RoomCoordinator", actor: VerifiedActor, comma
         try:
             if player.is_host and isinstance(command, StartDefense) and room.phase == "lobby" and room.defense is None:
                 # Budget/map validation below must precede a reservation.
-                if room.defense_type == "code" or (room.research_plan and room.research_plan_approved
+                if room.defense_type == "code" or (room.has_confirmed_research_profile
                         and command.plan_id == room.research_plan.id
                         and type(command.question_budget) is int
                         and command.question_budget == room.research_budget_preview):
                     reserve_room_run(owner, actor.account_id, command.confirm_cost)
-            if player.is_host and isinstance(command, RestartDefense) and (room.defense_type == "code" or (room.research_plan and room.research_plan_approved)):
+            if player.is_host and isinstance(command, RestartDefense) and (room.defense_type == "code" or room.has_confirmed_research_profile):
                 reserve_room_run(owner, actor.account_id, command.confirm_cost)
             if player.is_host and isinstance(command, RetryQuestion) and room.phase == "retry" and (room.defense is None or not room.defense.turns):
                 reserve_room_run(owner, actor.account_id, True, retry=True)
@@ -84,11 +84,11 @@ async def handle_lifecycle(owner: "RoomCoordinator", actor: VerifiedActor, comma
             elif room.research_planning_status == "planning":
                 error = "Wait for the research map to finish before starting."
             elif room.defense_type != "code" and (
-                    room.research_plan is None or not room.research_plan_approved
+                    not room.has_confirmed_research_profile
                     or command.plan_id != room.research_plan.id
                     or type(command.question_budget) is not int
                     or command.question_budget != room.research_budget_preview):
-                error = "Prepare and confirm the current research map and question budget before starting."
+                error = "Prepare and confirm the current research profile, map and question budget before starting."
             else:
                 owner._retire_work()
                 if room.defense_type != "code":
@@ -154,7 +154,7 @@ async def handle_lifecycle(owner: "RoomCoordinator", actor: VerifiedActor, comma
             room.revision += 1
             generate_first = True
             if room.defense_type != "code":
-                if room.research_plan is not None and room.research_plan_approved:
+                if room.has_confirmed_research_profile:
                     room.defense = ResearchDefenseSession.create(room.research_plan, room.research_budget_preview,
                                                                  room.defense_type, room.research_stage)
                 else:

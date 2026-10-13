@@ -75,6 +75,8 @@ class PrepareResearchPlan:
 class ApproveResearchPlan:
     plan_id: object
     question_budget: object
+    confirm_profile: bool = False
+    acknowledge_uncertainty: bool = False
 
 
 @dataclass(frozen=True)
@@ -182,7 +184,9 @@ def decode_command(message: dict) -> Command:
     if action in {"prepare_research_plan", "retry_research_plan"}:
         return PrepareResearchPlan(retry=action == "retry_research_plan")
     if action == "approve_research_plan":
-        return ApproveResearchPlan(message.get("plan_id"), message.get("question_budget"))
+        return ApproveResearchPlan(message.get("plan_id"), message.get("question_budget"),
+                                   message.get("confirm_profile") is True,
+                                   message.get("acknowledge_uncertainty") is True)
     if action == "retry_coaching":
         return RetryCoaching()
     if action == "start":

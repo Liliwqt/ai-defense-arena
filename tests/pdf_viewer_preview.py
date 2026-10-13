@@ -20,7 +20,7 @@ from fastapi.responses import HTMLResponse
 from backend import game_server as server, account_store, accounts
 from backend.defense_session import ResearchDefenseSession
 from backend.question_generator import GroundedCitation, GroundedQuestion, ResearchMove, RESEARCH_PANELISTS
-from backend.research_plan import ResearchPlan, ResearchTopic
+from backend.research_plan import ResearchPlan, ResearchTopic, ResearchProfile
 from backend.research_files import read_research_files
 from backend.rooms.coordinator import RoomCoordinator, RoomWorkflows
 
@@ -116,9 +116,14 @@ def preview_app():
         citation_line = files[0].content.splitlines().index('Planned interviews with student volunteers') + 1
         documents = server.app.state.documents.reserve(uploads)
         documents.stage(files, uploads)
-        plan = ResearchPlan(tuple(ResearchTopic(f'topic-{i}', f'Pilot decision {i}', 'Explain this proposed decision.', role,
+        topics = tuple(ResearchTopic(f'topic-{i}', f'Pilot decision {i}', 'Explain this proposed decision.', role,
             (GroundedCitation(files[0].name, citation_line, files[0].content.splitlines()[citation_line-1], files[0].locations[citation_line-1], 'research_pdf'),))
-            for i, role in enumerate(RESEARCH_PANELISTS, 1)))
+            for i, role in enumerate(RESEARCH_PANELISTS, 1))
+        profile = ResearchProfile(("Human-computer interaction", "Education"),
+            ("qualitative", "computational/design"), "One campus service",
+            "The proposal combines volunteer interviews and exploratory prototype tasks.",
+            topics[0].references, ("Recruitment coverage remains to be explained.",))
+        plan = ResearchPlan(topics, profile=profile)
         defense = ResearchDefenseSession.create(plan, 12, 'research', 'proposal')
         repeated = request.query_params.get('case') == 'repeated'
         cited = files[1] if repeated else files[0]
