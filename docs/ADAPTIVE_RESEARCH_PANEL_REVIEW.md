@@ -1,7 +1,7 @@
-# Adaptive research panel — checkpoint 1 local review
+# Adaptive research panel — local implementation review
 
 Implemented locally on `feature/question-first-room`; review baseline `c498598`.
-Tickets 01–02 are implemented and independently reviewed locally. Shared subject-aware dialogue (03) and complete checkpoint-2 review (04) remain pending; user visual review is not implied.
+Tickets 01–03 are implemented and independently reviewed locally. Complete checkpoint-2 review (04) remains pending; user visual review is not implied.
 
 ## What changed
 
@@ -58,3 +58,18 @@ The preview uses a separate loopback-only server, disposable storage, synthetic 
 - [Saved input after synthetic mapping failure](../screenshots/adaptive-profile-correction-failure.png)
 - [Portrait host description and paper-based suggestion](../screenshots/adaptive-profile-correction-portrait.png)
 - [Landscape correction controls](../screenshots/adaptive-profile-correction-landscape.png)
+
+
+## Ticket 03 — consistent subject-aware conversations
+
+A shared research-panel boundary supplies topic-sensitive role guidance and profile serialization to the existing mapping, question, interpretation and coaching requests. Research and mixed submission interpretation captures detached scope and the current topic while holding the room lock. Streamlit forwards the same session context. Code-only requests remain unchanged; no classifier, evaluator, additional dialogue call, AI schema, timer, budget or financial rule was added.
+
+Methodology covers empirical, qualitative, theoretical and computational/design reasoning where relevant. Ethics does not assume human participants; Impact includes contributions to knowledge; Critical considers topic-specific theory, evidence and alternatives. Multiple approach labels do not establish mixed-methods design. Confirmed uncertainty and material host/source discrepancies invite grounded inquiry rather than invented methods or findings. Existing role voices, natural reactions, occasional scenarios, conditional advice, language continuity and same-question reply rules remain in force. Prompt instructions are not evidence of live answer quality.
+
+- Full working-tree gate: `.venv/bin/python -m unittest discover -v` passed **538 Python tests**, AI/Google/PayMongo mocked; `game` **275 React tests** and production build passed. Separate pending reasoning/local-access work accounts for eight additional Python tests.
+- Exact selected runtime/test artifact: isolated `.venv` unittest discovery passed **530 Python tests** with external providers mocked. The frontend source and lockfile are unchanged from the independently built checkpoint 1; its current React tests/build also pass.
+- Four new mocked test methods cover request contracts and qualitative, quantitative, theoretical, computational/design, unclear and interdisciplinary research/mixed contexts across proposal/completed/inferred stages. A two-client HTTP/WebSocket flow carries one fixed profile through clarification, an accepted answer, a same-question probe/reply, the next reaction/question, transcript and coaching, excluding private chat/account context. Streamlit AppTest mirrors that flow. Forty-eight existing conversation/clarification/probe tests passed separately.
+- A one-off provider-mocked comparison against **6737586** confirmed exact equality of seven code-only request payloads and response schemas: four role openings, next question, submission interpretation and coaching.
+- Independent Standards and Spec reviews of the isolated candidate against **c498598** report **0 actionable findings on either axis** for tickets 01–03. Reviewers performed static/read-only checks; the parent ran the suites above.
+
+Ticket 03 is ready-for-human. Ticket 04 remains pending for complete integrated defenses, responsive handoff and separate live conversation-quality evidence. No new UI screenshots or live/provider checks are claimed for this dialogue-only change; the checkpoint-1 screenshots above show profile controls, not generated conversation quality. No push or deployment; frozen main, the hosted service and unrelated pending files remain unchanged.

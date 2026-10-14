@@ -401,6 +401,8 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                                     clarifications=tuple(session.turns[-1].clarifications),
                                     history=session.answered_history(),
                                     model=model, defense_type=mode, research_stage=research_stage,
+                                    **({"research_context": {**session.context(), "current_topic": session.turns[-1].topic_id}}
+                                       if isinstance(session, ResearchDefenseSession) else {}),
                                     **({"probe": probe, "original_answer": session.turns[-1].answer} if probe else {}),
                                 )
                         except (QuestionGenerationError, OpenAIError, ValidationError) as error:

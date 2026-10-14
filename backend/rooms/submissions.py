@@ -15,6 +15,7 @@ from backend.question_generator import (
 )
 from backend.resource_limits import limit
 from backend.timed_turn import PendingSubmission, DeadlineExpired
+from backend.defense_session import ResearchDefenseSession
 from backend.rooms.commands import (
     CommandResult, VerifiedActor, SubmissionCommand, SubmitAnswer,
     SubmitDirectAnswer, SubmitProbeReply, FinishProbe, RetryInterpretation, UsePendingAnswer,
@@ -46,15 +47,20 @@ class InterpretationInput:
     probe: PanelistProbe | None
     original_answer: str | None
     original_speaker_name: str | None
+    research_context: dict | None = None
 
 
 def capture_interpretation(room: "Room", pending: PendingSubmission) -> InterpretationInput:
     """Capture under the room lock; mutable probe/history data is detached."""
     turn = room.defense.turns[pending.turn]
+    context = room.defense.context() if isinstance(room.defense, ResearchDefenseSession) else None
+    if context is not None:
+        context = copy.deepcopy(context)
+        context["current_topic"] = turn.topic_id
     return InterpretationInput(pending, tuple(room.files), turn.panelist, turn.question,
         tuple(turn.clarifications), tuple(copy.deepcopy(room.defense.answered_history())),
         room.defense_type, room.research_stage, copy.deepcopy(turn.probe) if pending.probe_id else None,
-        turn.answer, turn.speaker_name)
+        turn.answer, turn.speaker_name, context)
 
 
 InterpretationRequest = Callable[[InterpretationInput], Awaitable[SubmissionDecision]]
@@ -67,6 +73,7 @@ async def request_interpretation(request: InterpretationInput) -> SubmissionDeci
         clarifications=request.clarifications, history=request.history,
         model=os.getenv("OPENAI_MODEL") or DEFAULT_MODEL,
         defense_type=request.defense_type, research_stage=request.research_stage,
+        **({"research_context": request.research_context} if request.research_context else {}),
         **({"probe": request.probe, "original_answer": request.original_answer,
             "original_speaker_name": request.original_speaker_name,
             "speaker_name": request.pending.name} if request.probe else {}),
