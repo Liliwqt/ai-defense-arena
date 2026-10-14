@@ -5,7 +5,7 @@ Published: 2026-10-14
 Branch: `feature/question-first-room`
 Source: [confirmed plan](../../docs/ADAPTIVE_RESEARCH_PANEL_PLAN.md) and [discovery decisions](discovery.md).
 
-The local implementation and offline/responsive review are complete. Live empirical, theoretical and interdisciplinary samples are recorded; two resulting research prompt refinements await a post-restart live check. User review and publication readiness remain pending. All nine interview decisions and the consolidated scope were confirmed by the user. Publication here means publication to the local Markdown tracker, not GitHub or the hosted service.
+The local implementation and offline/responsive review are complete. Live empirical, theoretical and interdisciplinary samples are recorded; two resulting research prompt refinements passed a limited post-restart live check on 2026-10-15. User review and publication readiness remain pending. All nine interview decisions and the consolidated scope were confirmed by the user. Publication here means publication to the local Markdown tracker, not GitHub or the hosted service.
 
 ## Problem Statement
 
@@ -131,4 +131,4 @@ Existing financial ADRs concern payment verification, separate balances and run 
 
 The first checkpoint is profile/map review, not proof of adaptive dialogue quality. The second completes shared reviewer adaptation and integrated verification. Keep implemented, mocked, live and user-reviewed claims separate in both documentation and handoff notes.
 
-Next step: review the local feature and recheck the two research prompt wording refinements after restarting the configured local server. The initial empirical, theoretical and interdisciplinary live samples are recorded in docs/ADAPTIVE_RESEARCH_PANEL_LIVE_REVIEW.md. Evidence and previews are in [the review record](../../docs/ADAPTIVE_RESEARCH_PANEL_REVIEW.md). Publication requires a later user request. The source plan remains the decision record; this specification is the implementation contract. Any later material scope change must update both deliberately rather than silently changing the agreed behavior.
+Next step: user review of the local feature and language quality; the two research prompt wording refinements passed a limited post-restart live recheck on 2026-10-15. The initial empirical, theoretical and interdisciplinary live samples are recorded in docs/ADAPTIVE_RESEARCH_PANEL_LIVE_REVIEW.md. Evidence and previews are in [the review record](../../docs/ADAPTIVE_RESEARCH_PANEL_REVIEW.md). Publication requires a later user request. The source plan remains the decision record; this specification is the implementation contract. Any later material scope change must update both deliberately rather than silently changing the agreed behavior.

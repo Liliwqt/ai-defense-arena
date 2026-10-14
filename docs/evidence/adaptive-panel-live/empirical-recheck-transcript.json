@@ -1,0 +1,228 @@
+{
+  "case": "empirical-recheck",
+  "phase": "complete",
+  "profile": {
+    "fields": [
+      "Human-computer interaction",
+      "Usability evaluation",
+      "Interface design"
+    ],
+    "approaches": [
+      "quantitative"
+    ],
+    "setting": "A classroom task with adult student volunteers from one department at a campus; not a live service queue.",
+    "explanation": "The paper compares task completion times and interpretation errors across two status notices using descriptive paired observations. It reports a small pilot, not a population effect estimate or evidence about real queue duration.",
+    "references": [
+      {
+        "filename": "empirical.md",
+        "evidence_line": 4,
+        "evidence_text": "The study examined whether a queue-status prototype changed how quickly student volunteers could interpret a campus service status display in a classroom task. The study does not measure actual time spent in a live service queue.",
+        "evidence_location": "Line 4",
+        "evidence_kind": "research_text",
+        "evidence_before": "# Synthetic completed study: reading campus queue status\nThis document is synthetic and prepared only for local AI conversation review.\n## Aim and setting",
+        "evidence_after": "## Research question\nHow do task completion times and interpretation errors differ between a conventional status notice and the prototype in this pilot?\n## Design and recruitment"
+      },
+      {
+        "filename": "empirical.md",
+        "evidence_line": 8,
+        "evidence_text": "Twelve adult student volunteers from one department each completed both versions. Six saw the conventional notice first and six saw the prototype first. Recruitment was voluntary through the department announcement board; the sample was not randomly drawn from the entire university.",
+        "evidence_location": "Line 8",
+        "evidence_kind": "research_text",
+        "evidence_before": "## Research question\nHow do task completion times and interpretation errors differ between a conventional status notice and the prototype in this pilot?\n## Design and recruitment",
+        "evidence_after": "## Measures\nTask completion time ran from displaying the notice to the volunteer identifying both the queue status and its last update time. An interpretation error meant either value was identified incorrectly. The task content and observer instructions were held constant across versions.\n## Analysis and results"
+      },
+      {
+        "filename": "empirical.md",
+        "evidence_line": 10,
+        "evidence_text": "Task completion time ran from displaying the notice to the volunteer identifying both the queue status and its last update time. An interpretation error meant either value was identified incorrectly. The task content and observer instructions were held constant across versions.",
+        "evidence_location": "Line 10",
+        "evidence_kind": "research_text",
+        "evidence_before": "## Design and recruitment\nTwelve adult student volunteers from one department each completed both versions. Six saw the conventional notice first and six saw the prototype first. Recruitment was voluntary through the department announcement board; the sample was not randomly drawn from the entire university.\n## Measures",
+        "evidence_after": "## Analysis and results\nMedian task time was 72 seconds for the conventional notice and 58 seconds for the prototype. Four of twelve volunteers made an interpretation error with the conventional notice; two of twelve made an error with the prototype. The pilot reports descriptive paired observations and no significance test or population effect estimate.\n## Ethics and data handling"
+      },
+      {
+        "filename": "empirical.md",
+        "evidence_line": 12,
+        "evidence_text": "Median task time was 72 seconds for the conventional notice and 58 seconds for the prototype. Four of twelve volunteers made an interpretation error with the conventional notice; two of twelve made an error with the prototype. The pilot reports descriptive paired observations and no significance test or population effect estimate.",
+        "evidence_location": "Line 12",
+        "evidence_kind": "research_text",
+        "evidence_before": "## Measures\nTask completion time ran from displaying the notice to the volunteer identifying both the queue status and its last update time. An interpretation error meant either value was identified incorrectly. The task content and observer instructions were held constant across versions.\n## Analysis and results",
+        "evidence_after": "## Ethics and data handling\nVolunteers provided informed consent and could withdraw without losing access to the service. Timing sheets used participant codes, not student names. No service records or sensitive personal data were collected. The team plans to delete the raw timing sheets after the documented retention period of six months.\n## Contribution"
+      }
+    ],
+    "uncertainties": [],
+    "host_description": null,
+    "source_description": null,
+    "needs_uncertainty_acknowledgment": false
+  },
+  "topics": [
+    {
+      "id": "topic-1",
+      "title": "Aim, research question, and task setting",
+      "panelist": "Methodology Reviewer",
+      "gaps": []
+    },
+    {
+      "id": "topic-2",
+      "title": "Design, recruitment, and order",
+      "panelist": "Methodology Reviewer",
+      "gaps": []
+    },
+    {
+      "id": "topic-3",
+      "title": "Measures and task consistency",
+      "panelist": "Methodology Reviewer",
+      "gaps": []
+    },
+    {
+      "id": "topic-4",
+      "title": "Descriptive results and strength of evidence",
+      "panelist": "Methodology Reviewer",
+      "gaps": []
+    },
+    {
+      "id": "topic-5",
+      "title": "Consent, privacy, and retention",
+      "panelist": "Ethics Reviewer",
+      "gaps": [
+        "The paper says raw timing sheets are planned for deletion after six months but does not state whether that period has elapsed or deletion has occurred."
+      ]
+    },
+    {
+      "id": "topic-6",
+      "title": "Claimed contribution and practical reach",
+      "panelist": "Impact Reviewer",
+      "gaps": []
+    },
+    {
+      "id": "topic-7",
+      "title": "Limitations and scope of further evaluation",
+      "panelist": "Critical Judge",
+      "gaps": []
+    }
+  ],
+  "turns": [
+    {
+      "panelist": "Methodology Reviewer",
+      "lead_in": "",
+      "question": "How does keeping the study to interpreting a status display in a classroom task shape what your research question can claim about task time and interpretation errors?",
+      "filename": "empirical.md",
+      "evidence_line": 4,
+      "evidence_text": "The study examined whether a queue-status prototype changed how quickly student volunteers could interpret a campus service status display in a classroom task. The study does not measure actual time spent in a live service queue.",
+      "evidence_location": "Line 4",
+      "evidence_kind": "research_text",
+      "evidence_before": "# Synthetic completed study: reading campus queue status\nThis document is synthetic and prepared only for local AI conversation review.\n## Aim and setting",
+      "evidence_after": "## Research question\nHow do task completion times and interpretation errors differ between a conventional status notice and the prototype in this pilot?\n## Design and recruitment",
+      "clarifications": [
+        {
+          "request": "Explain the same question in modern Bisaya, please.",
+          "reply": "Ang pangutana nako kay: kay sa classroom ra ninyo gisulayan ang pagbasa sa status display, unsa ra nga mga claim ang angay himuon base sa oras sa pagtubag ug sayop sa pag-interpret? Dili ni pangutana bahin sa oras sa pagpila sa tinuod nga serbisyo."
+        }
+      ],
+      "answer": "Sa classroom, among gi-time gikan pagpakita sa notice hangtod ma-identify sa volunteer ang queue status ug last update time. Ang prototype adunay 58-second median kumpara sa 72 seconds sa conventional notice, pero task completion ra ni. Wala namo gisukod ang actual nga paghulat sa live queue, busa dili mi mo-claim nga mas mubo na ang real waiting time.",
+      "probe": null,
+      "resolved": true,
+      "timed_out": false,
+      "ended_early": false,
+      "topic_id": "topic-1",
+      "is_follow_up": false,
+      "assigned_seat": 0,
+      "answered_by": "Ari — live recheck",
+      "answered_by_seat": 0
+    },
+    {
+      "panelist": "Ethics Reviewer",
+      "lead_in": "Klaro ang inyong pag-ila nga task time dili pareho sa oras sa pagpila sa tinuod nga serbisyo.",
+      "question": "Nahitabo na ba ang unom ka bulan nga retention period, ug kung nahitabo na, natangtang na ba ang raw timing sheets?",
+      "filename": "empirical.md",
+      "evidence_line": 14,
+      "evidence_text": "Volunteers provided informed consent and could withdraw without losing access to the service. Timing sheets used participant codes, not student names. No service records or sensitive personal data were collected. The team plans to delete the raw timing sheets after the documented retention period of six months.",
+      "evidence_location": "Line 14",
+      "evidence_kind": "research_text",
+      "evidence_before": "## Analysis and results\nMedian task time was 72 seconds for the conventional notice and 58 seconds for the prototype. Four of twelve volunteers made an interpretation error with the conventional notice; two of twelve made an error with the prototype. The pilot reports descriptive paired observations and no significance test or population effect estimate.\n## Ethics and data handling",
+      "evidence_after": "## Contribution\nThe study identifies design questions about how users interpret freshness indicators. It contributes preliminary observations for refining interface guidance, not evidence of shorter real queues or a universal improvement.\n## Limitations",
+      "clarifications": [],
+      "answer": "Wala pa naabot ang six-month retention period, so plano pa ang deletion, dili pa completed. Ang among proposed process kay i-delete sa assigned researcher ang timing sheets ug backup copies, dayon maghimo og dated checklist nga adunay file category, deletion date, ug reviewer signature. Proposal sa process ra na sa among tubag; wala pa kana nga checklist sa uploaded paper.",
+      "probe": null,
+      "resolved": true,
+      "timed_out": false,
+      "ended_early": false,
+      "topic_id": "topic-5",
+      "is_follow_up": false,
+      "assigned_seat": 0,
+      "answered_by": "Ari — live recheck",
+      "answered_by_seat": 0
+    }
+  ],
+  "coverage": {
+    "topic-1": {
+      "status": "addressed",
+      "turns": [
+        0
+      ],
+      "reason": "Gipasabot sa tubag nga gisukod ang oras sa pag-ila sa status ug last update sa classroom task, ug dili ang aktuwal nga oras sa pagpila sa live queue."
+    },
+    "topic-2": {
+      "status": "pending",
+      "turns": [],
+      "reason": ""
+    },
+    "topic-3": {
+      "status": "pending",
+      "turns": [],
+      "reason": ""
+    },
+    "topic-4": {
+      "status": "pending",
+      "turns": [],
+      "reason": ""
+    },
+    "topic-5": {
+      "status": "discussed",
+      "turns": [
+        1
+      ],
+      "reason": ""
+    },
+    "topic-6": {
+      "status": "pending",
+      "turns": [],
+      "reason": ""
+    },
+    "topic-7": {
+      "status": "pending",
+      "turns": [],
+      "reason": ""
+    }
+  },
+  "completion_reason": "ended by host",
+  "feedback_status": "ready",
+  "feedback": {
+    "summary": "Maayo ninyong gilimitahan ang mga claim sa classroom task ug giklaro nga wala masukod ang aktuwal nga oras sa pagpila (empirical.md, Lines 4, 6). Natapos ang session kay gipahunong sa host human sa Q2; wala pa matuki ang Design, recruitment, and order; Measures and task consistency; Descriptive results and strength of evidence; Claimed contribution and practical reach; ug Limitations and scope of further evaluation.",
+    "strengths": [
+      {
+        "turn": 0,
+        "text": "Sa Q1, klaro ninyong giingon nga task completion time ra ang 58-second median kumpara sa 72 seconds, dili actual waiting time sa live queue. Sakto kini sa sakop nga giingon sa paper (empirical.md, Lines 4, 12)."
+      },
+      {
+        "turn": 1,
+        "text": "Sa Q2, klaro ninyong gilahi ang plano sa paper nga mag-delete human sa unom ka bulan gikan sa inyong gisugyot nga deletion checklist. Gisulti usab ninyo nga wala pa maabot ang retention period ug wala sa uploaded paper ang checklist (empirical.md, Line 14)."
+      }
+    ],
+    "improvements": [
+      {
+        "turn": 1,
+        "text": "Human sa Q2, gitapos sa host ang session, busa wala pa matuki ang nahibiling coverage topics. Andama ang mubo nga tubag bahin sa sample ug order, mga measure, limitasyon sa descriptive results, contribution, ug scope sa sunod nga evaluation."
+      }
+    ],
+    "next_step": "Sa dili pa ang defense, paghimo og usa ka pahina nga prep sheet para sa lima ka wala pa matuki nga topic title sa summary. Gamita ang eksaktong detalye sa empirical.md, labi na ang 12 ka volunteers, 4/12 ug 2/12 ka errors, walay significance test o population effect estimate, ug ang mga limitasyon sa Line 18."
+  },
+  "error": null,
+  "errors": [],
+  "started_at": 1791993883857,
+  "ended_at": 1791994018134,
+  "guest_turns_match": true,
+  "prompt_revision": "After 57a42ac research prompt refinements; user-confirmed local restart on 2026-10-15.",
+  "evidence_type": "Live AI responses with a synthetic source and scripted defender test answers; two WebSocket clients in one browser.",
+  "local_review_date": "2026-10-15"
+}

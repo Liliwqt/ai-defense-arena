@@ -1,7 +1,7 @@
 # Adaptive research panel — local implementation review
 
 Implemented locally on `feature/question-first-room`; review baseline `c498598`.
-Tickets 01–03 and ticket 04's offline integration/responsive review are complete locally and independently code-reviewed. Separate live empirical, theoretical and mixed samples are now recorded; two resulting prompt refinements await a post-restart live check. User visual/native-language review and publication readiness remain pending.
+Tickets 01–03 and ticket 04's offline integration/responsive review are complete locally and independently code-reviewed. Separate live empirical, theoretical and mixed samples are now recorded; the two resulting prompt refinements passed a limited post-restart live recheck on 2026-10-15. User visual/native-language review and publication readiness remain pending.
 
 ## What changed
 
@@ -115,4 +115,4 @@ The review server binds only to loopback on **8846**, removes provider credentia
 
 ### Separate live evidence
 
-The original offline handoff did not make real AI, Google or PayMongo requests. The user subsequently configured a local server on port 8001, and three live AI samples were inspected. See [the live review](ADAPTIVE_RESEARCH_PANEL_LIVE_REVIEW.md) for synthetic sources, actual generated transcripts, safe mapping recovery and two discovered wording issues. Those issues led to research-only prompt refinements whose post-restart live check remains pending. Samples do not certify specialist accuracy or native-language quality. User review, hosted behavior and installed Android/iOS checks remain separate; no publication readiness is implied.
+The original offline handoff did not make real AI, Google or PayMongo requests. The user subsequently configured a local server on port 8001, and three live AI samples were inspected. See [the live review](ADAPTIVE_RESEARCH_PANEL_LIVE_REVIEW.md) for synthetic sources, actual generated transcripts, safe mapping recovery and two discovered wording issues. Those issues led to research-only prompt refinements whose limited post-restart live recheck passed on 2026-10-15. Samples do not certify specialist accuracy or native-language quality. User review, hosted behavior and installed Android/iOS checks remain separate; no publication readiness is implied.

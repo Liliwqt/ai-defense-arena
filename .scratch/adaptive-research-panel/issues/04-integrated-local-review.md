@@ -20,10 +20,10 @@ Use the approved Adaptive research panel specification as the implementation con
 
 ## Verification and remaining evidence
 
-Offline and local responsive checks are complete; see [the review record](../../../docs/ADAPTIVE_RESEARCH_PANEL_REVIEW.md#ticket-04--integrated-local-review). Full working tree: 540 Python tests (AI/Google/PayMongo mocked), 275 React tests and build. Exact selected artifact: 532 mocked Python tests. Whole-feature Standards/Spec reviews against c498598 have zero actionable findings. Live empirical/theoretical/interdisciplinary quality remains unchecked because a configured local endpoint has not been confirmed; user review and publication readiness remain pending. No push/deploy or hosted/native claims.
+Offline and local responsive checks are complete; see [the review record](../../../docs/ADAPTIVE_RESEARCH_PANEL_REVIEW.md#ticket-04--integrated-local-review). Full working tree: 540 Python tests (AI/Google/PayMongo mocked), 275 React tests and build. Exact selected artifact: 532 mocked Python tests. Whole-feature Standards/Spec reviews against c498598 have zero actionable findings. Separate live empirical/theoretical/interdisciplinary samples and the targeted post-refinement recheck are recorded below; user/native-language review and publication readiness remain pending. No push/deploy or hosted/native claims.
 
 ## Live review follow-up
 
 Completed empirical four-question, theoretical four-question/probe and interdisciplinary mixed six-question/probe/follow-up samples with real AI on the user-configured local runner. All reached coaching; exact synthetic citations and final two-client transcripts were checked. Evidence: [live review](../../../docs/ADAPTIVE_RESEARCH_PANEL_LIVE_REVIEW.md).
 
-- [ ] Recheck the new planned-step wording and coaching topic-title instructions after the server restart. Original live samples are retained as pre-refinement evidence; native-language/user review and publication readiness remain pending.
+- [x] Recheck the new planned-step wording and coaching topic-title instructions after the server restart. A two-question empirical recheck on 2026-10-15 observed conditional timing wording and correct Q1-Q2/coverage-title coaching, with exact citations and matching clients. Original live samples remain pre-refinement evidence; native-language/user review and publication readiness remain pending.
