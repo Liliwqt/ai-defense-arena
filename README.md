@@ -21,6 +21,17 @@ Questions, reactions, optional advice and clarification replies remain AI-genera
 exact citations and existing language preferences still apply. The opening has no
 fabricated reaction, and a missed turn is acknowledged without inventing an answer.
 
+The local conversation-clarity checkpoint strengthens the shared guidance: usually
+ask one spoken sentence, retain necessary qualifications, and leave supporting
+background in the citation or a useful brief reaction. A reaction should say what
+an actual reason or correction explains, or identify one material uncertainty,
+without requiring both on every turn or inventing a gap after a sufficient answer.
+Valid longer questions remain allowed. Existing reviewer handoffs, language rules,
+same-question exchanges, reaction timing and prices are unchanged. The optional
+final closing is a later ticket; this checkpoint has no separate AI evaluator.
+Offline request/room checks establish context and synchronization, not live
+wording quality. See the [clarity review record](docs/PANELIST_CONVERSATION_CLARITY_REVIEW.md).
+
 Panelists can use optional brief acknowledgments such as “Oh, I see” or “Hmm,
 noted,” adapting the wording to the current language. Encouragement recognizes a
 specific explanation; “perfect” is reserved for a clearly resolved explanation,

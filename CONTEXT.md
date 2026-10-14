@@ -35,6 +35,10 @@ An explanation, translation or example of the existing question that preserves i
 A panelist's request for one important detail about an answer already given, with any defender reply remaining part of the same defense turn.
 _Avoid_: Follow-up question (a new turn), clarification (the defender asks for an explanation).
 
+**Panelist reaction**:
+A brief conversational response identifying what a defender's actual explanation clarified or what remains uncertain. It is neither a grade nor proof that the project or study is correct.
+_Avoid_: Answer probe, coaching report, research coverage assessment.
+
 **Grounded citation**:
 An exact excerpt from accepted uploaded material with its validated location. It establishes the excerpt's origin, not the correctness of the panelist's interpretation.
 
