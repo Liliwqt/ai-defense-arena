@@ -1,7 +1,7 @@
-# Adaptive research panel — ticket 01 local review
+# Adaptive research panel — checkpoint 1 local review
 
 Implemented locally on `feature/question-first-room`; review baseline `c498598`.
-Only ticket 01 is complete. Profile correction/remapping (02), shared subject-aware dialogue (03), and the complete checkpoint-2 review (04) remain pending.
+Tickets 01–02 are implemented and independently reviewed locally. Shared subject-aware dialogue (03) and complete checkpoint-2 review (04) remain pending; user visual review is not implied.
 
 ## What changed
 
@@ -9,7 +9,7 @@ The existing paper-mapping request now also suggests multiple fields and study a
 
 React and Streamlit show the profile and exact paper citations. The host explicitly reviews it and acknowledges uncertainty before confirming the current profile/map/budget. Guests can inspect the same confirmed state. Legacy maps without a profile cannot start or reserve a run. The research session captures the immutable plan/profile, which reconnect restores without classification. Code-only dialogue and payment/timer rules retain their existing behavior.
 
-## Verification
+## Ticket 01 verification (earlier)
 
 - Working tree: 528 Python tests, AI/Google/PayMongo mocked; 273 React tests and production build passed. Separate pending reasoning/local-test work is included in that working-tree count.
 - Selected ticket artifact: 520 Python tests (external providers mocked), 273 React tests and production build passed in an isolated extracted tree with its own frontend build. Its JS/CSS hashes match the working-tree build. This excludes the pending task-specific reasoning and quick-local-access implementation.
@@ -22,8 +22,8 @@ Live classification quality, actual Google/provider checks, installed Android/iO
 
 ## Preview
 
-Open [the read-only profile preview](http://127.0.0.1:8844/?preview=1&plan=1).
-For the interactive synthetic read/confirm path, open [the mapping fixture](http://127.0.0.1:8844/__fixture/login?case=mapping), choose Controls → Prepare defense, wait for the map, then review and acknowledge its profile before confirming. A synthetic opening question is not supplied by this fixture; use it for mapping/confirmation review only.
+Open [the read-only profile preview](http://127.0.0.1:8845/?preview=1&plan=1).
+For the interactive synthetic read/confirm path, open [the mapping fixture](http://127.0.0.1:8845/__fixture/login?case=mapping), choose Controls → Prepare defense, wait for the map, then review and acknowledge its profile before confirming. A synthetic opening question is not supplied by this fixture; use it for mapping/confirmation review only.
 
 The preview is a separate loopback-only process with temporary storage and provider credentials removed. The user's normal server is unchanged.
 
@@ -31,3 +31,30 @@ The preview is a separate loopback-only process with temporary storage and provi
 - [Portrait suggested profile](../screenshots/adaptive-profile-portrait.png)
 - [Landscape confirmation controls](../screenshots/adaptive-profile-landscape.png)
 - [Confirmed profile and exact PDF citation](../screenshots/adaptive-profile-confirmed.png)
+
+
+## Checkpoint 1 correction/remapping verification
+
+The host edits the practice fields, approaches or setting, then chooses **Apply profile and remap**. Unsaved edits disable Start and confirmation. The accepted description is saved separately from the paper-based suggestion, explanation and server-owned citations. It invalidates the old approval and requires a fresh map identity and renewed profile/budget confirmation. Retry reuses the saved description; guest viewing and reconnect retain the same state. Mapping and active-run edits are rejected, and an unchanged restart keeps the confirmed profile under existing cost/access rules.
+
+Streamlit mirrors the flow. Accepted corrections invalidate its previous completed session/coaching scope; changing materials or stage clears saved descriptions. Approach choices derive from the shared backend type. Mapping remains one ordinary request, with no new evaluator/classifier or run charge.
+
+- Full working-tree gate: `python -m unittest discover -v` using `.venv` passed **534 tests**, AI/Google/PayMongo mocked; **275 React tests** and production build passed. The working tree includes separate pending reasoning/local-access work. Final focused AppTest also verifies completed-session/coaching invalidation without modifying the detached old answer, and material-change clearing.
+- Exact selected checkpoint: isolated Python unittest discovery passed **526 tests** with external providers mocked, plus **275 React tests** and production build. The selected JS/CSS bytes match the working-tree build. This excludes prior reasoning/local-access code.
+- Normal authenticated HTTP/WebSocket tests exercise invalid corrections, guest authority, revoked access without scope loss, duplicate preparation, pending edits, late progress/results after restart, saved-description failure/retry/reconnect, stale map approval, active-run accepted-answer preservation and unchanged restart. The full gate retains mocked code four/eight-turn and research/mixed twelve-question flows with voting, clarification, timeouts, retries, reconnect, transcript/coaching and financial regressions.
+- Synthetic Chromium at 1440×900, 390×844 and 844×390 showed readable host/source descriptions, internal Controls scrolling, no horizontal page overflow and 44-pixel approach labels. An actual local WebSocket demo confirmed the original map, edited fields/approaches, blocked unsaved Start, failed the second synthetic map, retained inputs, retried with those inputs and required fresh confirmation. Space/Tab/Enter with a visible focus ring confirmed the updated scope and enabled Start. Reload restored the host description and approval.
+- Independent Standards and Spec reviews against **c498598** cleared tickets 01–02. Applied the optional shared-vocabulary suggestion; reviewers verified the final code delta. **0 Standards findings / 0 Spec findings remain.**
+
+These are offline/mocked and synthetic browser checks. Live classification/dialogue quality, actual Google/payment providers, hosted behavior, installed devices and user visual review remain separate pending evidence. No push or deployment; frozen main and hosted service are unchanged.
+
+## Checkpoint 1 preview
+
+Open [the read-only profile layout](http://127.0.0.1:8845/?preview=1&plan=1).
+For a fresh interactive demo, use [the correction/failure/retry fixture](http://127.0.0.1:8845/__fixture/login?case=corrections): Controls → Prepare defense, review the profile, edit its fields or approaches, then Apply profile and remap. The second preparation intentionally fails; Retry research map retains your saved input. The third map requires fresh confirmation. Ordinary mapping limits remain in effect; this demo does not generate a defense question.
+
+The preview uses a separate loopback-only server, disposable storage, synthetic Google identity and synthetic PDFs; external provider keys are removed. It does not restart the user's normal server or measure real AI quality/latency.
+
+- [Desktop unsaved correction](../screenshots/adaptive-profile-correction-desktop.png)
+- [Saved input after synthetic mapping failure](../screenshots/adaptive-profile-correction-failure.png)
+- [Portrait host description and paper-based suggestion](../screenshots/adaptive-profile-correction-portrait.png)
+- [Landscape correction controls](../screenshots/adaptive-profile-correction-landscape.png)

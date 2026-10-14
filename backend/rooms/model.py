@@ -11,7 +11,7 @@ from fastapi import WebSocket
 from backend.defense_session import DefenseSession, ResearchDefenseSession, PANELIST_ORDER
 from backend.project_files import ProjectFile
 from backend.question_generator import CoachingReport
-from backend.research_plan import ResearchPlan, ResearchPlanProgress
+from backend.research_plan import ResearchPlan, ResearchPlanProgress, ResearchProfileDescription
 from backend.resource_limits import AIBudget, limit
 from backend.timed_turn import TimedTurn
 from backend.room_documents import RoomDocuments
@@ -46,6 +46,7 @@ class Room(TimedTurn):
     research_planning_status: str = "none"  # none | planning | ready | failed
     research_plan_progress: ResearchPlanProgress | None = None
     research_plan: ResearchPlan | None = None
+    research_profile_correction: ResearchProfileDescription | None = None
     research_plan_error: str | None = None
     research_budget_preview: int | None = None
     research_plan_approved: bool = False
@@ -172,6 +173,7 @@ class Room(TimedTurn):
             "research_plan_progress": self.research_plan_progress.snapshot() if self.research_plan_progress else None,
             "research_plan": self.research_plan.snapshot() if self.research_plan else None,
             "research_plan_error": self.research_plan_error,
+            "research_profile_correction": self.research_profile_correction.snapshot() if self.research_profile_correction else None,
             "research_budget_preview": self.research_budget_preview,
             "research_plan_approved": self.research_plan_approved,
             "question_budget": self.defense.question_budget if isinstance(self.defense, ResearchDefenseSession) else None,

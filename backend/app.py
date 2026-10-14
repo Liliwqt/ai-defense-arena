@@ -1,7 +1,9 @@
 """AI Defense Arena hackathon app."""
 
 import hashlib
+import json
 import os
+from typing import get_args
 
 import streamlit as st
 from openai import OpenAIError
@@ -23,7 +25,7 @@ from backend.project_files import (
     read_project_files,
 )
 from backend.research_files import RESEARCH_EXTENSIONS, combine_sources, read_research_files
-from backend.research_plan import generate_research_plan, validate_question_budget
+from backend.research_plan import generate_research_plan, validate_question_budget, validate_profile_description, StudyApproach
 from backend.question_generator import (
     DEFAULT_MODEL,
     QuestionGenerationError,
@@ -53,29 +55,72 @@ def generate_next_question(session, files, api_key, model):
         st.session_state.pop("defense_error", None)
 
 
+def prepare_research_scope(files, api_key, model, mode, research_stage):
+    """Explicit preparation retains saved host descriptions even on failure."""
+    st.session_state.pop("defense_session", None)
+    st.session_state.pop("research_coaching", None)
+    st.session_state.pop("defense_error", None)
+    for key in ("research_plan_error", "research_budget_preview", "research_confirmed_budget"):
+        st.session_state.pop(key, None)
+    st.session_state["research_plan"] = None
+    st.session_state["research_plan_approved"] = False
+    st.session_state["research_profile_dirty"] = False
+    try:
+        with st.spinner("Mapping the uploaded research..."):
+            plan = generate_research_plan(files, api_key, model, defense_type=mode, research_stage=research_stage,
+                    profile_correction=st.session_state.get("research_profile_correction"))
+    except (QuestionGenerationError, OpenAIError, ValidationError) as exc:
+        st.session_state["research_plan_error"] = generation_error_message(exc, model, api_key)
+    else:
+        st.session_state["research_plan"] = plan
+    st.rerun()
+
+
+def research_profile_editor(plan, active, files, api_key, model, mode, research_stage):
+    saved = st.session_state.get("research_profile_correction") or (plan.profile if plan else None)
+    if saved is None:
+        st.session_state["research_profile_dirty"] = False
+        return
+    identity = (plan.id if plan else None, json.dumps({"fields": saved.fields, "approaches": saved.approaches, "setting": saved.setting}))
+    if st.session_state.get("research_profile_editor_key") != identity:
+        st.session_state["research_profile_fields"] = "\n".join(saved.fields)
+        st.session_state["research_profile_approaches"] = list(saved.approaches)
+        st.session_state["research_profile_setting"] = saved.setting or ""
+        st.session_state["research_profile_editor_key"] = identity
+    st.markdown("#### Correct the practice profile")
+    st.caption("Your descriptions guide practice; the uploaded paper remains the evidence. Applying changes requires a new map and fresh confirmation.")
+    fields = st.text_area("Research fields (one per line)", key="research_profile_fields", max_chars=1024, disabled=active)
+    approaches = st.multiselect("Study approaches", list(get_args(StudyApproach)),
+                                key="research_profile_approaches", disabled=active)
+    setting = st.text_input("Research setting (optional)", key="research_profile_setting", max_chars=300, disabled=active)
+    dirty = fields != "\n".join(saved.fields) or set(approaches) != set(saved.approaches) or setting != (saved.setting or "")
+    st.session_state["research_profile_dirty"] = dirty
+    if dirty:
+        st.warning("Unsaved profile changes. Apply them and remap before confirming or starting.")
+    if st.button("Apply profile and remap", disabled=active or not dirty or not bool(api_key)):
+        try:
+            correction = validate_profile_description({"fields": [value.strip() for value in fields.splitlines() if value.strip()],
+                        "approaches": approaches, "setting": setting.strip() or None})
+        except ValueError as exc:
+            st.error(str(exc))
+        else:
+            st.session_state["research_profile_correction"] = correction
+            prepare_research_scope(files, api_key, model, mode, research_stage)
+
+
 def research_scope_preview(files, api_key, model, mode, research_stage):
-    """Single-browser research map, budget, and coverage controls."""
+    """Single-browser research map, profile, budget, and coverage controls."""
     st.subheader("Research coverage plan")
-    st.info("Prepare and confirm the research topics and maximum questions before starting. The budget is not a price or credit quote.")
+    st.info("Prepare and confirm the research profile, topics and maximum questions before starting. The budget is not a price or credit quote.")
     saved_session = st.session_state.get("defense_session")
     active = saved_session is not None and not saved_session.completed
     plan = st.session_state.get("research_plan")
     error = st.session_state.get("research_plan_error")
+    research_profile_editor(plan, active, files, api_key, model, mode, research_stage)
+    dirty = st.session_state.get("research_profile_dirty", False)
     label = "Retry research map" if error else "Prepare map again" if plan else "Prepare defense"
-    if st.button(label, disabled=active or not bool(api_key)):
-        st.session_state.pop("defense_session", None)
-        st.session_state.pop("research_coaching", None)
-        for key in ("research_plan", "research_plan_error", "research_budget_preview", "research_plan_approved", "research_confirmed_budget"):
-            st.session_state.pop(key, None)
-        try:
-            with st.spinner("Mapping the uploaded research..."):
-                plan = generate_research_plan(files, api_key, model, defense_type=mode, research_stage=research_stage)
-        except (QuestionGenerationError, OpenAIError, ValidationError) as exc:
-            st.session_state["research_plan_error"] = generation_error_message(exc, model, api_key)
-            plan = None
-        else:
-            st.session_state["research_plan"] = plan
-        st.rerun()
+    if st.button(label, disabled=active or dirty or not bool(api_key)):
+        prepare_research_scope(files, api_key, model, mode, research_stage)
     if error := st.session_state.get("research_plan_error"):
         st.error(f"{error} Your uploads are retained; no question was generated by this request.")
     if plan is None:
@@ -86,11 +131,19 @@ def research_scope_preview(files, api_key, model, mode, research_stage):
         return
     profile = plan.profile
     st.markdown("### Research profile")
-    st.caption("Profile confirmed by host" if st.session_state.get("research_plan_approved") else "Suggested profile · awaiting host review")
+    st.caption("Profile confirmed by host" if st.session_state.get("research_plan_approved") and not dirty else "Suggested profile · awaiting host review")
+    if profile.host_description:
+        st.caption("Host description · requested practice lens, not paper evidence.")
     st.markdown(f"**Fields:** {', '.join(profile.fields)}")
     st.markdown(f"**Study approaches:** {', '.join(profile.approaches)}")
     if profile.setting:
         st.write(f"Setting: {profile.setting}")
+    if profile.source_description:
+        st.markdown("**Paper-based suggestion**")
+        st.write(f"{', '.join(profile.source_description.fields)} · {', '.join(profile.source_description.approaches)}")
+        if profile.source_description.setting:
+            st.write(f"Source setting: {profile.source_description.setting}")
+        st.markdown("**Paper-grounded explanation**")
     st.write(profile.explanation)
     for uncertainty in profile.uncertainties:
         st.warning(f"Profile uncertainty: {uncertainty}")
@@ -114,18 +167,18 @@ def research_scope_preview(files, api_key, model, mode, research_stage):
                 st.caption(f"{ref.filename} · {ref.evidence_location} · {'extracted text' if ref.evidence_kind.startswith('research') else 'source code'}")
                 st.code(ref.evidence_text, language="text")
     budget = st.number_input("Question budget", min_value=4, max_value=100, step=1,
-                             value=plan.suggested_budget, key="research_budget_preview", disabled=active)
+                             value=plan.suggested_budget, key="research_budget_preview", disabled=active or dirty)
     if budget < len(plan.topics):
         st.warning("This limit is smaller than the topic count. Some topics may remain unexplored.")
     if st.session_state.get("research_confirmed_budget") != budget:
         st.session_state["research_plan_approved"] = False
-    reviewed = st.checkbox("I reviewed the research profile", key=f"profile_review_{plan.id}", disabled=active)
+    reviewed = st.checkbox("I reviewed the research profile", key=f"profile_review_{plan.id}", disabled=active or dirty)
     acknowledged = not profile.needs_uncertainty_acknowledgment or st.checkbox(
-        "I understand the profile has unclear information", key=f"profile_uncertainty_{plan.id}", disabled=active)
-    if st.button("Confirm profile and budget", disabled=active or not reviewed or not acknowledged):
+        "I understand the profile has unclear information", key=f"profile_uncertainty_{plan.id}", disabled=active or dirty)
+    if st.button("Confirm profile and budget", disabled=active or dirty or not reviewed or not acknowledged):
         st.session_state["research_confirmed_budget"] = validate_question_budget(budget)
         st.session_state["research_plan_approved"] = True
-    if st.session_state.get("research_plan_approved"):
+    if st.session_state.get("research_plan_approved") and not dirty:
         st.success(f"Maximum confirmed: {budget} questions.")
     st.caption("Source locations are validated; the map's interpretation needs your review. This budget is not a price or credit estimate.")
 
@@ -198,7 +251,8 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
         session = st.session_state.get("defense_session")
         button_label = "Start new defense" if session else "Start defense"
         research_ready = mode == "code" or bool(st.session_state.get("research_plan_approved")
-            and st.session_state.get("research_plan") and st.session_state["research_plan"].profile)
+            and st.session_state.get("research_plan") and st.session_state["research_plan"].profile
+            and not st.session_state.get("research_profile_dirty", False))
         if not research_ready:
             st.info("Prepare the research map and confirm its question budget before starting.")
         if st.button(button_label, disabled=not bool(api_key) or not research_ready):

@@ -6,6 +6,7 @@ This wrapper is never mounted by the production application.
 
 import asyncio
 from contextlib import asynccontextmanager
+from dataclasses import replace
 import json
 import os
 import secrets
@@ -20,7 +21,7 @@ from fastapi.responses import HTMLResponse
 from backend import game_server as server, account_store, accounts
 from backend.defense_session import ResearchDefenseSession
 from backend.question_generator import GroundedCitation, GroundedQuestion, ResearchMove, RESEARCH_PANELISTS
-from backend.research_plan import ResearchPlan, ResearchTopic, ResearchProfile
+from backend.research_plan import ResearchPlan, ResearchTopic, ResearchProfile, ResearchProfileDescription
 from backend.research_files import read_research_files
 from backend.rooms.coordinator import RoomCoordinator, RoomWorkflows
 
@@ -144,11 +145,15 @@ def preview_app():
         room.answer_deadline_ms = 1_120_000
         async def blocked(_):
             await asyncio.Event().wait()
-        if request.query_params.get('case') == 'mapping':
+        if request.query_params.get('case') in {'mapping', 'corrections'}:
             # Deliberately paced synthetic events for visual review, not an AI
             # request or evidence of actual provider timing/quality.
             from backend.research_plan import ResearchPlanProgress
+            mapping_count = 0
+            fail_remap = request.query_params.get('case') == 'corrections'
             async def preview_map(request):
+                nonlocal mapping_count
+                mapping_count += 1
                 await request.on_progress(ResearchPlanProgress('mapping'))
                 for count in range(1, len(plan.topics) + 1):
                     await asyncio.sleep(1.5)
@@ -156,7 +161,15 @@ def preview_app():
                         raise RuntimeError('Preview mapping cancelled')
                 await request.on_progress(ResearchPlanProgress('validating', plan.topics))
                 await asyncio.sleep(1)
-                return plan
+                if fail_remap and mapping_count == 2:
+                    from backend.question_generator import QuestionGenerationError
+                    raise QuestionGenerationError('Synthetic remapping failure; retry retains your saved description.')
+                profile = plan.profile
+                if correction := request.profile_correction:
+                    source = ResearchProfileDescription(profile.fields, profile.approaches, profile.setting)
+                    profile = replace(profile, fields=correction.fields, approaches=correction.approaches,
+                        setting=correction.setting, host_description=correction, source_description=source)
+                return replace(plan, id=secrets.token_urlsafe(12), profile=profile)
             room.phase = 'lobby'
             room.defense = None
             room.selected_seat = None

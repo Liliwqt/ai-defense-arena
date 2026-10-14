@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from backend.account_store import AccessError, require_run_access
 from backend.project_files import ProjectFile
 from backend.question_generator import DEFAULT_MODEL, QuestionGenerationError
-from backend.research_plan import ResearchPlan, ResearchPlanProgress, generate_research_plan, validate_question_budget
+from backend.research_plan import ResearchPlan, ResearchPlanProgress, generate_research_plan, validate_question_budget, ResearchProfileDescription, validate_profile_description
 from backend.resource_limits import limit
 from backend.rooms.commands import CommandResult, VerifiedActor, PlanCommand, PrepareResearchPlan
 from backend.rooms.errors import safe_generation_error
@@ -32,6 +32,7 @@ class PlanInput:
     defense_type: str
     research_stage: str
     on_progress: Callable[[ResearchPlanProgress], Awaitable[bool]] | None = field(default=None, compare=False, repr=False)
+    profile_correction: ResearchProfileDescription | None = None
 
 
 PlanRequest = Callable[[PlanInput], Awaitable[ResearchPlan]]
@@ -64,7 +65,7 @@ async def request_plan(request: PlanInput) -> ResearchPlan:
         return await asyncio.to_thread(generate_research_plan, list(request.files), os.getenv("OPENAI_API_KEY"),
             os.getenv("OPENAI_MODEL") or DEFAULT_MODEL,
             defense_type=request.defense_type, research_stage=request.research_stage,
-            on_progress=report if request.on_progress else None)
+            on_progress=report if request.on_progress else None, profile_correction=request.profile_correction)
     finally:
         stopped.set()
 
@@ -129,6 +130,12 @@ async def handle_plan_command(owner: "RoomCoordinator", actor: VerifiedActor, co
                     return CommandResult(False, "The research map is already being prepared.")
                 if command.retry and room.research_planning_status != "failed":
                     return CommandResult(False, "There is no failed research map to retry.")
+                correction = room.research_profile_correction
+                if command.profile_correction is not None:
+                    if command.retry:
+                        return CommandResult(False, "Retry uses the saved profile. Prepare a new map to change it.")
+                    correction = validate_profile_description(command.profile_correction)
+                room.research_profile_correction = correction
                 room.activity_ms = owner._workflows.now()
                 room.research_planning_status = "planning"
                 room.research_plan_progress = ResearchPlanProgress("preparing")

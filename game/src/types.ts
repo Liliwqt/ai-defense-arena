@@ -94,10 +94,15 @@ export interface SourceReference {
   evidence_after?: string;
 }
 
-export interface ResearchProfile {
+export interface ProfileDescription {
   fields: string[];
   approaches: ("quantitative" | "qualitative" | "mixed-methods" | "theoretical" | "computational/design" | "other" | "unclear")[];
   setting: string | null;
+}
+
+export interface ResearchProfile extends ProfileDescription {
+  host_description?: ProfileDescription | null;
+  source_description?: ProfileDescription | null;
   explanation: string;
   references: SourceReference[];
   uncertainties: string[];
@@ -134,6 +139,7 @@ export interface RoomState {
   research_plan_progress?: { stage: "preparing" | "mapping" | "validating"; topics: ResearchPlan["topics"] } | null;
   research_plan?: ResearchPlan | null;
   research_plan_error?: string | null;
+  research_profile_correction?: ProfileDescription | null;
   research_budget_preview?: number | null;
   research_plan_approved?: boolean;
   question_budget?: number | null;

@@ -64,7 +64,7 @@ export function ControlsPanel({
   const createPending = useRef(false);
   const progressRef = useRef<HTMLDivElement>(null);
   const [joinBusy, setJoinBusy] = useState(false);
-  const [budgetDirty, setBudgetDirty] = useState(false);
+  const [scopeDirty, setScopeDirty] = useState(false);
   const [defenseType, setDefenseType] = useState<"code" | "research" | "mixed">("code");
 
   const [hostName, setHostName] = useState("");
@@ -315,7 +315,7 @@ export function ControlsPanel({
           </p>
 
           {roomState?.defense_type && roomState.defense_type !== "code" && <ResearchPlanPanel
-            roomState={roomState} connected={connected} previewMode={previewMode} onSendEvent={onSendEvent} onBudgetDraftChange={setBudgetDirty} />}
+            roomState={roomState} connected={connected} previewMode={previewMode} onSendEvent={onSendEvent} onScopeDraftChange={setScopeDirty} />}
 
           {isHost && !previewMode && <div className="account-access-card"><strong>{account?.free_access ? "Free access active" : `10 ${creditLabel} per defense run`}</strong><p>{account?.authenticated ? `${availableCredits ?? 0} available · ${liveAccess ? account.live_reserved_credits ?? 0 : account.reserved_credits ?? 0} reserved ${creditLabel}` : "Sign in with the room owner’s Google account to use host controls."}</p><button type="button" className={secondaryBtn} onClick={onOpenAccount}>Open Account</button></div>}
 
@@ -327,7 +327,7 @@ export function ControlsPanel({
               {phase === "lobby" && (!roomState?.defense_type || roomState.defense_type === "code" || (roomState.research_planning_status === "ready" && roomState.research_plan)) && (
                 <button
                   type="button"
-                  disabled={!connected || !canRun || budgetDirty || (!!roomState?.defense_type && roomState.defense_type !== "code" && (!roomState.research_plan_approved || !roomState.research_plan?.profile || roomState.research_planning_status !== "ready"))}
+                  disabled={!connected || !canRun || scopeDirty || (!!roomState?.defense_type && roomState.defense_type !== "code" && (!roomState.research_plan_approved || !roomState.research_plan?.profile || roomState.research_planning_status !== "ready"))}
                   onClick={handleStart}
                   className={primaryBtn}
                 >

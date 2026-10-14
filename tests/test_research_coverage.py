@@ -640,7 +640,7 @@ class CoverageStreamlitTests(unittest.TestCase):
                 if i:
                     self.assertIn(advice, [caption.value for caption in app.caption])
                     self.assertNotEqual(app.session_state['defense_session'].turns[i-1].answer, advice)
-                app.text_area[0].set_value('We will compare queue times with a documented pilot method.')
+                next(area for area in app.text_area if area.label.startswith('Your ')).set_value('We will compare queue times with a documented pilot method.')
                 next(b for b in app.button if b.label=='Send to panelist').click().run()
             session=app.session_state['defense_session']
             self.assertTrue(session.completed)
@@ -712,7 +712,7 @@ class CoverageStreamlitRetryTests(unittest.TestCase):
             self.assertFalse(app.exception)
             next(b for b in app.button if b.label=='Retry next question').click().run()
             self.assertFalse(app.exception)
-            self.assertEqual(len(app.text_area),1)
+            self.assertEqual(len([area for area in app.text_area if area.label.startswith('Your ')]),1)
             self.assertEqual(len(app.session_state['defense_session'].turns),1)
             self.assertGreater(app.session_state['defense_run_id'],0)
 

@@ -69,6 +69,7 @@ class InterpretSubmission:
 @dataclass(frozen=True)
 class PrepareResearchPlan:
     retry: bool = False
+    profile_correction: object = None
 
 
 @dataclass(frozen=True)
@@ -182,7 +183,7 @@ def decode_command(message: dict) -> Command:
     if action == "use_pending_as_answer":
         return UsePendingAnswer()
     if action in {"prepare_research_plan", "retry_research_plan"}:
-        return PrepareResearchPlan(retry=action == "retry_research_plan")
+        return PrepareResearchPlan(retry=action == "retry_research_plan", profile_correction=message.get("profile_correction"))
     if action == "approve_research_plan":
         return ApproveResearchPlan(message.get("plan_id"), message.get("question_budget"),
                                    message.get("confirm_profile") is True,

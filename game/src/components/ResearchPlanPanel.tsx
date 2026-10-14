@@ -3,6 +3,7 @@ import type { RoomState } from "../types";
 import { isResearchCitation } from "../lib/citation";
 import { PageCitation } from "./PageCitation";
 import { PaperMappingProgress } from "./PaperMappingProgress";
+import { ResearchProfileEditor } from "./ResearchProfileEditor";
 import { ResearchProfileReview } from "./ResearchProfileReview";
 
 interface Props {
@@ -10,20 +11,21 @@ interface Props {
   connected: boolean;
   previewMode: boolean;
   onSendEvent: (payload: Record<string, unknown>) => boolean;
-  onBudgetDraftChange?: (dirty: boolean) => void;
+  onScopeDraftChange?: (dirty: boolean) => void;
 }
 
-export function ResearchPlanPanel({ roomState: state, connected, previewMode, onSendEvent, onBudgetDraftChange }: Props) {
+export function ResearchPlanPanel({ roomState: state, connected, previewMode, onSendEvent, onScopeDraftChange }: Props) {
   const plan = state.research_plan;
   const addressed = Object.values(state.coverage ?? {}).filter(topic => topic.status === "addressed").length;
   const status = state.research_planning_status ?? "none";
   const [budget, setBudget] = useState<string>("");
   const [dirty, setDirty] = useState(false);
+  const [profileDirty, setProfileDirty] = useState(false);
   const [error, setError] = useState("");
   const [pendingBudget, setPendingBudget] = useState<number | null>(null);
   const [reviewedProfile, setReviewedProfile] = useState(false);
   const [acknowledgedUncertainty, setAcknowledgedUncertainty] = useState(false);
-  const editable = state.self_is_host && state.phase === "lobby" && connected && !previewMode;
+  const editable = state.self_is_host && state.phase === "lobby" && connected && !previewMode && status !== "planning";
 
   useEffect(() => {
     setReviewedProfile(Boolean(state.research_plan_approved && plan?.profile));
@@ -33,14 +35,17 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
   useEffect(() => {
     setBudget(String(state.research_budget_preview ?? plan?.suggested_budget ?? ""));
     setDirty(false); setError("");
-    onBudgetDraftChange?.(false);
-  }, [plan?.id, state.research_budget_preview, state.research_plan_approved, onBudgetDraftChange]);
+  }, [plan?.id, state.research_budget_preview, state.research_plan_approved, onScopeDraftChange]);
 
   useEffect(() => {
     if (pendingBudget !== null && state.research_plan_approved && state.research_budget_preview === pendingBudget) {
-      setDirty(false); setPendingBudget(null); onBudgetDraftChange?.(false);
+      setDirty(false); setPendingBudget(null);
     }
-  }, [pendingBudget, state.research_plan_approved, state.research_budget_preview, onBudgetDraftChange]);
+  }, [pendingBudget, state.research_plan_approved, state.research_budget_preview, onScopeDraftChange]);
+
+  useEffect(() => { onScopeDraftChange?.(dirty || profileDirty); }, [dirty, profileDirty, onScopeDraftChange]);
+
+  const description = state.research_profile_correction ?? plan?.profile;
 
   function approve(event: React.FormEvent) {
     event.preventDefault();
@@ -48,7 +53,7 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
     if (!Number.isInteger(value) || value < 4 || value > 100) {
       setError("Choose a whole-number question budget from 4 to 100."); return;
     }
-    if (!plan?.profile || !reviewedProfile || (plan.profile.needs_uncertainty_acknowledgment && !acknowledgedUncertainty)) {
+    if (profileDirty || !plan?.profile || !reviewedProfile || (plan.profile.needs_uncertainty_acknowledgment && !acknowledgedUncertainty)) {
       setError("Review the research profile and acknowledge any unclear information before confirming."); return;
     }
     if (onSendEvent({ type: "approve_research_plan", plan_id: plan.id, question_budget: value,
@@ -66,13 +71,21 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
     {status === "none" && <p className="control-help">{state.self_is_host ? "Prepare an AI map of the accepted papers and any accompanying code." : "The host can prepare the research map. It will appear here for the whole team."}</p>}
     {status === "planning" && <PaperMappingProgress progress={state.research_plan_progress} />}
     {status === "failed" && <p role="alert" className="drawer-error">{state.research_plan_error ?? "The research map could not be prepared."} Your uploads are retained. {state.self_is_host ? "Retry when ready." : "The host can retry."}</p>}
-    {editable && status !== "planning" && <button type="button" disabled={state.plan_attempts_left === 0} className="button-secondary"
+    {editable && <button type="button" disabled={state.plan_attempts_left === 0 || profileDirty} className="button-secondary"
       onClick={() => onSendEvent({ type: status === "failed" ? "retry_research_plan" : "prepare_research_plan" })}>
       {status === "failed" ? "Retry research map" : plan ? "Prepare map again" : "Prepare defense"}
     </button>}
+    {plan?.profile && <ResearchProfileReview profile={plan.profile} confirmed={Boolean(state.research_plan_approved && !profileDirty)} />}
+    {plan && !plan.profile && <p role="alert" className="drawer-error">Prepare a new research map to review and confirm its research profile.</p>}
+    {state.self_is_host && state.phase === "lobby" && description && <ResearchProfileEditor
+      description={{ fields: description.fields, approaches: description.approaches, setting: description.setting }}
+      planId={plan?.id} editable={editable && state.plan_attempts_left !== 0} onDirtyChange={setProfileDirty}
+      onPrepare={profile_correction => onSendEvent({ type: "prepare_research_plan", profile_correction })} />}
+    {!plan && state.research_profile_correction && !state.self_is_host && <p className="control-help">
+      Saved host description: {state.research_profile_correction.fields.join(", ")} · {state.research_profile_correction.approaches.join(", ")}
+      {state.research_profile_correction.setting && ` · ${state.research_profile_correction.setting}`}. Awaiting a validated map.
+    </p>}
     {plan && <>
-      {plan.profile ? <ResearchProfileReview profile={plan.profile} confirmed={Boolean(state.research_plan_approved)} />
-        : <p role="alert" className="drawer-error">Prepare a new research map to review and confirm its research profile.</p>}
       {state.completion_reason && <p role="status">Ending reason: {state.completion_reason}</p>}
       {state.coverage && <p className="plan-summary">{addressed} of {plan.topics.length} topics addressed</p>}
       <p className="plan-summary"><strong>{plan.topics.length} proposed topics</strong> · suggested maximum {plan.suggested_budget} questions</p>
@@ -100,7 +113,7 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
       {state.self_is_host && state.phase === "lobby" ? <form onSubmit={approve} className="plan-budget-form">
         <label className="setup-label">Question budget
           <input className="setup-input" type="number" min={4} max={100} step={1} value={budget}
-            disabled={!editable} onChange={event => { setBudget(event.target.value); setDirty(true); onBudgetDraftChange?.(true); setError(""); }} />
+            disabled={!editable || profileDirty} onChange={event => { setBudget(event.target.value); setDirty(true); setError(""); }} />
         </label>
         <p className="control-help">4–100 questions. The defense stops at this maximum or when all topics are addressed after every reviewer has spoken.</p>
         {Number(budget) > 0 && Number(budget) < plan.topics.length && <p className="plan-warning" role="status">This limit is smaller than the topic count. Some topics may remain unexplored.</p>}
@@ -112,9 +125,9 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
               onChange={event => setAcknowledgedUncertainty(event.target.checked)} />I understand the profile has unclear information
           </label>}
         </>}
-        <button type="submit" className="button-primary" disabled={!editable || !plan.profile || !reviewedProfile ||
+        <button type="submit" className="button-primary" disabled={!editable || profileDirty || !plan.profile || !reviewedProfile ||
           (plan.profile.needs_uncertainty_acknowledgment && !acknowledgedUncertainty)}>Confirm profile and budget</button>
-        {state.research_plan_approved && !dirty && <p role="status">Maximum confirmed: {state.research_budget_preview} questions.</p>}
+        {state.research_plan_approved && !dirty && !profileDirty && <p role="status">Maximum confirmed: {state.research_budget_preview} questions.</p>}
         {error && <p role="alert" className="drawer-error">{error}</p>}
       </form> : <p className="control-help">Maximum questions: {state.research_budget_preview ?? plan.suggested_budget} questions · {state.research_plan_approved ? "confirmed by host" : "awaiting host confirmation"}.</p>}
       <p className="control-help">Source locations are validated. The proposed map and its interpretation still need your review.</p>

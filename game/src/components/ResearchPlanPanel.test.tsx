@@ -15,6 +15,49 @@ const state: RoomState = {
 function props() { return { roomState: state, connected: true, previewMode: false, onSendEvent: vi.fn(() => true) }; }
 
 describe("ResearchPlanPanel", () => {
+  it("blocks Start and old confirmation while a host profile correction is unsaved", () => {
+    const p = props();
+    const controls = { account: { authenticated: true, google_enabled: true, free_access: true }, ...p,
+      onUseRoom: vi.fn(), onLeaveRoom: vi.fn(), onCloseDrawer: vi.fn(), showMessage: vi.fn() };
+    render(<ControlsPanel {...controls} roomState={{ ...state, research_plan_approved: true }} />);
+    const start = screen.getByRole("button", { name: /Start defense/ });
+    expect(start).not.toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Research fields (one per line)"), { target: { value: "Education\nPublic policy" } });
+    expect(start).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Confirm profile and budget" })).toBeDisabled();
+    expect(screen.getByText(/Unsaved profile changes/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Apply profile and remap" }));
+    expect(p.onSendEvent).toHaveBeenCalledWith({ type: "prepare_research_plan", profile_correction: {
+      fields: ["Education", "Public policy"], approaches: ["quantitative", "computational/design"], setting: "University registrar" } });
+  });
+
+  it("restores saved corrections through failure and retry, then requires fresh confirmation", () => {
+    const p = props();
+    const saved = { fields: ["Public policy"], approaches: ["quantitative" as const], setting: "Campus" };
+    const failed = { ...state, research_plan: null, research_planning_status: "failed" as const,
+      research_plan_error: "Mapping failed", research_profile_correction: saved };
+    const { rerender } = render(<ResearchPlanPanel {...p} roomState={failed} />);
+    expect(screen.getByLabelText("Research fields (one per line)")).toHaveValue("Public policy");
+    expect(screen.getByLabelText("Research setting (optional)")).toHaveValue("Campus");
+    fireEvent.click(screen.getByRole("button", { name: "Retry research map" }));
+    expect(p.onSendEvent).toHaveBeenCalledWith({ type: "retry_research_plan" });
+    rerender(<ResearchPlanPanel {...p} roomState={{ ...failed, research_planning_status: "planning" }} />);
+    expect(screen.getByLabelText("Research fields (one per line)")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Apply profile and remap" })).toBeDisabled();
+    const profile = { ...researchPlanPreview.profile!, ...saved, host_description: saved,
+      source_description: { fields: ["Education"], approaches: ["qualitative" as const], setting: null } };
+    rerender(<ResearchPlanPanel {...p} roomState={{ ...state, research_profile_correction: saved,
+      research_plan: { ...researchPlanPreview, id: "corrected-map", profile } }} />);
+    expect(screen.getByText("Host description")).toBeTruthy();
+    expect(screen.getByText("Paper-based suggestion")).toBeTruthy();
+    expect(screen.getByText("Paper-grounded explanation")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Confirm profile and budget" })).toBeDisabled();
+    expect(screen.getByLabelText("I reviewed the research profile")).not.toBeChecked();
+    fireEvent.click(screen.getByLabelText("I reviewed the research profile"));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm profile and budget" }));
+    expect(p.onSendEvent).toHaveBeenCalledWith(expect.objectContaining({ plan_id: "corrected-map", confirm_profile: true }));
+  });
+
   it("requires profile review and uncertainty acknowledgment before confirming the map", () => {
     const p = props();
     const profile = { fields: ["Education"], approaches: ["unclear" as const], setting: null,
@@ -74,6 +117,7 @@ describe("ResearchPlanPanel", () => {
     render(<ResearchPlanPanel {...props()} roomState={{ ...state, self_is_host: false, research_plan_approved: true }} />);
     expect(screen.getByText("Purpose and research gap")).toBeTruthy();
     expect(screen.queryByRole("spinbutton")).toBeNull();
+    expect(screen.queryByLabelText("Research fields (one per line)")).toBeNull();
     expect(screen.queryByRole("button", { name: "Confirm profile and budget" })).toBeNull();
     expect(screen.getByText("Profile confirmed by host")).toBeTruthy();
   });

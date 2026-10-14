@@ -435,3 +435,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .mapping-topics summary { cursor: pointer; }
 .mapping-reference { margin-top: 10px; font-size: .75rem; }
 .mapping-reference pre { max-width: 100%; overflow-x: auto; margin-top: 6px; padding: 8px; background: var(--base-deep); font-size: .75rem; }
+
+.research-profile-editor { display: grid; gap: 12px; margin: 18px 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
+.research-profile-editor h4 { margin: 0; }
+.research-profile-editor fieldset { border: 0; padding: 0; min-width: 0; }
+.research-profile-editor legend { font-weight: 700; margin-bottom: 8px; }
+.profile-approach-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.profile-approach-options .profile-confirmation { font-size: 14px; overflow-wrap: anywhere; }
+.profile-source-description { border-left: 2px solid var(--ink); padding-left: 12px; }
