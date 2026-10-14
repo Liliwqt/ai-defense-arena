@@ -1,0 +1,11 @@
+from dataclasses import dataclass
+
+@dataclass
+class QueueStatus:
+    count: int
+    updated_at: float
+
+
+def update_status(count: int, now: float) -> QueueStatus:
+    # Prototype: validation and freshness policy are still to be designed.
+    return QueueStatus(count=count, updated_at=now)

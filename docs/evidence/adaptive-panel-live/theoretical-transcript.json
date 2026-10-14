@@ -1,0 +1,326 @@
+{
+  "case": "theoretical",
+  "phase": "complete",
+  "profile": {
+    "fields": [
+      "Social philosophy",
+      "Decision theory"
+    ],
+    "approaches": [
+      "theoretical"
+    ],
+    "setting": null,
+    "explanation": "The paper identifies its focus as procedural fairness in service queues through social philosophy and decision theory. It proposes conceptual analysis, reconstruction of philosophical arguments, and counterexamples, and explicitly says it does not conduct an empirical experiment. This profile describes the proposed approach, not its correctness.",
+    "references": [
+      {
+        "filename": "theoretical.md",
+        "evidence_line": 4,
+        "evidence_text": "This conceptual paper examines procedural fairness in service queues using social philosophy and decision theory. It proposes an argument, not an empirical experiment or an already proven theorem.",
+        "evidence_location": "Line 4",
+        "evidence_kind": "research_text",
+        "evidence_before": "# Synthetic theoretical proposal: fair waiting as a procedural claim\nThis document is synthetic and prepared only for local AI conversation review.\n## Aim and field",
+        "evidence_after": "## Central question\nUnder what assumptions does first-arrival service order count as procedurally fair, and when do justified exceptions undermine that claim?\n## Definitions"
+      },
+      {
+        "filename": "theoretical.md",
+        "evidence_line": 11,
+        "evidence_text": "## Method and sources",
+        "evidence_location": "Line 11",
+        "evidence_kind": "research_text",
+        "evidence_before": "Arrival means entry to a publicly observable queue rather than entry to the building. Procedural fairness here means that a publicly stated rule applies equally to cases considered relevantly alike. Equal moral worth is distinguished from identical practical needs.\n## Working argument\nFirst-arrival order can protect predictability and discourage favoritism when arrival is observable, participants can access the queue and exceptional priority rules are publicly justified. These are conditional assumptions, not facts demonstrated about every institution.",
+        "evidence_after": "The proposal uses conceptual analysis, reconstructs arguments from selected philosophical sources and tests its definitions with counterexamples. It does not recruit participants, collect interviews, conduct statistical tests or claim to estimate the public's attitudes.\n## Counterexamples\nA person with an urgent accessibility need may deserve priority even when they arrived later. A person whose arrival is unobservable challenges whether the rule can be applied consistently. These examples test the scope of the proposed definition without proving a practical policy is optimal."
+      },
+      {
+        "filename": "theoretical.md",
+        "evidence_line": 12,
+        "evidence_text": "The proposal uses conceptual analysis, reconstructs arguments from selected philosophical sources and tests its definitions with counterexamples. It does not recruit participants, collect interviews, conduct statistical tests or claim to estimate the public's attitudes.",
+        "evidence_location": "Line 12",
+        "evidence_kind": "research_text",
+        "evidence_before": "## Working argument\nFirst-arrival order can protect predictability and discourage favoritism when arrival is observable, participants can access the queue and exceptional priority rules are publicly justified. These are conditional assumptions, not facts demonstrated about every institution.\n## Method and sources",
+        "evidence_after": "## Counterexamples\nA person with an urgent accessibility need may deserve priority even when they arrived later. A person whose arrival is unobservable challenges whether the rule can be applied consistently. These examples test the scope of the proposed definition without proving a practical policy is optimal.\n## Integrity and ethical relevance"
+      }
+    ],
+    "uncertainties": [
+      "The specific philosophical sources and the method for selecting or comparing alternative priority rules are not given in the supplied text.",
+      "The proposal identifies relevant similarity and the sufficiency of its assumptions as unresolved parts of the argument."
+    ],
+    "host_description": null,
+    "source_description": null,
+    "needs_uncertainty_acknowledgment": true
+  },
+  "topics": [
+    {
+      "id": "topic-1",
+      "title": "Aim and scope of the central question",
+      "panelist": "Critical Judge",
+      "gaps": []
+    },
+    {
+      "id": "topic-2",
+      "title": "Definitions of arrival and fairness",
+      "panelist": "Critical Judge",
+      "gaps": [
+        "How relevant similarity will be defined remains an acknowledged issue for the argument."
+      ]
+    },
+    {
+      "id": "topic-3",
+      "title": "Conditional case for first-arrival order",
+      "panelist": "Critical Judge",
+      "gaps": [
+        "The author states that the assumptions have not yet been shown sufficient for fairness."
+      ]
+    },
+    {
+      "id": "topic-4",
+      "title": "Conceptual method and source use",
+      "panelist": "Methodology Reviewer",
+      "gaps": [
+        "The selected philosophical sources and the basis for selecting them are not identified in the supplied text.",
+        "The steps for reconstructing arguments and applying counterexamples are not described in detail."
+      ]
+    },
+    {
+      "id": "topic-5",
+      "title": "Counterexamples and limits of the claim",
+      "panelist": "Critical Judge",
+      "gaps": []
+    },
+    {
+      "id": "topic-6",
+      "title": "Integrity and ethical relevance",
+      "panelist": "Ethics Reviewer",
+      "gaps": [
+        "The proposal says a later policy discussion would need separate attention to exclusion and accessibility, but does not describe that discussion."
+      ]
+    },
+    {
+      "id": "topic-7",
+      "title": "Intended contribution and its limits",
+      "panelist": "Impact Reviewer",
+      "gaps": [
+        "The proposal does not yet state how it will assess or demonstrate the value of the clarified distinction."
+      ]
+    },
+    {
+      "id": "topic-8",
+      "title": "Remaining argument work",
+      "panelist": "Critical Judge",
+      "gaps": [
+        "The alternative priority rules to be compared and the basis for choosing them are not specified."
+      ]
+    }
+  ],
+  "turns": [
+    {
+      "panelist": "Methodology Reviewer",
+      "lead_in": "",
+      "question": "How will you use the selected philosophical arguments and counterexamples to evaluate the central question about when first-arrival order is fair?",
+      "filename": "theoretical.md",
+      "evidence_line": 12,
+      "evidence_text": "The proposal uses conceptual analysis, reconstructs arguments from selected philosophical sources and tests its definitions with counterexamples. It does not recruit participants, collect interviews, conduct statistical tests or claim to estimate the public's attitudes.",
+      "evidence_location": "Line 12",
+      "evidence_kind": "research_text",
+      "evidence_before": "## Working argument\nFirst-arrival order can protect predictability and discourage favoritism when arrival is observable, participants can access the queue and exceptional priority rules are publicly justified. These are conditional assumptions, not facts demonstrated about every institution.\n## Method and sources",
+      "evidence_after": "## Counterexamples\nA person with an urgent accessibility need may deserve priority even when they arrived later. A person whose arrival is unobservable challenges whether the rule can be applied consistently. These examples test the scope of the proposed definition without proving a practical policy is optimal.\n## Integrity and ethical relevance",
+      "clarifications": [],
+      "answer": "We will read the sources and compare the arguments. The counterexamples will help us see if the argument is reasonable.",
+      "probe": {
+        "request": "You’ll compare arguments and use counterexamples to assess reasonableness. What would make a counterexample show that a condition for fair first-arrival order needs revision, rather than simply illustrate an exception?",
+        "references": [
+          {
+            "filename": "theoretical.md",
+            "evidence_line": 12,
+            "evidence_text": "The proposal uses conceptual analysis, reconstructs arguments from selected philosophical sources and tests its definitions with counterexamples. It does not recruit participants, collect interviews, conduct statistical tests or claim to estimate the public's attitudes.",
+            "evidence_location": "Line 12",
+            "evidence_kind": "research_text",
+            "evidence_before": "## Working argument\nFirst-arrival order can protect predictability and discourage favoritism when arrival is observable, participants can access the queue and exceptional priority rules are publicly justified. These are conditional assumptions, not facts demonstrated about every institution.\n## Method and sources",
+            "evidence_after": "## Counterexamples\nA person with an urgent accessibility need may deserve priority even when they arrived later. A person whose arrival is unobservable challenges whether the rule can be applied consistently. These examples test the scope of the proposed definition without proving a practical policy is optimal.\n## Integrity and ethical relevance"
+          },
+          {
+            "filename": "theoretical.md",
+            "evidence_line": 14,
+            "evidence_text": "A person with an urgent accessibility need may deserve priority even when they arrived later. A person whose arrival is unobservable challenges whether the rule can be applied consistently. These examples test the scope of the proposed definition without proving a practical policy is optimal.",
+            "evidence_location": "Line 14",
+            "evidence_kind": "research_text",
+            "evidence_before": "## Method and sources\nThe proposal uses conceptual analysis, reconstructs arguments from selected philosophical sources and tests its definitions with counterexamples. It does not recruit participants, collect interviews, conduct statistical tests or claim to estimate the public's attitudes.\n## Counterexamples",
+            "evidence_after": "## Integrity and ethical relevance\nThe relevant integrity tasks are accurate attribution, charitable treatment of opposing arguments and disclosure of value assumptions. The paper does not use personal datasets. An eventual policy discussion would need separate attention to exclusion and accessibility.\n## Expected contribution"
+          }
+        ],
+        "status": "answered",
+        "reply": "We would reconstruct the premises and ask whether the case satisfies the stated conditions yet still produces unequal treatment of relevantly similar cases. If it does, a claimed sufficient condition needs revision. A later arrival with an explicitly justified accessibility priority may instead fall under a disclosed exception. These are proposed argument checks, not completed proof that our assumptions are sufficient.",
+        "speaker_name": "Ari — live check",
+        "speaker_seat": 0,
+        "clarifications": []
+      },
+      "resolved": true,
+      "timed_out": false,
+      "ended_early": false,
+      "topic_id": "topic-4",
+      "is_follow_up": false,
+      "assigned_seat": 0,
+      "answered_by": "Ari — live check",
+      "answered_by_seat": 0
+    },
+    {
+      "panelist": "Ethics Reviewer",
+      "lead_in": "",
+      "question": "How will you make the paper’s value assumptions explicit while representing opposing arguments charitably?",
+      "filename": "theoretical.md",
+      "evidence_line": 16,
+      "evidence_text": "The relevant integrity tasks are accurate attribution, charitable treatment of opposing arguments and disclosure of value assumptions. The paper does not use personal datasets. An eventual policy discussion would need separate attention to exclusion and accessibility.",
+      "evidence_location": "Line 16",
+      "evidence_kind": "research_text",
+      "evidence_before": "## Counterexamples\nA person with an urgent accessibility need may deserve priority even when they arrived later. A person whose arrival is unobservable challenges whether the rule can be applied consistently. These examples test the scope of the proposed definition without proving a practical policy is optimal.\n## Integrity and ethical relevance",
+      "evidence_after": "## Expected contribution\nThe intended contribution is a clarified distinction between predictability, equal treatment and justified priority. No commercial outcome or immediate change in service performance is claimed.\n## Limitations and remaining work",
+      "clarifications": [],
+      "answer": "We would state equal moral worth and publicly justified rules as normative premises, rather than facts proved by queue observations. For each opposing position, we would reconstruct its strongest argument, cite the passage and separate its premises from our objections. If it prioritizes need rather than arrival, we would explain the underlying value tradeoff before criticizing it. We have not completed that source comparison yet.",
+      "probe": null,
+      "resolved": true,
+      "timed_out": false,
+      "ended_early": false,
+      "topic_id": "topic-6",
+      "is_follow_up": false,
+      "assigned_seat": 0,
+      "answered_by": "Ari — live check",
+      "answered_by_seat": 0
+    },
+    {
+      "panelist": "Impact Reviewer",
+      "lead_in": "You’ve made the value premises and charitable comparison concrete; the source comparison is still ahead.",
+      "question": "How would clarifying the distinction among predictability, equal treatment, and justified priority help readers reason about queue fairness, even without claiming a direct service improvement?",
+      "filename": "theoretical.md",
+      "evidence_line": 18,
+      "evidence_text": "The intended contribution is a clarified distinction between predictability, equal treatment and justified priority. No commercial outcome or immediate change in service performance is claimed.",
+      "evidence_location": "Line 18",
+      "evidence_kind": "research_text",
+      "evidence_before": "## Integrity and ethical relevance\nThe relevant integrity tasks are accurate attribution, charitable treatment of opposing arguments and disclosure of value assumptions. The paper does not use personal datasets. An eventual policy discussion would need separate attention to exclusion and accessibility.\n## Expected contribution",
+      "evidence_after": "## Limitations and remaining work\nThe author has not yet established that the proposed assumptions are sufficient for fairness. The argument may depend on how relevant similarity is defined. The final paper will compare alternative priority rules and make its normative premises explicit.",
+      "clarifications": [],
+      "answer": "A reader could separate three claims that are often conflated: an order is predictable, similar cases get equal treatment, and a priority exception has a reason. Our conceptual contribution would be showing which premises support each claim and where one can hold without the others. A worked accessibility counterexample could make the distinction useful for reasoning; it would not demonstrate better service performance or justify any institution-specific rule.",
+      "probe": null,
+      "resolved": true,
+      "timed_out": false,
+      "ended_early": false,
+      "topic_id": "topic-7",
+      "is_follow_up": false,
+      "assigned_seat": 0,
+      "answered_by": "Ari — live check",
+      "answered_by_seat": 0
+    },
+    {
+      "panelist": "Critical Judge",
+      "lead_in": "Your accessibility example illustrates the distinction without overclaiming policy effects.",
+      "question": "You distinguish equal moral worth from identical practical needs; what criterion will determine when two queue cases are relevantly similar for applying equal treatment?",
+      "filename": "theoretical.md",
+      "evidence_line": 8,
+      "evidence_text": "Arrival means entry to a publicly observable queue rather than entry to the building. Procedural fairness here means that a publicly stated rule applies equally to cases considered relevantly alike. Equal moral worth is distinguished from identical practical needs.",
+      "evidence_location": "Line 8",
+      "evidence_kind": "research_text",
+      "evidence_before": "## Central question\nUnder what assumptions does first-arrival service order count as procedurally fair, and when do justified exceptions undermine that claim?\n## Definitions",
+      "evidence_after": "## Working argument\nFirst-arrival order can protect predictability and discourage favoritism when arrival is observable, participants can access the queue and exceptional priority rules are publicly justified. These are conditional assumptions, not facts demonstrated about every institution.\n## Method and sources",
+      "clarifications": [],
+      "answer": "Our provisional criterion would compare cases with the same service entitlement and no publicly justified difference in urgency or accessibility need; arrival order would then distinguish their position. Equal moral worth alone would not establish identical need. We still need to defend which differences are morally relevant and test whether the criterion excludes anyone unfairly. The supplied proposal acknowledges that unresolved definition, so I would present this criterion as work to be argued for, not an established sufficient condition.",
+      "probe": null,
+      "resolved": true,
+      "timed_out": false,
+      "ended_early": false,
+      "topic_id": "topic-2",
+      "is_follow_up": false,
+      "assigned_seat": 0,
+      "answered_by": "Ari — live check",
+      "answered_by_seat": 0
+    }
+  ],
+  "coverage": {
+    "topic-1": {
+      "status": "pending",
+      "turns": [],
+      "reason": ""
+    },
+    "topic-2": {
+      "status": "discussed",
+      "turns": [
+        3
+      ],
+      "reason": ""
+    },
+    "topic-3": {
+      "status": "pending",
+      "turns": [],
+      "reason": ""
+    },
+    "topic-4": {
+      "status": "addressed",
+      "turns": [
+        0
+      ],
+      "reason": "The team described a clear counterexample test: if a case meets the stated conditions yet treats relevantly similar cases unequally, a claimed sufficient condition needs revision. They also distinguish justified exceptions from completed proof."
+    },
+    "topic-5": {
+      "status": "pending",
+      "turns": [],
+      "reason": ""
+    },
+    "topic-6": {
+      "status": "discussed",
+      "turns": [
+        1
+      ],
+      "reason": "The answer explains how the paper will state normative premises and represent opposing arguments, but leaves the promised source comparison incomplete and does not address exclusion and accessibility in a later policy discussion."
+    },
+    "topic-7": {
+      "status": "addressed",
+      "turns": [
+        2
+      ],
+      "reason": "The answer explains how separating predictability, equal treatment, and justified priority can help readers reason, and limits the claim to conceptual value rather than service improvement."
+    },
+    "topic-8": {
+      "status": "pending",
+      "turns": [],
+      "reason": ""
+    }
+  },
+  "completion_reason": "ended by host",
+  "feedback_status": "ready",
+  "feedback": {
+    "summary": "The proposal is appropriately presented as conceptual work, not as an empirical study or established result (theoretical.md, lines 4, 12, 20). The host ended the defense; topics on the central question, conditional case, counterexamples, and remaining argument work were still pending, while discussion of relevant similarity also left an acknowledged issue unresolved. Coverage indicates discussion, not validation of the argument.",
+    "strengths": [
+      {
+        "turn": 0,
+        "text": "In Q1, the probe reply gave a useful proposed test: if a case meets the stated conditions yet results in unequal treatment of relevantly similar cases, the claimed sufficient condition needs revision. It also correctly treated this as a planned argument check, not proof (theoretical.md, lines 12, 14)."
+      },
+      {
+        "turn": 1,
+        "text": "In Q2, you explained how you would state normative premises, reconstruct opposing arguments charitably, and separate their premises from your objections. You also accurately acknowledged that the source comparison is not yet complete (theoretical.md, line 16)."
+      },
+      {
+        "turn": 2,
+        "text": "In Q3, you explained the conceptual value of distinguishing predictability, equal treatment, and justified priority, while explicitly avoiding claims of improved service performance (theoretical.md, lines 18–20)."
+      }
+    ],
+    "improvements": [
+      {
+        "turn": 0,
+        "text": "In Q1, the original answer that you would read sources and judge whether the argument is reasonable was too general to show how the planned analysis will work. The probe reply improved this, but the paper still does not identify the selected sources or explain how they will be chosen or reconstructed (theoretical.md, line 12)."
+      },
+      {
+        "turn": 1,
+        "text": "In Q2, you said the source comparison remains unfinished. Prepare to describe how you will complete it; the proposal also leaves unspecified how a later policy discussion would consider exclusion and accessibility (theoretical.md, line 16)."
+      },
+      {
+        "turn": 3,
+        "text": "In Q4, you offered a provisional similarity criterion and appropriately called it unresolved. Be ready to defend which differences count as morally relevant and how you will test the criterion for unfair exclusions, without presenting it as already sufficient (theoretical.md, lines 8, 20)."
+      }
+    ],
+    "next_step": "Before the defense, prepare a concise argument map that states your provisional relevant-similarity criterion, connects it to the proposal’s assumptions, and shows how the accessibility and unobservable-arrival cases might challenge those assumptions. Also identify the philosophical sources and basis for selecting them, and outline which alternative priority rules you plan to compare; these will help address the pending topics left when the host ended the defense."
+  },
+  "error": null,
+  "errors": [],
+  "started_at": 1791991981419,
+  "ended_at": 1791992190301,
+  "guest_turns_match": true,
+  "evidence_type": "Live AI responses; synthetic source papers and scripted defender test answers; two WebSocket clients in one browser.",
+  "prompt_revision": "Before the planned-step and coaching-topic wording refinements."
+}

@@ -1,0 +1,304 @@
+{
+  "case": "empirical",
+  "phase": "complete",
+  "profile": {
+    "fields": [
+      "Human-computer interaction",
+      "Interface and information design"
+    ],
+    "approaches": [
+      "quantitative"
+    ],
+    "setting": "A classroom task with adult student volunteers from one department, interpreting a campus service status display.",
+    "explanation": "The paper reports a comparison using measured task times and error counts, with descriptive paired observations. It supports a quantitative pilot profile; the paper explicitly limits its claims to classroom interpretation rather than live queue behavior.",
+    "references": [
+      {
+        "filename": "empirical.md",
+        "evidence_line": 4,
+        "evidence_text": "The study examined whether a queue-status prototype changed how quickly student volunteers could interpret a campus service status display in a classroom task. The study does not measure actual time spent in a live service queue.",
+        "evidence_location": "Line 4",
+        "evidence_kind": "research_text",
+        "evidence_before": "# Synthetic completed study: reading campus queue status\nThis document is synthetic and prepared only for local AI conversation review.\n## Aim and setting",
+        "evidence_after": "## Research question\nHow do task completion times and interpretation errors differ between a conventional status notice and the prototype in this pilot?\n## Design and recruitment"
+      },
+      {
+        "filename": "empirical.md",
+        "evidence_line": 8,
+        "evidence_text": "Twelve adult student volunteers from one department each completed both versions. Six saw the conventional notice first and six saw the prototype first. Recruitment was voluntary through the department announcement board; the sample was not randomly drawn from the entire university.",
+        "evidence_location": "Line 8",
+        "evidence_kind": "research_text",
+        "evidence_before": "## Research question\nHow do task completion times and interpretation errors differ between a conventional status notice and the prototype in this pilot?\n## Design and recruitment",
+        "evidence_after": "## Measures\nTask completion time ran from displaying the notice to the volunteer identifying both the queue status and its last update time. An interpretation error meant either value was identified incorrectly. The task content and observer instructions were held constant across versions.\n## Analysis and results"
+      },
+      {
+        "filename": "empirical.md",
+        "evidence_line": 10,
+        "evidence_text": "Task completion time ran from displaying the notice to the volunteer identifying both the queue status and its last update time. An interpretation error meant either value was identified incorrectly. The task content and observer instructions were held constant across versions.",
+        "evidence_location": "Line 10",
+        "evidence_kind": "research_text",
+        "evidence_before": "## Design and recruitment\nTwelve adult student volunteers from one department each completed both versions. Six saw the conventional notice first and six saw the prototype first. Recruitment was voluntary through the department announcement board; the sample was not randomly drawn from the entire university.\n## Measures",
+        "evidence_after": "## Analysis and results\nMedian task time was 72 seconds for the conventional notice and 58 seconds for the prototype. Four of twelve volunteers made an interpretation error with the conventional notice; two of twelve made an error with the prototype. The pilot reports descriptive paired observations and no significance test or population effect estimate.\n## Ethics and data handling"
+      },
+      {
+        "filename": "empirical.md",
+        "evidence_line": 12,
+        "evidence_text": "Median task time was 72 seconds for the conventional notice and 58 seconds for the prototype. Four of twelve volunteers made an interpretation error with the conventional notice; two of twelve made an error with the prototype. The pilot reports descriptive paired observations and no significance test or population effect estimate.",
+        "evidence_location": "Line 12",
+        "evidence_kind": "research_text",
+        "evidence_before": "## Measures\nTask completion time ran from displaying the notice to the volunteer identifying both the queue status and its last update time. An interpretation error meant either value was identified incorrectly. The task content and observer instructions were held constant across versions.\n## Analysis and results",
+        "evidence_after": "## Ethics and data handling\nVolunteers provided informed consent and could withdraw without losing access to the service. Timing sheets used participant codes, not student names. No service records or sensitive personal data were collected. The team plans to delete the raw timing sheets after the documented retention period of six months.\n## Contribution"
+      },
+      {
+        "filename": "empirical.md",
+        "evidence_line": 16,
+        "evidence_text": "The study identifies design questions about how users interpret freshness indicators. It contributes preliminary observations for refining interface guidance, not evidence of shorter real queues or a universal improvement.",
+        "evidence_location": "Line 16",
+        "evidence_kind": "research_text",
+        "evidence_before": "## Ethics and data handling\nVolunteers provided informed consent and could withdraw without losing access to the service. Timing sheets used participant codes, not student names. No service records or sensitive personal data were collected. The team plans to delete the raw timing sheets after the documented retention period of six months.\n## Contribution",
+        "evidence_after": "## Limitations\nThe single-department volunteer sample, small sample size and classroom setting limit transfer to real queue behavior. Familiarity between tasks may affect the second attempt despite counterbalanced order. Further evaluation would need broader recruitment and real service conditions."
+      }
+    ],
+    "uncertainties": [],
+    "host_description": null,
+    "source_description": null,
+    "needs_uncertainty_acknowledgment": false
+  },
+  "topics": [
+    {
+      "id": "topic-1",
+      "title": "Study aim, task setting, and scope",
+      "panelist": "Methodology Reviewer",
+      "gaps": []
+    },
+    {
+      "id": "topic-2",
+      "title": "Design and volunteer recruitment",
+      "panelist": "Methodology Reviewer",
+      "gaps": []
+    },
+    {
+      "id": "topic-3",
+      "title": "Measures and task consistency",
+      "panelist": "Methodology Reviewer",
+      "gaps": []
+    },
+    {
+      "id": "topic-4",
+      "title": "Reported results and strength of inference",
+      "panelist": "Critical Judge",
+      "gaps": [
+        "The text reports group medians and error counts but not participant-level paired patterns, limiting review of how changes varied across volunteers."
+      ]
+    },
+    {
+      "id": "topic-5",
+      "title": "Consent, privacy, and data retention",
+      "panelist": "Ethics Reviewer",
+      "gaps": [
+        "The text states a six-month retention period and plans deletion afterward, but does not describe how deletion completion will be documented."
+      ]
+    },
+    {
+      "id": "topic-6",
+      "title": "Contribution and boundaries of the claim",
+      "panelist": "Impact Reviewer",
+      "gaps": []
+    },
+    {
+      "id": "topic-7",
+      "title": "Limitations and transfer to real service use",
+      "panelist": "Critical Judge",
+      "gaps": [
+        "The paper notes possible familiarity effects but does not report an assessment of their influence on the observed results."
+      ]
+    }
+  ],
+  "turns": [
+    {
+      "panelist": "Methodology Reviewer",
+      "lead_in": "",
+      "question": "Could you clarify what this pilot examined, and how its classroom task differs from measuring time spent in a live queue?",
+      "filename": "empirical.md",
+      "evidence_line": 4,
+      "evidence_text": "The study examined whether a queue-status prototype changed how quickly student volunteers could interpret a campus service status display in a classroom task. The study does not measure actual time spent in a live service queue.",
+      "evidence_location": "Line 4",
+      "evidence_kind": "research_text",
+      "evidence_before": "# Synthetic completed study: reading campus queue status\nThis document is synthetic and prepared only for local AI conversation review.\n## Aim and setting",
+      "evidence_after": "## Research question\nHow do task completion times and interpretation errors differ between a conventional status notice and the prototype in this pilot?\n## Design and recruitment",
+      "clarifications": [
+        {
+          "request": "Explain the same question in modern Bisaya, please.",
+          "reply": "Ang pangutana nako kay: unsay gisukod sa pilot sa classroom, ug nganong lahi kini sa pagsukod kung pila ka oras ang tinuod nga paghulat sa service queue?"
+        }
+      ],
+      "answer": "Sa classroom, among gi-time gikan pagpakita sa notice hangtod ma-identify sa volunteer ang queue status ug last update time. Ang prototype adunay 58-second median kumpara sa 72 seconds sa conventional notice, pero task completion ra ni. Wala namo gisukod ang actual nga paghulat sa live queue, busa dili mi mo-claim nga mas mubo na ang real waiting time.",
+      "probe": null,
+      "resolved": true,
+      "timed_out": false,
+      "ended_early": false,
+      "topic_id": "topic-1",
+      "is_follow_up": false,
+      "assigned_seat": 1,
+      "answered_by": "Sam — live check",
+      "answered_by_seat": 1
+    },
+    {
+      "panelist": "Ethics Reviewer",
+      "lead_in": "Nasabtan nako nga inyong claim limitado sa classroom task, dili sa tinuod nga oras sa paghulat.",
+      "question": "Giingon sa paper nga planong i-delete ang raw timing sheets human sa unom ka bulan. Giunsa ninyo pagdokumento nga nahuman na ang deletion?",
+      "filename": "empirical.md",
+      "evidence_line": 14,
+      "evidence_text": "Volunteers provided informed consent and could withdraw without losing access to the service. Timing sheets used participant codes, not student names. No service records or sensitive personal data were collected. The team plans to delete the raw timing sheets after the documented retention period of six months.",
+      "evidence_location": "Line 14",
+      "evidence_kind": "research_text",
+      "evidence_before": "## Analysis and results\nMedian task time was 72 seconds for the conventional notice and 58 seconds for the prototype. Four of twelve volunteers made an interpretation error with the conventional notice; two of twelve made an error with the prototype. The pilot reports descriptive paired observations and no significance test or population effect estimate.\n## Ethics and data handling",
+      "evidence_after": "## Contribution\nThe study identifies design questions about how users interpret freshness indicators. It contributes preliminary observations for refining interface guidance, not evidence of shorter real queues or a universal improvement.\n## Limitations",
+      "clarifications": [],
+      "answer": "Wala pa naabot ang six-month retention period, so plano pa ang deletion, dili pa completed. Ang among proposed process kay i-delete sa assigned researcher ang timing sheets ug backup copies, dayon maghimo og dated checklist nga adunay file category, deletion date, ug reviewer signature. Proposal sa process ra na sa among tubag; wala pa kana nga checklist sa uploaded paper.",
+      "probe": null,
+      "resolved": true,
+      "timed_out": false,
+      "ended_early": false,
+      "topic_id": "topic-5",
+      "is_follow_up": false,
+      "assigned_seat": 0,
+      "answered_by": "Ari — live check",
+      "answered_by_seat": 0
+    },
+    {
+      "panelist": "Impact Reviewer",
+      "lead_in": "Klaro nga proposal pa ang checklist, dili pa usa ka proseso nga naa sa paper.",
+      "question": "Giunsa pagtabang sa inyong preliminary observations sa pag-ila og design questions bahin sa freshness indicators ug sa pag-refine sa interface guidance?",
+      "filename": "empirical.md",
+      "evidence_line": 16,
+      "evidence_text": "The study identifies design questions about how users interpret freshness indicators. It contributes preliminary observations for refining interface guidance, not evidence of shorter real queues or a universal improvement.",
+      "evidence_location": "Line 16",
+      "evidence_kind": "research_text",
+      "evidence_before": "## Ethics and data handling\nVolunteers provided informed consent and could withdraw without losing access to the service. Timing sheets used participant codes, not student names. No service records or sensitive personal data were collected. The team plans to delete the raw timing sheets after the documented retention period of six months.\n## Contribution",
+      "evidence_after": "## Limitations\nThe single-department volunteer sample, small sample size and classroom setting limit transfer to real queue behavior. Familiarity between tasks may affect the second attempt despite counterbalanced order. Further evaluation would need broader recruitment and real service conditions.",
+      "clarifications": [],
+      "answer": "Ang gi-report namo kay mas paspas nga task completion ug mas gamay nga interpretation errors sa prototype sa pilot. Preliminary design signal ra na, dili proof nga ang freshness indicator maoy cause. Wala pa namo gi-separate kung queue status ba o update time ang sayop, busa sunod nga evaluation kinahanglan kana nga error breakdown aron mahibalo mi unsang guidance ang i-refine.",
+      "probe": null,
+      "resolved": true,
+      "timed_out": false,
+      "ended_early": false,
+      "topic_id": "topic-6",
+      "is_follow_up": false,
+      "assigned_seat": 0,
+      "answered_by": "Ari — live check",
+      "answered_by_seat": 0
+    },
+    {
+      "panelist": "Critical Judge",
+      "lead_in": "Maayo nga gilimitahan ninyo ang causal claim ug giila nga kinahanglan i-breakdown ang mga error.",
+      "question": "Giingon sa paper nga mahimong makaapekto ang familiarity sa ikaduhang task bisan gi-counterbalance ang order. Unsaon ninyo paghunahuna sa posibleng epekto niini sa inyong mga resulta?",
+      "filename": "empirical.md",
+      "evidence_line": 18,
+      "evidence_text": "The single-department volunteer sample, small sample size and classroom setting limit transfer to real queue behavior. Familiarity between tasks may affect the second attempt despite counterbalanced order. Further evaluation would need broader recruitment and real service conditions.",
+      "evidence_location": "Line 18",
+      "evidence_kind": "research_text",
+      "evidence_before": "## Contribution\nThe study identifies design questions about how users interpret freshness indicators. It contributes preliminary observations for refining interface guidance, not evidence of shorter real queues or a universal improvement.\n## Limitations",
+      "evidence_after": "",
+      "clarifications": [],
+      "answer": "Ang counterbalancing makatabang nga dili pirmi prototype ang second task, pero dili niya mawala ang learning effect. Wala mi nag-report og separate first-order versus second-order analysis, busa dili namo ma-isolate ang familiarity contribution sa observed medians. I-report namo kana nga limitation ug sa sunod nga evaluation i-prespecify ang paired differences ug order comparison, nga dili i-present nga nahimo na sa current study.",
+      "probe": null,
+      "resolved": true,
+      "timed_out": false,
+      "ended_early": false,
+      "topic_id": "topic-7",
+      "is_follow_up": false,
+      "assigned_seat": 0,
+      "answered_by": "Ari — live check",
+      "answered_by_seat": 0
+    }
+  ],
+  "coverage": {
+    "topic-1": {
+      "status": "addressed",
+      "turns": [
+        0
+      ],
+      "reason": "Gipasabot sa tubag nga gisukod ang oras sa pag-ila sa queue status ug last update sa classroom task, ug dili ang actual nga paghulat sa live queue."
+    },
+    "topic-2": {
+      "status": "pending",
+      "turns": [],
+      "reason": ""
+    },
+    "topic-3": {
+      "status": "pending",
+      "turns": [],
+      "reason": ""
+    },
+    "topic-4": {
+      "status": "pending",
+      "turns": [],
+      "reason": ""
+    },
+    "topic-5": {
+      "status": "addressed",
+      "turns": [
+        1
+      ],
+      "reason": "Gihatag ang proposed nga paagi sa pagdokumento sa deletion—dated checklist para sa timing sheets ug backups—ug giklaro nga proposal pa kini, dili na nahuman o naa na sa paper."
+    },
+    "topic-6": {
+      "status": "discussed",
+      "turns": [
+        2
+      ],
+      "reason": "Gipasabot nga preliminary signal ra ang mas paspas nga task ug mas gamay nga errors, dili pamatuod sa hinungdan; giila usab nga ang error breakdown makatabang pagpino sa guidance, apan wala pa gihisgoti kung giunsa paghubad ang matag design question."
+    },
+    "topic-7": {
+      "status": "discussed",
+      "turns": [
+        3
+      ],
+      "reason": ""
+    }
+  },
+  "completion_reason": "ended by host",
+  "feedback_status": "ready",
+  "feedback": {
+    "summary": "Maayo ninyo nga gilimitahan ang mga claim sa classroom task ug sa preliminary nga resulta, ug klaro ang kalainan ninyo tali sa nahitabo na ug sa plano pa. Natapos ang defense kay gipahunong sa host: natandog ang Q1 ug Q5–Q7, pero wala pa mahisgoti ang recruitment/design, pagtakda sa measures, ug mas detalyadong pagtan-aw sa reported results. Ang natandog nga topics nagpakita sa discussion, dili awtomatikong pamatuod nga husto o kompleto ang study.",
+    "strengths": [
+      {
+        "turn": 0,
+        "text": "Sa Q1, klaro ninyong giingon nga oras sa pag-ila sa status ug last update sa classroom ang gisukod, dili live waiting time. Sakto usab ang pagbutang sa 58 ug 72 seconds isip task medians, dili isip ebidensya nga mubo ang tinuod nga pila."
+      },
+      {
+        "turn": 1,
+        "text": "Sa Q2, giila ninyo nga plano pa ang six-month deletion ug wala pa sa paper ang proposed checklist. Nakatabang kini nga dili masagol ang inyong gisugyot nga proseso ug ang nahuman na nga trabaho."
+      },
+      {
+        "turn": 3,
+        "text": "Sa Q4, giila ninyo nga ang counterbalancing dili makatangtang sa learning effect ug nga wala moy separate order analysis sa current study. Klaro usab ninyo nga ang paired differences ug order comparison plano pa sa sunod nga evaluation."
+      }
+    ],
+    "improvements": [
+      {
+        "turn": 0,
+        "text": "Kay wala pa mahisgoti sa defense ang recruitment/design, measures, ug mas detalyadong resulta, andama ang mubo nga tubag bahin sa 12 ka volunteer, unsaon pagsukod sa oras ug errors, ug unsay gisuportahan sa descriptive paired observations. Ang Q1 nagtukod na sa scope, pero wala niini matubag kining mga topic."
+      },
+      {
+        "turn": 2,
+        "text": "Sa Q3, giingon ninyo nga wala pa mahibaloi kung status ba o update time ang sayop. Andama pagpasabot kung unsaon pagtabang sa proposed error breakdown sa pagpili og interface guidance; ipabilin nga plano kini, dili resulta sa current study."
+      },
+      {
+        "turn": 3,
+        "text": "Sa Q4, maayo ang pag-ila sa posibleng familiarity effect. Andama usab kung naa ba sa inyong data ang participant-level paired patterns; kung wala o dili pa ninyo kini na-analyze, klaroha nga ang paper nagreport sa medians ug error counts, ug ayaw pag-ingon nga na-isolate ang epekto sa order."
+      }
+    ],
+    "next_step": "Sa dili pa ang defense, paghimo og usa ka mubo nga talaan sa recruitment ug task measures, reported medians ug error counts, unsay wala ma-analyze, ug unsang follow-up ang plano pa. Apila ang tubag sa Q3 kung unsaon paggiya sa error breakdown sa interface refinement, ug klaroha sa matag punto kung finding ba kini sa paper o sugyot para sa sunod nga evaluation."
+  },
+  "error": null,
+  "errors": [
+    "Only the chosen defender can answer this question.",
+    "Only the chosen defender can answer this question."
+  ],
+  "started_at": 1791991489990,
+  "ended_at": 1791991856993,
+  "guest_turns_match": true,
+  "evidence_type": "Live AI responses; synthetic source papers and scripted defender test answers; two WebSocket clients in one browser.",
+  "prompt_revision": "Before the planned-step and coaching-topic wording refinements."
+}

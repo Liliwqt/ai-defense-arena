@@ -11,7 +11,7 @@
 - [x] Exercise stale approval/results, failed map recovery, host/source conflicts, legacy-map guidance, unchanged code-only behavior and existing account/payment regression boundaries as part of integrated verification.
 - [x] Run full Python/React suites and production build. Review desktop, portrait and landscape for readable profile/source explanations, keyboard focus, internal scrolling, unclipped controls and preserved question/timer/dock readability.
 - [x] Present screenshots and the actual local preview; update user documentation and the shared handoff log after each checkpoint. Do not mark user visual approval or device/hosted checks complete without evidence.
-- [ ] Separately inspect live empirical, theoretical and interdisciplinary conversations when a local key is configured, recording subject relevance, reactions, uncertainty, Ethics/Impact framing and language behavior without secrets/private uploaded text. If credentials are unavailable, explicitly record the missing evidence and keep live quality/publication readiness pending.
+- [x] Separately inspect live empirical, theoretical and interdisciplinary conversations when a local key is configured, recording subject relevance, reactions, uncertainty, Ethics/Impact framing and language behavior without secrets/private uploaded text. If credentials are unavailable, explicitly record the missing evidence and keep live quality/publication readiness pending.
 - [x] Preserve existing local reasoning/test-access work, unrelated files, frozen main and the current live service. No publication or deployment occurs within these tickets without a later user request.
 
 ## Working boundary
@@ -21,3 +21,9 @@ Use the approved Adaptive research panel specification as the implementation con
 ## Verification and remaining evidence
 
 Offline and local responsive checks are complete; see [the review record](../../../docs/ADAPTIVE_RESEARCH_PANEL_REVIEW.md#ticket-04--integrated-local-review). Full working tree: 540 Python tests (AI/Google/PayMongo mocked), 275 React tests and build. Exact selected artifact: 532 mocked Python tests. Whole-feature Standards/Spec reviews against c498598 have zero actionable findings. Live empirical/theoretical/interdisciplinary quality remains unchecked because a configured local endpoint has not been confirmed; user review and publication readiness remain pending. No push/deploy or hosted/native claims.
+
+## Live review follow-up
+
+Completed empirical four-question, theoretical four-question/probe and interdisciplinary mixed six-question/probe/follow-up samples with real AI on the user-configured local runner. All reached coaching; exact synthetic citations and final two-client transcripts were checked. Evidence: [live review](../../../docs/ADAPTIVE_RESEARCH_PANEL_LIVE_REVIEW.md).
+
+- [ ] Recheck the new planned-step wording and coaching topic-title instructions after the server restart. Original live samples are retained as pre-refinement evidence; native-language/user review and publication readiness remain pending.

@@ -1,7 +1,7 @@
 # Adaptive research panel — local implementation review
 
 Implemented locally on `feature/question-first-room`; review baseline `c498598`.
-Tickets 01–03 and ticket 04's offline integration/responsive review are complete locally and independently code-reviewed. Live conversation quality and user visual review remain pending; no publication readiness is implied.
+Tickets 01–03 and ticket 04's offline integration/responsive review are complete locally and independently code-reviewed. Separate live empirical, theoretical and mixed samples are now recorded; two resulting prompt refinements await a post-restart live check. User visual/native-language review and publication readiness remain pending.
 
 ## What changed
 
@@ -113,6 +113,6 @@ The review server binds only to loopback on **8846**, removes provider credentia
 | [Portrait paper highlight](../screenshots/adaptive-panel-paper-portrait.png) | Complete page browsing and visible verified highlight |
 | [Landscape panelist reply](../screenshots/adaptive-panel-reply-landscape.png) | Same-question reply labels and scrolling content |
 
-### Missing live evidence
+### Separate live evidence
 
-An updated local AI server URL/key configuration was requested but has not been confirmed for this review. **No real AI, Google or PayMongo requests were made.** Empirical, theoretical and interdisciplinary conversations must still be inspected for topic relevance, specific answer-aware reactions, uncertainty, nonparticipant Ethics, contributions to knowledge and language continuity. Mock fixtures and visible quotations cannot establish specialist accuracy or naturalness. Keep live quality and publication readiness pending until those checks and user review are recorded. Hosted proxy behavior and installed Android/iOS checks also remain separate.
+The original offline handoff did not make real AI, Google or PayMongo requests. The user subsequently configured a local server on port 8001, and three live AI samples were inspected. See [the live review](ADAPTIVE_RESEARCH_PANEL_LIVE_REVIEW.md) for synthetic sources, actual generated transcripts, safe mapping recovery and two discovered wording issues. Those issues led to research-only prompt refinements whose post-restart live check remains pending. Samples do not certify specialist accuracy or native-language quality. User review, hosted behavior and installed Android/iOS checks remain separate; no publication readiness is implied.

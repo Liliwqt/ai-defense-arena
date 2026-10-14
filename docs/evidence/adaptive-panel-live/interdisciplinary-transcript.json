@@ -1,0 +1,497 @@
+{
+  "case": "interdisciplinary",
+  "phase": "complete",
+  "profile": {
+    "fields": [
+      "Education",
+      "Software engineering"
+    ],
+    "approaches": [
+      "quantitative",
+      "computational/design"
+    ],
+    "setting": "One campus",
+    "explanation": "The paper frames an exploratory one-campus study around student understanding and prototype design. It plans interviews and coding alongside prototype usability work, with descriptive observations rather than a randomized trial, hypothesis test, or population estimate. This supports a qualitative and computational/design profile; multiple components do not by themselves establish a formally justified mixed-methods design. Software design is supported, but broader software-engineering methods are not established by the text.",
+    "references": [
+      {
+        "filename": "interdisciplinary.md",
+        "evidence_line": 4,
+        "evidence_text": "The proposal combines human-computer interaction, education service experience and software design in one campus. It explores how students understand queue-status information and how a prototype represents that information.",
+        "evidence_location": "Line 4",
+        "evidence_kind": "research_text",
+        "evidence_before": "# Synthetic interdisciplinary proposal: campus queue information and student experience\nThis document is synthetic and prepared only for local AI conversation review.\n## Aim and research setting",
+        "evidence_after": "## Research questions\nWhat difficulties do students describe when deciding whether to visit the service office? Which interface information do they find useful or confusing? How can a prototype represent approximate queue status without pretending it measures exact waiting time?\n## Qualitative component"
+      },
+      {
+        "filename": "interdisciplinary.md",
+        "evidence_line": 8,
+        "evidence_text": "The team plans semi-structured interviews with twelve student volunteers from at least three departments. Interview notes would be coded into themes; the team would retain contradictory comments and document revisions to its coding decisions. Twelve is an initial feasibility target rather than a saturation guarantee.",
+        "evidence_location": "Line 8",
+        "evidence_kind": "research_text",
+        "evidence_before": "## Research questions\nWhat difficulties do students describe when deciding whether to visit the service office? Which interface information do they find useful or confusing? How can a prototype represent approximate queue status without pretending it measures exact waiting time?\n## Qualitative component",
+        "evidence_after": "## Design component\nA prototype displays a manually entered count and the time it was last updated. The accompanying code stores a queue count and update time. The count is a user-supplied estimate, not a verified observation of service duration or actual queue membership.\n## Prototype evaluation"
+      },
+      {
+        "filename": "interdisciplinary.md",
+        "evidence_line": 10,
+        "evidence_text": "A prototype displays a manually entered count and the time it was last updated. The accompanying code stores a queue count and update time. The count is a user-supplied estimate, not a verified observation of service duration or actual queue membership.",
+        "evidence_location": "Line 10",
+        "evidence_kind": "research_text",
+        "evidence_before": "## Qualitative component\nThe team plans semi-structured interviews with twelve student volunteers from at least three departments. Interview notes would be coded into themes; the team would retain contradictory comments and document revisions to its coding decisions. Twelve is an initial feasibility target rather than a saturation guarantee.\n## Design component",
+        "evidence_after": "## Prototype evaluation\nParticipants would interpret mock status cards during short usability tasks. The team would record confusion and interpretation choices descriptively. No randomized trial, statistical hypothesis test, quantitative population estimate or real waiting-time reduction is specified in this proposal.\n## Integration"
+      },
+      {
+        "filename": "interdisciplinary.md",
+        "evidence_line": 12,
+        "evidence_text": "Participants would interpret mock status cards during short usability tasks. The team would record confusion and interpretation choices descriptively. No randomized trial, statistical hypothesis test, quantitative population estimate or real waiting-time reduction is specified in this proposal.",
+        "evidence_location": "Line 12",
+        "evidence_kind": "research_text",
+        "evidence_before": "## Design component\nA prototype displays a manually entered count and the time it was last updated. The accompanying code stores a queue count and update time. The count is a user-supplied estimate, not a verified observation of service duration or actual queue membership.\n## Prototype evaluation",
+        "evidence_after": "## Integration\nInterview themes would guide wording and freshness indicators in the prototype. Usability observations would help refine the design. Multiple components do not by themselves establish a formally justified mixed-methods study.\n## Safeguards"
+      },
+      {
+        "filename": "interdisciplinary.md",
+        "evidence_line": 14,
+        "evidence_text": "Interview themes would guide wording and freshness indicators in the prototype. Usability observations would help refine the design. Multiple components do not by themselves establish a formally justified mixed-methods study.",
+        "evidence_location": "Line 14",
+        "evidence_kind": "research_text",
+        "evidence_before": "## Prototype evaluation\nParticipants would interpret mock status cards during short usability tasks. The team would record confusion and interpretation choices descriptively. No randomized trial, statistical hypothesis test, quantitative population estimate or real waiting-time reduction is specified in this proposal.\n## Integration",
+        "evidence_after": "## Safeguards\nParticipation is voluntary and unrelated to academic grades or office access. Notes would use participant codes. The prototype would contain no student identifiers, and the team would explain that an old update may be misleading. Device screenshots would contain synthetic counts only.\n## Expected contribution"
+      },
+      {
+        "filename": "interdisciplinary.md",
+        "evidence_line": 18,
+        "evidence_text": "The intended contribution is a documented set of student information needs and design tradeoffs. The proposal does not claim a production deployment, a causal reduction in queue waits or broad generalization across campuses.",
+        "evidence_location": "Line 18",
+        "evidence_kind": "research_text",
+        "evidence_before": "## Safeguards\nParticipation is voluntary and unrelated to academic grades or office access. Notes would use participant codes. The prototype would contain no student identifiers, and the team would explain that an old update may be misleading. Device screenshots would contain synthetic counts only.\n## Expected contribution",
+        "evidence_after": "## Remaining gaps\nThe team still needs to justify its recruitment approach, specify how disagreements in coding are discussed, and determine when status should be marked stale. The current prototype accepts negative counts, which is an implementation limitation to be addressed before use."
+      }
+    ],
+    "uncertainties": [
+      "The host lens includes quantitative work, while the proposal specifies descriptive usability records and excludes statistical testing and population estimates; whether any numeric analysis of interpretation choices is intended is unclear.",
+      "The host lens includes software engineering, while the paper describes software design and a prototype without identifying a broader software-engineering method."
+    ],
+    "host_description": {
+      "fields": [
+        "Education",
+        "Software engineering"
+      ],
+      "approaches": [
+        "quantitative",
+        "computational/design"
+      ],
+      "setting": "One campus"
+    },
+    "source_description": {
+      "fields": [
+        "Human-computer interaction",
+        "Education and service experience",
+        "Software design"
+      ],
+      "approaches": [
+        "qualitative",
+        "computational/design"
+      ],
+      "setting": "One campus"
+    },
+    "needs_uncertainty_acknowledgment": true
+  },
+  "topics": [
+    {
+      "id": "topic-1",
+      "title": "Aim, research questions, and campus scope",
+      "panelist": "Methodology Reviewer",
+      "gaps": []
+    },
+    {
+      "id": "topic-2",
+      "title": "Interview recruitment and interpretation",
+      "panelist": "Methodology Reviewer",
+      "gaps": [
+        "The proposal identifies recruitment justification as unfinished.",
+        "How disagreements in coding will be discussed remains to be specified."
+      ]
+    },
+    {
+      "id": "topic-3",
+      "title": "Approximate status representation and implementation",
+      "panelist": "Methodology Reviewer",
+      "gaps": [
+        "The code stores the supplied count and time without validation or a freshness policy; the proposal notes that negative counts are currently accepted.",
+        "The stale-status threshold is still to be determined."
+      ]
+    },
+    {
+      "id": "topic-4",
+      "title": "Planned usability evaluation and evidence limits",
+      "panelist": "Methodology Reviewer",
+      "gaps": [
+        "The proposal does not specify the task scenarios or a detailed procedure for summarizing the descriptive observations."
+      ]
+    },
+    {
+      "id": "topic-5",
+      "title": "Connecting interview and usability components",
+      "panelist": "Methodology Reviewer",
+      "gaps": [
+        "The proposal gives intended uses for both components but does not specify how evidence will be combined or prioritized when it points in different directions.",
+        "The proposal itself notes that multiple components do not alone establish a formally justified mixed-methods study."
+      ]
+    },
+    {
+      "id": "topic-6",
+      "title": "Participant experience and information safeguards",
+      "panelist": "Ethics Reviewer",
+      "gaps": [
+        "Storage, access, and retention arrangements for coded interview notes are not specified in the proposal."
+      ]
+    },
+    {
+      "id": "topic-7",
+      "title": "Bounded contribution and intended beneficiaries",
+      "panelist": "Impact Reviewer",
+      "gaps": []
+    }
+  ],
+  "turns": [
+    {
+      "panelist": "Methodology Reviewer",
+      "lead_in": "",
+      "question": "How will you keep these questions about visit decisions, useful or confusing information, and approximate queue status focused on the study’s one-campus scope and intended contribution?",
+      "filename": "interdisciplinary.md",
+      "evidence_line": 6,
+      "evidence_text": "What difficulties do students describe when deciding whether to visit the service office? Which interface information do they find useful or confusing? How can a prototype represent approximate queue status without pretending it measures exact waiting time?",
+      "evidence_location": "Line 6",
+      "evidence_kind": "research_text",
+      "evidence_before": "## Aim and research setting\nThe proposal combines human-computer interaction, education service experience and software design in one campus. It explores how students understand queue-status information and how a prototype represents that information.\n## Research questions",
+      "evidence_after": "## Qualitative component\nThe team plans semi-structured interviews with twelve student volunteers from at least three departments. Interview notes would be coded into themes; the team would retain contradictory comments and document revisions to its coding decisions. Twelve is an initial feasibility target rather than a saturation guarantee.\n## Design component",
+      "clarifications": [],
+      "answer": "We will use the twelve interviews to prove that the prototype reduces actual waiting times for all students, because the stored queue count already tells us the exact wait. That is why I selected quantitative in the host profile.",
+      "probe": {
+        "request": "The proposal describes the count as a user-supplied estimate, not a verified waiting time, and bounds the contribution to one campus. How will you revise the claim about proving reduced waits for all students to fit what the planned evidence can establish?",
+        "references": [
+          {
+            "filename": "interdisciplinary.md",
+            "evidence_line": 10,
+            "evidence_text": "A prototype displays a manually entered count and the time it was last updated. The accompanying code stores a queue count and update time. The count is a user-supplied estimate, not a verified observation of service duration or actual queue membership.",
+            "evidence_location": "Line 10",
+            "evidence_kind": "research_text",
+            "evidence_before": "## Qualitative component\nThe team plans semi-structured interviews with twelve student volunteers from at least three departments. Interview notes would be coded into themes; the team would retain contradictory comments and document revisions to its coding decisions. Twelve is an initial feasibility target rather than a saturation guarantee.\n## Design component",
+            "evidence_after": "## Prototype evaluation\nParticipants would interpret mock status cards during short usability tasks. The team would record confusion and interpretation choices descriptively. No randomized trial, statistical hypothesis test, quantitative population estimate or real waiting-time reduction is specified in this proposal.\n## Integration"
+          },
+          {
+            "filename": "interdisciplinary.md",
+            "evidence_line": 18,
+            "evidence_text": "The intended contribution is a documented set of student information needs and design tradeoffs. The proposal does not claim a production deployment, a causal reduction in queue waits or broad generalization across campuses.",
+            "evidence_location": "Line 18",
+            "evidence_kind": "research_text",
+            "evidence_before": "## Safeguards\nParticipation is voluntary and unrelated to academic grades or office access. Notes would use participant codes. The prototype would contain no student identifiers, and the team would explain that an old update may be misleading. Device screenshots would contain synthetic counts only.\n## Expected contribution",
+            "evidence_after": "## Remaining gaps\nThe team still needs to justify its recruitment approach, specify how disagreements in coding are discussed, and determine when status should be marked stale. The current prototype accepts negative counts, which is an implementation limitation to be addressed before use."
+          }
+        ],
+        "status": "answered",
+        "reply": "I retract that claim. The planned interviews explore information needs in one campus; descriptive usability tasks inform wording and design. The stored count and timestamp do not measure service duration or exact waiting time. My quantitative label is only a requested practice lens and is not established by the uploaded proposal. We should claim a documented set of information needs and design tradeoffs, not a causal reduction or a result for all students.",
+        "speaker_name": "Ari — live check",
+        "speaker_seat": 0,
+        "clarifications": []
+      },
+      "resolved": true,
+      "timed_out": false,
+      "ended_early": false,
+      "topic_id": "topic-1",
+      "is_follow_up": false,
+      "assigned_seat": 0,
+      "answered_by": "Ari — live check",
+      "answered_by_seat": 0
+    },
+    {
+      "panelist": "Ethics Reviewer",
+      "lead_in": "",
+      "question": "How will you store the coded interview notes, limit access to them, and decide when to delete them?",
+      "filename": "interdisciplinary.md",
+      "evidence_line": 16,
+      "evidence_text": "Participation is voluntary and unrelated to academic grades or office access. Notes would use participant codes. The prototype would contain no student identifiers, and the team would explain that an old update may be misleading. Device screenshots would contain synthetic counts only.",
+      "evidence_location": "Line 16",
+      "evidence_kind": "research_text",
+      "evidence_before": "## Integration\nInterview themes would guide wording and freshness indicators in the prototype. Usability observations would help refine the design. Multiple components do not by themselves establish a formally justified mixed-methods study.\n## Safeguards",
+      "evidence_after": "## Expected contribution\nThe intended contribution is a documented set of student information needs and design tradeoffs. The proposal does not claim a production deployment, a causal reduction in queue waits or broad generalization across campuses.\n## Remaining gaps",
+      "clarifications": [],
+      "answer": "Our proposed procedure is an encrypted research folder accessible only to the two assigned researchers, using participant codes and keeping any recruitment contact list separately. We would agree a justified retention period before consent, explain it to participants and document deletion of originals and backups. Those storage and retention details are not yet specified in the uploaded proposal; I am describing the procedure we would add before recruitment, not an approval or an implemented safeguard.",
+      "probe": null,
+      "resolved": true,
+      "timed_out": false,
+      "ended_early": false,
+      "topic_id": "topic-6",
+      "is_follow_up": false,
+      "assigned_seat": 0,
+      "answered_by": "Ari — live check",
+      "answered_by_seat": 0
+    },
+    {
+      "panelist": "Impact Reviewer",
+      "lead_in": "The proposal keeps its contribution deliberately bounded to one campus.",
+      "question": "What would you point to as evidence that documenting these campus-specific information needs and design tradeoffs is a worthwhile contribution, without claiming deployment or broad generalization?",
+      "filename": "interdisciplinary.md",
+      "evidence_line": 18,
+      "evidence_text": "The intended contribution is a documented set of student information needs and design tradeoffs. The proposal does not claim a production deployment, a causal reduction in queue waits or broad generalization across campuses.",
+      "evidence_location": "Line 18",
+      "evidence_kind": "research_text",
+      "evidence_before": "## Safeguards\nParticipation is voluntary and unrelated to academic grades or office access. Notes would use participant codes. The prototype would contain no student identifiers, and the team would explain that an old update may be misleading. Device screenshots would contain synthetic counts only.\n## Expected contribution",
+      "evidence_after": "## Remaining gaps\nThe team still needs to justify its recruitment approach, specify how disagreements in coding are discussed, and determine when status should be marked stale. The current prototype accepts negative counts, which is an implementation limitation to be addressed before use.",
+      "clarifications": [],
+      "answer": "We would support the contribution with traceable interview themes, contradictory accounts and concrete examples of design decisions changed because of those findings. Usability observations would show which wording confused participants and how a refinement addresses it. That would document local information needs and tradeoffs, not prove universal benefit or shorter waits. No themes or task observations exist yet, so these are planned evidence and criteria rather than reported results.",
+      "probe": null,
+      "resolved": true,
+      "timed_out": false,
+      "ended_early": false,
+      "topic_id": "topic-7",
+      "is_follow_up": false,
+      "assigned_seat": 0,
+      "answered_by": "Ari — live check",
+      "answered_by_seat": 0
+    },
+    {
+      "panelist": "Critical Judge",
+      "lead_in": "",
+      "question": "You describe twelve student volunteers from at least three departments as an initial feasibility target. How will you justify that recruitment approach for exploring students’ service-visit decisions, while accounting for who may choose to volunteer?",
+      "filename": "interdisciplinary.md",
+      "evidence_line": 8,
+      "evidence_text": "The team plans semi-structured interviews with twelve student volunteers from at least three departments. Interview notes would be coded into themes; the team would retain contradictory comments and document revisions to its coding decisions. Twelve is an initial feasibility target rather than a saturation guarantee.",
+      "evidence_location": "Line 8",
+      "evidence_kind": "research_text",
+      "evidence_before": "## Research questions\nWhat difficulties do students describe when deciding whether to visit the service office? Which interface information do they find useful or confusing? How can a prototype represent approximate queue status without pretending it measures exact waiting time?\n## Qualitative component",
+      "evidence_after": "## Design component\nA prototype displays a manually entered count and the time it was last updated. The accompanying code stores a queue count and update time. The count is a user-supplied estimate, not a verified observation of service duration or actual queue membership.\n## Prototype evaluation",
+      "clarifications": [],
+      "answer": "Twelve is a practical starting target for exploratory interviews, not a statistical sample-size claim or a saturation guarantee. We would seek students with different visit schedules and service experiences across the three departments, use several recruitment channels, record who is missing and preserve contradictory accounts. Volunteer bias would remain; we would narrow conclusions to the accounts obtained and explain whether additional recruitment is needed, rather than claim representation of all students.",
+      "probe": null,
+      "resolved": true,
+      "timed_out": false,
+      "ended_early": false,
+      "topic_id": "topic-2",
+      "is_follow_up": false,
+      "assigned_seat": 0,
+      "answered_by": "Ari — live check",
+      "answered_by_seat": 0
+    },
+    {
+      "panelist": "Critical Judge",
+      "lead_in": "Your limits on volunteer bias and claims are clear; I’m still unsure how you’ll handle differences in coding.",
+      "question": "If two researchers interpret an interview note differently, how will you discuss and document that disagreement?",
+      "filename": "interdisciplinary.md",
+      "evidence_line": 20,
+      "evidence_text": "The team still needs to justify its recruitment approach, specify how disagreements in coding are discussed, and determine when status should be marked stale. The current prototype accepts negative counts, which is an implementation limitation to be addressed before use.",
+      "evidence_location": "Line 20",
+      "evidence_kind": "research_text",
+      "evidence_before": "## Expected contribution\nThe intended contribution is a documented set of student information needs and design tradeoffs. The proposal does not claim a production deployment, a causal reduction in queue waits or broad generalization across campuses.\n## Remaining gaps",
+      "evidence_after": "",
+      "clarifications": [],
+      "answer": "Each researcher would write the proposed code and its supporting passage, compare the interpretation in context and record whether the difference concerns wording or a substantive theme. We would discuss the reasons, document revisions and retain unresolved interpretations or contradictory cases in the analytic memo rather than force agreement. That is a proposed qualitative credibility procedure; we are not claiming that a numeric agreement score or statistical test is required or already computed.",
+      "probe": null,
+      "resolved": true,
+      "timed_out": false,
+      "ended_early": false,
+      "topic_id": "topic-2",
+      "is_follow_up": true,
+      "assigned_seat": 0,
+      "answered_by": "Ari — live check",
+      "answered_by_seat": 0
+    },
+    {
+      "panelist": "Methodology Reviewer",
+      "lead_in": "That gives coding disagreements a traceable process without forcing consensus.",
+      "question": "Before anyone relies on the displayed count, what validation and freshness rules will you build in, given that the current function stores the supplied count and timestamp without either?",
+      "filename": "queue.py",
+      "evidence_line": 10,
+      "evidence_text": "    # Prototype: validation and freshness policy are still to be designed.",
+      "evidence_location": "Line 10",
+      "evidence_kind": "source",
+      "evidence_before": "",
+      "evidence_after": "",
+      "clarifications": [],
+      "answer": "Before use, we would reject negative or non-integer counts, reject missing or invalid update times and treat unknown or stale status as unavailable rather than show a precise wait. A freshness threshold needs justification from how often the office can update counts; it should be a documented design decision tested with users, not a validated result we already have. The current function implements none of that, so the paper and code describe a prototype limitation, not a completed safeguard.",
+      "probe": null,
+      "resolved": true,
+      "timed_out": false,
+      "ended_early": false,
+      "topic_id": "topic-3",
+      "is_follow_up": false,
+      "assigned_seat": 0,
+      "answered_by": "Ari — live check",
+      "answered_by_seat": 0
+    }
+  ],
+  "coverage": {
+    "topic-1": {
+      "status": "addressed",
+      "turns": [
+        0
+      ],
+      "reason": "The reply retracts the claims of exact wait measurement and broad causal impact, and aligns the intended contribution with information needs and design tradeoffs in one campus."
+    },
+    "topic-2": {
+      "status": "addressed",
+      "turns": [
+        3,
+        4
+      ],
+      "reason": "The answer explains how researchers will compare coded passages, document revisions, and retain unresolved interpretations rather than force agreement."
+    },
+    "topic-3": {
+      "status": "discussed",
+      "turns": [
+        5
+      ],
+      "reason": ""
+    },
+    "topic-4": {
+      "status": "pending",
+      "turns": [],
+      "reason": ""
+    },
+    "topic-5": {
+      "status": "pending",
+      "turns": [],
+      "reason": ""
+    },
+    "topic-6": {
+      "status": "addressed",
+      "turns": [
+        1
+      ],
+      "reason": "The answer specifies planned restricted access, separate contact information, a retention period explained before consent, and documented deletion; it also distinguishes these proposed procedures from safeguards currently specified in the proposal."
+    },
+    "topic-7": {
+      "status": "addressed",
+      "turns": [
+        2
+      ],
+      "reason": "The answer identifies planned, traceable themes and usability observations as evidence for a bounded campus contribution, and distinguishes those criteria from results or claims of universal benefit."
+    }
+  },
+  "completion_reason": "ended by host",
+  "feedback_status": "ready",
+  "feedback": {
+    "summary": "The team generally brought its claims back in line with the one-campus proposal, distinguished planned evidence from findings, and gave concrete accounts of recruitment, coding, and safeguards. The session ended by host—not because the question budget was exhausted—after Q6; topic 3 was discussed, while planned usability evaluation and integration of interview and usability evidence (topics 4 and 5) remained unasked.",
+    "strengths": [
+      {
+        "turn": 0,
+        "text": "In Q1’s probe reply, you retracted the claims of exact wait measurement and broad impact, and aligned the contribution with campus-specific information needs and design tradeoffs."
+      },
+      {
+        "turn": 3,
+        "text": "In Q4, you explained why twelve volunteers are an exploratory starting target, acknowledged volunteer bias, and bounded conclusions to the accounts collected."
+      },
+      {
+        "turn": 5,
+        "text": "In Q6, you named planned checks for invalid counts and times, and clearly said the current code does not implement them or a freshness policy."
+      }
+    ],
+    "improvements": [
+      {
+        "turn": 5,
+        "text": "For Q6, the freshness cutoff is still open. Be ready to explain how office update frequency and user testing would inform that design choice, while making clear it is not yet validated."
+      },
+      {
+        "turn": 2,
+        "text": "In Q3, you described the planned evidence for a bounded contribution. Since the host ended before topics 4 and 5 were asked, prepare to explain mock-card task scenarios and how interview themes and usability observations would jointly guide revisions."
+      }
+    ],
+    "next_step": "Before the defense, prepare a one-page methods map showing example mock-card tasks, how interview and usability evidence would inform design decisions, and how office update frequency and user testing would inform the still-undecided freshness cutoff. Label these as planned procedures, not completed findings."
+  },
+  "error": null,
+  "errors": [],
+  "initial_profile": {
+    "fields": [
+      "Human-computer interaction",
+      "Education service experience",
+      "Software design"
+    ],
+    "approaches": [
+      "qualitative",
+      "computational/design"
+    ],
+    "setting": "One campus; students considering visits to a campus service office.",
+    "explanation": "The proposal identifies human-computer interaction, education service experience, and software design as its areas. It plans qualitative interviews and thematic coding, alongside prototype design and descriptive usability tasks. The components have planned links, but the proposal itself cautions that this does not by itself establish a formally justified mixed-methods study, so the profile does not label it mixed-methods.",
+    "references": [
+      {
+        "filename": "interdisciplinary.md",
+        "evidence_line": 4,
+        "evidence_text": "The proposal combines human-computer interaction, education service experience and software design in one campus. It explores how students understand queue-status information and how a prototype represents that information.",
+        "evidence_location": "Line 4",
+        "evidence_kind": "research_text",
+        "evidence_before": "# Synthetic interdisciplinary proposal: campus queue information and student experience\nThis document is synthetic and prepared only for local AI conversation review.\n## Aim and research setting",
+        "evidence_after": "## Research questions\nWhat difficulties do students describe when deciding whether to visit the service office? Which interface information do they find useful or confusing? How can a prototype represent approximate queue status without pretending it measures exact waiting time?\n## Qualitative component"
+      },
+      {
+        "filename": "interdisciplinary.md",
+        "evidence_line": 8,
+        "evidence_text": "The team plans semi-structured interviews with twelve student volunteers from at least three departments. Interview notes would be coded into themes; the team would retain contradictory comments and document revisions to its coding decisions. Twelve is an initial feasibility target rather than a saturation guarantee.",
+        "evidence_location": "Line 8",
+        "evidence_kind": "research_text",
+        "evidence_before": "## Research questions\nWhat difficulties do students describe when deciding whether to visit the service office? Which interface information do they find useful or confusing? How can a prototype represent approximate queue status without pretending it measures exact waiting time?\n## Qualitative component",
+        "evidence_after": "## Design component\nA prototype displays a manually entered count and the time it was last updated. The accompanying code stores a queue count and update time. The count is a user-supplied estimate, not a verified observation of service duration or actual queue membership.\n## Prototype evaluation"
+      },
+      {
+        "filename": "interdisciplinary.md",
+        "evidence_line": 10,
+        "evidence_text": "A prototype displays a manually entered count and the time it was last updated. The accompanying code stores a queue count and update time. The count is a user-supplied estimate, not a verified observation of service duration or actual queue membership.",
+        "evidence_location": "Line 10",
+        "evidence_kind": "research_text",
+        "evidence_before": "## Qualitative component\nThe team plans semi-structured interviews with twelve student volunteers from at least three departments. Interview notes would be coded into themes; the team would retain contradictory comments and document revisions to its coding decisions. Twelve is an initial feasibility target rather than a saturation guarantee.\n## Design component",
+        "evidence_after": "## Prototype evaluation\nParticipants would interpret mock status cards during short usability tasks. The team would record confusion and interpretation choices descriptively. No randomized trial, statistical hypothesis test, quantitative population estimate or real waiting-time reduction is specified in this proposal.\n## Integration"
+      },
+      {
+        "filename": "interdisciplinary.md",
+        "evidence_line": 12,
+        "evidence_text": "Participants would interpret mock status cards during short usability tasks. The team would record confusion and interpretation choices descriptively. No randomized trial, statistical hypothesis test, quantitative population estimate or real waiting-time reduction is specified in this proposal.",
+        "evidence_location": "Line 12",
+        "evidence_kind": "research_text",
+        "evidence_before": "## Design component\nA prototype displays a manually entered count and the time it was last updated. The accompanying code stores a queue count and update time. The count is a user-supplied estimate, not a verified observation of service duration or actual queue membership.\n## Prototype evaluation",
+        "evidence_after": "## Integration\nInterview themes would guide wording and freshness indicators in the prototype. Usability observations would help refine the design. Multiple components do not by themselves establish a formally justified mixed-methods study.\n## Safeguards"
+      },
+      {
+        "filename": "interdisciplinary.md",
+        "evidence_line": 14,
+        "evidence_text": "Interview themes would guide wording and freshness indicators in the prototype. Usability observations would help refine the design. Multiple components do not by themselves establish a formally justified mixed-methods study.",
+        "evidence_location": "Line 14",
+        "evidence_kind": "research_text",
+        "evidence_before": "## Prototype evaluation\nParticipants would interpret mock status cards during short usability tasks. The team would record confusion and interpretation choices descriptively. No randomized trial, statistical hypothesis test, quantitative population estimate or real waiting-time reduction is specified in this proposal.\n## Integration",
+        "evidence_after": "## Safeguards\nParticipation is voluntary and unrelated to academic grades or office access. Notes would use participant codes. The prototype would contain no student identifiers, and the team would explain that an old update may be misleading. Device screenshots would contain synthetic counts only.\n## Expected contribution"
+      }
+    ],
+    "uncertainties": [
+      "The proposal does not yet justify its recruitment approach.",
+      "The planned process for discussing coding disagreements remains unspecified.",
+      "A rule for marking queue status stale has not been determined.",
+      "Formal justification of the relationship between the qualitative and design components is not provided."
+    ],
+    "host_description": null,
+    "source_description": null,
+    "needs_uncertainty_acknowledgment": true
+  },
+  "remap_failure": {
+    "error": "The AI cited an invalid project file. Please try again.",
+    "correction": {
+      "fields": [
+        "Education",
+        "Software engineering"
+      ],
+      "approaches": [
+        "quantitative",
+        "computational/design"
+      ],
+      "setting": "One campus"
+    },
+    "files": [
+      "queue.py",
+      "interdisciplinary.md"
+    ],
+    "turns": 0
+  },
+  "started_at": 1791992222623,
+  "ended_at": 1791992721573,
+  "guest_turns_match": true,
+  "evidence_type": "Live AI responses; synthetic source papers and scripted defender test answers; two WebSocket clients in one browser.",
+  "prompt_revision": "Before the planned-step and coaching-topic wording refinements."
+}
