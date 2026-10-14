@@ -1,11 +1,11 @@
 # Adaptive research panel
 
-Status: ready-for-agent
+Status: ready-for-human
 Published: 2026-10-14
 Branch: `feature/question-first-room`
 Source: [confirmed plan](../../docs/ADAPTIVE_RESEARCH_PANEL_PLAN.md) and [discovery decisions](discovery.md).
 
-This is a specification for future implementation. All nine interview decisions and the consolidated scope were confirmed by the user. Publication here means publication to the local Markdown tracker, not GitHub or the hosted service.
+The local implementation and offline/responsive review are complete. Live empirical, theoretical and interdisciplinary conversation quality and user review remain pending. All nine interview decisions and the consolidated scope were confirmed by the user. Publication here means publication to the local Markdown tracker, not GitHub or the hosted service.
 
 ## Problem Statement
 
@@ -131,4 +131,4 @@ Existing financial ADRs concern payment verification, separate balances and run 
 
 The first checkpoint is profile/map review, not proof of adaptive dialogue quality. The second completes shared reviewer adaptation and integrated verification. Keep implemented, mocked, live and user-reviewed claims separate in both documentation and handoff notes.
 
-Next workflow step: To Tickets, using this ready-for-agent specification to create dependency-ordered local tickets. The source plan remains the decision record; this specification is the implementation contract. Any later material scope change must update both deliberately rather than silently changing the agreed behavior.
+Next step: review the local feature and separately inspect live empirical, theoretical and interdisciplinary conversations using a configured local server. Evidence and previews are in [the review record](../../docs/ADAPTIVE_RESEARCH_PANEL_REVIEW.md). Publication requires a later user request. The source plan remains the decision record; this specification is the implementation contract. Any later material scope change must update both deliberately rather than silently changing the agreed behavior.

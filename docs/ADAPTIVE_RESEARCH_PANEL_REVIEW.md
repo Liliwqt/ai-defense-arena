@@ -1,7 +1,7 @@
 # Adaptive research panel — local implementation review
 
 Implemented locally on `feature/question-first-room`; review baseline `c498598`.
-Tickets 01–03 are implemented and independently reviewed locally. Complete checkpoint-2 review (04) remains pending; user visual review is not implied.
+Tickets 01–03 and ticket 04's offline integration/responsive review are complete locally and independently code-reviewed. Live conversation quality and user visual review remain pending; no publication readiness is implied.
 
 ## What changed
 
@@ -73,3 +73,46 @@ Methodology covers empirical, qualitative, theoretical and computational/design 
 - Independent Standards and Spec reviews of the isolated candidate against **c498598** report **0 actionable findings on either axis** for tickets 01–03. Reviewers performed static/read-only checks; the parent ran the suites above.
 
 Ticket 03 is ready-for-human. Ticket 04 remains pending for complete integrated defenses, responsive handoff and separate live conversation-quality evidence. No new UI screenshots or live/provider checks are claimed for this dialogue-only change; the checkpoint-1 screenshots above show profile controls, not generated conversation quality. No push or deployment; frozen main, the hosted service and unrelated pending files remain unchanged.
+
+
+## Ticket 04 — integrated local review
+
+The offline implementation and responsive review are complete. Live conversation quality, user visual approval and publication readiness remain pending. The two checkpoints are locally runnable; no push or deployment was performed.
+
+### Integrated defense evidence
+
+Two new authenticated HTTP/WebSocket checks complete **twelve-question Research paper and Research + code defenses**. Each prepares an unclear source-grounded profile, saves a conflicting host description, experiences a synthetic remapping failure, retries with the saved description, rejects stale/guest/unacknowledged approval, and confirms the fresh scope before starting. A timeout leaves its topic unresolved; a clarification stays on the same question; a probe retains the original answer and accepts a reply. A synthetic invalid next-question citation exercises automatic retry without duplicating the answer or turn. Reconnection during the probe and after completion restores the same profile, transcript and coverage without another generation. Every published paper/code excerpt is checked against the original synthetic source. Both defenses stop at twelve questions, preserve outstanding topic 12 and report budget exhaustion in coaching.
+
+These are provider-mocked runs, not live conversations. Each records three map attempts, fourteen next-move attempts (including the final assessment and one retry), and one coaching request. The same fixed profile reaches generation, submission interpretation and coaching; private chat and account data do not. Existing full-suite checks retain stale-result fences, failed map recovery, legacy-map guidance, unchanged code-only flows and once-only paid-run charging/recovery.
+
+- Full working tree: `.venv/bin/python -m unittest discover -v` passed **540 Python tests** (AI/Google/PayMongo mocked); `game` `npm test` passed **275 React tests**; `npm run build` passed. The existing large PDF chunk warning remains; no dependency change is part of this ticket.
+- Isolated selected artifact: absolute `.venv` Python unittest discovery passed **532 mocked Python tests**, excluding the eight pending reasoning/local-access tests. Runtime/frontend source is unchanged by ticket 04; the current frontend gate above uses the already committed feature source.
+- Independent parallel Standards and Spec reviews of the full feature against **c498598** report **0 actionable findings on either axis**. Reviewers used static/read-only evidence; the parent ran the tests and browser checks.
+
+### Responsive and keyboard evidence
+
+Actual local Chromium checked desktop **1440×900**, portrait **390×844** and landscape **844×390**. Eighteen synthetic conversation views covered long answers/questions, clarification, same-question probes, voting, submission recovery and completion. All retained the header, both seat strips and answer dock in the viewport without horizontal page overflow. Long question/reply content scrolls internally; timer labels accurately represent the supplied Answer, Reply, Vote and Paused fixtures.
+
+A separate synthetic-account/PDF fixture exercised real local WebSocket mapping, profile correction, deliberately failed remapping, saved-input retry and renewed confirmation. Keyboard Space toggled both acknowledgments with a visible 3-pixel focus outline; Enter confirmed the profile/budget and enabled Start. Reload restored the host/source descriptions and confirmation. Controls scroll internally on both phone orientations. An actual rendered synthetic PDF displayed the exact page-2 quotation and one visible citation highlight. Arrow keys switched the phone Question/Paper tabs while the timer, seats and dock stayed visible. These are synthetic local browser checks, not hosted, installed-device or live-AI evidence.
+
+### Local preview and screenshots
+
+The review server binds only to loopback on **8846**, removes provider credentials and uses disposable accounts, voucher and document storage. The user's normal server is unchanged. The links work while this review process remains running.
+
+- [Interactive correction/failure/retry review](http://127.0.0.1:8846/__fixture/login?case=corrections): Controls → Prepare defense; edit the profile; Apply profile and remap. The second mapping intentionally fails. Retry preserves the description; acknowledge the profile and uncertainty and confirm the fresh budget. This fixture does not generate a defense question.
+- [Real synthetic PDF with a long question](http://127.0.0.1:8846/__fixture/login?case=long): close Controls, use Question/Paper on phones and browse the cited page. The prebuilt question and fixed server clock are for layout review only.
+- [Question 11 with coverage](http://127.0.0.1:8846/?preview=1&research=1&coverage=1), [same-question reply](http://127.0.0.1:8846/?preview=1&research=1&probe=1), and [clarification](http://127.0.0.1:8846/?preview=1&research=1&clarify=1) are display-only fixtures.
+
+| Capture | Evidence |
+| --- | --- |
+| [Desktop confirmed profile](../screenshots/adaptive-panel-review-desktop.png) | Separate host/source provenance and exact PDF reference |
+| [Portrait profile](../screenshots/adaptive-panel-review-portrait.png) | Readable source explanation in scrolling Controls |
+| [Landscape profile](../screenshots/adaptive-panel-review-landscape.png) | Bounded drawer with internal scrolling |
+| [Desktop question and paper](../screenshots/adaptive-panel-question-desktop.png) | Long question with actual cited PDF page |
+| [Portrait question](../screenshots/adaptive-panel-question-portrait.png) | Visible timer, seats and answer dock |
+| [Portrait paper highlight](../screenshots/adaptive-panel-paper-portrait.png) | Complete page browsing and visible verified highlight |
+| [Landscape panelist reply](../screenshots/adaptive-panel-reply-landscape.png) | Same-question reply labels and scrolling content |
+
+### Missing live evidence
+
+An updated local AI server URL/key configuration was requested but has not been confirmed for this review. **No real AI, Google or PayMongo requests were made.** Empirical, theoretical and interdisciplinary conversations must still be inspected for topic relevance, specific answer-aware reactions, uncertainty, nonparticipant Ethics, contributions to knowledge and language continuity. Mock fixtures and visible quotations cannot establish specialist accuracy or naturalness. Keep live quality and publication readiness pending until those checks and user review are recorded. Hosted proxy behavior and installed Android/iOS checks also remain separate.
