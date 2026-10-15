@@ -16,9 +16,9 @@ production build). See the [checkpoint review](PANELIST_CONVERSATION_CLARITY_REV
 Ticket 02's final closing is also implemented and reviewed locally: 550 working-
 tree/542 selected Python tests (providers mocked), 278 React tests/build, targeted
 synthetic responsive/keyboard checks and screenshots passed. A presenter overlap
-regression was reproduced/fixed and independently reviewed. Ticket 03 is now the
-dependency-ready integrated/live handoff; its broader checks and user approval
-remain pending. No remote-publication authorization is implied by local work.
+regression was reproduced/fixed and independently reviewed. Ticket 03 subsequently
+completed the integrated offline/browser handoff below; live quality and user
+approval remain pending. No remote-publication authorization is implied.
 
 ## Consolidated scope
 
@@ -159,3 +159,12 @@ these dialogue/presentation decisions are reversible and the existing domain
 terms already distinguish reactions, clarification, probes and coverage.
 
 No implementation, push or deployment is authorized by this planning interview.
+
+## Integrated local handoff — 2026-10-16
+
+Ticket 03 now has complete mocked integration and browser evidence in the
+[review record](PANELIST_CONVERSATION_CLARITY_REVIEW.md): 550 working-tree/542
+selected Python tests (providers mocked), 278 React tests and production build.
+The user explicitly deferred live checks for now. Live before/after dialogue,
+user/native-language approval and hosted/installed-device checks remain pending;
+local handoff is ready-for-human, not approved or published.

@@ -23,6 +23,8 @@ CORRECTION = {"fields": ["Education", "Software engineering"],
               "approaches": ["qualitative", "computational/design"],
               "setting": "One university campus"}
 ANSWER = "We will measure waiting times and explain the limits of a single-campus pilot."
+CLOSING = "You explained the pilot decision and its limits. Review the unresolved topics before revising the proposal."
+CORRECTED_ANSWER = "We cannot claim improvement yet; the proposal describes planned measurements, not completed results."
 
 
 class AdaptiveResearchIntegrationTests(unittest.TestCase):
@@ -102,7 +104,7 @@ class AdaptiveResearchIntegrationTests(unittest.TestCase):
             output = CoachingDraft(summary="The approved budget ended with unresolved topics. The opening question timed out.",
                 strengths=[{"turn": 4, "text": "Alex identified the pilot decision."}],
                 improvements=[{"turn": 0, "text": "Practice the unanswered pilot issue."}],
-                next_step="Review outstanding topics and justify the stated approach.")
+                next_step="Review outstanding topics and justify the stated approach.", closing=CLOSING)
             return generate_coaching_report(files, history, key, model, client=Client(output), **kwargs)
 
         with patch("backend.rooms.planning.generate_research_plan", side_effect=mapping) as mapper, \
@@ -183,9 +185,12 @@ class AdaptiveResearchIntegrationTests(unittest.TestCase):
                     speaker.send_json({"type": "submit_probe_reply", "turn": index,
                         "probe_id": probed["turns"][-1]["probe"]["id"], "answer": "Decision five supports the pilot design."})
                 else:
-                    speaker.send_json({"type": "submit_answer", "turn": index, "answer": ANSWER})
+                    speaker.send_json({"type": "submit_answer", "turn": index,
+                                       "answer": CORRECTED_ANSWER if index == 6 else ANSWER})
+            final_states = []
             for socket in (h, g):
                 final = self.until(socket, "complete", 12, feedback_status="ready")
+                final_states.append(final)
                 self.assertEqual(final["completion_reason"], "budget exhausted")
                 self.assertTrue(final["turns"][0]["timed_out"])
                 self.assertEqual(final["turns"][1]["answer"], ANSWER)
@@ -194,11 +199,32 @@ class AdaptiveResearchIntegrationTests(unittest.TestCase):
                 self.assertEqual(final["coverage"]["topic-12"]["status"], "pending")
                 self.assertIn("unresolved", final["feedback"]["summary"])
                 self.assertEqual(final["research_plan"]["profile"], fixed)
+                self.assertEqual(final["turns"][6]["answer"], CORRECTED_ANSWER)
+                self.assertEqual(final["feedback"]["closing"], CLOSING)
+                self.assertEqual(final["closing_panelist"], final["turns"][-1]["panelist"])
+                self.assertGreater(final["closing_deadline_ms"], self.now)
+                self.assertIsNone(final["vote_deadline_ms"])
+                self.assertIsNone(final["answer_deadline_ms"])
+            for field in ("turns", "coverage", "feedback", "closing_panelist", "closing_deadline_ms"):
+                self.assertEqual(final_states[0][field], final_states[1][field])
             with self.client.websocket_connect(f"/ws/{code}") as reconnect:
                 reconnect.send_json({"type": "hello", "token": guest["player_token"]})
                 restored = self.until(reconnect, "complete", 12, feedback_status="ready")
                 self.assertEqual(restored["turns"], final["turns"])
                 self.assertEqual(restored["coverage"], final["coverage"])
+                self.assertEqual(restored["closing_deadline_ms"], final["closing_deadline_ms"])
+                self.assertEqual(restored["feedback"], final["feedback"])
+            self.now = final["closing_deadline_ms"] + 1
+            h.send_json({"type": "send_chat", "text": "Review the report together."})
+            for socket in (h, g):
+                after = self.until(socket, "complete", 12, feedback_status="ready", closing_deadline_ms=None)
+                self.assertEqual(after["turns"], final["turns"])
+                self.assertEqual(after["coverage"], final["coverage"])
+                self.assertEqual(after["feedback"], final["feedback"])
+            with self.client.websocket_connect(f"/ws/{code}") as reconnect:
+                reconnect.send_json({"type": "hello", "token": guest["player_token"]})
+                after = self.until(reconnect, "complete", 12, feedback_status="ready", closing_deadline_ms=None)
+                self.assertEqual(after["feedback"], final["feedback"])
             self.assertEqual(mapper.call_count, 3)
             self.assertEqual(generator.call_count, 14)  # 12 questions, final assessment and one automatic retry.
             self.assertEqual(coaching.call_count, 1)

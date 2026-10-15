@@ -243,7 +243,7 @@ class LifecycleCoordinationTests(unittest.IsolatedAsyncioTestCase):
                     else:
                         room = completed_room(account)
                         room.players = {host.token: host}
-                        command, result = GenerateCoaching(1), CoachingReport("Old report", [], [], "Review.")
+                        command, result = GenerateCoaching(1), CoachingReport("Old report", [], [], "Review.", closing="This obsolete closing must not appear.")
 
                     async def blocked(*args):
                         started.set()

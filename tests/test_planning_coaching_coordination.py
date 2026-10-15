@@ -127,7 +127,7 @@ class PlanningCoachingCoordinationTests(unittest.IsolatedAsyncioTestCase):
                     finished.set()
                     if fails:
                         raise ValueError("Obsolete coaching failure")
-                    return CoachingReport("Old report", [], [], "Review.")
+                    return CoachingReport("Old report", [], [], "Review.", closing="This obsolete closing must not appear.")
 
                 async def deliver(socket, payload):
                     state = payload["state"]

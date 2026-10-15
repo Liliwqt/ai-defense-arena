@@ -40,7 +40,10 @@ closing text skips that moment without losing valid coaching; an actual coaching
 failure retains its existing recovery. Closing remarks stay in Transcript and
 summary downloads; Streamlit shows them inline with its report. Preview the
 synthetic transition with `?preview=1&research=1&complete=1&closing=1` on a local
-server. Full integrated/live conversation review remains a separate checkpoint.
+server. Integrated mocked code (four/eight questions) and research/mixed
+(twelve questions) checks and desktop/phone previews are recorded in the clarity
+review. Live before/after dialogue review is deferred at your request; mocked
+output does not establish conversational or native-language quality.
 
 Panelists can use optional brief acknowledgments such as “Oh, I see” or “Hmm,
 noted,” adapting the wording to the current language. Encouragement recognizes a

@@ -533,7 +533,8 @@ class CoverageProtocolTests(unittest.TestCase):
                     self.assertEqual(history[2].answer, 'We will compare queue times with a documented pilot method.')
                     draft=CoachingDraft(summary='The approved budget ended. Unresolved topics remain, including the missed turn.',
                         strengths=[CoachingPoint(turn=1,text='The team described a pilot comparison.')],
-                        improvements=[CoachingPoint(turn=0,text='The opening question received no answer.')],next_step='Review remaining topics.')
+                        improvements=[CoachingPoint(turn=0,text='The opening question received no answer.')],next_step='Review remaining topics.',
+                        closing='You explained the pilot comparison. Review the missed and unresolved topics in coaching.')
                     return generate_coaching_report(files,history,'offline-key',client=Client(draft),**kwargs)
                 with patch.object(planning_workflow,'generate_research_plan',return_value=p), \
                      patch.object(question_workflow, 'generate_research_move',side_effect=generate) as generator, \
@@ -602,6 +603,11 @@ class CoverageProtocolTests(unittest.TestCase):
                             self.assertTrue(final['turns'][1]['is_follow_up'])
                             self.assertEqual(final['coverage']['topic-12']['status'],'pending')
                             self.assertEqual(final['feedback']['strengths'][0]['turn'],1)
+                            self.assertEqual(final['closing_panelist'], final['turns'][-1]['panelist'])
+                            self.assertTrue(final['feedback']['closing'])
+                            self.assertGreater(final['closing_deadline_ms'], self.now)
+                            self.assertIsNone(final['vote_deadline_ms'])
+                            self.assertIsNone(final['answer_deadline_ms'])
                     with self.client.websocket_connect(f'/ws/{code}') as reconnect:
                         reconnect.send_json({'type':'hello','token':guest['player_token']})
                         restored=self.until(reconnect,'complete',12,feedback_status='ready')

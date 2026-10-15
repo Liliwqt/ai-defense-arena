@@ -15,7 +15,7 @@ class LiveRoomTests(GameServerTests):
         live.start();self.addCleanup(live.stop)
         recover=patch('backend.payments_live.recover_payments',new_callable=AsyncMock)
         recover.start();self.addCleanup(recover.stop)
-        coaching=patch('backend.rooms.coaching.generate_coaching_report',return_value=__import__('backend.question_generator', fromlist=["*"]).CoachingReport('Offline report',[],[],'Review the discussion.'))
+        coaching=patch('backend.rooms.coaching.generate_coaching_report',return_value=__import__('backend.question_generator', fromlist=["*"]).CoachingReport('Offline report',[],[],'Review the discussion.', closing='You explained the decision. Review the remaining safeguards.'))
         coaching.start();self.addCleanup(coaching.stop)
         super().setUp()
 
@@ -83,10 +83,13 @@ class LiveRoomTests(GameServerTests):
                 states=self._complete_four_turns(hs,gs,None)
                 for state in states.values():
                     self.assertEqual(state['feedback_status'],'failed');self.assertIsNone(state['feedback'])
+                    self.assertIsNone(state['closing_deadline_ms'])
                 self.assertIsNotNone(LiveStore().overview(self._offline_credentials[2]['id'])['active_run'])
                 hs.send_json({'type':'retry_coaching'})
                 for socket in (hs,gs):
                     state=self.receive_phase(socket,'complete')
                     while state['feedback_status']!='ready':state=self.receive_phase(socket,'complete')
+                    self.assertTrue(state['feedback']['closing'])
+                    self.assertGreater(state['closing_deadline_ms'], self.clock_ms)
                 self.assertIsNone(LiveStore().overview(self._offline_credentials[2]['id'])['active_run'])
             finally:gs.__exit__(None,None,None);hs.__exit__(None,None,None)

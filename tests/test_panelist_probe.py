@@ -234,7 +234,8 @@ class ProbeProtocolTests(unittest.TestCase):
                         decisions.extend([SubmissionDecision('clarify', 'Name the decision in your answer.'), SubmissionDecision('answer')])
                     elif i == len(roles)-1:
                         decisions.append(SubmissionDecision('answer'))
-                with patch.dict(os.environ, {'OPENAI_API_KEY':'offline'}), patch.object(question_workflow, 'generate_first_question', return_value=self.questions[0]), patch.object(question_workflow, 'generate_next_move', side_effect=moves), patch.object(submission_workflow, 'interpret_submission', side_effect=decisions), patch.object(coaching_workflow, 'generate_coaching_report', return_value=CoachingReport('Review.', [], [], 'Practice.')):
+                closing = 'That explains the storage choice. Review the remaining safeguards in coaching.'
+                with patch.dict(os.environ, {'OPENAI_API_KEY':'offline'}), patch.object(question_workflow, 'generate_first_question', return_value=self.questions[0]), patch.object(question_workflow, 'generate_next_move', side_effect=moves), patch.object(submission_workflow, 'interpret_submission', side_effect=decisions), patch.object(coaching_workflow, 'generate_coaching_report', return_value=CoachingReport('Review.', [], [], 'Practice.', closing=closing)) as coaching:
                     host = self.create_room(); guest = self.join_room(host['room_code'])
                     hs,_ = self.connect(host['room_code'], host['player_token'])
                     gs,_ = self.connect(host['room_code'], guest['player_token'])
@@ -260,12 +261,32 @@ class ProbeProtocolTests(unittest.TestCase):
                                     hs,state = self.connect(host['room_code'], host['player_token'])
                                     self.assertEqual(state['turns'][-1]['probe']['id'],probe['id'])
                                 speaker.send_json({'type':'submit_probe_reply','turn':i,'probe_id':probe['id'],'answer':'The storage choice.'})
-                        states = [self.receive_phase(ws,'complete') for ws in (hs,gs)]
+                        states = []
+                        for socket in (hs, gs):
+                            state = self.receive_phase(socket, 'complete')
+                            while state['feedback_status'] != 'ready':
+                                state = self.receive_phase(socket, 'complete')
+                            states.append(state)
                         for state in states:
                             self.assertEqual(len(state['turns']),len(roles))
                             self.assertEqual(state['turns'][0]['answer'],'Original answer 0.')
                             self.assertEqual(state['turns'][-1]['probe']['reply'],'The storage choice.')
                             self.assertTrue(state['turns'][-1]['resolved'])
+                            self.assertEqual(state['feedback']['closing'], closing)
+                            self.assertEqual(state['closing_panelist'], PANELIST_ORDER[-1])
+                            self.assertGreater(state['closing_deadline_ms'], self.clock_ms)
+                            self.assertIsNone(state['vote_deadline_ms'])
+                            self.assertIsNone(state['answer_deadline_ms'])
+                            for turn in state['turns']:
+                                self.assertEqual(turn['evidence_text'], self.questions[0].evidence_text)
+                        self.assertEqual(states[0]['turns'], states[1]['turns'])
+                        self.assertEqual(states[0]['feedback'], states[1]['feedback'])
+                        with self.client.websocket_connect(f"/ws/{host['room_code']}") as reconnect:
+                            reconnect.send_json({'type': 'hello', 'token': guest['player_token']})
+                            restored = self.receive_phase(reconnect, 'complete')
+                            self.assertEqual(restored['closing_deadline_ms'], states[0]['closing_deadline_ms'])
+                            self.assertEqual(restored['feedback'], states[0]['feedback'])
+                        coaching.assert_called_once()
                     finally:
                         hs.__exit__(None,None,None);gs.__exit__(None,None,None)
 
