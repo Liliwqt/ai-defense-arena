@@ -7,7 +7,7 @@ import re
 from typing import Literal, Sequence
 
 from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI, OpenAIError
-from pydantic import BaseModel, StrictInt, StrictBool, create_model, ConfigDict
+from pydantic import BaseModel, StrictInt, StrictBool, create_model, ConfigDict, field_validator
 
 from backend.project_files import MAX_TOTAL_BYTES, ProjectFile
 from backend.research_panel import RESEARCH_ROLE_GUIDANCE, research_panel_guidance, serialize_research_scope
@@ -96,6 +96,12 @@ class CoachingDraft(BaseModel):
     strengths: list[CoachingPoint]
     improvements: list[CoachingPoint]
     next_step: str
+    closing: str = ""
+
+    @field_validator("closing", mode="before")
+    @classmethod
+    def valid_closing(cls, value: object) -> str:
+        return normalize_closing(value)
 
 
 @dataclass(frozen=True)
@@ -222,6 +228,10 @@ class CoachingReport:
     strengths: list[dict]
     improvements: list[dict]
     next_step: str
+    closing: str = ""
+
+    def __post_init__(self):
+        object.__setattr__(self, "closing", normalize_closing(self.closing))
 
 
 def numbered_source_lines(content: str) -> list[tuple[int, str]]:
@@ -756,6 +766,14 @@ def _research_advice_guidance(
 
 
 
+def normalize_closing(value: object) -> str:
+    """An unusable optional closing must not invalidate otherwise valid coaching."""
+    try:
+        return _clean_lead_in(value)
+    except InvalidQuestionResponse:
+        return ""
+
+
 def _clean_lead_in(value: object) -> str:
     if not isinstance(value, str):
         raise InvalidQuestionResponse("The AI returned an invalid panelist reaction. Please try again.")
@@ -1129,6 +1147,14 @@ def generate_coaching_report(
                     f"{research_panel_guidance(defense_type)}"
                     f"{_research_advice_guidance(defense_type, history, coaching=True)}"
                     f"{_language_guidance(history)} "
+                    "For the optional closing only, use the final resolved question's reviewer voice: "
+                    f"{_role_guidance(history[-1].panelist, defense_type) if history[-1].panelist in PANELISTS else ''} "
+                    f"{CONVERSATION_GUIDANCE} "
+                    "Return closing as an optional brief statement about that final exchange, including any probe reply. "
+                    "Use zero to two sentences and at most 300 characters; an empty string is welcome. "
+                    "Do not ask another question, promise a vote, repeat the whole report, or certify the study. "
+                    "A timed-out turn or missing probe reply is not an answer; acknowledge it neutrally. "
+                    "If the host ended early, do not invent an answer to an unfinished question. "
                     "Provide one short coaching report grounded in the project files, actual answers, "
                     "and explicitly marked timed-out turns. Never fabricate a missing answer. "
                     "Return a summary (2–4 sentences), 1–3 strengths when any answer exists "
@@ -1199,6 +1225,7 @@ def generate_coaching_report(
         strengths=strengths,
         improvements=improvements,
         next_step=next_step,
+        closing=getattr(draft, "closing", ""),
     )
 
 

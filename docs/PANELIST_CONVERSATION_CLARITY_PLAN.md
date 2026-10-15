@@ -13,9 +13,12 @@ breakdown on 2026-10-15; separate ready-for-agent local tickets are published:
 Ticket 01 is now implemented and independently reviewed locally; offline gates
 passed (543 working-tree/535 selected Python with providers mocked, 275 React and
 production build). See the [checkpoint review](PANELIST_CONVERSATION_CLARITY_REVIEW.md).
-Ticket 02 is the next dependency-ready implementation slice; final closing is
-not yet implemented. Ticket 03's live/integrated review and user approval remain
-pending. No remote-publication authorization is implied by this local checkpoint.
+Ticket 02's final closing is also implemented and reviewed locally: 550 working-
+tree/542 selected Python tests (providers mocked), 278 React tests/build, targeted
+synthetic responsive/keyboard checks and screenshots passed. A presenter overlap
+regression was reproduced/fixed and independently reviewed. Ticket 03 is now the
+dependency-ready integrated/live handoff; its broader checks and user approval
+remain pending. No remote-publication authorization is implied by local work.
 
 ## Consolidated scope
 

@@ -1,7 +1,7 @@
 # Panelist conversation clarity — local checkpoint review
 
-Date: 2026-10-15. Ticket 01 implemented and independently reviewed locally;
-offline verification complete. Live wording/user review remains pending.
+Date: 2026-10-15. Tickets 01–02 implemented and independently reviewed locally;
+offline verification complete. Ticket 03's integrated/live/user review remains pending.
 
 ## Scope and baseline
 
@@ -15,7 +15,8 @@ offline verification complete. Live wording/user review remains pending.
   reaction attribution/timing, language matching, same-question clarification/
   probes, budgets, timers and financial policy remain unchanged.
 - Ticket 02's final closing and ticket 03's integrated responsive/live handoff are
-  not implemented by this checkpoint. No separate evaluator request is added.
+  not implemented by checkpoint 1. Ticket 02's subsequent work is recorded below;
+  no separate evaluator request is added.
 
 ## Configuration context for later live comparison
 
@@ -86,3 +87,72 @@ remain separate. No preview change is introduced by this prompt-only checkpoint;
 existing synthetic room previews cannot demonstrate improved live wording.
 Local feature-branch work only; no push or deployment. Preserve unrelated pending
 reasoning/local-access work, older README/log edits and footprint research.
+
+
+## Ticket 02 — optional terminal closing
+
+Implementation start: `bdc81ea`; retained user-approved feature review baseline
+`9314379`. Offline verification and independent review complete; no push/deployment
+or live-AI claim.
+
+The existing coaching request now carries optional closing text, normalized with
+the same two-sentence/300-character bound. Unusable optional content is dropped
+without discarding valid coaching; core errors still fail normally. Legacy
+missing fields/callers remain valid. The final resolved reviewer is attributed
+by the server, including host ending with a newer unanswered question.
+
+Successful coaching settles the run first, then publishes a 4–12-second terminal
+presentation deadline. This keeps the room complete and introduces no question,
+vote/answer/reply clock, coverage change or extra charge. Reconnect retains the
+same deadline. The room coordinator owns expiry/cancellation; restart clears the
+presentation and stale work retains existing run/generation fences. Expiry keeps
+the report and transcript closing without extending room retention.
+
+The room shows the last reviewer speaking, with completion wording, and opens
+Transcript after the interval. A valid closing stays in transcript/export, with
+the research Critical Reviewer display alias preserved. Streamlit shows it inline
+with coaching for code and research; it makes no artificial timed transition.
+Preview fixture: `?preview=1&research=1&complete=1&closing=1` (synthetic content).
+
+TDD observed failures before implementation for missing closing/report output,
+invalid optional-field isolation, terminal deadline metadata, whole-room display,
+export and Streamlit rendering. A legacy reviewer compatibility regression was
+also reproduced and fixed without weakening core coaching validation. Focused
+checks passed 46 Python tests (providers mocked) and 54 React tests; typechecking
+passed during implementation. Full gates passed **550 working-tree Python tests**,
+**542 isolated selected Python tests**, **278 React tests** and the production
+build. AI/Google/PayMongo were mocked; the eight pending reasoning/local-runner
+tests are outside the selected artifact. The existing PDF bundle-size warning
+remains. These Python results include existing stale-generation, failed-coaching,
+empty-session and once-only financial recovery regressions. Final frontend checks
+were rerun after the presenter interaction fix; unchanged Python sources retain
+their completed gate evidence.
+
+Targeted Chromium checks on the built static preview verified the closing and
+automatic coaching transition at desktop 1440×900, portrait 390×844 and landscape
+844×390, without horizontal overflow. Settings opened by Enter, Escape closed it
+and returned focus; closing text remained in Transcript. Stable portrait text
+was rgb(35,34,32) at opacity 1 on rgb(233,231,226). These are synthetic browser
+checks, not a live defense, physical/native device or user visual approval.
+
+- [Desktop closing](../screenshots/clarity-closing-desktop.png)
+- [Portrait closing](../screenshots/clarity-closing-portrait.png)
+- [Landscape closing](../screenshots/clarity-closing-landscape.png)
+- [Coaching after closing](../screenshots/clarity-closing-coaching.png)
+- Local static preview while running: <http://127.0.0.1:8847/?preview=1&research=1&complete=1&closing=1>.
+
+Ticket 03 retains full integrated responsive and controlled live before/after
+review; no mocked output proves dialogue quality.
+
+### Ticket 02 review
+
+Independent read-only Standards and Spec reviews of immutable candidate `d30042f`
+against approved baseline `9314379` each reported zero actionable findings.
+The parent subsequently reproduced a UI interaction: a final accepted-answer seat
+highlight could delay Transcript after a closing with little server time left.
+A failing whole-App regression established the delay. Cancelling/resetting the
+presenter moment when closing starts fixes it; full React/build gates then passed.
+Both reviewers examined the narrow addendum in immutable candidate `1de1f8`, again
+reporting zero findings. Reviewers ran no tests/provider requests. Final changes
+only complete checklists/docs and the coaching screenshot; runtime/test bytes
+remain those gated and reviewed. Final Standards: 0 findings. Final Spec: 0 findings.

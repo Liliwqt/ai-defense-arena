@@ -101,6 +101,7 @@ export function TranscriptPanel({ roomState, previewMode = false, presentation =
             failureGuidance={presentation.guidance}
             feedbackStatus={feedbackStatus}
             feedback={roomState?.feedback ?? null}
+            closingPanelist={presentation.closingPanelist || null}
           />
           {turns.map((turn, index) => (
             <TurnCard key={index} turn={turn} index={index} research={!!roomState?.defense_type && roomState.defense_type !== "code"} />

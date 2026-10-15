@@ -344,24 +344,31 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                     st.caption(f"Ending reason: {session.completion_reason}")
                     unresolved = [t.title for t in session.plan.topics if session.coverage[t.id]["status"] != "addressed"]
                     st.write("Unresolved topics: " + (", ".join(unresolved) if unresolved else "none"))
-                    report = st.session_state.get("research_coaching")
-                    if not session.answered_history():
-                        st.info("The host ended before any answer or timeout was recorded. No discussion coverage was confirmed.")
-                    elif report is None and st.button("Generate coaching", disabled=not bool(api_key)):
-                        try:
-                            with st.spinner("Preparing coaching..."):
-                                report = generate_coaching_report(files, session.answered_history(), api_key, model,
-                                    defense_type=mode, research_stage=research_stage, research_context=session.context())
-                        except (QuestionGenerationError, OpenAIError, ValidationError) as exc:
-                            st.error(generation_error_message(exc, model, api_key))
-                        else:
-                            st.session_state["research_coaching"] = report
-                            st.rerun()
-                    if report:
-                        st.write(report.summary)
-                        for point in report.strengths + report.improvements:
-                            st.write(f"Question {point['turn'] + 1}: {point['text']}")
-                        st.write(report.next_step)
+                report = st.session_state.get("research_coaching")
+                if not session.answered_history():
+                    st.info("The host ended before any answer or timeout was recorded. No discussion coverage was confirmed.")
+                elif report is None and st.button("Generate coaching", disabled=not bool(api_key)):
+                    try:
+                        with st.spinner("Preparing coaching..."):
+                            context = {"research_context": session.context()} if isinstance(session, ResearchDefenseSession) else {}
+                            report = generate_coaching_report(files, session.answered_history(), api_key, model,
+                                defense_type=mode, research_stage=research_stage, **context)
+                    except (QuestionGenerationError, OpenAIError, ValidationError) as exc:
+                        st.error(generation_error_message(exc, model, api_key))
+                    else:
+                        st.session_state["research_coaching"] = report
+                        st.rerun()
+                if report:
+                    if report.closing:
+                        last_reviewer = session.answered_history()[-1].panelist
+                        if mode != "code" and last_reviewer == "Critical Judge":
+                            last_reviewer = "Critical Reviewer"
+                        st.caption(f"{last_reviewer} · Closing remarks")
+                        st.write(report.closing)
+                    st.write(report.summary)
+                    for point in report.strengths + report.improvements:
+                        st.write(f"Question {point['turn'] + 1}: {point['text']}")
+                    st.write(report.next_step)
             elif session.needs_question:
                 st.info("Your answer is saved. Retry generating the next question.")
                 if st.button("Retry next question", disabled=not bool(api_key)):

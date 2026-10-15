@@ -74,6 +74,7 @@ export interface CoachingFeedback {
   strengths: CoachingPoint[];
   improvements: CoachingPoint[];
   next_step: string;
+  closing?: string;
 }
 
 export interface ChatMessage {
@@ -148,6 +149,8 @@ export interface RoomState {
   completion_reason?: "coverage addressed" | "budget exhausted" | "ended by host" | null;
   feedback_status: FeedbackStatus;
   feedback: CoachingFeedback | null;
+  closing_panelist?: string | null;
+  closing_deadline_ms?: number | null;
   server_now_ms?: number;
   vote_deadline_ms?: number | null;
   reaction_deadline_ms?: number | null;

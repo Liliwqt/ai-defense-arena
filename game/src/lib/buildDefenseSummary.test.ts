@@ -41,6 +41,17 @@ const turn = (over: Partial<RoomState["turns"][number]> = {}) => ({
 });
 
 describe("buildDefenseSummary", () => {
+  it("exports a final closing separately from questions and team answers", () => {
+    const closing = "That explains the final decision. Review the remaining limits.";
+    const text = buildDefenseSummary({ ...baseState, defense_type: "mixed", turns: [turn()],
+      closing_panelist: "Critical Judge", feedback_status: "ready", feedback: {
+        summary: "A useful discussion.", strengths: [], improvements: [], next_step: "Practice.", closing,
+      } });
+    expect(text).toContain("FINAL PANELIST CLOSING");
+    expect(text).toContain(`Critical Reviewer: ${closing}`);
+    expect(text).not.toContain(`Team answer (You): ${closing}`);
+    expect(text.indexOf("FINAL PANELIST CLOSING")).toBeLessThan(text.indexOf("COACHING REPORT"));
+  });
   it("attributes a research suggestion to the panelist rather than the team's answer", () => {
     const advice = "One option is broader recruitment if access permits.";
     const answer = "We will keep the pilot and limit its claims.";

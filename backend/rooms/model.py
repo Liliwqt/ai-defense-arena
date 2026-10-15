@@ -43,6 +43,8 @@ class Room(TimedTurn):
     question_retry_generation_id: int | None = None
     feedback_status: str = "none"   # none | generating | ready | failed
     feedback: CoachingReport | None = None
+    closing_panelist: str | None = None
+    closing_deadline_ms: int | None = None
     research_planning_status: str = "none"  # none | planning | ready | failed
     research_plan_progress: ResearchPlanProgress | None = None
     research_plan: ResearchPlan | None = None
@@ -78,6 +80,26 @@ class Room(TimedTurn):
 
     def online_players(self) -> dict[str, int]:
         return {player.token: player.seat for player in self.players.values() if player.sockets}
+
+    @property
+    def active_deadline_ms(self) -> int | None:
+        if self.phase == "complete" and self.feedback_status == "ready":
+            return self.closing_deadline_ms
+        return super().active_deadline_ms
+
+    def clear_clock(self) -> None:
+        super().clear_clock()
+        self.closing_panelist = None
+        self.closing_deadline_ms = None
+
+    def expire(self, now, online, session, expected_id=None, choose=None):
+        if expected_id is not None and self.clock_id != expected_id:
+            return None
+        if self.phase == "complete" and self.closing_deadline_ms is not None and now >= self.closing_deadline_ms:
+            self.closing_deadline_ms = None
+            self.clock_id += 1
+            return "closing_finished"
+        return super().expire(now, online, session, expected_id, choose)
 
     def expires_at(self):
         if self.closed or not self.settled or self.phase not in {'lobby', 'retry', 'complete'} or self.research_planning_status == 'planning' or self.feedback_status in {'generating', 'failed'}:
@@ -134,6 +156,7 @@ class Room(TimedTurn):
                 "strengths": self.feedback.strengths,
                 "improvements": self.feedback.improvements,
                 "next_step": self.feedback.next_step,
+                "closing": self.feedback.closing,
             }
         return {
             "room_code": self.code,
@@ -182,6 +205,8 @@ class Room(TimedTurn):
             "completion_reason": self.defense.completion_reason if isinstance(self.defense, ResearchDefenseSession) else None,
             "feedback_status": self.feedback_status,
             "feedback": feedback_dict,
+            "closing_panelist": self.closing_panelist,
+            "closing_deadline_ms": self.closing_deadline_ms if self.closing_deadline_ms is not None and now < self.closing_deadline_ms else None,
             "server_now_ms": now,
             "vote_deadline_ms": self.vote_deadline_ms,
             "reaction_deadline_ms": self.reaction_deadline_ms,

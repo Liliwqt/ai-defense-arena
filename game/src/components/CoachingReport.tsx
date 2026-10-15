@@ -4,9 +4,10 @@ interface CoachingReportProps {
   failureGuidance?: string;
   feedbackStatus: FeedbackStatus;
   feedback: CoachingFeedback | null;
+  closingPanelist?: string | null;
 }
 
-export function CoachingReport({ feedbackStatus, feedback, failureGuidance = "Review Controls for recovery options." }: CoachingReportProps) {
+export function CoachingReport({ feedbackStatus, feedback, closingPanelist, failureGuidance = "Review Controls for recovery options." }: CoachingReportProps) {
   if (feedbackStatus === "none") return null;
 
   return (
@@ -15,6 +16,10 @@ export function CoachingReport({ feedbackStatus, feedback, failureGuidance = "Re
       {feedbackStatus === "generating" && <p className="report-status">Preparing your coaching report…</p>}
       {feedbackStatus === "failed" && <p className="report-error" role="alert">The coaching report could not be generated. {failureGuidance}</p>}
       {feedbackStatus === "ready" && feedback && <>
+        {feedback.closing && <div className="report-group" aria-label="Panelist closing">
+          <h4>{closingPanelist ?? "Panelist"} · Closing remarks</h4>
+          <p>{feedback.closing}</p>
+        </div>}
         <p className="report-summary">{feedback.summary}</p>
         {feedback.strengths.length > 0 && <div className="report-group">
           <h4>Strengths</h4>

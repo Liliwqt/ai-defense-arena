@@ -14,6 +14,7 @@ from backend.live_store import LiveStore
 from backend.project_files import ProjectFile
 from backend.question_generator import DEFAULT_MODEL, AnsweredQuestion, CoachingReport, generate_coaching_report
 from backend.resource_limits import limit
+from backend.timed_turn import reaction_reading_ms
 from backend.rooms.commands import CommandResult, VerifiedActor
 from backend.rooms.errors import safe_generation_error
 
@@ -56,6 +57,7 @@ async def request_coaching(request: CoachingInput) -> CoachingReport:
 
 async def run_coaching(owner: "RoomCoordinator", work: CoachingWork, request: CoachingInput) -> None:
     room = owner._room
+    next_clock = None
     try:
         async with room.lock:
             if not owner._coaching_current(work):
@@ -75,6 +77,11 @@ async def run_coaching(owner: "RoomCoordinator", work: CoachingWork, request: Co
             room.terminal_ms = owner._workflows.now()
             room.feedback = report
             room.feedback_status = "ready"
+            owner._clear_clock()
+            if report.closing and request.history:
+                room.closing_panelist = request.history[-1].panelist
+                room.closing_deadline_ms = room.terminal_ms + reaction_reading_ms(report.closing)
+                next_clock = (room.clock_id, room.closing_deadline_ms)
             room.error = None
             room.revision += 1
     except Exception as error:
@@ -92,6 +99,8 @@ async def run_coaching(owner: "RoomCoordinator", work: CoachingWork, request: Co
         await owner._publish()
         return
     await owner._publish()
+    if next_clock:
+        owner._schedule_clock(*next_clock)
 
 
 async def retry_coaching(owner: "RoomCoordinator", actor: VerifiedActor) -> CommandResult:

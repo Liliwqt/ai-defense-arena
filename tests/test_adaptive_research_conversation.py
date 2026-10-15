@@ -220,7 +220,8 @@ class ResearchScopeStreamlitTests(unittest.TestCase):
             scopes.append(kwargs["research_context"]["plan"]["profile"])
             return generate_coaching_report(files, history, key, model, client=ParsedClient(CoachingDraft(
                 summary="The team explained a recruitment choice.", strengths=[{"turn":0,"text":"Identified possible volunteers."}],
-                improvements=[{"turn":0,"text":"Explain coverage limitations."}],next_step="Practice the unresolved topics.")), **kwargs)
+                improvements=[{"turn":0,"text":"Explain coverage limitations."}],next_step="Practice the unresolved topics.",
+                closing="That explains the recruitment choice. Review the remaining topics below.")), **kwargs)
         with patch.dict(os.environ, {"OPENAI_API_KEY":"offline-key"}), \
                 patch("backend.research_plan.generate_research_plan", return_value=session.plan) as mapper, \
                 patch("backend.defense_session.generate_research_move", side_effect=ask), \
@@ -247,3 +248,5 @@ class ResearchScopeStreamlitTests(unittest.TestCase):
                 self.assertEqual(scope["plan"]["profile"], session.plan.profile.snapshot())
                 self.assertEqual(scope["current_topic"],"topic-1")
             self.assertEqual(scopes,[session.plan.profile.snapshot()]*3)
+            self.assertIn("That explains the recruitment choice. Review the remaining topics below.",
+                          [item.value for item in app.markdown])

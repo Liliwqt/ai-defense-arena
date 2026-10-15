@@ -27,10 +27,20 @@ background in the citation or a useful brief reaction. A reaction should say wha
 an actual reason or correction explains, or identify one material uncertainty,
 without requiring both on every turn or inventing a gap after a sufficient answer.
 Valid longer questions remain allowed. Existing reviewer handoffs, language rules,
-same-question exchanges, reaction timing and prices are unchanged. The optional
-final closing is a later ticket; this checkpoint has no separate AI evaluator.
+same-question exchanges, reaction timing and prices are unchanged. This checkpoint
+has no separate AI evaluator.
 Offline request/room checks establish context and synchronization, not live
 wording quality. See the [clarity review record](docs/PANELIST_CONVERSATION_CLARITY_REVIEW.md).
+
+The second local checkpoint adds an optional final closing from the last reviewer,
+generated with the coaching report in the same request. The run is already
+complete and settled while the closing appears for 4–12 seconds, then Transcript
+opens with coaching. Reconnect resumes the remaining interval. Empty or unusable
+closing text skips that moment without losing valid coaching; an actual coaching
+failure retains its existing recovery. Closing remarks stay in Transcript and
+summary downloads; Streamlit shows them inline with its report. Preview the
+synthetic transition with `?preview=1&research=1&complete=1&closing=1` on a local
+server. Full integrated/live conversation review remains a separate checkpoint.
 
 Panelists can use optional brief acknowledgments such as “Oh, I see” or “Hmm,
 noted,” adapting the wording to the current language. Encouragement recognizes a

@@ -39,6 +39,45 @@ const setSocket = (state: RoomState | null) => vi.mocked(useRoomSocket).mockRetu
 afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); });
 
 describe("flat room flow", () => {
+  it("does not let a final answer's seat highlight delay coaching after closing ends", () => {
+    vi.useFakeTimers();
+    setSocket(room([turn(null, null)]));
+    const view = render(<App />);
+    const state: RoomState = { ...room([turn("We limited the claim.", 0)], "complete"),
+      server_now_ms: 1_000, closing_panelist: "Technical Architect", closing_deadline_ms: 1_500,
+      feedback_status: "ready", feedback: { summary: "Discussion complete.", strengths: [],
+        improvements: [], next_step: "Practice.", closing: "That explains the final decision." } };
+    setSocket(state);
+    view.rerender(<App />);
+    act(() => { vi.advanceTimersByTime(500); });
+    setSocket({ ...state, server_now_ms: 1_500, closing_deadline_ms: null });
+    view.rerender(<App />);
+    expect(screen.getByRole("dialog", { name: "Transcript" })).toBeTruthy();
+  });
+
+  it("shows a terminal closing before automatically opening coaching and retains it in Transcript", async () => {
+    const closing = "That explains your final decision. Review the remaining limits in coaching.";
+    const state: RoomState = { ...room([{ ...turn("We limited the claim.", 0), panelist: "Critical Judge" }], "complete"),
+      defense_type: "research", active_panelist: null, server_now_ms: 1_000, closing_panelist: "Critical Judge",
+      closing_deadline_ms: 5_000, feedback_status: "ready", feedback: {
+        summary: "The team explained a limit.", strengths: [], improvements: [],
+        next_step: "Practice the remaining topics.", closing,
+      } };
+    setSocket(state);
+    const view = render(<App />);
+    expect(screen.getByText(closing)).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Critical Reviewer" })).toBeTruthy();
+    expect(screen.getByText("Your coaching report will follow. The defense is complete.")).toBeTruthy();
+    expect(screen.queryByRole("dialog", { name: "Transcript" })).toBeNull();
+    expect(screen.queryByText("The next question and speaker vote will follow.")).toBeNull();
+    setSocket({ ...state, server_now_ms: 5_000, closing_deadline_ms: null });
+    view.rerender(<App />);
+    const transcript = screen.getByRole("dialog", { name: "Transcript" });
+    expect(within(transcript).getByText(closing)).toBeTruthy();
+    expect(within(transcript).getByText("Critical Reviewer · Closing remarks")).toBeTruthy();
+    expect(within(transcript).getByText("The team explained a limit.")).toBeTruthy();
+  });
+
   it("keeps research advice separate from the question and accepted answer in the room and transcript", async () => {
     const advice = "One option is to narrow the claim if recruitment access is limited.";
     const answer = "We retained the pilot and limited our conclusions to its participants.";

@@ -12,6 +12,11 @@ ANSWER_MS = 120_000
 PROBE_MS = 30_000
 
 
+def reaction_reading_ms(text: str) -> int:
+    """The shared bounded reading interval for panelist remarks."""
+    return min(12_000, max(4_000, 1_000 + len(text) * 40))
+
+
 class DeadlineExpired(ValueError):
     """The room adapter must catch up the authoritative clock before replying."""
 
@@ -68,7 +73,7 @@ class TimedTurn:
         if len(session.turns) > 1 and reaction:
             self.phase = "reacting"
             # Readable, brief dwell: four to twelve seconds, based on text length.
-            self.reaction_deadline_ms = now + min(12_000, max(4_000, 1_000 + len(reaction) * 40))
+            self.reaction_deadline_ms = now + reaction_reading_ms(reaction)
         else:
             self.begin_vote(now)
 

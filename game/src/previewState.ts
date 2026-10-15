@@ -181,4 +181,9 @@ if (completePreview && ["none", "generating", "failed"].includes(coachingPreview
 }
 
 // Match the rendered snapshot to deadlines created while assembling the fixture.
+if (completePreview && previewParams.get("closing") === "1" && previewState.feedback) {
+  previewState.feedback.closing = "That explains the limits of your pilot. Review the remaining topics in coaching.";
+  previewState.closing_panelist = previewState.turns.at(-1)?.panelist;
+  previewState.closing_deadline_ms = Date.now() + 8_000;
+}
 previewState.server_now_ms = Date.now();

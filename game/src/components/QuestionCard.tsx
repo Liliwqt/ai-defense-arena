@@ -30,7 +30,7 @@ export function QuestionCard({ roomState, playerToken, presentation = deriveRoom
     if (scroll && probe) scroll.scrollTop += probe.getBoundingClientRect().top - scroll.getBoundingClientRect().top;
   }, [content.probe?.id, content.probe?.clarifications.length]);
   if (presentation.reaction) {
-    const { name, text } = presentation.reaction;
+    const { name, text, closing } = presentation.reaction;
     return (
       <section id="question-card" className="panelist-reaction-card" aria-labelledby="panelist-reaction-name">
         <div className="question-heading">
@@ -39,7 +39,7 @@ export function QuestionCard({ roomState, playerToken, presentation = deriveRoom
         </div>
         <div className="question-scroll panelist-reaction-scroll" tabIndex={0} aria-label="Panelist response">
           <p className="panelist-reaction-text" role="status" aria-live="polite" aria-atomic="true">{text}</p>
-          <p className="panelist-reaction-next">The next question and speaker vote will follow.</p>
+          <p className="panelist-reaction-next">{closing ? "Your coaching report will follow. The defense is complete." : "The next question and speaker vote will follow."}</p>
         </div>
       </section>
     );

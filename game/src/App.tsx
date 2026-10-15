@@ -40,10 +40,13 @@ export function App() {
   const previousAnswered = useRef(-1);
   const previousPhase = useRef<string | undefined>();
   const previousFeedback = useRef<string | undefined>();
+  const previousClosing = useRef(false);
+  const closingActive = useRef(false);
   const sequence = useRef(0);
   const [mockRoomState, setMockRoomState] = useState(previewState);
   const roomState: RoomState | null = previewMode ? mockRoomState : liveRoomState;
   const presentation = deriveRoomPresentation(roomState);
+  closingActive.current = !!presentation.reaction?.closing;
 
   useEffect(() => {
     if (!previewMode || mockRoomState.phase !== "reacting") return;
@@ -54,6 +57,14 @@ export function App() {
     }, Math.max(0, (mockRoomState.reaction_deadline_ms ?? Date.now()) - Date.now()));
     return () => clearTimeout(timer);
   }, [mockRoomState.phase, mockRoomState.reaction_deadline_ms]);
+
+  useEffect(() => {
+    if (!previewMode || mockRoomState.phase !== "complete" || !mockRoomState.closing_deadline_ms) return;
+    const timer = setTimeout(() => {
+      setMockRoomState(state => ({ ...state, closing_deadline_ms: null, server_now_ms: Date.now() }));
+    }, Math.max(0, mockRoomState.closing_deadline_ms - Date.now()));
+    return () => clearTimeout(timer);
+  }, [mockRoomState.phase, mockRoomState.closing_deadline_ms]);
 
   const openDrawer = useCallback((mode: DrawerMode) => {
     setDrawerMode(mode);
@@ -69,7 +80,7 @@ export function App() {
     if (presenterTimer.current) clearTimeout(presenterTimer.current);
     presenterTimer.current = null;
     setPresenterMoment(null);
-    if (pendingTranscript.current) {
+    if (pendingTranscript.current && !closingActive.current) {
       pendingTranscript.current = false;
       openDrawer("transcript");
     }
@@ -101,7 +112,16 @@ export function App() {
 
     const justCompleted = phase === "complete" && previousPhase.current !== "complete";
     const reportReady = feedback === "ready" && previousFeedback.current !== "ready";
-    if (justCompleted || reportReady) {
+    const closing = !!presentation.reaction?.closing;
+    const closingFinished = previousClosing.current && !closing && feedback === "ready";
+    if (closing) {
+      pendingTranscript.current = false;
+      if (presenterTimer.current) clearTimeout(presenterTimer.current);
+      presenterTimer.current = null;
+      setPresenterMoment(null);
+      if (firstSnapshot) closeDrawer();
+    }
+    if (!closing && feedback !== "generating" && (justCompleted || reportReady || closingFinished)) {
       if ((newAnswer && typeof turns.filter((turn) => turn.answer).at(-1)?.answered_by_seat === "number") || presenterTimer.current) {
         pendingTranscript.current = true;
       } else {
@@ -113,6 +133,7 @@ export function App() {
     previousAnswered.current = answered;
     previousPhase.current = phase;
     previousFeedback.current = feedback;
+    previousClosing.current = closing;
   }, [roomState]);
 
   useEffect(() => () => { if (presenterTimer.current) clearTimeout(presenterTimer.current); }, []);
@@ -131,6 +152,7 @@ export function App() {
     previousAnswered.current = -1;
     previousPhase.current = undefined;
     previousFeedback.current = undefined;
+    previousClosing.current = false;
     pendingTranscript.current = false;
     if (presenterTimer.current) clearTimeout(presenterTimer.current);
     presenterTimer.current = null;

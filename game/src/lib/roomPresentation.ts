@@ -219,6 +219,10 @@ export function deriveRoomPresentation(state: Readonly<RoomState> | null) {
   const retryingSubmission = phase === "interpretation_retry";
   const voting = phase === "voting";
   const reacting = phase === "reacting";
+  const closing = phase === "complete" && state?.feedback_status === "ready"
+    && !!state.feedback?.closing && !!state.closing_panelist
+    && typeof state.closing_deadline_ms === "number"
+    && state.closing_deadline_ms > (state.server_now_ms ?? 0);
   const answering = ["question", "probe", "interpreting", "interpretation_retry"].includes(phase ?? "");
   const answerTurnIndex = answering ? currentIndex : -1;
   const selectedSeat = answering ? state?.selected_seat ?? null : null;
@@ -248,12 +252,14 @@ export function deriveRoomPresentation(state: Readonly<RoomState> | null) {
   const card = { ...rawCard, name: displayRole(rawCard.name) };
   const clarification = card.probe ? undefined : card.clarifications?.at(-1);
   const reactionTurn = reacting ? turns.at(-1) : undefined;
-  const reaction = reacting ? { name: displayRole(reactionTurn?.panelist ?? ""), text: reactionTurn?.lead_in } : null;
+  const closingPanelist = displayRole(state?.closing_panelist ?? "");
+  const reaction = closing ? { name: closingPanelist, text: state.feedback!.closing, closing: true }
+    : reacting ? { name: displayRole(reactionTurn?.panelist ?? ""), text: reactionTurn?.lead_in, closing: false } : null;
   const speaker = reaction?.name ?? displayRole(state?.active_panelist ?? "");
   const panelists = (research ? RESEARCH_PANELISTS : CODE_PANELISTS).map(name => {
-    const active = (reacting || voting || answering) && name === speaker;
-    return { name, active, label: active ? reacting ? "Speaking" : "Asking" : "Panelist",
-      accessibleLabel: `${name}${active ? reacting ? ", speaking" : ", asking this question" : ""}` };
+    const active = (reacting || closing || voting || answering) && name === speaker;
+    return { name, active, label: active ? reacting || closing ? "Speaking" : "Asking" : "Panelist",
+      accessibleLabel: `${name}${active ? reacting || closing ? ", speaking" : ", asking this question" : ""}` };
   });
   const defenders = Array.from({ length: 4 }, (_, seat) => {
     const player = state?.players?.find(candidate => candidate.seat === seat);
@@ -271,17 +277,18 @@ export function deriveRoomPresentation(state: Readonly<RoomState> | null) {
   const voteInstruction = "Choose a speaker. You can change your vote until the clock reaches zero.";
   const answerPrompt = probing ? "Reply to panelist" : phase === "question" ? "Your turn · You were chosen to answer" : "Submit an answer directly";
   const teammateInstruction = chosenName ? `${chosenName} is ${probing ? "replying" : "answering"}. Use Team Chat to help them.` : "Waiting for a defender to reconnect. The answer clock keeps running.";
-  const guidance = voting ? voteInstruction
+  const guidance = closing ? "The final reviewer is speaking. Coaching will follow; the defense is complete."
+    : voting ? voteInstruction
     : retryingSubmission ? submission.recoveryGuidance
     : reviewing ? submission.reviewGuidance
     : phase === "question" || phase === "probe" ? chosenSelf ? `${answerPrompt} in the bottom dock.` : teammateInstruction
     : lifecycleGuidance(state);
   return {
-    currentIndex, answerTurnIndex, acceptedCount, resolvedCount, card, clarification, reaction, panelists, defenders,
+    currentIndex, answerTurnIndex, acceptedCount, resolvedCount, card, clarification, reaction, closingPanelist, panelists, defenders,
     guidance,
     controls: { questionRetry: phase === "retry", questionRetryAvailable: state?.question_attempts_left !== 0,
       coachingRetry: phase === "complete" && state?.feedback_status === "failed", coachingRetryAvailable: state?.coaching_attempts_left !== 0 },
-    voting, chosenSelf, chosenName, submission, timer: deriveTimer(state), status: interpretationStatus(state) ?? roomStatus(state), progress,
+    voting, chosenSelf, chosenName, submission, timer: deriveTimer(state), status: closing ? "Panelist closing…" : interpretationStatus(state) ?? roomStatus(state), progress,
     coverage: { addressed: Object.values(state?.coverage ?? {}).filter(item => item.status === "addressed").length,
       total: state?.research_plan?.topics.length ?? 0 },
     voteInstruction, answerPrompt, teammateInstruction,

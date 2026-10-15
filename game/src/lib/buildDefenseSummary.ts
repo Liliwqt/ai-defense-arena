@@ -123,6 +123,12 @@ export function buildDefenseSummary(state: RoomState): string {
   }
 
   if (state.feedback) {
+    if (state.feedback.closing) {
+      const panelist = state.defense_type && state.defense_type !== "code" && state.closing_panelist === "Critical Judge"
+        ? "Critical Reviewer" : state.closing_panelist ?? "Panelist";
+      lines.push("FINAL PANELIST CLOSING", "",
+        `${panelist}: ${state.feedback.closing}`, "");
+    }
     lines.push("COACHING REPORT");
     lines.push("");
     lines.push(state.feedback.summary);
