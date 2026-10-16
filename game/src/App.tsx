@@ -30,7 +30,7 @@ export function App() {
   const [drawerOpen, setDrawerOpen] = useState(() =>
     screen === "room" && (!previewMode || new URLSearchParams(window.location.search).get("plan") === "1"));
   const [drawerMode, setDrawerMode] = useState<DrawerMode>("controls");
-  const [setupRequest, setSetupRequest] = useState<{ tab: "create" | "join"; id: number }>({ tab: "create", id: 0 });
+  const [setupRequest, setSetupRequest] = useState<{ tab: "create" | "join"; id: number; fresh?: boolean }>({ tab: "create", id: 0 });
   // A distinct "Create another room" starts fresh setup without closing the current room.
   const [newRoomSetup, setNewRoomSetup] = useState(false);
   const { account, refresh: refreshAccount, error: accountError } = useAccount(previewMode);
@@ -92,7 +92,7 @@ export function App() {
     navigate("setup");
   }, [navigate]);
   const startAnotherRoom = useCallback(() => {
-    setSetupRequest(previous => ({ tab: "create", id: previous.id + 1 }));
+    setSetupRequest(previous => ({ tab: "create", id: previous.id + 1, fresh: true }));
     setNewRoomSetup(true);
     setDrawerMode("controls");
     setMessage("");

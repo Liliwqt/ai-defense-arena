@@ -171,6 +171,25 @@ describe("guided setup and preparation", () => {
     expect(requests).toHaveLength(1);
   });
 
+  it("clears completed uploads only when explicitly creating another room", async () => {
+    const requests = mockRoomRequests();
+    setSocket(null);
+    setAccount(hostAccount());
+    renderAt("/#/setup");
+    const upload = screen.getByLabelText("Project source files or ZIP") as HTMLInputElement;
+    await userEvent.upload(upload, new File(["print(1)"], "old.py", { type: "text/plain" }));
+    fireEvent.submit(document.querySelector("#create-form")!);
+    await act(async () => {
+      requests[0].status = 201;
+      requests[0].responseText = JSON.stringify({ room_code: "ROOM9", player_token: "tok" });
+      requests[0].dispatchEvent(new Event("load"));
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Create another room" }));
+    expect((screen.getByLabelText("Project source files or ZIP") as HTMLInputElement).files).toHaveLength(0);
+    expect(screen.queryByText("Room created successfully.")).toBeNull();
+    expect(requests).toHaveLength(1);
+  });
+
   it("shows an existing room's accepted files instead of a replacement form on setup", () => {
     setSocket(roomState({ defense_type: "research", accepted_files: [{ name: "study.pdf", kind: "research_pdf", detail: "3 pages" }] }));
     setAccount(hostAccount());

@@ -10,7 +10,7 @@ import { deriveRoomPresentation, type RoomPresentation } from "../lib/roomPresen
 interface ControlsPanelProps {
   presentation?: RoomPresentation;
   account?: Account | null;
-  setupRequest?: { tab: "create" | "join"; id: number };
+  setupRequest?: { tab: "create" | "join"; id: number; fresh?: boolean };
   onOpenAccount?: () => void;
   onOpenTranscript?: () => void;
   onPreviewMoment?: () => void;
@@ -72,11 +72,21 @@ export function ControlsPanel({
   showMessage,
   presentation = deriveRoomPresentation(roomState),
 }: ControlsPanelProps) {
+  const createFormRef = useRef<HTMLFormElement>(null);
   const [activeTab, setActiveTab] = useState<"create" | "join">(setupRequest?.tab ?? "create");
   // The panel stays mounted across drawer/screen changes. Each explicit Home entry
   // is a fresh request (new object with a new id), so a repeated choice reapplies;
   // manual tab clicks and keyboard arrows keep owning activeTab between requests.
-  useEffect(() => { if (setupRequest) setActiveTab(setupRequest.tab); }, [setupRequest]);
+  useEffect(() => {
+    if (!setupRequest) return;
+    setActiveTab(setupRequest.tab);
+    if (setupRequest.fresh) {
+      createFormRef.current?.querySelectorAll<HTMLInputElement>('input[type="file"]').forEach(input => { input.value = ""; });
+      setCreateProgress(null);
+      setCreateUncertain(false);
+      setCreateElapsed(0);
+    }
+  }, [setupRequest]);
   const [createBusy, setCreateBusy] = useState(false);
   const [createProgress, setCreateProgress] = useState<RoomCreationProgress | null>(null);
   const [createElapsed, setCreateElapsed] = useState(0);
@@ -200,6 +210,9 @@ export function ControlsPanel({
   const inputClass = "setup-input";
   const primaryBtn = "button-primary";
   const secondaryBtn = "button-secondary";
+  const createLabel = createBusy ? "Creating…" : "Create defense room";
+  const joinLabel = joinBusy ? "Joining…" : "Join team";
+  const createDisabled = createBusy || !account?.authenticated;
 
   const waitText = previewMode ? "Preview mode does not send answers." : !connected && roomState
     ? "Reconnecting… Controls become available when connected." : presentation.guidance;
@@ -238,7 +251,7 @@ export function ControlsPanel({
           </div>
 
             <div hidden={activeTab !== "create"}>
-            <form id="create-form" role="tabpanel" aria-busy={createBusy} onSubmit={handleCreate}>
+            <form ref={createFormRef} id="create-form" role="tabpanel" aria-busy={createBusy} onSubmit={handleCreate}>
               <fieldset disabled={createBusy} className="setup-fieldset">
               {!account?.authenticated && <div className="account-access-card"><p>Sign in with Google to create a room. Teammates can use Join room without an account.</p><button type="button" className={secondaryBtn} onClick={onOpenAccount}>Open Account</button></div>}
               <section className="setup-card">
@@ -278,8 +291,8 @@ export function ControlsPanel({
                 Research papers: text-based PDF, DOCX, TXT, or Markdown. PDF pages must contain readable text.
               </p>
               </section>
-              <button hidden={surface === "page"} type="submit" disabled={createBusy || !account?.authenticated} className={primaryBtn}>
-                {createBusy ? "Creating…" : "Create defense room"}
+              <button hidden={surface === "page"} type="submit" disabled={createDisabled} className={primaryBtn}>
+                {createLabel}
               </button>
               </fieldset>
             </form>
@@ -309,7 +322,7 @@ export function ControlsPanel({
                 <input name="name" maxLength={24} autoComplete="name" required placeholder="Your name" className={inputClass} />
               </label>
               <button hidden={surface === "page"} type="submit" disabled={joinBusy} className={primaryBtn}>
-                {joinBusy ? "Joining…" : "Join team"}
+                {joinLabel}
               </button>
             </form>
         </div>
@@ -455,8 +468,8 @@ export function ControlsPanel({
             ? createBusy ? "Keep this page open while your files are processed." : !account?.authenticated ? "Sign in to create a defense. Teammates can join directly." : "Create your room, then review the material before starting."
             : "Join your team at its current stage. You can join without signing in."}</p>
           <button type="submit" form={activeTab === "create" ? "create-form" : "join-form"}
-            className={primaryBtn} disabled={activeTab === "create" ? createBusy || !account?.authenticated : joinBusy}>
-            {activeTab === "create" ? createBusy ? "Creating…" : "Create defense room" : joinBusy ? "Joining…" : "Join team"}
+            className={primaryBtn} disabled={activeTab === "create" ? createDisabled : joinBusy}>
+            {activeTab === "create" ? createLabel : joinLabel}
           </button>
         </div>}
       </aside>}
