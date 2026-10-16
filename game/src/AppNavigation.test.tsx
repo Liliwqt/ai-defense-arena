@@ -1,9 +1,10 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { useAccount, type Account } from "./hooks/useAccount";
 import { useRoomSocket, type RoomSocketState } from "./hooks/useRoomSocket";
+import { researchPlanPreview } from "./researchPlanPreview";
 import type { RoomState } from "./types";
 
 vi.mock("./hooks/useAccount", () => ({ useAccount: vi.fn() }));
@@ -130,7 +131,7 @@ describe("full-screen app navigation", () => {
     await waitFor(() => expect(roomMarker()).toBeTruthy());
 
     act(() => { window.history.back(); });
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Home" })).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Home" })).toHaveFocus());
 
     act(() => { window.history.forward(); });
     await waitFor(() => expect(roomMarker()).toBeTruthy());
@@ -177,4 +178,93 @@ describe("full-screen app navigation", () => {
     expect(screen.queryByRole("button", { name: /return to your room/i })).toBeNull();
     expect(screen.queryByRole("link", { name: "Owner dashboard" })).toBeNull();
   });
+
+  // Review fix 1: a persistent socket error must redirect once, not trap navigation.
+  it("redirects to Account once for a new sign-in error and keeps Back usable while it persists", async () => {
+    setAccount(account({ authenticated: false, google_enabled: true }));
+    const socket = setSocket(null, { connected: false, actionError: "Sign in with Google to create a room." });
+    const view = renderAt("/#/room");
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Account" })).toBeTruthy());
+    await userEvent.click(screen.getByRole("button", { name: "Back to Home" }));
+    expect(screen.getByRole("heading", { name: "Home" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Account" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Join a room" }));
+    expect(window.location.hash).toBe("#/room");
+    expect(document.querySelector("#join-form")).not.toBeNull();
+
+    socket.actionError = "Sign in to use host controls.";
+    view.rerender(<App />);
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Account" })).toBeTruthy());
+  });
+
+  // Review fix 2: unsent preparation drafts must survive Home/Account round trips.
+  it("keeps unsent preparation drafts through Home and Account round trips", async () => {
+    setAccount(account({ authenticated: true, google_enabled: true, csrf_token: "csrf", payment_mode: "test", test_credits: 40 }));
+    setSocket(roomState({
+      phase: "lobby", defense_type: "research", accepted_files: [{ name: "study.pdf", kind: "research_pdf", detail: "3 pages" }],
+      files: ["study.pdf"], research_stage: "proposal", research_planning_status: "ready",
+      research_plan: researchPlanPreview, research_plan_approved: false, research_budget_preview: 8,
+      players: [{ seat: 0, name: "Alex", online: true, is_host: true }],
+    }));
+    renderAt("/#/room");
+    await userEvent.click(screen.getByRole("button", { name: /settings.*controls/i }));
+    const budget = within(screen.getByRole("dialog", { name: "Controls" })).getByLabelText(/question budget/i);
+    await userEvent.clear(budget);
+    await userEvent.type(budget, "12");
+    await userEvent.type(within(screen.getByRole("dialog", { name: "Controls" })).getByLabelText(/research fields/i), "\nHuman-computer interaction");
+
+    await userEvent.click(screen.getByRole("button", { name: "Account" }));
+    expect(screen.getByRole("heading", { name: "Account" })).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Back to Home" }));
+    await userEvent.click(screen.getByRole("button", { name: /return to your room ROOM1/i }));
+
+    await userEvent.click(screen.getByRole("button", { name: /settings.*controls/i }));
+    const reopened = within(screen.getByRole("dialog", { name: "Controls" }));
+    expect(reopened.getByLabelText(/question budget/i)).toHaveValue(12);
+    expect(reopened.getByLabelText(/research fields/i)).toHaveValue("Education\nSoftware engineering\nHuman-computer interaction");
+  });
+
+  // Review fix 3: the legacy account query must keep its destination over a conflicting fragment.
+  it("keeps the legacy account destination when a conflicting fragment is present", () => {
+    setAccount(account({ authenticated: true, user: { id: "u1", name: "Host", email: "host@example.com" }, csrf_token: "csrf", payment_mode: "test" }));
+    setSocket(null, { connected: false });
+    renderAt("/?account=1#/home");
+    expect(screen.getByRole("heading", { name: "Account" })).toBeTruthy();
+    expect(screen.getByText("host@example.com")).toBeTruthy();
+  });
+
+  // Review fix 4: a screen change must move focus to the new heading.
+  it("moves focus to the new screen heading after the opener is removed", async () => {
+    setSocket(null, { connected: false });
+    setAccount(account({ authenticated: false, google_enabled: true }));
+    renderAt("/");
+    await userEvent.click(screen.getByRole("button", { name: "Create a defense" }));
+    expect(screen.getByRole("heading", { name: "Sign in" })).toHaveFocus();
+  });
+
+  // Review fix 4: ordinary same-screen updates must not steal focus.
+  it("does not steal focus when account data refreshes on the same screen", () => {
+    setAccount(account({ authenticated: true, user: { id: "u1", name: "Host", email: "host@example.com" }, csrf_token: "csrf", payment_mode: "test", test_credits: 1 }));
+    setSocket(null, { connected: false });
+    const view = renderAt("/#/account");
+    const signOut = screen.getByRole("button", { name: "Sign out" });
+    signOut.focus();
+    setAccount(account({ authenticated: true, user: { id: "u1", name: "Host", email: "host@example.com" }, csrf_token: "csrf", payment_mode: "test", test_credits: 5 }));
+    view.rerender(<App />);
+    expect(signOut).toHaveFocus();
+  });
+
+  // Review fix 5: inherited object keys must not resolve to non-screen routes.
+  it.each(["constructor", "toString", "__proto__", "hasOwnProperty"])(
+    "shows Home with guidance for the inherited property fragment #%s",
+    (name) => {
+      setAccount(account());
+      setSocket(null, { connected: false });
+      renderAt(`/#${name}`);
+      expect(screen.getByRole("heading", { name: "Home" })).toBeTruthy();
+      expect(screen.getByRole("status")).toHaveTextContent(/couldn’t open that screen/i);
+    },
+  );
 });

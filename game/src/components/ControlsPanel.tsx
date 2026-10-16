@@ -60,6 +60,9 @@ export function ControlsPanel({
   presentation = deriveRoomPresentation(roomState),
 }: ControlsPanelProps) {
   const [activeTab, setActiveTab] = useState<"create" | "join">(initialTab);
+  // The panel stays mounted across drawer/screen changes, so follow explicit
+  // setup intent (e.g. Home "Join a room") instead of only the mount value.
+  useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
   const [createBusy, setCreateBusy] = useState(false);
   const [createProgress, setCreateProgress] = useState<RoomCreationProgress | null>(null);
   const [createElapsed, setCreateElapsed] = useState(0);

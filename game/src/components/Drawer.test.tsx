@@ -4,13 +4,15 @@ import userEvent from "@testing-library/user-event";
 import { Drawer } from "./Drawer";
 
 describe("Drawer", () => {
-  it("renders nothing when closed", () => {
-    const { container } = render(
+  it("stays mounted but hidden when closed so drafts survive", () => {
+    render(
       <Drawer open={false} mode="controls" title="Controls" onClose={vi.fn()}>
         <p>content</p>
       </Drawer>,
     );
-    expect(container.firstChild).toBeNull();
+    expect(document.getElementById("drawer")!.hidden).toBe(true);
+    expect(document.getElementById("drawer-scrim")!.hidden).toBe(true);
+    expect(screen.queryByRole("dialog", { name: "Controls" })).toBeNull();
   });
 
   it("renders children when open", () => {

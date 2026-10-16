@@ -68,7 +68,7 @@ it("keeps real seats, question, countdown and action guidance in step from vote 
   snapshot(room());
   const view = render(<App />);
   fireEvent.click(screen.getByRole("button", { name: /close panel/i }));
-  expect(screen.getByText(/Choose a speaker\. You can change/)).toBeTruthy();
+  expect(within(document.getElementById("room-dock")!).getByText(/Choose a speaker\. You can change/)).toBeTruthy();
   expect(screen.getByLabelText("Technical Architect, asking this question")).toHaveAttribute("aria-current", "true");
   expect(screen.getByLabelText(/Defender seat 2: Sam, online, 2 votes/)).toHaveTextContent("2 votes");
   expect(screen.getByText("Why keep the queue in memory?")).toBeTruthy();
@@ -79,7 +79,7 @@ it("keeps real seats, question, countdown and action guidance in step from vote 
 
   snapshot(room({ phase: "question", selected_seat: 1, server_now_ms: 2100, answer_deadline_ms: 122100 }));
   view.rerender(<App />);
-  expect(screen.getByText(/Sam is answering/)).toBeTruthy();
+  expect(within(document.getElementById("room-dock")!).getByText(/Sam is answering/)).toBeTruthy();
   expect(screen.getByLabelText(/Defender seat 2: Sam, online, chosen to answer/)).toHaveTextContent("Answering");
   expect(screen.queryByRole("textbox", { name: /chosen to answer/i })).toBeNull();
   expect(screen.getByRole("timer", { name: "Answer time remaining" })).toHaveTextContent("ANSWER 2:00");
@@ -130,7 +130,7 @@ it("shows factual no-defender guidance and an unknown countdown without a deadli
     players: room().players.map(player => ({ ...player, online: false })) }));
   const view = render(<App />);
   fireEvent.click(screen.getByRole("button", { name: /close panel/i }));
-  expect(screen.getByText(/Waiting for a defender to reconnect/)).toBeTruthy();
+  expect(within(document.getElementById("room-dock")!).getByText(/Waiting for a defender to reconnect/)).toBeTruthy();
   expect(screen.queryByRole("textbox", { name: /chosen to answer/i })).toBeNull();
   expect(screen.getByRole("timer")).toHaveTextContent("ANSWER --:--");
   expect(screen.queryByLabelText(/chosen to answer/)).toBeNull();
@@ -190,7 +190,7 @@ it("offers recovery only to the host and selected defender, respecting exhausted
   expect(screen.getByRole("button", { name: "Retry panelist" })).toBeDisabled();
   expect(screen.queryByRole("button", { name: "Write a new answer" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Use this as my answer" })).toBeNull();
-  expect(screen.getByText(/No panelist retries remain/)).toBeTruthy();
+  expect(within(document.getElementById("room-dock")!).getByText(/No panelist retries remain/)).toBeTruthy();
   snapshot({ ...state, self_seat: 1, self_is_host: false, my_pending_submission: "Keep this saved answer." });
   view.rerender(<App />);
   expect(screen.getByRole("button", { name: "Use this as my answer" })).toBeEnabled();

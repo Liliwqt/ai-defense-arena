@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { AccountPanel } from "./AccountPanel";
+import { AccountPanel, GoogleSignIn } from "./AccountPanel";
 import type { Account } from "../hooks/useAccount";
 
 interface AppPageProps {
@@ -64,9 +64,7 @@ export function SignInScreen({ account, onBack, onAccount }: {
             <button type="button" className="button-secondary" onClick={onAccount}>Go to Account</button>
           </> : <>
             <p>Teammates can join using your room code without signing in.</p>
-            {account.google_enabled
-              ? <a className="button-primary account-login" href="/api/auth/google/login?return_to=%2F%3Faccount%3D1">Sign in with Google</a>
-              : <p className="app-status" role="status">Google sign-in needs server configuration. Follow the README’s local account setup.</p>}
+            <GoogleSignIn googleEnabled={!!account.google_enabled} />
           </>}
       </section>
     </AppPage>

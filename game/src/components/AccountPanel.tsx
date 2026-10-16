@@ -2,6 +2,13 @@ import { useState } from "react";
 import { accountResponse, type Account } from "../hooks/useAccount";
 import { purchaseLabel, runLabel, refundReviewLabel } from "../lib/paymentHistory";
 
+/** Shared signed-out Google entry so the sign-in page and account panel cannot drift. */
+export function GoogleSignIn({ googleEnabled }: { googleEnabled: boolean }) {
+  return googleEnabled
+    ? <a className="button-primary account-login" href="/api/auth/google/login?return_to=%2F%3Faccount%3D1">Sign in with Google</a>
+    : <p role="status">Google sign-in needs server configuration. Follow the README’s local account setup.</p>;
+}
+
 export function AccountPanel({ account, refresh, error, previewMode = false }: {
   account: Account | null; refresh: () => Promise<void>; error: string; previewMode?: boolean;
 }) {
@@ -36,8 +43,7 @@ export function AccountPanel({ account, refresh, error, previewMode = false }: {
     {previewMode ? <p>Account actions are disabled in this visual preview.</p> : !account ? <p role="status">Loading your account…</p> : !account.authenticated ? <>
       <h2>Sign in to host a defense</h2>
       <p>Teammates can join using your room code without signing in.</p>
-      {account.google_enabled ? <a className="button-primary account-login" href="/api/auth/google/login?return_to=%2F%3Faccount%3D1">Sign in with Google</a>
-        : <p role="status">Google sign-in needs server configuration. Follow the README’s local account setup.</p>}
+      <GoogleSignIn googleEnabled={!!account.google_enabled} />
     </> : <>
       <div className="account-profile"><h2>{account.user?.name}</h2><p>{account.user?.email}</p></div>
       {account.manager_enabled && <a className="button-secondary account-login" href="/?manager=1">Owner dashboard</a>}

@@ -190,12 +190,23 @@ export function App() {
   }, [resetMoment, leaveRoom, openDrawer]);
 
   useEffect(() => { if (liveRoomState?.self_is_host) void refreshAccount(); }, [liveRoomState?.phase, refreshAccount]);
+  // A socket sign-in error can persist for the life of the room. Redirect once per
+  // newly received error so Back/Home/room stay usable while it is still present.
+  const handledSignInError = useRef<string | null>(null);
   useEffect(() => {
-    if (actionError?.startsWith("Sign in")) {
-      if (screen !== "account") navigate("account");
-      void refreshAccount();
-    }
+    if (!actionError?.startsWith("Sign in") || handledSignInError.current === actionError) return;
+    handledSignInError.current = actionError;
+    if (screen !== "account") navigate("account");
+    void refreshAccount();
   }, [actionError, screen, navigate, refreshAccount]);
+
+  // Announce each screen change by focusing its heading; ordinary same-screen
+  // updates (account refresh, snapshots, timers) leave focus where it is.
+  const firstScreen = useRef(true);
+  useEffect(() => {
+    if (firstScreen.current) { firstScreen.current = false; return; }
+    document.getElementById("app-screen-title")?.focus();
+  }, [screen]);
 
   const title = drawerMode === "transcript" ? "Transcript" : "Controls";
 
@@ -213,19 +224,18 @@ export function App() {
           <RoomDock presentation={presentation} roomState={roomState} connected={connected} previewMode={previewMode}
             waitingForAnswerAck={waitingForAnswerAck} actionError={actionError} actionErrorReason={actionErrorReason} onSendEvent={sendEvent} />
           <Drawer open={drawerOpen} mode={drawerMode} title={title} onClose={closeDrawer}>
-            {drawerMode === "controls" ? (
-              <>
-                <ControlsPanel presentation={presentation} roomState={previewMode ? roomState : liveRoomState} connected={connected} previewMode={previewMode}
-                  initialTab={controlsTab}
-                  onUseRoom={handleUseRoom} onLeaveRoom={handleLeaveRoom} onSendEvent={sendEvent}
-                  onCloseDrawer={closeDrawer} showMessage={showMessage} account={account}
-                  onOpenAccount={() => navigate("account")} onOpenTranscript={() => openDrawer("transcript")}
-                  onPreviewMoment={previewPresenter} />
-                {(message || actionError) && <div role="alert" className="drawer-error">{message || actionError}</div>}
-              </>
-            ) : (
-              <TranscriptPanel presentation={presentation} roomState={roomState} previewMode={previewMode} />
-            )}
+            {/* Controls stay mounted while the transcript shows so unsent preparation
+                drafts survive both drawer switching and screen navigation. */}
+            <div hidden={drawerMode !== "controls"}>
+              <ControlsPanel presentation={presentation} roomState={previewMode ? roomState : liveRoomState} connected={connected} previewMode={previewMode}
+                initialTab={controlsTab}
+                onUseRoom={handleUseRoom} onLeaveRoom={handleLeaveRoom} onSendEvent={sendEvent}
+                onCloseDrawer={closeDrawer} showMessage={showMessage} account={account}
+                onOpenAccount={() => navigate("account")} onOpenTranscript={() => openDrawer("transcript")}
+                onPreviewMoment={previewPresenter} />
+              {(message || actionError) && <div role="alert" className="drawer-error">{message || actionError}</div>}
+            </div>
+            {drawerOpen && drawerMode === "transcript" && <TranscriptPanel presentation={presentation} roomState={roomState} previewMode={previewMode} />}
           </Drawer>
         </div>
       </div>

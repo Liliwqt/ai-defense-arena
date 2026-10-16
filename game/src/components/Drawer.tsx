@@ -25,7 +25,9 @@ export function Drawer({ open, mode, title, onClose, children }: DrawerProps) {
       closeButtonRef.current?.focus();
     } else if (wasOpenRef.current) {
       wasOpenRef.current = false;
-      if (returnFocusRef.current?.isConnected) returnFocusRef.current.focus();
+      const opener = returnFocusRef.current;
+      // Never restore focus into hidden content (the room stays mounted off-screen).
+      if (opener?.isConnected && !opener.closest("[hidden]")) opener.focus();
       returnFocusRef.current = null;
     }
   }, [open, mode]);
@@ -69,14 +71,15 @@ export function Drawer({ open, mode, title, onClose, children }: DrawerProps) {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open, onClose]);
 
-  if (!open) return null;
-
+  // The panel stays mounted while closed so preparation drafts survive navigation;
+  // `hidden` keeps its inputs out of the tab order and the accessibility tree.
   return (
     <>
       {/* Scrim */}
       <div
         id="drawer-scrim"
         className="drawer-scrim"
+        hidden={!open}
         onClick={onClose}
         aria-hidden="true"
       />
@@ -88,6 +91,7 @@ export function Drawer({ open, mode, title, onClose, children }: DrawerProps) {
         aria-modal="true"
         aria-labelledby="drawer-title"
         className="drawer-panel"
+        hidden={!open}
         style={{ width: "min(460px, 100vw)", height: "100dvh" }}
       >
         {/* Header */}
