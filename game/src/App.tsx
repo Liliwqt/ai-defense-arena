@@ -87,7 +87,6 @@ export function App() {
     // A monotonic id makes every explicit Home choice reapply even when it repeats
     // the previous tab, since the persisted ControlsPanel cannot see a same-value change.
     setSetupRequest(previous => ({ tab, id: previous.id + 1 }));
-    setNewRoomSetup(false);
     setDrawerMode("controls");
     setMessage("");
     navigate("setup");
@@ -97,7 +96,8 @@ export function App() {
     setNewRoomSetup(true);
     setDrawerMode("controls");
     setMessage("");
-  }, []);
+    navigate("setup");
+  }, [navigate]);
   useEffect(() => { if (screen !== "room") setDrawerOpen(false); }, [screen]);
   const showMessage = useCallback((value: string) => {
     setMessage(value);
@@ -210,6 +210,7 @@ export function App() {
   const handleUseRoom = useCallback((code: string, token: string, host: boolean) => {
     resetMoment();
     useRoom(code, token, host);
+    setNewRoomSetup(false);
     setMessage("");
     if (host) { openDrawer("controls"); navigate("prepare"); }
     else { closeDrawer(); navigate("room"); }
@@ -248,31 +249,22 @@ export function App() {
   const prepareReady = isPrepare && hasRoom;
   const pageTitle = prepareReady ? "Prepare your defense"
     : hasRoom ? (newRoomSetup ? "Create another room" : "Your material")
-    : setupRequest.tab === "join" ? "Join a room" : "Create a defense";
-  const pageKicker = prepareReady ? "DEFENSE PREPARATION" : "HOST SETUP";
+    : setupRequest.tab === "join" ? "Join a room" : "Bring your work.";
+  const pageKicker = prepareReady ? "STEP 2 / PREPARE & REVIEW" : "STEP 1 / UPLOAD & SETUP";
 
-  const pageSide = prepareReady ? (
-    <>
-      <h2 className="app-surface-side-title">Room actions</h2>
-      <p>Your room stays connected while you prepare. Share its code so your team can join.</p>
-      <button type="button" className="button-secondary" onClick={startAnotherRoom}>Create another room</button>
-      <button type="button" className="button-secondary" onClick={() => navigate("setup")}>Back to setup</button>
-      <button type="button" className="button-secondary" onClick={() => navigate("room")}>Return to the defense room</button>
-    </>
-  ) : hasRoom ? (
-    <>
-      <h2 className="app-surface-side-title">Room actions</h2>
-      <p>This room keeps its accepted files. Creating another room does not close or change it.</p>
+  const pageSide = <section className="guided-room-context">
+    <p className="app-page-kicker">{hasRoom ? "YOUR TEAM’S ROOM" : "YOUR PRACTICE"}</p>
+    <strong>{activeRoomCode ?? "A space to prepare together"}</strong>
+    <p>{hasRoom ? `${roomState?.self_is_host ? "Host" : "Teammate"} · ${roomState?.phase ?? "Connecting…"}` : "Four perspectives. Your research. Your reasoning."}</p>
+    {hasRoom && <>
+      <p>Share this code with your team. Your room stays connected while you prepare.</p>
+      <button type="button" className="button-secondary" onClick={() => navigate(isPrepare ? "room" : "prepare")}>
+        {isPrepare ? "Return to the defense room" : "Back to preparation"}
+      </button>
+      {isPrepare && <button type="button" className="button-secondary" onClick={() => navigate("setup")}>Back to setup</button>}
       {!newRoomSetup && <button type="button" className="button-secondary" onClick={startAnotherRoom}>Create another room</button>}
-      <button type="button" className="button-secondary" onClick={() => navigate("prepare")}>Back to preparation</button>
-    </>
-  ) : (
-    <>
-      <h2 className="app-surface-side-title">About this step</h2>
-      <p>Upload your material once. Nothing is sent until you explicitly create the room.</p>
-      {isPrepare && <p>No room is open yet. Create or join one to prepare.</p>}
-    </>
-  );
+    </>}
+  </section>;
 
   return (
     <div className="app-root">
@@ -291,16 +283,21 @@ export function App() {
       </div>
       {/* One persistent panel: an in-room overlay on the room screen, a full-screen
           setup/preparation surface otherwise. Keeping it mounted preserves drafts. */}
-      <Drawer open={pageScreen || drawerOpen} mode={drawerMode} title={pageScreen ? pageTitle : title}
+      <Drawer open={pageScreen || (screen === "room" && drawerOpen)} mode={drawerMode} title={pageScreen ? pageTitle : title}
         variant={pageScreen ? "page" : "overlay"} kicker={pageScreen ? pageKicker : undefined}
-        steps={pageScreen ? <PreparationSteps current={prepareReady ? 2 : 1} /> : undefined}
-        side={pageScreen ? pageSide : undefined}
+        steps={pageScreen ? <PreparationSteps current={prepareReady ? 2 : 1} hasRoom={hasRoom}
+          onSelect={step => navigate(step === 1 ? "setup" : step === 2 ? "prepare" : "room")} /> : undefined}
+        onHome={() => navigate("home")} onAccount={() => navigate("account")}
+        description={prepareReady ? "Make sure the panel understands your work. Review the material before starting."
+          : hasRoom && !newRoomSetup ? "These accepted files stay with your room. Use a new room for different material."
+          : setupRequest.tab === "join" ? "Enter your room code and join your team."
+          : "Choose the work you want to defend. You’ll prepare your room before anything starts."}
         onClose={pageScreen ? handleDrawerBack : closeDrawer}>
         {/* Controls stay mounted while the transcript shows so unsent preparation
             drafts survive both drawer switching and screen navigation. */}
         <div hidden={!pageScreen && drawerMode !== "controls"}>
           <ControlsPanel presentation={presentation} roomState={previewMode ? roomState : liveRoomState} connected={connected} previewMode={previewMode}
-            setupRequest={setupRequest} surface={pageScreen ? "page" : "drawer"}
+            setupRequest={setupRequest} surface={pageScreen ? "page" : "drawer"} pageContext={pageSide}
             forceSetup={isSetup && newRoomSetup} showExistingFiles={isSetup && hasRoom && !newRoomSetup}
             activeRoomCode={activeRoomCode}
             onUseRoom={handleUseRoom} onLeaveRoom={handleLeaveRoom} onSendEvent={sendEvent}

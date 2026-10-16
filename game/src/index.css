@@ -469,25 +469,69 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .app-number { color: var(--subtle); font: 800 .72rem/1 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .1em; }
 .app-status { margin: 0; color: var(--muted); font-size: .84rem; line-height: 1.5; }
 
-/* Full-screen setup/preparation surface (Guided steps A): header, visible
-   preparation steps, then a main-content/room-action split on desktop. */
-.app-surface { width: 100%; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; background: var(--base); color: var(--ink); }
-.app-surface[hidden] { display: none; }
-.app-surface-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; width: min(100%, 1120px); margin: 0 auto; padding: clamp(14px, 2.6vw, 30px) clamp(16px, 2.4vw, 36px) 0; }
+/* Guided A: the selected prototype's header, horizontal steps, content cards,
+   room context and a single primary action shared by desktop and phone. */
+.app-surface { width: 100%; height: 100dvh; overflow-y: auto; overscroll-behavior: contain; background: var(--base); color: var(--ink); }
+.app-surface[hidden], .controls-content [hidden], .guided-controls [hidden] { display: none !important; }
+.app-surface-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: min(100%, 1240px); margin: 0 auto; padding: 28px 36px 0; }
+.app-surface-header .app-page-brand { gap: 12px; }
+.app-surface-header .app-page-brand small { display: block; margin-top: 5px; color: var(--subtle); font-size: 9px; letter-spacing: .12em; }
 .app-surface-back { width: auto !important; }
-.app-surface-inner-split { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; width: min(100%, 1120px); margin: 0 auto; padding: clamp(12px, 2vw, 22px) clamp(16px, 2.4vw, 36px) 56px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; align-content: start; }
-.app-surface-main { min-width: 0; display: grid; gap: 15px; align-content: start; }
-.app-surface-title { margin: 0; font-size: clamp(1.6rem, 4vw, 2.3rem); font-weight: 850; letter-spacing: -.03em; line-height: 1.1; }
+.guided-navigation { display: flex; align-items: center; gap: 12px; width: min(100%, 1240px); margin: 30px auto 0; padding: 4px 36px; overflow-x: auto; }
+.guided-navigation > button, .prepare-step button { flex-shrink: 0; width: auto; min-height: 48px; padding: 12px 17px; border: 1px solid var(--line); border-radius: 12px; background: var(--base); color: var(--ink); box-shadow: var(--raise-sm); font-size: .86rem; font-weight: 750; white-space: nowrap; }
+.prepare-steps { display: flex; gap: 12px; padding: 0; margin: 0; list-style: none; }
+.prepare-step button[aria-current="step"] { border-color: var(--ink); background: var(--ink); color: var(--base); }
+.prepare-step button:disabled { opacity: .45; box-shadow: none; cursor: default; }
+.app-surface-inner-split { width: min(100%, 1240px); margin: 32px auto 0; padding: 0 36px 64px; display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 30px 36px; align-items: start; }
+.app-surface-main, .app-surface-main > div:not(.guided-intro), .guided-controls { display: contents; }
+.app-surface-main > div[hidden] { display: none !important; }
+.guided-intro, .controls-main { grid-column: 1; min-width: 0; }
+.guided-intro .app-page-kicker { margin-bottom: 16px; }
+.app-surface-title { margin: 0; font-size: clamp(30px, 3.8vw, 49px); font-weight: 800; letter-spacing: -.04em; line-height: 1.1; }
 .app-surface-title:focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
-.app-surface-side { display: grid; gap: 10px; align-content: start; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface-alt); }
-.app-surface-side-title { margin: 0; font-size: .95rem; font-weight: 800; }
-.app-surface-side p { margin: 0; color: var(--muted); font-size: .84rem; line-height: 1.5; }
-.app-surface-side .button-secondary { width: 100%; }
-@media (min-width: 860px) {
-  .app-surface-inner-split:has(.app-surface-side) { grid-template-columns: minmax(0, 1.9fr) minmax(240px, 1fr); }
-  .app-surface-side { position: sticky; top: 0; }
+.guided-lede { margin: 22px 0 0; max-width: 650px; font-size: 17px; line-height: 1.65; color: var(--muted); }
+.guided-sidebar { grid-column: 2; grid-row: 1 / span 3; position: sticky; top: 24px; display: grid; gap: 22px; min-width: 0; }
+.guided-room-context { padding: 24px; border: 1px solid var(--line); border-radius: 16px; }
+.guided-room-context > strong { display: block; margin: 18px 0 6px; font-size: 23px; line-height: 1.3; letter-spacing: -.03em; overflow-wrap: anywhere; }
+.guided-room-context > p:not(.app-page-kicker) { color: var(--muted); font-size: 12px; line-height: 1.65; margin: 8px 0; }
+.guided-room-context button { width: 100%; margin-top: 10px; }
+.guided-primary { display: grid; gap: 12px; }
+.guided-primary button { width: 100%; min-height: 48px; }
+.guided-primary .control-help { margin: 0; font-size: 12px; line-height: 1.6; }
+.setup-card > h2 { margin: 0 0 18px; font-size: 21px; font-weight: 750; letter-spacing: -.02em; line-height: 1.3; }
+.guided-controls .setup-card, .guided-controls .accepted-files { padding: 26px; border: 1px solid #f8f7f1; border-radius: 20px; background: var(--base); box-shadow: var(--raise-sm); }
+.guided-controls .setup-card .setup-label { margin-bottom: 20px; }
+.guided-controls .setup-card .setup-label:last-child { margin-bottom: 0; }
+.guided-controls .setup-input { min-height: 46px; padding: 13px; font-size: .9rem; }
+.guided-controls input[type="file"] { padding: 24px 16px; border: 1px dashed var(--subtle); box-shadow: none; background: transparent; overflow: hidden; }
+.guided-controls .setup-tabs { margin-bottom: 20px; }
+.guided-controls .room-code-card { display: none; }
+@media (max-width: 760px), (max-height: 500px) and (max-width: 1000px) {
+  .app-surface { scroll-padding-block: 20px 170px; }
+  .app-surface-header { padding: 20px 20px 0; gap: 10px; }
+  .app-surface-header .app-page-brand { font-size: .82rem; gap: 8px; }
+  .app-surface-header .app-page-brand small { font-size: 7px; }
+  .app-surface-header .app-page-actions { gap: 6px; }
+  .app-surface-header .button-secondary { font-size: .75rem; padding: 10px; }
+  .guided-navigation { margin-top: 22px; padding: 4px 20px; gap: 8px; scrollbar-width: none; }
+  .prepare-steps { gap: 8px; }
+  .guided-navigation > button, .prepare-step button { min-height: 44px; padding: 10px 14px; font-size: .8rem; }
+  .app-surface-inner-split { grid-template-columns: minmax(0, 1fr); gap: 22px; margin-top: 26px; padding: 0 20px 170px; }
+  .guided-intro { grid-row: 1; }
+  .guided-lede { font-size: 15px; margin-top: 18px; }
+  .guided-sidebar { display: contents; }
+  .guided-room-context { grid-column: 1; grid-row: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 14px; }
+  .guided-room-context .app-page-kicker { display: none; }
+  .guided-room-context > strong { margin: 0 auto 0 0; font-size: 17px; }
+  .guided-room-context > p:not(.app-page-kicker) { display: none; }
+  .guided-room-context button { width: auto; margin: 0; font-size: .72rem; padding: 9px 10px; }
+  .controls-main { grid-row: 3; }
+  .guided-primary { position: fixed; z-index: 20; inset: auto 0 0; padding: 12px 20px max(12px, env(safe-area-inset-bottom)); gap: 8px; border-top: 1px solid var(--line); background: var(--base); box-shadow: 0 -6px 24px #23222012; }
+  .guided-primary .control-help { font-size: 11px; }
+  .guided-controls .setup-card, .guided-controls .accepted-files { padding: 22px; }
+  .guided-controls .setup-input { font-size: 16px; }
 }
-.prepare-steps { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 auto; width: min(100%, 1120px); padding: 14px clamp(16px, 2.4vw, 36px) 0; list-style: none; }
-.prepare-step { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: .78rem; font-weight: 800; }
-.prepare-step[aria-current="step"] { border-color: transparent; background: var(--ink); color: var(--base); }
-.prepare-step-number { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 999px; background: var(--base); color: var(--ink); font: 800 .68rem/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
+@media (max-height: 500px) and (max-width: 1000px) {
+  .guided-primary { left: auto; right: 16px; bottom: 12px; width: 270px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; }
+  .app-surface-inner-split { padding-bottom: 160px; }
+}

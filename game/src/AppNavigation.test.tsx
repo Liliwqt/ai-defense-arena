@@ -150,7 +150,7 @@ describe("full-screen app navigation", () => {
     await userEvent.click(screen.getByRole("button", { name: "Create a defense" }));
     expect(screen.getByRole("tab", { name: "Create room" }).getAttribute("aria-selected")).toBe("true");
     expect(document.querySelector("#create-form")).not.toBeNull();
-    expect(document.querySelector("#join-form")).toBeNull();
+    expect(document.querySelector("#join-form")).not.toBeVisible();
   });
 
   it("opens the room-code Join form from Home", async () => {
@@ -160,7 +160,7 @@ describe("full-screen app navigation", () => {
     await userEvent.click(screen.getByRole("button", { name: "Join a room" }));
     expect(screen.getByRole("tab", { name: "Join room" }).getAttribute("aria-selected")).toBe("true");
     expect(document.querySelector("#join-form")).not.toBeNull();
-    expect(document.querySelector("#create-form")).toBeNull();
+    expect(document.querySelector("#create-form")).not.toBeVisible();
   });
 
   it("re-selects the Join form when Home asks to join again after a manual switch to Create", async () => {
@@ -179,7 +179,7 @@ describe("full-screen app navigation", () => {
 
     expect(screen.getByRole("tab", { name: "Join room" }).getAttribute("aria-selected")).toBe("true");
     expect(document.querySelector("#join-form")).not.toBeNull();
-    expect(document.querySelector("#create-form")).toBeNull();
+    expect(document.querySelector("#create-form")).not.toBeVisible();
   });
 
   it("re-selects the Create form when a signed-in Home asks to create again after a manual switch to Join", async () => {
@@ -201,7 +201,7 @@ describe("full-screen app navigation", () => {
 
     expect(screen.getByRole("tab", { name: "Create room" }).getAttribute("aria-selected")).toBe("true");
     expect(document.querySelector("#create-form")).not.toBeNull();
-    expect(document.querySelector("#join-form")).toBeNull();
+    expect(document.querySelector("#join-form")).not.toBeVisible();
   });
 
   it("shows the active-room return and the owner entry on Home only when they apply", async () => {

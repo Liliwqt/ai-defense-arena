@@ -78,7 +78,7 @@ describe("guided setup and preparation", () => {
     await userEvent.click(screen.getByRole("button", { name: "Create a defense" }));
 
     expect(window.location.hash).toBe("#/setup");
-    expect(screen.getByRole("heading", { name: "Create a defense" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Bring your work." })).toBeTruthy();
     expect(document.querySelector("#create-form")).not.toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByRole("button", { name: "Back" })).toBeTruthy();
@@ -113,7 +113,7 @@ describe("guided setup and preparation", () => {
     renderAt("/");
     await userEvent.click(screen.getByRole("button", { name: "Create a defense" }));
 
-    const name = screen.getByLabelText("Your name");
+    const name = screen.getByRole("textbox", { name: "Your name" });
     await userEvent.clear(name);
     await userEvent.type(name, "Team Rocket");
     await userEvent.selectOptions(screen.getByLabelText("Defense type"), "research");
@@ -125,9 +125,29 @@ describe("guided setup and preparation", () => {
     expect(screen.getByRole("heading", { name: "Home" })).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: "Create a defense" }));
 
-    expect(screen.getByLabelText("Your name")).toHaveValue("Team Rocket");
+    expect(screen.getByRole("textbox", { name: "Your name" })).toHaveValue("Team Rocket");
     expect(screen.getByLabelText("Defense type")).toHaveValue("research");
     expect((screen.getByLabelText("Research documents") as HTMLInputElement).files?.[0]).toBe(paper);
+  });
+
+  it("groups setup and material in Guided cards and creates through the next-step action", async () => {
+    const requests = mockRoomRequests();
+    setSocket(null);
+    setAccount(hostAccount());
+    renderAt("/#/setup");
+    expect(screen.getByRole("heading", { name: "What are you preparing?" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Your work" })).toBeVisible();
+    await userEvent.upload(screen.getByLabelText("Project source files or ZIP"), new File(["print(1)"], "app.py", { type: "text/plain" }));
+    const next = within(screen.getByRole("complementary", { name: "Room and next step" })).getByRole("button", { name: "Create defense room" });
+    // jsdom's native file-required validation does not see userEvent's FileList.
+    // Real file validation is covered separately in Chromium.
+    (next as HTMLButtonElement).form!.noValidate = true;
+    await userEvent.click(next);
+    expect(requests).toHaveLength(1);
+    expect(next).toBeDisabled();
+    await userEvent.click(next);
+    expect(requests).toHaveLength(1);
+    await act(async () => { requests[0].dispatchEvent(new Event("error")); });
   });
 
   it("opens preparation with the shareable code after one explicit create", async () => {
@@ -146,8 +166,8 @@ describe("guided setup and preparation", () => {
 
     await waitFor(() => expect(screen.getByRole("heading", { name: "Prepare your defense" })).toBeTruthy());
     expect(window.location.hash).toBe("#/prepare");
-    expect(screen.getByText("ROOM9")).toBeTruthy();
-    expect(document.querySelector("#create-form")).toBeNull();
+    expect(within(screen.getByRole("complementary", { name: "Room and next step" })).getByText("ROOM9")).toBeTruthy();
+    expect(document.querySelector("#create-form")).not.toBeVisible();
     expect(requests).toHaveLength(1);
   });
 
@@ -158,7 +178,22 @@ describe("guided setup and preparation", () => {
 
     expect(screen.getByRole("heading", { name: "Your material" })).toBeTruthy();
     expect(screen.getByText(/study.pdf · 3 pages/)).toBeTruthy();
-    expect(document.querySelector("#create-form")).toBeNull();
+    expect(document.querySelector("#create-form")).not.toBeVisible();
+  });
+
+  it("opens fresh setup from preparation and retains selected files through preparation and Home", async () => {
+    const socket = setSocket(roomState({ defense_type: "code" }));
+    setAccount(hostAccount());
+    renderAt("/#/prepare");
+    await userEvent.click(screen.getByRole("button", { name: "Create another room" }));
+    expect(window.location.hash).toBe("#/setup");
+    const file = new File(["print(1)"], "sample.py", { type: "text/plain" });
+    await userEvent.upload(screen.getByLabelText("Project source files or ZIP"), file);
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
+    await userEvent.click(screen.getByRole("button", { name: "Back to setup" }));
+    expect((screen.getByLabelText("Project source files or ZIP") as HTMLInputElement).files?.[0]).toBe(file);
+    expect(socket.leaveRoom).not.toHaveBeenCalled();
+    expect(socket.sendEvent).not.toHaveBeenCalled();
   });
 
   it("offers Create another room from an existing room without leaving or closing it", async () => {
@@ -203,6 +238,26 @@ describe("guided setup and preparation", () => {
 
     expect(screen.getByText(/confirm whether the room was created/i)).toBeTruthy();
     expect(screen.getByRole("button", { name: /manage my rooms/i })).toBeTruthy();
+  });
+
+  it.each(["home", "account"])("keeps a delayed create failure from covering %s and retains it on return", async (destination) => {
+    const requests = mockRoomRequests();
+    setSocket(null);
+    setAccount(hostAccount());
+    renderAt("/#/setup");
+    fireEvent.submit(document.querySelector("#create-form")!);
+    await act(async () => {
+      window.history.pushState(null, "", `/#/${destination}`);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    await act(async () => { requests[0].dispatchEvent(new Event("error")); });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(window.location.hash).toBe(`#/${destination}`);
+    await act(async () => {
+      window.history.pushState(null, "", "/#/setup");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent(/could not connect/i);
   });
 
   it("moves between the room and preparation screens without sending Leave, End or Close", async () => {
@@ -261,6 +316,6 @@ describe("setup screen accessibility", () => {
 
     const steps = within(screen.getByRole("list", { name: "Preparation steps" })).getAllByRole("listitem");
     expect(steps[0].getAttribute("aria-current")).toBe("step");
-    expect(screen.getByRole("heading", { name: "Create a defense" })).toHaveFocus();
+    expect(screen.getByRole("heading", { name: "Bring your work." })).toHaveFocus();
   });
 });

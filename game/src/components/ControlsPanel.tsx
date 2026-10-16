@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { RoomState } from "../types";
 import type { Account } from "../hooks/useAccount";
 import { OwnedRooms } from "./OwnedRooms";
@@ -19,6 +19,7 @@ interface ControlsPanelProps {
   previewMode: boolean;
   /** "page" renders inside the full-screen setup/preparation surface. */
   surface?: "drawer" | "page";
+  pageContext?: ReactNode;
   /** Show fresh create/join forms even inside an existing room ("Create another room"). */
   forceSetup?: boolean;
   /** On the setup page for an existing room: show its fixed accepted files, not a replacement form. */
@@ -60,6 +61,7 @@ export function ControlsPanel({
   connected,
   previewMode,
   surface = "drawer",
+  pageContext,
   forceSetup = false,
   showExistingFiles = false,
   activeRoomCode = null,
@@ -203,12 +205,12 @@ export function ControlsPanel({
     ? "Reconnecting… Controls become available when connected." : presentation.guidance;
 
   return (
-    <div className="grid gap-[15px]">
+    <div className={surface === "page" ? "guided-controls" : "controls-content"}>
+      <div className="controls-main grid gap-[15px]">
       {surface === "drawer" && onOpenTranscript && <button type="button" className={secondaryBtn} onClick={onOpenTranscript}>Transcript</button>}
       {previewMode && onPreviewMoment && <button type="button" className={secondaryBtn} onClick={onPreviewMoment}>Preview presenter</button>}
-      {/* Connect forms — shown before joining, or for an explicit new room */}
-      {showSetupForms && (
-        <div>
+      {/* Keep forms mounted so page and tab changes retain FileList and drafts. */}
+        <div hidden={!showSetupForms}>
           {/* Tab switcher */}
           <div className="setup-tabs" role="tablist" aria-label="Room setup">
             <button
@@ -235,11 +237,12 @@ export function ControlsPanel({
             </button>
           </div>
 
-          {activeTab === "create" && (
-            <>
+            <div hidden={activeTab !== "create"}>
             <form id="create-form" role="tabpanel" aria-busy={createBusy} onSubmit={handleCreate}>
               <fieldset disabled={createBusy} className="setup-fieldset">
               {!account?.authenticated && <div className="account-access-card"><p>Sign in with Google to create a room. Teammates can use Join room without an account.</p><button type="button" className={secondaryBtn} onClick={onOpenAccount}>Open Account</button></div>}
+              <section className="setup-card">
+              <h2>What are you preparing?</h2>
               <label className="setup-label">
                 Your name
                 <input name="host_name" maxLength={24} autoComplete="name" required placeholder="Your name" value={hostName} onChange={e => { setNameEdited(true); setHostName(e.target.value); }} className={inputClass} />
@@ -260,6 +263,9 @@ export function ControlsPanel({
                   <option value="completed">Completed study</option>
                 </select>
               </label>}
+              </section>
+              <section className="setup-card">
+              <h2>Your work</h2>
               {defenseType !== "research" && <label className="setup-label">
                 Project source files or ZIP
                 <input name="files" type="file" multiple required accept=".zip,.md,.txt,.py,.js,.jsx,.ts,.tsx,.json,.html,.css,.java,.go,.rs,.sql,.yaml,.yml,.toml,.sh,.c,.cpp,.h,.hpp,.kt,.swift,.rb,.php,.vue,.svelte" className={`${inputClass} text-[0.77rem] leading-tight`} />
@@ -271,7 +277,8 @@ export function ControlsPanel({
               <p className="control-help">
                 Research papers: text-based PDF, DOCX, TXT, or Markdown. PDF pages must contain readable text.
               </p>
-              <button type="submit" disabled={createBusy || !account?.authenticated} className={primaryBtn}>
+              </section>
+              <button hidden={surface === "page"} type="submit" disabled={createBusy || !account?.authenticated} className={primaryBtn}>
                 {createBusy ? "Creating…" : "Create defense room"}
               </button>
               </fieldset>
@@ -288,11 +295,11 @@ export function ControlsPanel({
               </div>
               <p className="control-help">{createProgress.stage === "ready" ? "Room created successfully." : createProgress.stage === "processing" ? "Upload complete. Keep this page open while your files are checked." : "Keep this page open. Percentage shows files uploaded."} <span className="room-create-elapsed">{createElapsed}s elapsed</span></p>
             </div>}
-            </>
-          )}
+            </div>
 
-          {activeTab === "join" && (
-            <form id="join-form" role="tabpanel" onSubmit={handleJoin} className="grid gap-[15px]">
+            <form hidden={activeTab !== "join"} id="join-form" role="tabpanel" onSubmit={handleJoin} className="setup-card grid gap-[15px]">
+              <h2>Meet your team.</h2>
+              <p className="control-help">Enter your room code and the name your teammates will see. No Google account needed.</p>
               <label className="setup-label">
                 Room code
                 <input name="room_code" maxLength={12} autoComplete="off" required placeholder="Enter room code" className={inputClass} />
@@ -301,13 +308,11 @@ export function ControlsPanel({
                 Your name
                 <input name="name" maxLength={24} autoComplete="name" required placeholder="Your name" className={inputClass} />
               </label>
-              <button type="submit" disabled={joinBusy} className={primaryBtn}>
+              <button hidden={surface === "page"} type="submit" disabled={joinBusy} className={primaryBtn}>
                 {joinBusy ? "Joining…" : "Join team"}
               </button>
             </form>
-          )}
         </div>
-      )}
 
       {/* Existing room on the setup page: fixed accepted files, never a replacement form */}
       {showExisting && (
@@ -442,6 +447,19 @@ export function ControlsPanel({
           )}
         </div>
       )}
+      </div>
+      {surface === "page" && <aside className="guided-sidebar" aria-label="Room and next step">
+        {pageContext}
+        {showSetupForms && <div className="guided-primary">
+          <p className="control-help">{activeTab === "create"
+            ? createBusy ? "Keep this page open while your files are processed." : !account?.authenticated ? "Sign in to create a defense. Teammates can join directly." : "Create your room, then review the material before starting."
+            : "Join your team at its current stage. You can join without signing in."}</p>
+          <button type="submit" form={activeTab === "create" ? "create-form" : "join-form"}
+            className={primaryBtn} disabled={activeTab === "create" ? createBusy || !account?.authenticated : joinBusy}>
+            {activeTab === "create" ? createBusy ? "Creating…" : "Create defense room" : joinBusy ? "Joining…" : "Join team"}
+          </button>
+        </div>}
+      </aside>}
     </div>
   );
 }

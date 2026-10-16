@@ -10,12 +10,13 @@ interface DrawerProps {
   variant?: "overlay" | "page";
   kicker?: string;
   steps?: React.ReactNode;
-  side?: React.ReactNode;
-  closeLabel?: string;
+  onHome?: () => void;
+  onAccount?: () => void;
+  description?: string;
   children: React.ReactNode;
 }
 
-export function Drawer({ open, mode, title, onClose, variant = "overlay", kicker, steps, side, closeLabel, children }: DrawerProps) {
+export function Drawer({ open, mode, title, onClose, variant = "overlay", kicker, steps, onHome, onAccount, description, children }: DrawerProps) {
   const isPage = variant === "page";
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -101,7 +102,7 @@ export function Drawer({ open, mode, title, onClose, variant = "overlay", kicker
           {isPage ? (
             <div className="app-page-brand">
               <img className="brand-icon" src="/ai-defense-arena-icon.png" width="35" height="35" alt="" />
-              <span>AI Defense Arena</span>
+              <span>AI Defense Arena<small>PREPARE WITH PURPOSE</small></span>
             </div>
           ) : (
             <div>
@@ -109,26 +110,31 @@ export function Drawer({ open, mode, title, onClose, variant = "overlay", kicker
               <h2 id="drawer-title" className="drawer-title">{title}</h2>
             </div>
           )}
+          <div className="app-page-actions">
+          {isPage && onAccount && <button type="button" className="button-secondary" onClick={onAccount}>Account ↗</button>}
           <button
             ref={closeButtonRef}
             type="button"
             id="drawer-close"
-            aria-label={isPage ? (closeLabel ?? "Back") : (closeLabel ?? "Close panel")}
+            aria-label={isPage ? "Back" : "Close panel"}
             onClick={onClose}
             className={isPage ? "button-secondary app-surface-back" : "drawer-close"}
           >
-            {isPage ? (closeLabel ?? "Back") : <>Close <span aria-hidden="true" className="text-[1.15rem] align-[-1px] ml-1">×</span></>}
+            {isPage ? "Back" : <>Close <span aria-hidden="true" className="text-[1.15rem] align-[-1px] ml-1">×</span></>}
           </button>
+          </div>
         </div>
-        {isPage ? steps : null}
+        {isPage ? <div className="guided-navigation">{onHome && <button type="button" className="button-secondary" onClick={onHome}>Home</button>}{steps}</div> : null}
         <div className={isPage ? "app-surface-inner-split" : "drawer-body"} style={isPage ? undefined : { overscrollBehavior: "contain" }}>
           {/* Stable slot: children never remount when the variant changes. */}
           <div className={isPage ? "app-surface-main" : "drawer-main"}>
-            {isPage && kicker && <p className="app-page-kicker">{kicker}</p>}
-            {isPage && <h1 id="app-screen-title" className="app-surface-title" tabIndex={-1}>{title}</h1>}
+            {isPage && <div className="guided-intro">
+              {kicker && <p className="app-page-kicker">{kicker}</p>}
+              <h1 id="app-screen-title" className="app-surface-title" tabIndex={-1}>{title}</h1>
+              {description && <p className="guided-lede">{description}</p>}
+            </div>}
             {children}
           </div>
-          {isPage && side && <aside className="app-surface-side" aria-label="Room actions">{side}</aside>}
         </div>
       </div>
     </>

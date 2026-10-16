@@ -60,7 +60,7 @@ describe("Room creation loading", () => {
     const requests = mockRoomRequests();
     const onUseRoom = vi.fn();
     render(<ControlsPanel {...defaultProps} roomState={null} connected={false} onUseRoom={onUseRoom} />);
-    fireEvent.change(screen.getByLabelText("Your name"), { target: { value: "My team name" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Your name" }), { target: { value: "My team name" } });
     const form = document.querySelector("#create-form")!;
     fireEvent.submit(form);
 
@@ -68,7 +68,7 @@ describe("Room creation loading", () => {
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0");
     expect(screen.getByText("0%")).toBeTruthy();
     expect(form).toHaveAttribute("aria-busy", "true");
-    expect(screen.getByLabelText("Your name")).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Your name" })).toBeDisabled();
     expect(screen.getByLabelText("Project source files or ZIP")).toBeDisabled();
     expect(screen.getByLabelText("Defense type")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Creating…" })).toBeDisabled();
@@ -100,7 +100,7 @@ describe("Room creation loading", () => {
     });
     expect(onUseRoom).toHaveBeenCalledExactlyOnceWith("ROOM", "token", true);
     expect(screen.getByRole("status")).toHaveTextContent("Room ready");
-    expect(screen.getByLabelText("Your name")).toBeEnabled();
+    expect(screen.getByRole("textbox", { name: "Your name" })).toBeEnabled();
     expect(form).toHaveAttribute("aria-busy", "false");
     act(() => vi.advanceTimersByTime(1000));
     expect(screen.getByText("2s elapsed")).toBeTruthy();
@@ -111,7 +111,7 @@ describe("Room creation loading", () => {
     const onUseRoom = vi.fn();
     const showMessage = vi.fn();
     render(<ControlsPanel {...defaultProps} roomState={null} connected={false} onUseRoom={onUseRoom} showMessage={showMessage} />);
-    fireEvent.change(screen.getByLabelText("Your name"), { target: { value: "Retry host" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Your name" }), { target: { value: "Retry host" } });
     fireEvent.change(screen.getByLabelText("Defense type"), { target: { value: "research" } });
     const upload = screen.getByLabelText("Research documents") as HTMLInputElement;
     const paper = new File(["Research proposal"], "paper.md", { type: "text/markdown" });
@@ -124,7 +124,7 @@ describe("Room creation loading", () => {
     expect(onUseRoom).not.toHaveBeenCalled();
     expect(screen.queryByRole("progressbar")).toBeNull();
     expect(screen.getByRole("button", { name: "Create defense room" })).toBeEnabled();
-    expect(screen.getByLabelText("Your name")).toHaveValue("Retry host");
+    expect(screen.getByRole("textbox", { name: "Your name" })).toHaveValue("Retry host");
     expect(screen.getByLabelText("Defense type")).toHaveValue("research");
     expect(upload.files?.[0]).toBe(paper);
 
@@ -268,7 +268,7 @@ describe("Host account controls", () => {
   const signedIn = {authenticated:true,google_enabled:true,user:{id:"account-id",name:"Configured host",email:"private@example.test"},csrf_token:"csrf",free_access:false,test_credits:10};
   it("prefills an editable account name without replacing edits",()=>{
     const view=render(<ControlsPanel {...defaultProps} account={signedIn} roomState={null} connected={false}/>);
-    const input=screen.getByLabelText("Your name") as HTMLInputElement;
+    const input=screen.getByRole("textbox", { name: "Your name" }) as HTMLInputElement;
     expect(input.value).toBe("Configured host");fireEvent.change(input,{target:{value:"My team name"}});
     view.rerender(<ControlsPanel {...defaultProps} account={{...signedIn,user:{...signedIn.user,name:"Changed account name"}}} roomState={null} connected={false}/>);
     expect(input.value).toBe("My team name");expect(screen.queryByText("private@example.test")).toBeNull();
