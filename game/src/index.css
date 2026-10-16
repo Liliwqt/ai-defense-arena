@@ -570,3 +570,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .preparation-files > summary { cursor: pointer; font-weight: 750; }
 .preparation-files > ul { padding-left: 20px; margin-top: 10px; }
 .preparation-files > summary:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+.live-room-status { margin: 0 0 20px; padding: 16px 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--base); }
+.live-room-status p { margin: 4px 0; }
+.live-room-status [role="timer"] { font-size: 1.2rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.navigation-notice { margin: 0; padding: 8px 20px; background: var(--base); font-size: .8rem; }
+.task-room-return { padding: 12px 24px; background: var(--base); }

@@ -130,7 +130,7 @@ export function Drawer({ open, mode, title, onClose, variant = "overlay", kicker
           <div className={isPage ? "app-surface-main" : "drawer-main"}>
             {isPage && <div className="guided-intro">
               {kicker && <p className="app-page-kicker">{kicker}</p>}
-              <h1 id="app-screen-title" className="app-surface-title" tabIndex={-1}>{title}</h1>
+              <h1 id={open ? "app-screen-title" : undefined} className="app-surface-title" tabIndex={-1}>{title}</h1>
               {description && <p className="guided-lede">{description}</p>}
             </div>}
             {children}

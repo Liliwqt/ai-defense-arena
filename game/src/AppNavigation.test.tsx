@@ -130,7 +130,7 @@ describe("full-screen app navigation", () => {
   it("falls back to Home with guidance on an address that is not a screen and joins nothing", () => {
     setAccount(account());
     const socket = setSocket(null, { connected: false });
-    renderAt("/#/results");
+    renderAt("/#/unavailable-screen");
     expect(screen.getByRole("heading", { name: "Home" })).toBeTruthy();
     expect(screen.getByRole("status")).toHaveTextContent(/couldn’t open that screen/i);
     expect(socket.useRoom).not.toHaveBeenCalled();
@@ -288,19 +288,19 @@ describe("full-screen app navigation", () => {
     }));
     renderAt("/#/room");
     await userEvent.click(screen.getByRole("button", { name: /settings.*controls/i }));
-    const budget = within(screen.getByRole("dialog", { name: "Controls" })).getByLabelText(/question budget/i);
+    const budget = within(screen.getByRole("heading", { name: "Live controls" }).closest("#drawer")!).getByLabelText(/question budget/i);
     await userEvent.clear(budget);
     await userEvent.type(budget, "12");
     await userEvent.click(screen.getByText("Correct profile"));
-    await userEvent.type(within(screen.getByRole("dialog", { name: "Controls" })).getByLabelText(/research fields/i), "\nHuman-computer interaction");
+    await userEvent.type(within(screen.getByRole("heading", { name: "Live controls" }).closest("#drawer")!).getByLabelText(/research fields/i), "\nHuman-computer interaction");
 
-    await userEvent.click(screen.getByRole("button", { name: "Account" }));
+    await userEvent.click(screen.getByRole("button", { name: /Account ↗/ }));
     expect(screen.getByRole("heading", { name: "Account" })).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: "Back to Home" }));
     await userEvent.click(screen.getByRole("button", { name: /return to your room ROOM1/i }));
 
     await userEvent.click(screen.getByRole("button", { name: /settings.*controls/i }));
-    const reopened = within(screen.getByRole("dialog", { name: "Controls" }));
+    const reopened = within(screen.getByRole("heading", { name: "Live controls" }).closest("#drawer")!);
     expect(reopened.getByLabelText(/question budget/i)).toHaveValue(12);
     expect(reopened.getByLabelText(/research fields/i)).toHaveValue("Education\nSoftware engineering\nHuman-computer interaction");
   });

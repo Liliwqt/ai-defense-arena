@@ -53,7 +53,7 @@ describe("flat room flow", () => {
     act(() => { vi.advanceTimersByTime(500); });
     setSocket({ ...state, server_now_ms: 1_500, closing_deadline_ms: null });
     view.rerender(<App />);
-    expect(screen.getByRole("dialog", { name: "Transcript" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Defense results" }).closest("section")!).toBeTruthy();
   });
 
   it("shows a terminal closing before automatically opening coaching and retains it in Transcript", async () => {
@@ -73,7 +73,7 @@ describe("flat room flow", () => {
     expect(screen.queryByText("The next question and speaker vote will follow.")).toBeNull();
     setSocket({ ...state, server_now_ms: 5_000, closing_deadline_ms: null });
     view.rerender(<App />);
-    const transcript = screen.getByRole("dialog", { name: "Transcript" });
+    const transcript = screen.getByRole("heading", { name: "Defense results" }).closest("section")!;
     expect(within(transcript).getByText(closing)).toBeTruthy();
     expect(within(transcript).getByText("Critical Reviewer · Closing remarks")).toBeTruthy();
     expect(within(transcript).getByText("The team explained a limit.")).toBeTruthy();
@@ -91,7 +91,6 @@ describe("flat room flow", () => {
     } };
     setSocket({ ...state, phase: "reacting", turns: [{ ...state.turns[0], answer: null }] });
     const view = render(<App />);
-    await userEvent.click(screen.getByRole("button", { name: /close panel/i }));
     expect(screen.getByText(advice)).toBeTruthy();
     expect(screen.queryByText(question)).toBeNull();
     setSocket({ ...state, phase: "voting", turns: [{ ...state.turns[0], answer: null }] });
@@ -101,9 +100,7 @@ describe("flat room flow", () => {
     expect(screen.getByText("We plan a small campus pilot.")).toBeTruthy();
     setSocket(state);
     view.rerender(<App />);
-    await userEvent.click(screen.getByRole("button", { name: /settings.*controls/i }));
-    await userEvent.click(within(screen.getByRole("dialog", { name: "Controls" })).getByRole("button", { name: "Transcript" }));
-    const transcript = screen.getByRole("dialog", { name: "Transcript" });
+    const transcript = screen.getByRole("heading", { name: "Defense results" }).closest("section")!;
     expect(within(transcript).getByText(advice)).toBeTruthy();
     expect(within(transcript).getByText(answer)).toBeTruthy();
     expect(within(transcript).getByText("Justified the scope limit.")).toBeTruthy();
@@ -112,7 +109,6 @@ describe("flat room flow", () => {
     setSocket(room([turn(null, null)]));
     render(<App />);
     expect(screen.queryByText("Rotate your phone")).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: /close panel/i }));
     const answer = screen.getByRole("textbox", { name: /chosen to answer/i });
     await userEvent.type(answer, "A draft that survives orientation changes.");
     act(() => window.dispatchEvent(new Event("resize")));
@@ -122,18 +118,15 @@ describe("flat room flow", () => {
   it("opens Transcript through Settings and restores focus without losing the answer draft", async () => {
     setSocket(room([turn(null, null)]));
     render(<App />);
-    await userEvent.click(screen.getByRole("button", { name: /close panel/i }));
     const answer = screen.getByRole("textbox", { name: /chosen to answer/i });
     await userEvent.type(answer, "Keep this same-turn draft.");
     const settings = screen.getByRole("button", { name: /settings.*controls/i });
     await userEvent.click(settings);
-    const controls = screen.getByRole("dialog", { name: "Controls" });
-    expect(within(controls).getByText("ROOM1")).toBeTruthy();
+    const controls = screen.getByRole("heading", { name: "Live controls" }).closest<HTMLElement>("#drawer")!;
+    expect(within(controls).getAllByText("ROOM1")[0]).toBeTruthy();
     await userEvent.click(within(controls).getByRole("button", { name: "Transcript" }));
-    expect(screen.getByRole("dialog", { name: "Transcript" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /close panel/i })).toHaveFocus();
-    await userEvent.keyboard("{Escape}");
-    expect(settings).toHaveFocus();
+    expect(screen.getByRole("heading", { name: "Defense results" }).closest("section")!).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Return to defense" }));
     expect(answer).toHaveValue("Keep this same-turn draft.");
     await userEvent.click(screen.getByRole("button", { name: "Account" }));
     expect(screen.getByRole("heading", { name: "Account" })).toBeTruthy();
@@ -143,7 +136,6 @@ describe("flat room flow", () => {
   it("distinguishes opening preparation, answer review and missed-turn review", async () => {
     setSocket(room([], "generating"));
     const view = render(<App />);
-    await userEvent.click(screen.getByRole("button", { name: /close panel/i }));
     expect(screen.getByRole("status", { name: "Room status" })).toHaveTextContent("Preparing question…");
     setSocket(room([turn("We use SQLite for a single-machine prototype.", 0)], "generating"));
     view.rerender(<App />);
@@ -164,7 +156,8 @@ describe("flat room flow", () => {
   ] as const)("shows a factual room status during %s", (_label, state, expected) => {
     setSocket(state);
     render(<App />);
-    expect(screen.getByRole("status", { name: "Room status" })).toHaveTextContent(expected);
+    if (state?.phase === "complete") expect(screen.getByText(`Room ROOM1 · ${expected}`)).toBeVisible();
+    else expect(screen.getByRole("status", { name: "Room status" })).toHaveTextContent(expected);
     expect(screen.queryByRole("timer")).toBeNull();
   });
 
@@ -198,20 +191,22 @@ describe("flat room flow", () => {
     setSocket(state);
     render(<App />);
     expect(screen.getByText("QUESTION 11 OF 24")).toBeTruthy();
-    const controls = screen.getByRole("dialog", { name: "Controls" });
+    await userEvent.click(screen.getByRole("button", { name: /settings.*controls/i }));
+    const controls = screen.getByRole("heading", { name: "Live controls" }).closest<HTMLElement>("#drawer")!;
     expect(within(controls).getByText(`1 of ${researchPlanPreview.topics.length} topics addressed`)).toBeTruthy();
     expect(within(controls).queryByRole("button", { name: "End defense" })).toBeNull();
     await userEvent.click(within(controls).getByRole("button", { name: "Transcript" }));
-    expect(screen.getByRole("dialog", { name: "Transcript" }).textContent).toContain("Earlier answer");
+    expect(screen.getByRole("heading", { name: "Defense results" }).closest("section")!.textContent).toContain("Earlier answer");
   });
 
-  it("shows rejected host actions in Controls while keeping the room visible", () => {
+  it("shows rejected host actions in Controls while keeping the room mounted", async () => {
     const state = room([], "lobby");
     vi.mocked(useRoomSocket).mockReturnValue({
       ...socket(state), actionError: "You need 10 available test credits to start a defense.",
     });
     render(<App />);
-    const controls = screen.getByRole("dialog");
+    await userEvent.click(screen.getByRole("button", { name: /settings.*controls/i }));
+    const controls = screen.getByRole("heading", { name: "Live controls" }).closest<HTMLElement>("#drawer")!;
     expect(controls.textContent).toContain("You need 10 available test credits");
     expect(screen.getByTestId("seat-rows")).toBeTruthy();
   });
@@ -230,7 +225,6 @@ describe("flat room flow", () => {
   it("keeps the selected speaker's answer input in the bottom dock", async () => {
     setSocket(room([turn(null, null)]));
     render(<App />);
-    await userEvent.click(screen.getByRole("button", { name: /close panel/i }));
     const textbox = screen.getByRole("textbox", { name: /chosen to answer/i });
     expect(textbox.closest("#room-dock")).toBeTruthy();
     expect(screen.getByText("DATABASE = 'queue.db'")).toBeTruthy();
@@ -241,15 +235,15 @@ describe("flat room flow", () => {
     expect(question.compareDocumentPosition(defenders) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("waits for the final presenter moment before opening Transcript", () => {
+  it("shows Results without making seat highlights delay terminal state", () => {
     vi.useFakeTimers();
     setSocket(room([turn("A1", 0), turn("A2", 1), turn("A3", 0)], "question"));
     const view = render(<App />);
     setSocket(room([turn("A1", 0), turn("A2", 1), turn("A3", 0), turn("Final answer", 1)], "complete"));
     view.rerender(<App />);
     expect(screen.getByTestId("seat-rows").getAttribute("data-presenter-seat")).toBe("1");
-    expect(screen.queryByRole("heading", { name: "Transcript" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Defense results" })).toBeVisible();
     act(() => vi.advanceTimersByTime(2600));
-    expect(screen.getByRole("heading", { name: "Transcript" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Defense results" })).toBeTruthy();
   });
 });

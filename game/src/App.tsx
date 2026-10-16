@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AccountScreen, HomeScreen, PreparationSteps, SignInScreen } from "./components/AppScreens";
+import { AccountScreen, AppPage, HomeScreen, PreparationSteps, SignInScreen } from "./components/AppScreens";
 import { useAccount } from "./hooks/useAccount";
 import { RoomDock } from "./components/RoomDock";
 import { ControlsPanel } from "./components/ControlsPanel";
 import { Drawer } from "./components/Drawer";
+import { LiveRoomStatus } from "./components/LiveRoomStatus";
 import { HUD } from "./components/HUD";
 import { QuestionCard } from "./components/QuestionCard";
 import { useAppRoute } from "./hooks/useAppRoute";
@@ -32,8 +33,6 @@ export function App() {
     roomState: liveRoomState, connected, roomCode, waitingForAnswerAck,
     actionError, actionErrorReason, sendEvent, useRoom, leaveRoom, playerToken,
   } = useRoomSocket(previewMode);
-  const [drawerOpen, setDrawerOpen] = useState(() =>
-    screen === "room" && (!previewMode || new URLSearchParams(window.location.search).get("plan") === "1"));
   const [drawerMode, setDrawerMode] = useState<DrawerMode>("controls");
   const [setupRequest, setSetupRequest] = useState<{ tab: "create" | "join"; id: number; fresh?: boolean }>({ tab: "create", id: 0 });
   // A distinct "Create another room" starts fresh setup without closing the current room.
@@ -46,21 +45,23 @@ export function App() {
   const [message, setMessage] = useState("");
   const [presenterMoment, setPresenterMoment] = useState<PresenterMoment | null>(null);
   const presenterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingTranscript = useRef(false);
+
   const previousAnswered = useRef(-1);
   const previousPhase = useRef<string | undefined>();
   const previousFeedback = useRef<string | undefined>();
   const previousClosing = useRef(false);
-  const closingActive = useRef(false);
+
   const sequence = useRef(0);
   const [mockRoomState, setMockRoomState] = useState(previewState);
   const roomState: RoomState | null = previewMode ? mockRoomState : liveRoomState;
   const presentation = deriveRoomPresentation(roomState);
-  closingActive.current = !!presentation.reaction?.closing;
+
 
   const isSetup = screen === "setup";
   const isPrepare = screen === "prepare";
-  const pageScreen = isSetup || isPrepare;
+  const isControls = screen === "controls";
+  const pageScreen = isSetup || isPrepare || isControls;
+  const [stageNotice, setStageNotice] = useState("");
   const activeRoomCode = previewMode ? (roomState?.room_code ?? null) : roomCode;
   const hasRoom = activeRoomCode !== null;
 
@@ -84,9 +85,9 @@ export function App() {
 
   const openDrawer = useCallback((mode: DrawerMode) => {
     setDrawerMode(mode);
-    setDrawerOpen(true);
-  }, []);
-  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+    navigate(mode === "transcript" ? "results" : "controls");
+  }, [navigate]);
+  const closeDrawer = useCallback(() => navigate("room"), [navigate]);
   const openSetup = useCallback((tab: "create" | "join") => {
     // A monotonic id makes every explicit Home choice reapply even when it repeats
     // the previous tab, since the persisted ControlsPanel cannot see a same-value change.
@@ -102,33 +103,31 @@ export function App() {
     setMessage("");
     navigate("setup");
   }, [navigate]);
-  useEffect(() => { if (screen !== "room") setDrawerOpen(false); }, [screen]);
+
   const showMessage = useCallback((value: string) => {
     setMessage(value);
-    if (value) openDrawer("controls");
-  }, [openDrawer]);
+    if (value && screen === "room") openDrawer("controls");
+  }, [openDrawer, screen]);
 
   // Header Back moves to the previous meaningful screen; the room overlay still closes.
   const handleDrawerBack = useCallback(() => {
-    if (isSetup) navigate(hasRoom ? "prepare" : "home");
+    if (isControls) navigate("room");
+    else if (isSetup) navigate(hasRoom ? "prepare" : "home");
     else if (isPrepare) navigate(hasRoom ? "room" : "home");
     else closeDrawer();
-  }, [isSetup, isPrepare, hasRoom, navigate, closeDrawer]);
+  }, [isSetup, isPrepare, isControls, hasRoom, navigate, closeDrawer]);
   // Finishing a preparation action on the page returns to the defense room.
   const closeControls = useCallback(() => {
-    if (isPrepare) navigate("room");
+    if (isPrepare || isControls) navigate("room");
     else closeDrawer();
-  }, [isPrepare, navigate, closeDrawer]);
+  }, [isPrepare, isControls, navigate, closeDrawer]);
 
   const endPresenter = useCallback(() => {
     if (presenterTimer.current) clearTimeout(presenterTimer.current);
     presenterTimer.current = null;
     setPresenterMoment(null);
-    if (pendingTranscript.current && !closingActive.current) {
-      pendingTranscript.current = false;
-      openDrawer("transcript");
-    }
-  }, [openDrawer]);
+
+  }, []);
 
   useEffect(() => {
     if (!roomState) return;
@@ -148,32 +147,17 @@ export function App() {
         presenterTimer.current = setTimeout(endPresenter, PRESENTER_MS);
       }
     } else if (!firstSnapshot && answered < previousAnswered.current) {
-      pendingTranscript.current = false;
       if (presenterTimer.current) clearTimeout(presenterTimer.current);
       presenterTimer.current = null;
       setPresenterMoment(null);
     }
 
-    const justCompleted = phase === "complete" && previousPhase.current !== "complete";
-    const reportReady = feedback === "ready" && previousFeedback.current !== "ready";
     const closing = !!presentation.reaction?.closing;
-    const closingFinished = previousClosing.current && !closing && feedback === "ready";
     if (closing) {
-      pendingTranscript.current = false;
       if (presenterTimer.current) clearTimeout(presenterTimer.current);
       presenterTimer.current = null;
       setPresenterMoment(null);
-      if (firstSnapshot) closeDrawer();
     }
-    if (!closing && feedback !== "generating" && (justCompleted || reportReady || closingFinished)) {
-      if ((newAnswer && typeof turns.filter((turn) => turn.answer).at(-1)?.answered_by_seat === "number") || presenterTimer.current) {
-        pendingTranscript.current = true;
-      } else {
-        openDrawer("transcript");
-      }
-    }
-    if (phase === "retry" && previousPhase.current !== "retry" && roomState?.self_is_host) openDrawer("controls");
-    if (feedback === "failed" && previousFeedback.current !== "failed" && roomState?.self_is_host) openDrawer("controls");
     previousAnswered.current = answered;
     previousPhase.current = phase;
     previousFeedback.current = feedback;
@@ -197,7 +181,6 @@ export function App() {
     previousPhase.current = undefined;
     previousFeedback.current = undefined;
     previousClosing.current = false;
-    pendingTranscript.current = false;
     if (presenterTimer.current) clearTimeout(presenterTimer.current);
     presenterTimer.current = null;
     setPresenterMoment(null);
@@ -225,8 +208,8 @@ export function App() {
     leaveRoom();
     setNewRoomSetup(false);
     setMessage("");
-    openDrawer("controls");
-  }, [resetMoment, leaveRoom, openDrawer]);
+    navigate("home");
+  }, [resetMoment, leaveRoom, navigate]);
 
   useEffect(() => { if (liveRoomState?.self_is_host) void refreshAccount(); }, [liveRoomState?.phase, refreshAccount]);
   // A socket sign-in error can persist for the life of the room. Redirect once per
@@ -247,14 +230,37 @@ export function App() {
     document.getElementById("app-screen-title")?.focus();
   }, [screen]);
 
-  const title = drawerMode === "transcript" ? "Transcript" : "Controls";
+  // Follow meaningful server stage changes once; snapshots never own manual navigation.
+  const stageRef = useRef<{ room: string; stage: "prepare" | "room" | "results" } | null>(null);
+  useEffect(() => {
+    if (!roomState) return;
+    const stage = roomState.phase === "lobby" ? "prepare"
+      : roomState.phase === "complete" && !presentation.reaction?.closing ? "results" : "room";
+    const prior = stageRef.current;
+    const initial = !prior || prior.room !== roomState.room_code;
+    const changed = !initial && prior.stage !== stage;
+    stageRef.current = { room: roomState.room_code, stage };
+    if (!["room", "prepare", "controls", "results"].includes(screen)) return;
+    if ((changed && stage !== "prepare") || (initial &&
+      ((screen === "prepare" && stage !== "prepare") || (screen === "results" && stage === "prepare") ||
+       (screen === "controls" && stage === "prepare") || (screen === "room" && stage === "results")))) {
+      setStageNotice("Your room’s current stage has been restored.");
+      navigate(stage);
+    }
+  }, [roomState, presentation.reaction?.closing, screen, navigate]);
+  const returnScreen = roomState?.phase === "lobby" ? "prepare"
+    : roomState?.phase === "complete" && !presentation.reaction?.closing ? "results" : "room";
+  const returnAction = hasRoom ? <button type="button" className="button-secondary" onClick={() => navigate(returnScreen)}>
+    {returnScreen === "results" ? "View defense results" : "Return to defense"}
+  </button> : null;
+  const title = "Controls";
   // A bare preparation address with no room falls back to setup rather than
   // showing preparation controls a route alone cannot authorize.
   const prepareReady = isPrepare && hasRoom;
-  const pageTitle = prepareReady ? (roomState?.defense_type && roomState.defense_type !== "code" ? "Shape your defense." : "Prepare your defense")
+  const pageTitle = isControls ? "Live controls" : prepareReady ? (roomState?.defense_type && roomState.defense_type !== "code" ? "Shape your defense." : "Prepare your defense")
     : hasRoom ? (newRoomSetup ? "Create another room" : "Your material")
     : setupRequest.tab === "join" ? "Join a room" : "Bring your work.";
-  const pageKicker = prepareReady ? "STEP 2 / PREPARE & REVIEW" : "STEP 1 / UPLOAD & SETUP";
+  const pageKicker = isControls ? "YOUR DEFENSE · CONTROLS" : prepareReady ? "STEP 2 / PREPARE & REVIEW" : "STEP 1 / UPLOAD & SETUP";
 
   const pageSide = <section className="guided-room-context">
     <p className="app-page-kicker">{hasRoom ? "YOUR TEAM’S ROOM" : "YOUR PRACTICE"}</p>
@@ -272,6 +278,7 @@ export function App() {
 
   return (
     <div className="app-root">
+      {stageNotice && <p className="navigation-notice" role="status">{stageNotice}</p>}
       <div className="room-screen" hidden={screen !== "room"}>
         <div className="arena-shell" data-compact-viewport={viewport.compact} style={{ "--room-viewport-height": `${viewport.height}px` } as React.CSSProperties}>
           <div id="stage" className="arena-stage">
@@ -287,9 +294,9 @@ export function App() {
       </div>
       {/* One persistent panel: an in-room overlay on the room screen, a full-screen
           setup/preparation surface otherwise. Keeping it mounted preserves drafts. */}
-      <Drawer open={pageScreen || (screen === "room" && drawerOpen)} mode={drawerMode} title={pageScreen ? pageTitle : title}
-        variant={pageScreen ? "page" : "overlay"} kicker={pageScreen ? pageKicker : undefined}
-        steps={pageScreen ? <PreparationSteps current={prepareReady ? 2 : 1} hasRoom={hasRoom}
+      <Drawer open={pageScreen} mode={drawerMode} title={pageTitle || title}
+        variant="page" kicker={pageScreen ? pageKicker : undefined}
+        steps={pageScreen && !isControls ? <PreparationSteps current={prepareReady ? 2 : 1} hasRoom={hasRoom}
           onSelect={step => navigate(step === 1 ? "setup" : step === 2 ? "prepare" : "room")} /> : undefined}
         onHome={() => navigate("home")} onAccount={() => navigate("account")}
         description={prepareReady ? "Make sure the panel understands your work. Confirm the profile and question budget before starting."
@@ -299,7 +306,8 @@ export function App() {
         onClose={pageScreen ? handleDrawerBack : closeDrawer}>
         {/* Controls stay mounted while the transcript shows so unsent preparation
             drafts survive both drawer switching and screen navigation. */}
-        <div hidden={!pageScreen && drawerMode !== "controls"}>
+        <div>
+          {isControls && <><LiveRoomStatus state={roomState} presentation={presentation} />{returnAction}<button type="button" className="button-secondary" onClick={() => navigate("results")}>Transcript</button></>}
           <ControlsPanel presentation={presentation} roomState={previewMode ? roomState : liveRoomState} connected={connected} previewMode={previewMode}
             actionError={actionError} setupRequest={setupRequest} surface={pageScreen ? "page" : "drawer"} pageContext={pageSide}
             forceSetup={isSetup && newRoomSetup} showExistingFiles={isSetup && hasRoom && !newRoomSetup}
@@ -310,8 +318,15 @@ export function App() {
             onPreviewMoment={previewPresenter} />
           {(message || actionError) && <div role="alert" className="drawer-error">{message || actionError}</div>}
         </div>
-        {!pageScreen && drawerOpen && drawerMode === "transcript" && <TranscriptPanel presentation={presentation} roomState={roomState} previewMode={previewMode} />}
+
       </Drawer>
+      {screen === "results" && <AppPage kicker="SESSION HISTORY · YOUR TEAM" title="Defense results"
+        actions={<><button type="button" className="button-secondary" onClick={() => navigate("room")}>Return to defense</button><button type="button" className="button-secondary" onClick={() => navigate("controls")}>Live controls</button><button type="button" className="button-secondary" onClick={() => navigate("home")}>Home</button></>}>
+        <LiveRoomStatus state={roomState} presentation={presentation} />
+        {!hasRoom ? <p role="alert">This room is no longer available. Results cannot be restored from this browser.</p> :
+          <TranscriptPanel presentation={presentation} roomState={roomState} previewMode={previewMode} />}
+      </AppPage>}
+      {screen === "account" && <div className="task-room-return">{returnAction}</div>}
       {screen === "account" && (
         <AccountScreen account={account} error={actionError?.startsWith("Sign in") ? actionError : accountError}
           refresh={refreshAccount} previewMode={previewMode} onBack={() => navigate("home")} />
