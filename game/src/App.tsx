@@ -9,6 +9,11 @@ import { HUD } from "./components/HUD";
 import { QuestionCard } from "./components/QuestionCard";
 import { DraftSession, clearRoomDrafts } from "./hooks/useTabDraft";
 import { useAppRoute } from "./hooks/useAppRoute";
+import { internalAppHref, type AppScreen } from "./lib/appRoute";
+import { clearTaskIntent, rememberTask, rememberAuthTask, resolveTaskReturn, consumeTaskReturn } from "./lib/taskIntent";
+import { LivePaymentPage } from "./payments/LivePaymentPage";
+import { PaymentTestPage } from "./payments/PaymentTestPage";
+import { ManagerPage } from "./management/ManagerPage";
 import { useRoomViewport } from "./hooks/useRoomViewport";
 import "./mobile.css";
 import { DefenderSeats, PanelistSeats, type PresenterMoment } from "./components/FlatRoom";
@@ -25,7 +30,7 @@ const previewMode = new URLSearchParams(window.location.search).get("preview") =
 export function App() {
   const viewport = useRoomViewport();
   const { account, refresh: refreshAccount, error: accountError } = useAccount(previewMode);
-  const { screen: routeScreen, invalid, navigate } = useAppRoute();
+  const { screen: routeScreen, invalid, navigate: moveTo, navigateHref } = useAppRoute();
   // The bare entry starts with sign-in while identity is loading. An existing
   // authenticated session can go straight Home; explicit routes keep their intent.
   const isEntry = !window.location.hash || window.location.hash === "#" || window.location.hash === "#/";
@@ -65,9 +70,32 @@ export function App() {
   const [stageNotice, setStageNotice] = useState("");
   const activeRoomCode = previewMode ? (roomState?.room_code ?? null) : roomCode;
   const hasRoom = activeRoomCode !== null;
+  const navigate = useCallback((target: AppScreen) => {
+    if (["account", "signin", "payments-live", "payments-test", "manager"].includes(target) &&
+        ["setup", "prepare", "room", "controls", "results"].includes(screen)) {
+      rememberTask(screen, account, newRoomSetup ? null : activeRoomCode);
+    }
+    moveTo(target);
+  }, [moveTo, screen, account, activeRoomCode, newRoomSetup]);
+  const callbackEntry = useRef(new URLSearchParams(window.location.search).get("account") === "1");
+  const previousIdentity = useRef<string | null>(null);
+  const previousAuth = useRef(account?.authenticated);
+  useEffect(() => {
+    const identity = account?.authenticated ? account.user?.id : null;
+    if (identity && previousIdentity.current && identity !== previousIdentity.current) clearTaskIntent();
+    if (identity) previousIdentity.current = identity;
+    const signedIn = previousAuth.current === false && account?.authenticated;
+    if (account) previousAuth.current = account.authenticated;
+    if (!account?.authenticated || (!callbackEntry.current && !signedIn)) return;
+    if (activeRoomCode && !roomState) return; // wait for authoritative membership
+    callbackEntry.current = false;
+    const target = resolveTaskReturn(account, roomState, !!presentation.reaction?.closing, true);
+    if (target) { consumeTaskReturn(account, true); moveTo(target); }
+  }, [account, roomState, activeRoomCode, presentation.reaction?.closing, moveTo]);
+
   const priorRoomCode = useRef<string | null>(null);
   useEffect(() => {
-    if (priorRoomCode.current && !activeRoomCode) clearRoomDrafts(priorRoomCode.current);
+    if (priorRoomCode.current && !activeRoomCode) { clearRoomDrafts(priorRoomCode.current); clearTaskIntent(); }
     priorRoomCode.current = activeRoomCode;
   }, [activeRoomCode]);
 
@@ -212,6 +240,7 @@ export function App() {
   const handleLeaveRoom = useCallback(() => {
     resetMoment();
     if (activeRoomCode) clearRoomDrafts(activeRoomCode);
+    clearTaskIntent();
     leaveRoom();
     setNewRoomSetup(false);
     setMessage("");
@@ -257,8 +286,9 @@ export function App() {
   }, [roomState, presentation.reaction?.closing, screen, navigate]);
   const returnScreen = roomState?.phase === "lobby" ? "prepare"
     : roomState?.phase === "complete" && !presentation.reaction?.closing ? "results" : "room";
-  const returnAction = hasRoom ? <button type="button" className="button-secondary" onClick={() => navigate(returnScreen)}>
-    {returnScreen === "results" ? "View defense results" : "Return to defense"}
+  const taskReturn = hasRoom ? returnScreen : account?.authenticated ? resolveTaskReturn(account, null, false) : null;
+  const returnAction = taskReturn ? <button type="button" className="button-secondary" onClick={() => { if (account?.authenticated) consumeTaskReturn(account); navigate(taskReturn); }}>
+    {taskReturn === "results" ? "View defense results" : taskReturn === "setup" ? "Return to setup" : "Return to defense"}
   </button> : null;
   const title = "Controls";
   // A bare preparation address with no room falls back to setup rather than
@@ -285,7 +315,15 @@ export function App() {
 
   return (
     <DraftSession account={account} token={playerToken} state={roomState} preview={previewMode}>
-    <div className="app-root">
+    <div className="app-root" onClick={event => {
+      if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      const anchor = (event.target as Element).closest<HTMLAnchorElement>("a[href]");
+      if (!anchor || anchor.download || (anchor.target && anchor.target !== "_self")) return;
+      const url = new URL(anchor.href, window.location.href);
+      if (url.origin === window.location.origin && url.pathname === "/api/auth/google/login") rememberAuthTask(screen, account);
+      const href = internalAppHref(anchor.href);
+      if (href) { event.preventDefault(); navigateHref(href); }
+    }}>
       {stageNotice && <p className="navigation-notice" role="status">{stageNotice}</p>}
       <div className="room-screen" hidden={screen !== "room"}>
         <div className="arena-shell" data-compact-viewport={viewport.compact} style={{ "--room-viewport-height": `${viewport.height}px` } as React.CSSProperties}>
@@ -334,7 +372,10 @@ export function App() {
         {!hasRoom ? <p role="alert">This room is no longer available. Results cannot be restored from this browser.</p> :
           <TranscriptPanel presentation={presentation} roomState={roomState} previewMode={previewMode} />}
       </AppPage>}
-      {screen === "account" && <div className="task-room-return">{returnAction}</div>}
+      {["signin", "account", "payments-live", "payments-test", "manager"].includes(screen) && <div className="task-room-return">{returnAction}</div>}
+      {screen === "payments-live" && <LivePaymentPage />}
+      {screen === "payments-test" && <PaymentTestPage />}
+      {screen === "manager" && <ManagerPage />}
       {screen === "account" && (
         <AccountScreen account={account} error={actionError?.startsWith("Sign in") ? actionError : accountError}
           refresh={refreshAccount} previewMode={previewMode} onBack={() => navigate("home")} />
@@ -342,7 +383,7 @@ export function App() {
       {screen === "signin" && <SignInScreen account={account} error={accountError} onRetry={() => { void refreshAccount(); }}
         onBack={() => navigate("home")} onAccount={() => navigate("account")} onJoin={() => openSetup("join")} />}
       {screen === "home" && <HomeScreen notice={invalid ? "We couldn’t open that screen. You’re on Home." : null}
-        onCreate={() => { if (account?.authenticated) openSetup("create"); else navigate("signin"); }}
+        onCreate={() => { if (account?.authenticated) openSetup("create"); else { rememberTask("setup", account, null); navigate("signin"); } }}
         onJoin={() => openSetup("join")} roomCode={roomCode}
         onReturnToRoom={() => navigate("room")}
         ownerHref={account?.authenticated && account.manager_enabled ? "/?manager=1" : null} />}

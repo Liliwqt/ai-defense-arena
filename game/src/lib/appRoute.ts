@@ -1,5 +1,5 @@
 /** Root-fragment app screens. Screen addresses are navigation intent, not permission. */
-export type AppScreen = "home" | "signin" | "account" | "setup" | "prepare" | "room" | "controls" | "results";
+export type AppScreen = "home" | "signin" | "account" | "setup" | "prepare" | "room" | "controls" | "results" | "payments-live" | "payments-test" | "manager";
 
 export interface AppRoute {
   screen: AppScreen;
@@ -22,6 +22,10 @@ const SCREENS = new Map<string, AppScreen>([
 
 export function resolveAppRoute(search: string, hash: string): AppRoute {
   const params = new URLSearchParams(search);
+  // Keep the original document-entry precedence when more than one legacy flag exists.
+  if (params.get("manager") === "1") return { screen: "manager", invalid: false };
+  if (params.get("payments") === "test") return { screen: "payments-test", invalid: false };
+  if (params.get("payments") === "live") return { screen: "payments-live", invalid: false };
   // The legacy account link is the OAuth return target; it keeps its destination
   // even if an unrelated fragment is present alongside it.
   if (params.get("account") === "1") return { screen: "account", invalid: false };
@@ -47,6 +51,21 @@ export function appScreenHref(screen: AppScreen, search: string, pathname: strin
   const params = new URLSearchParams(search);
   params.delete("account");
   params.delete("signin_error");
+  params.delete("manager");
+  params.delete("payments");
+  params.delete("payment_return");
+  if (screen === "manager") params.set("manager", "1");
+  if (screen === "payments-live" || screen === "payments-test") params.set("payments", screen === "payments-live" ? "live" : "test");
   const query = params.toString();
   return `${pathname}${query ? `?${query}` : ""}#/${screen}`;
+}
+
+/** Only known app addresses are eligible for same-document navigation. */
+export function internalAppHref(href: string): string | null {
+  const url = new URL(href, window.location.href);
+  if (url.origin !== window.location.origin || url.pathname !== "/") return null;
+  const params = url.searchParams;
+  if (params.get("manager") === "1" || ["live", "test"].includes(params.get("payments") ?? "") || params.get("account") === "1" ||
+      SCREENS.has(url.hash.slice(1))) return `${url.pathname}${url.search}${url.hash}`;
+  return !url.search && !url.hash ? "/#/home" : null;
 }

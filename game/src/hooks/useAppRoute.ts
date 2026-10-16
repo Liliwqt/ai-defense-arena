@@ -10,7 +10,7 @@ export function useAppRoute() {
       // Consume the one-time legacy account intent so later fragment navigation and
       // Back/Forward behave normally after the OAuth return. Other query entries
       // (preview, signin_error, plan) are preserved.
-      if (new URLSearchParams(window.location.search).get("account") === "1") {
+      if (next.screen === "account" && new URLSearchParams(window.location.search).get("account") === "1") {
         window.history.replaceState(null, "", accountConsumedHref(window.location.search, window.location.pathname));
       }
       setRoute(next);
@@ -24,10 +24,13 @@ export function useAppRoute() {
     };
   }, []);
 
-  const navigate = useCallback((screen: AppScreen) => {
-    window.history.pushState(null, "", appScreenHref(screen, window.location.search, window.location.pathname));
+  const navigateHref = useCallback((href: string) => {
+    window.history.pushState(null, "", href);
     setRoute(resolveAppRoute(window.location.search, window.location.hash));
   }, []);
+  const navigate = useCallback((screen: AppScreen) => {
+    navigateHref(appScreenHref(screen, window.location.search, window.location.pathname));
+  }, [navigateHref]);
 
-  return { ...route, navigate };
+  return { ...route, navigate, navigateHref };
 }
