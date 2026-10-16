@@ -68,17 +68,23 @@ export function AccountScreen({ account, error, refresh, previewMode, onBack }: 
   );
 }
 
-export function SignInScreen({ account, onBack, onAccount }: {
+export function SignInScreen({ account, error, onRetry, onBack, onAccount, onJoin }: {
   account: Account | null;
   onBack: () => void;
   onAccount: () => void;
+  onJoin: () => void;
+  error?: string;
+  onRetry: () => void;
 }) {
   return (
     <AppPage kicker="HOST ACCOUNT · SIGN IN" title="Sign in"
       actions={<button type="button" className="button-secondary" onClick={onBack}>Back to Home</button>}>
       <section className="app-card" aria-labelledby="signin-card-title">
         <h2 id="signin-card-title">Host a defense</h2>
-        {!account ? <p className="app-status" role="status">Loading your account…</p>
+        {!account ? error ? <>
+          <p className="app-status" role="alert">{error}</p>
+          <button type="button" className="button-secondary" onClick={onRetry}>Retry account</button>
+        </> : <p className="app-status" role="status">Loading your account…</p>
           : account.authenticated ? <>
             <p className="app-status" role="status">You’re signed in{account.user?.name ? ` as ${account.user.name}` : ""}.</p>
             <button type="button" className="button-secondary" onClick={onAccount}>Go to Account</button>
@@ -86,6 +92,7 @@ export function SignInScreen({ account, onBack, onAccount }: {
             <p>Teammates can join using your room code without signing in.</p>
             <GoogleSignIn googleEnabled={!!account.google_enabled} />
           </>}
+        <button type="button" className="button-secondary" onClick={onJoin}>Join a room</button>
       </section>
     </AppPage>
   );

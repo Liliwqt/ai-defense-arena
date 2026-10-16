@@ -22,7 +22,12 @@ const previewMode = new URLSearchParams(window.location.search).get("preview") =
 
 export function App() {
   const viewport = useRoomViewport();
-  const { screen, invalid, navigate } = useAppRoute();
+  const { account, refresh: refreshAccount, error: accountError } = useAccount(previewMode);
+  const { screen: routeScreen, invalid, navigate } = useAppRoute();
+  // The bare entry starts with sign-in while identity is loading. An existing
+  // authenticated session can go straight Home; explicit routes keep their intent.
+  const isEntry = !window.location.hash || window.location.hash === "#" || window.location.hash === "#/";
+  const screen = routeScreen === "signin" && isEntry && account?.authenticated ? "home" : routeScreen;
   const {
     roomState: liveRoomState, connected, roomCode, waitingForAnswerAck,
     actionError, actionErrorReason, sendEvent, useRoom, leaveRoom, playerToken,
@@ -33,7 +38,6 @@ export function App() {
   const [setupRequest, setSetupRequest] = useState<{ tab: "create" | "join"; id: number; fresh?: boolean }>({ tab: "create", id: 0 });
   // A distinct "Create another room" starts fresh setup without closing the current room.
   const [newRoomSetup, setNewRoomSetup] = useState(false);
-  const { account, refresh: refreshAccount, error: accountError } = useAccount(previewMode);
   useEffect(() => {
     const refresh = () => { void refreshAccount(); };
     window.addEventListener("defense-native-resume", refresh);
@@ -312,8 +316,8 @@ export function App() {
         <AccountScreen account={account} error={actionError?.startsWith("Sign in") ? actionError : accountError}
           refresh={refreshAccount} previewMode={previewMode} onBack={() => navigate("home")} />
       )}
-      {screen === "signin" && <SignInScreen account={account}
-        onBack={() => navigate("home")} onAccount={() => navigate("account")} />}
+      {screen === "signin" && <SignInScreen account={account} error={accountError} onRetry={() => { void refreshAccount(); }}
+        onBack={() => navigate("home")} onAccount={() => navigate("account")} onJoin={() => openSetup("join")} />}
       {screen === "home" && <HomeScreen notice={invalid ? "We couldn’t open that screen. You’re on Home." : null}
         onCreate={() => { if (account?.authenticated) openSetup("create"); else navigate("signin"); }}
         onJoin={() => openSetup("join")} roomCode={roomCode}

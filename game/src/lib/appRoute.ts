@@ -9,7 +9,7 @@ export interface AppRoute {
 // A Map avoids inherited object keys (constructor, toString, __proto__) ever
 // resolving to a non-screen value.
 const SCREENS = new Map<string, AppScreen>([
-  ["/", "home"],
+  ["/", "signin"],
   ["/home", "home"],
   ["/signin", "signin"],
   ["/account", "account"],
@@ -29,7 +29,7 @@ export function resolveAppRoute(search: string, hash: string): AppRoute {
     return screen ? { screen, invalid: false } : { screen: "home", invalid: true };
   }
   if (params.get("preview") === "1") return { screen: "room", invalid: false };
-  return { screen: "home", invalid: false };
+  return { screen: "signin", invalid: false };
 }
 
 /** Canonical URL after consuming the one-time legacy account intent. */

@@ -43,14 +43,51 @@ beforeEach(() => { window.history.replaceState(null, "", "/"); });
 afterEach(() => { window.history.replaceState(null, "", "/"); vi.clearAllMocks(); });
 
 describe("full-screen app navigation", () => {
-  it("opens full-screen Home at the root address with separate Create and Join choices", () => {
+  it("opens full-screen Home at its address with separate Create and Join choices", () => {
     setAccount(account());
     setSocket(null);
-    render(<App />);
+    renderAt("/#/home");
     expect(screen.getByRole("heading", { name: "Home" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Create a defense" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Join a room" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /settings.*controls/i })).toBeNull();
+  });
+
+  it.each(["/", "/#/"])("shows sign-in first at %s while the account loads and when signed out", (url) => {
+    setAccount(null);
+    setSocket(null, { connected: false });
+    const view = renderAt(url);
+    expect(screen.getByRole("heading", { name: "Sign in" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Home" })).toBeNull();
+    setAccount(account());
+    view.rerender(<App />);
+    expect(screen.getByRole("link", { name: /sign in with google/i })).toBeVisible();
+  });
+
+  it("shows an account-load error on the first screen with a working retry", async () => {
+    setAccount(null, "Could not load your account.");
+    setSocket(null, { connected: false });
+    renderAt("/");
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not load your account.");
+    await userEvent.click(screen.getByRole("button", { name: "Retry account" }));
+    expect(vi.mocked(useAccount).mock.results.at(-1)?.value.refresh).toHaveBeenCalledOnce();
+  });
+
+  it("opens Home at the root for an already signed-in user", () => {
+    setAccount(account({ authenticated: true }));
+    setSocket(null, { connected: false });
+    renderAt("/");
+    expect(screen.getByRole("heading", { name: "Home" })).toBeVisible();
+  });
+
+  it("lets a signed-out teammate join directly from the first sign-in screen", async () => {
+    setAccount(account());
+    setSocket(null, { connected: false });
+    renderAt("/");
+    await userEvent.click(screen.getByRole("button", { name: "Join a room" }));
+    expect(window.location.hash).toBe("#/setup");
+    expect(screen.getByRole("tab", { name: "Join room" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("link", { name: /sign in with google/i })).toBeNull();
   });
 
   it("opens the private Account full-screen from the legacy account link and the account address", () => {
@@ -116,7 +153,7 @@ describe("full-screen app navigation", () => {
   it("moves between Home and the room with browser Back and Forward", async () => {
     setAccount(account());
     setSocket(roomState());
-    renderAt("/");
+    renderAt("/#/home");
     const roomMarker = () => screen.getByRole("button", { name: /settings.*controls/i });
 
     await userEvent.click(screen.getByRole("button", { name: /return to your room ROOM1/i }));
@@ -140,7 +177,7 @@ describe("full-screen app navigation", () => {
   it("sends a signed-out Create to sign-in and a signed-in Create to the create form", async () => {
     setSocket(null, { connected: false });
     setAccount(account({ authenticated: false, google_enabled: true }));
-    const signedOut = renderAt("/");
+    const signedOut = renderAt("/#/home");
     await userEvent.click(screen.getByRole("button", { name: "Create a defense" }));
     expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy();
     signedOut.unmount();
@@ -280,7 +317,7 @@ describe("full-screen app navigation", () => {
   it("moves focus to the new screen heading after the opener is removed", async () => {
     setSocket(null, { connected: false });
     setAccount(account({ authenticated: false, google_enabled: true }));
-    renderAt("/");
+    renderAt("/#/home");
     await userEvent.click(screen.getByRole("button", { name: "Create a defense" }));
     expect(screen.getByRole("heading", { name: "Sign in" })).toHaveFocus();
   });
