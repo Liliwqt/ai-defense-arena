@@ -205,7 +205,7 @@ describe("guided setup and preparation", () => {
     setAccount(hostAccount());
     renderAt("/#/prepare");
     await userEvent.click(screen.getByRole("button", { name: "Create another room" }));
-    expect(window.location.hash).toBe("#/setup");
+    expect(window.location.hash).toBe("#/setup?new=1");
     const file = new File(["print(1)"], "sample.py", { type: "text/plain" });
     await userEvent.upload(screen.getByLabelText("Project source files or ZIP"), file);
     await userEvent.click(screen.getByRole("button", { name: "Back" }));

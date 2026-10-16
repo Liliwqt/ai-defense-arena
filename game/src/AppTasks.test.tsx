@@ -105,3 +105,29 @@ it.each(["expired", "malformed"])("discards %s task intent at the existing callb
   expect(sessionStorage.getItem(key!)).toBeNull();
   expect(socket.sendEvent).not.toHaveBeenCalled();
 });
+
+it("returns unfinished new-room setup ahead of the older foreground room", async () => {
+  socket.roomState = room({ phase: "lobby", turns: [] });
+  window.history.replaceState(null, "", "/#/prepare");
+  render(<App />);
+  await userEvent.click(screen.getByRole("button", { name: "Create another room" }));
+  await userEvent.click(screen.getByRole("button", { name: "Account ↗" }));
+  await userEvent.click(screen.getByRole("button", { name: "Return to setup" }));
+  expect(screen.getByRole("heading", { name: "Create another room" })).toBeVisible();
+  expect(screen.getByRole("combobox", { name: "Defense type" })).toBeVisible();
+  expect(socket.useRoom).not.toHaveBeenCalled(); expect(socket.leaveRoom).not.toHaveBeenCalled();
+});
+
+it("keeps new-room intent across an authentication reload and subsequent setup reload", async () => {
+  socket.roomState = room({ phase: "lobby", turns: [] });
+  window.history.replaceState(null, "", "/#/prepare");
+  const first = render(<App />);
+  await userEvent.click(screen.getByRole("button", { name: "Create another room" }));
+  await userEvent.click(screen.getByRole("button", { name: "Account ↗" }));
+  first.unmount(); window.history.replaceState(null, "", "/?account=1");
+  const returned = render(<App />);
+  await waitFor(() => expect(screen.getByRole("combobox", { name: "Defense type" })).toBeVisible());
+  returned.unmount(); render(<App />);
+  expect(screen.getByRole("combobox", { name: "Defense type" })).toBeVisible();
+  expect(socket.useRoom).not.toHaveBeenCalled(); expect(socket.sendEvent).not.toHaveBeenCalled();
+});

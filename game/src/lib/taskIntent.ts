@@ -25,6 +25,7 @@ export function rememberTask(target: AppScreen, account: Account | null, room: s
   if (!targets.includes(target)) return;
   save({ version: 1, target, owner: account?.authenticated ? account.user?.id ?? null : null, room, created: Date.now() });
 }
+export function isFreshSetupReturn() { const intent = read(); return intent?.target === "setup" && intent.room === null; }
 export function rememberAuthTask(screen: AppScreen, account: Account | null) {
   const intent = read();
   if (["payments-live", "payments-test", "manager"].includes(screen)) {

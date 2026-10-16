@@ -11,7 +11,7 @@ import { DraftSession, clearRoomDrafts } from "./hooks/useTabDraft";
 import { useAppRoute } from "./hooks/useAppRoute";
 import { internalAppHref, type AppScreen } from "./lib/appRoute";
 import { roomDestination } from "./lib/roomDestination";
-import { clearTaskIntent, rememberTask, rememberAuthTask, resolveTaskReturn, consumeTaskReturn } from "./lib/taskIntent";
+import { clearTaskIntent, rememberTask, rememberAuthTask, resolveTaskReturn, consumeTaskReturn, isFreshSetupReturn } from "./lib/taskIntent";
 import { LivePaymentPage } from "./payments/LivePaymentPage";
 import { PaymentTestPage } from "./payments/PaymentTestPage";
 import { ManagerPage } from "./management/ManagerPage";
@@ -31,7 +31,7 @@ const previewMode = new URLSearchParams(window.location.search).get("preview") =
 export function App() {
   const viewport = useRoomViewport();
   const { account, refresh: refreshAccount, error: accountError } = useAccount(previewMode);
-  const { screen: routeScreen, invalid, navigate: moveTo, navigateHref } = useAppRoute();
+  const { screen: routeScreen, freshSetup = false, invalid, navigate: moveTo, navigateHref } = useAppRoute();
   // The bare entry starts with sign-in while identity is loading. An existing
   // authenticated session can go straight Home; explicit routes keep their intent.
   const isEntry = !window.location.hash || window.location.hash === "#" || window.location.hash === "#/";
@@ -42,7 +42,16 @@ export function App() {
   } = useRoomSocket(previewMode);
   const [setupRequest, setSetupRequest] = useState<{ tab: "create" | "join"; id: number; fresh?: boolean }>({ tab: "create", id: 0 });
   // A distinct "Create another room" starts fresh setup without closing the current room.
-  const [newRoomSetup, setNewRoomSetup] = useState(false);
+  const [newRoomSetup, setNewRoomSetup] = useState(freshSetup);
+  useEffect(() => { if (routeScreen === "setup") setNewRoomSetup(freshSetup); }, [routeScreen, freshSetup]);
+  const previousTaskScreen = useRef(screen);
+  useEffect(() => {
+    const prior = previousTaskScreen.current;
+    previousTaskScreen.current = screen;
+    // Payment/manager components own their request state. Revalidate the shell's
+    // private wallet on every return, including browser Back, without a mutation.
+    if (prior !== screen && ["payments-live", "payments-test", "manager"].includes(prior)) void refreshAccount();
+  }, [screen, refreshAccount]);
   useEffect(() => {
     const refresh = () => { void refreshAccount(); };
     window.addEventListener("defense-native-resume", refresh);
@@ -72,7 +81,7 @@ export function App() {
         ["setup", "prepare", "room", "controls", "results"].includes(screen)) {
       rememberTask(screen, account, newRoomSetup ? null : activeRoomCode);
     }
-    moveTo(target);
+    moveTo(target, target === "setup" && newRoomSetup);
   }, [moveTo, screen, account, activeRoomCode, newRoomSetup]);
   const callbackEntry = useRef(new URLSearchParams(window.location.search).get("account") === "1");
   const previousIdentity = useRef<string | null>(null);
@@ -87,7 +96,11 @@ export function App() {
     if (activeRoomCode && !roomState) return; // wait for authoritative membership
     callbackEntry.current = false;
     const target = resolveTaskReturn(account, roomState, !!presentation.reaction?.closing, true);
-    if (target) { consumeTaskReturn(account, true); moveTo(target); }
+    if (target) {
+      const fresh = target === "setup" && isFreshSetupReturn();
+      if (fresh) setNewRoomSetup(true);
+      consumeTaskReturn(account, true); moveTo(target, fresh);
+    }
   }, [account, roomState, activeRoomCode, presentation.reaction?.closing, moveTo]);
 
   const priorRoomCode = useRef<string | null>(null);
@@ -126,8 +139,8 @@ export function App() {
     setSetupRequest(previous => ({ tab: "create", id: previous.id + 1, fresh: true }));
     setNewRoomSetup(true);
     setMessage("");
-    navigate("setup");
-  }, [navigate]);
+    moveTo("setup", true);
+  }, [moveTo]);
 
   const showMessage = useCallback((value: string) => {
     setMessage(value);
@@ -263,8 +276,15 @@ export function App() {
     }
   }, [roomState, presentation.reaction?.closing, screen, navigate]);
   const returnScreen = roomDestination(roomState, !!presentation.reaction?.closing);
-  const taskReturn = hasRoom ? returnScreen : account?.authenticated ? resolveTaskReturn(account, null, false) : null;
-  const returnAction = taskReturn ? <button type="button" className="button-secondary" onClick={() => { if (account?.authenticated) consumeTaskReturn(account); navigate(taskReturn); }}>
+  const onAccountTask = ["signin", "account", "payments-live", "payments-test", "manager"].includes(screen);
+  const savedReturn = onAccountTask && account?.authenticated && (!hasRoom || roomState) ? resolveTaskReturn(account, roomState, !!presentation.reaction?.closing) : null;
+  const taskReturn = savedReturn ?? (hasRoom ? returnScreen : null);
+  const returnAction = taskReturn ? <button type="button" className="button-secondary" onClick={() => {
+    const fresh = taskReturn === "setup" && isFreshSetupReturn();
+    if (fresh) setNewRoomSetup(true);
+    if (account?.authenticated) consumeTaskReturn(account);
+    if (fresh) moveTo("setup", true); else navigate(taskReturn);
+  }}>
     {taskReturn === "results" ? "View defense results" : taskReturn === "setup" ? "Return to setup" : "Return to defense"}
   </button> : null;
   // A bare preparation address with no room falls back to setup rather than

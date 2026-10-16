@@ -4,6 +4,7 @@ export type AppScreen = "home" | "signin" | "account" | "setup" | "prepare" | "r
 export interface AppRoute {
   screen: AppScreen;
   invalid: boolean;
+  freshSetup?: boolean;
 }
 
 // A Map avoids inherited object keys (constructor, toString, __proto__) ever
@@ -32,9 +33,9 @@ export function resolveAppRoute(search: string, hash: string): AppRoute {
   const path = hash.replace(/^#/, "").split("?")[0];
   if (path) {
     const screen = SCREENS.get(path);
-    return screen ? { screen, invalid: false } : { screen: "home", invalid: true };
+    return screen ? { screen, invalid: false, freshSetup: screen === "setup" && new URLSearchParams(hash.split("?")[1]).get("new") === "1" } : { screen: "home", invalid: true };
   }
-  if (params.get("preview") === "1") return { screen: "room", invalid: false };
+  if (params.get("preview") === "1") return { screen: params.get("plan") === "1" ? "prepare" : "room", invalid: false };
   return { screen: "signin", invalid: false };
 }
 
@@ -47,7 +48,7 @@ export function accountConsumedHref(search: string, pathname: string): string {
 }
 
 /** Keep preview fixtures and other query entries; drop the consumed account link. */
-export function appScreenHref(screen: AppScreen, search: string, pathname: string): string {
+export function appScreenHref(screen: AppScreen, search: string, pathname: string, freshSetup = false): string {
   const params = new URLSearchParams(search);
   params.delete("account");
   params.delete("signin_error");
@@ -57,7 +58,7 @@ export function appScreenHref(screen: AppScreen, search: string, pathname: strin
   if (screen === "manager") params.set("manager", "1");
   if (screen === "payments-live" || screen === "payments-test") params.set("payments", screen === "payments-live" ? "live" : "test");
   const query = params.toString();
-  return `${pathname}${query ? `?${query}` : ""}#/${screen}`;
+  return `${pathname}${query ? `?${query}` : ""}#/${screen}${screen === "setup" && freshSetup ? "?new=1" : ""}`;
 }
 
 /** Only known app addresses are eligible for same-document navigation. */

@@ -28,8 +28,8 @@ export function useAppRoute() {
     window.history.pushState(null, "", href);
     setRoute(resolveAppRoute(window.location.search, window.location.hash));
   }, []);
-  const navigate = useCallback((screen: AppScreen) => {
-    navigateHref(appScreenHref(screen, window.location.search, window.location.pathname));
+  const navigate = useCallback((screen: AppScreen, freshSetup = false) => {
+    navigateHref(appScreenHref(screen, window.location.search, window.location.pathname, freshSetup));
   }, [navigateHref]);
 
   return { ...route, navigate, navigateHref };
