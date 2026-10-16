@@ -196,7 +196,7 @@ describe("guided setup and preparation", () => {
     renderAt("/#/setup");
 
     expect(screen.getByRole("heading", { name: "Your material" })).toBeTruthy();
-    expect(screen.getByText(/study.pdf · 3 pages/)).toBeTruthy();
+    expect(within(screen.getByRole("group", { name: "Accepted files" })).getByText(/study.pdf · 3 pages/)).toBeVisible();
     expect(document.querySelector("#create-form")).not.toBeVisible();
   });
 
@@ -233,7 +233,7 @@ describe("guided setup and preparation", () => {
     renderAt("/#/prepare");
 
     expect(socket.sendEvent).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: /prepare defense/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /map paper/i })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /start defense/i })).toBeNull();
   });
 
@@ -244,7 +244,7 @@ describe("guided setup and preparation", () => {
 
     expect(screen.getByRole("button", { name: /start defense/i })).toBeTruthy();
     expect(screen.queryByText(/research coverage plan/i)).toBeNull();
-    expect(screen.queryByRole("button", { name: /prepare defense/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /map paper/i })).toBeNull();
   });
 
   it("explains an uncertain creation and offers owned-room recovery before another attempt", async () => {

@@ -20,6 +20,7 @@ interface ControlsPanelProps {
   /** "page" renders inside the full-screen setup/preparation surface. */
   surface?: "drawer" | "page";
   pageContext?: ReactNode;
+  actionError?: string | null;
   /** Show fresh create/join forms even inside an existing room ("Create another room"). */
   forceSetup?: boolean;
   /** On the setup page for an existing room: show its fixed accepted files, not a replacement form. */
@@ -62,6 +63,7 @@ export function ControlsPanel({
   previewMode,
   surface = "drawer",
   pageContext,
+  actionError,
   forceSetup = false,
   showExistingFiles = false,
   activeRoomCode = null,
@@ -96,6 +98,9 @@ export function ControlsPanel({
   const progressRef = useRef<HTMLDivElement>(null);
   const [joinBusy, setJoinBusy] = useState(false);
   const [scopeDirty, setScopeDirty] = useState(false);
+  const startPending = useRef(false);
+  const [starting, setStarting] = useState(false);
+  const [researchActionContainer, setResearchActionContainer] = useState<HTMLDivElement | null>(null);
   const [defenseType, setDefenseType] = useState<"code" | "research" | "mixed">("code");
 
   const [hostName, setHostName] = useState("");
@@ -129,6 +134,25 @@ export function ControlsPanel({
   const showExisting = showExistingFiles && !forceSetup;
   const showSetupForms = forceSetup || (!inRoom && !previewMode);
   const showRoomControls = (inRoom || previewMode) && !showExisting && !forceSetup;
+
+  const researchMode = !!roomState?.defense_type && roomState.defense_type !== "code";
+  useEffect(() => { setScopeDirty(false); }, [roomCode, researchMode]);
+  const accessReason = !account?.authenticated ? "Sign in with the room owner’s Google account."
+    : liveAccess && account.ai_service_available === false ? "The defense service is temporarily unavailable. Your credits are retained."
+    : liveAccess && account.paid_starts_enabled === false && !account.free_access ? "Paid starts are paused. Voucher access remains available."
+    : !account.free_access && (availableCredits ?? 0) < 10 ? `Use a free-access voucher or obtain 10 ${creditLabel} in Account.` : "";
+  const runReason = previewMode ? "Visual preview · preparation controls are read-only." : !connected ? "Reconnect before starting the defense." : accessReason || (starting ? "Starting the defense… Waiting for the server." : "");
+  const startLabel = account?.free_access ? "Start defense · free access" : `Start defense · 10 ${creditLabel}`;
+  useEffect(() => {
+    startPending.current = false;
+    setStarting(false);
+  }, [phase, roomCode, roomState?.research_plan?.id, connected]);
+
+  useEffect(() => {
+    if (!actionError) return;
+    startPending.current = false;
+    setStarting(false);
+  }, [actionError]);
 
   async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -180,10 +204,13 @@ export function ControlsPanel({
   }
 
   function handleStart() {
+    if (startPending.current || runReason || scopeDirty) return;
     const payload = roomState?.defense_type && roomState.defense_type !== "code"
       ? { type: "start", confirm_cost: true, plan_id: roomState.research_plan?.id, question_budget: roomState.research_budget_preview }
       : { type: "start", confirm_cost: true };
-    if (onSendEvent(payload)) onCloseDrawer();
+    startPending.current = true;
+    if (onSendEvent(payload)) { setStarting(true); onCloseDrawer(); }
+    else startPending.current = false;
   }
   function handleRetry() {
     if (onSendEvent({ type: "retry" })) onCloseDrawer();
@@ -221,7 +248,7 @@ export function ControlsPanel({
     <div className={surface === "page" ? "guided-controls" : "controls-content"}>
       <div className="controls-main grid gap-[15px]">
       {surface === "drawer" && onOpenTranscript && <button type="button" className={secondaryBtn} onClick={onOpenTranscript}>Transcript</button>}
-      {previewMode && onPreviewMoment && <button type="button" className={secondaryBtn} onClick={onPreviewMoment}>Preview presenter</button>}
+      {previewMode && surface === "drawer" && onPreviewMoment && <button type="button" className={secondaryBtn} onClick={onPreviewMoment}>Preview presenter</button>}
       {/* Keep forms mounted so page and tab changes retain FileList and drafts. */}
         <div hidden={!showSetupForms}>
           {/* Tab switcher */}
@@ -332,7 +359,7 @@ export function ControlsPanel({
         <div className="grid gap-[15px]">
           <p className="control-help">This room keeps its accepted uploads. To defend different files, use Create another room; this room stays open.</p>
           {roomState?.accepted_files?.length ? (
-            <div className="accepted-files" aria-label="Accepted files">
+            <div className="accepted-files" role="group" aria-label="Accepted files">
               <strong>Accepted files · {roomState.defense_type === "code" ? "Code project" : roomState.defense_type === "mixed" ? "Research + code" : "Research paper"}</strong>
               <ul className="mt-2 pl-5">{roomState.accepted_files.map((file) => <li key={file.name}>{file.name}{file.detail ? ` · ${file.detail}` : ""}</li>)}</ul>
             </div>
@@ -348,13 +375,10 @@ export function ControlsPanel({
         </div>
       )}
 
-      {!previewMode && account?.authenticated && account.csrf_token && <OwnedRooms csrf={account.csrf_token}
-        onResume={(code, token) => onUseRoom(code, token, true)}
-        onClosed={code => { if (code === roomCode) onLeaveRoom(); }} />}
       {roomState?.expires_at_ms && <p role="status" className="control-help">This room expires at {new Date(roomState.expires_at_ms).toLocaleTimeString()}. Save the transcript before expiry.</p>}
       {/* In-room controls */}
-      {showRoomControls && (
-        <div className="grid gap-[15px]">
+      {
+        <div hidden={!showRoomControls} className="grid gap-[15px]">
             <div className="room-code-card">
             <span className="room-code-kicker">
               ROOM CODE
@@ -372,33 +396,37 @@ export function ControlsPanel({
           </div>
 
           {roomState?.phase === "lobby" && roomState.accepted_files && (
-            <div className="accepted-files" aria-label="Accepted files">
-              <strong>Accepted files · {roomState.defense_type === "code" ? "Code project" : roomState.defense_type === "mixed" ? "Research + code" : "Research paper"}</strong>
-              <ul className="mt-2 pl-5">{roomState.accepted_files.map((file) => <li key={file.name}>{file.name}{file.detail ? ` · ${file.detail}` : ""}</li>)}</ul>
-            </div>
+            <details className="preparation-files" open={surface !== "page" || !researchMode}>
+              <summary>Accepted files · {roomState.accepted_files.length} {roomState.accepted_files.length === 1 ? "file" : "files"}</summary>
+              <ul>{roomState.accepted_files.map(file => <li key={file.name}>{file.name}{file.detail ? ` · ${file.detail}` : ""}</li>)}</ul>
+            </details>
           )}
-          <p className="connection-status">
+          {surface !== "page" && <p className="connection-status">
             {previewMode ? "Visual preview · no AI calls or room connection" : connected ? "Connected · team state is live" : "Disconnected · reconnecting…"}
-          </p>
+          </p>}
 
-          {roomState?.defense_type && roomState.defense_type !== "code" && <ResearchPlanPanel
-            roomState={roomState} connected={connected} previewMode={previewMode} onSendEvent={onSendEvent} onScopeDraftChange={setScopeDirty} />}
+          {roomState?.defense_type && roomState.defense_type !== "code" && <ResearchPlanPanel key={roomState.room_code}
+            roomState={roomState} connected={connected} previewMode={previewMode} onSendEvent={onSendEvent} onScopeDraftChange={setScopeDirty}
+            startControl={{ label: startLabel, reason: runReason, onStart: handleStart, onAccount: onOpenAccount,
+              accessLabel: previewMode ? "Visual preview · no credits used" : account?.free_access ? "Free access active" : `${availableCredits ?? 0} available · ${liveAccess ? account?.live_reserved_credits ?? 0 : account?.reserved_credits ?? 0} reserved ${creditLabel} · 10 per defense` }}
+            actionError={actionError} actionContainer={surface === "page" && showRoomControls ? researchActionContainer : null}
+            accessReason={accessReason} />}
 
-          {isHost && !previewMode && <div className="account-access-card"><strong>{account?.free_access ? "Free access active" : `10 ${creditLabel} per defense run`}</strong><p>{account?.authenticated ? `${availableCredits ?? 0} available · ${liveAccess ? account.live_reserved_credits ?? 0 : account.reserved_credits ?? 0} reserved ${creditLabel}` : "Sign in with the room owner’s Google account to use host controls."}</p><button type="button" className={secondaryBtn} onClick={onOpenAccount}>Open Account</button></div>}
+          {isHost && !previewMode && !researchMode && <div className="account-access-card"><strong>{account?.free_access ? "Free access active" : `10 ${creditLabel} per defense run`}</strong><p>{account?.authenticated ? `${availableCredits ?? 0} available · ${liveAccess ? account.live_reserved_credits ?? 0 : account.reserved_credits ?? 0} reserved ${creditLabel}` : "Sign in with the room owner’s Google account to use host controls."}</p><button type="button" className={secondaryBtn} onClick={onOpenAccount}>Open Account</button></div>}
 
           {/* Host-only controls */}
           {isHost && liveAccess && account?.ai_service_available === false && <p role="status">The defense service is temporarily unavailable. Your credits are retained.</p>}
           {isHost && liveAccess && account?.ai_service_available !== false && account?.paid_starts_enabled === false && !account.free_access && <p role="status">Paid starts are temporarily paused. Voucher access remains available.</p>}
           {!previewMode && isHost && (
             <div className="grid gap-[9px]">
-              {phase === "lobby" && (!roomState?.defense_type || roomState.defense_type === "code" || (roomState.research_planning_status === "ready" && roomState.research_plan)) && (
+              {phase === "lobby" && !researchMode && (
                 <button
                   type="button"
-                  disabled={!connected || !canRun || scopeDirty || (!!roomState?.defense_type && roomState.defense_type !== "code" && (!roomState.research_plan_approved || !roomState.research_plan?.profile || roomState.research_planning_status !== "ready"))}
+                  disabled={!!runReason || scopeDirty}
                   onClick={handleStart}
                   className={primaryBtn}
                 >
-                  {account?.free_access ? "Start defense · free access" : `Start defense · 10 ${creditLabel}`}
+                  {startLabel}
                 </button>
               )}
               {roomState?.defense_type && roomState.defense_type !== "code" && phase === "lobby" && !roomState.research_plan_approved && <p className="control-help">Prepare and confirm the research map and question budget to enable Start.</p>}
@@ -459,10 +487,14 @@ export function ControlsPanel({
             </button>
           )}
         </div>
-      )}
+      }
+      {!previewMode && account?.authenticated && account.csrf_token && <OwnedRooms csrf={account.csrf_token}
+        onResume={(code, token) => onUseRoom(code, token, true)}
+        onClosed={code => { if (code === roomCode) onLeaveRoom(); }} />}
       </div>
       {surface === "page" && <aside className="guided-sidebar" aria-label="Room and next step">
         {pageContext}
+        {showRoomControls && roomState?.defense_type && roomState.defense_type !== "code" && <div className="guided-primary" ref={setResearchActionContainer} />}
         {showSetupForms && <div className="guided-primary">
           <p className="control-help">{activeTab === "create"
             ? createBusy ? "Keep this page open while your files are processed." : !account?.authenticated ? "Sign in to create a defense. Teammates can join directly." : "Create your room, then review the material before starting."

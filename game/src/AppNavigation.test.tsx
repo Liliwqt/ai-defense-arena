@@ -291,6 +291,7 @@ describe("full-screen app navigation", () => {
     const budget = within(screen.getByRole("dialog", { name: "Controls" })).getByLabelText(/question budget/i);
     await userEvent.clear(budget);
     await userEvent.type(budget, "12");
+    await userEvent.click(screen.getByText("Correct profile"));
     await userEvent.type(within(screen.getByRole("dialog", { name: "Controls" })).getByLabelText(/research fields/i), "\nHuman-computer interaction");
 
     await userEvent.click(screen.getByRole("button", { name: "Account" }));

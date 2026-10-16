@@ -251,7 +251,7 @@ export function App() {
   // A bare preparation address with no room falls back to setup rather than
   // showing preparation controls a route alone cannot authorize.
   const prepareReady = isPrepare && hasRoom;
-  const pageTitle = prepareReady ? "Prepare your defense"
+  const pageTitle = prepareReady ? (roomState?.defense_type && roomState.defense_type !== "code" ? "Shape your defense." : "Prepare your defense")
     : hasRoom ? (newRoomSetup ? "Create another room" : "Your material")
     : setupRequest.tab === "join" ? "Join a room" : "Bring your work.";
   const pageKicker = prepareReady ? "STEP 2 / PREPARE & REVIEW" : "STEP 1 / UPLOAD & SETUP";
@@ -292,7 +292,7 @@ export function App() {
         steps={pageScreen ? <PreparationSteps current={prepareReady ? 2 : 1} hasRoom={hasRoom}
           onSelect={step => navigate(step === 1 ? "setup" : step === 2 ? "prepare" : "room")} /> : undefined}
         onHome={() => navigate("home")} onAccount={() => navigate("account")}
-        description={prepareReady ? "Make sure the panel understands your work. Review the material before starting."
+        description={prepareReady ? "Make sure the panel understands your work. Confirm the profile and question budget before starting."
           : hasRoom && !newRoomSetup ? "These accepted files stay with your room. Use a new room for different material."
           : setupRequest.tab === "join" ? "Enter your room code and join your team."
           : "Choose the work you want to defend. You’ll prepare your room before anything starts."}
@@ -301,7 +301,7 @@ export function App() {
             drafts survive both drawer switching and screen navigation. */}
         <div hidden={!pageScreen && drawerMode !== "controls"}>
           <ControlsPanel presentation={presentation} roomState={previewMode ? roomState : liveRoomState} connected={connected} previewMode={previewMode}
-            setupRequest={setupRequest} surface={pageScreen ? "page" : "drawer"} pageContext={pageSide}
+            actionError={actionError} setupRequest={setupRequest} surface={pageScreen ? "page" : "drawer"} pageContext={pageSide}
             forceSetup={isSetup && newRoomSetup} showExistingFiles={isSetup && hasRoom && !newRoomSetup}
             activeRoomCode={activeRoomCode}
             onUseRoom={handleUseRoom} onLeaveRoom={handleLeaveRoom} onSendEvent={sendEvent}

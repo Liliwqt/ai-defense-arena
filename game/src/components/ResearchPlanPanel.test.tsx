@@ -126,7 +126,7 @@ describe("ResearchPlanPanel", () => {
     const p = props();
     const { rerender } = render(<ResearchPlanPanel {...p} connected={false} />);
     expect((screen.getByRole("button", { name: "Confirm profile and budget" }) as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.queryByRole("button", { name: "Prepare map again" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Prepare map again" })).toBeDisabled();
     rerender(<ResearchPlanPanel {...p} previewMode />);
     expect((screen.getByRole("spinbutton") as HTMLInputElement).disabled).toBe(true);
   });
@@ -144,7 +144,7 @@ describe("ResearchPlanPanel", () => {
   it("prepares and retries independently of starting the defense", () => {
     const p = props();
     const { rerender } = render(<ResearchPlanPanel {...p} roomState={{ ...state, research_plan: null, research_planning_status: "none" }} />);
-    fireEvent.click(screen.getByRole("button", { name: "Prepare defense" }));
+    fireEvent.click(screen.getByRole("button", { name: "Map paper" }));
     expect(p.onSendEvent).toHaveBeenCalledWith({ type: "prepare_research_plan" });
     rerender(<ResearchPlanPanel {...p} roomState={{ ...state, research_plan: null, research_planning_status: "failed", research_plan_error: "Invalid citation." }} />);
     expect(screen.getByRole("alert").textContent).toContain("Your uploads are retained");
@@ -173,7 +173,7 @@ describe("ResearchPlanPanel", () => {
     render(<ControlsPanel {...controls} roomState={{ ...state, research_plan_approved: true,
       research_plan: { ...researchPlanPreview, profile: null } }} />);
     expect(screen.getByRole("alert")).toHaveTextContent("Prepare a new research map");
-    expect(screen.getByRole("button", { name: /Start defense/ })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /Start defense/ })).toBeNull();
     expect(screen.getByRole("button", { name: "Confirm profile and budget" })).toBeDisabled();
   });
 

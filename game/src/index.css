@@ -535,3 +535,38 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .guided-primary { left: auto; right: 16px; bottom: 12px; width: 270px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; }
   .app-surface-inner-split { padding-bottom: 160px; }
 }
+
+/* Guided review keeps required review/confirmation ahead of optional details. */
+.guided-controls .research-plan-panel { display: grid; gap: 20px; padding: 0; background: transparent; box-shadow: none; }
+.guided-controls .research-profile-review, .guided-controls .plan-budget-form, .guided-controls .discussion-topics { margin: 0; padding: 26px; border: 1px solid #f8f7f1; border-radius: 20px; background: var(--base); box-shadow: var(--raise-sm); }
+.guided-controls .research-profile-review h4, .guided-controls .plan-budget-form h3, .guided-controls .discussion-topics > h3 { margin: 0 0 16px; font-size: 21px; font-weight: 750; letter-spacing: -.02em; }
+.guided-controls .research-profile-facts { gap: 18px; margin: 22px 0; }
+.guided-controls .research-profile-facts dt { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--subtle); }
+.guided-controls .research-profile-facts dd { font-size: 15px; font-weight: 650; margin-top: 7px; }
+.guided-controls .plan-budget-form { gap: 14px; }
+.profile-correction { border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+.profile-correction > summary { cursor: pointer; font-weight: 750; padding: 5px 0; }
+.profile-correction .research-profile-editor { border: 0; margin-bottom: 0; padding: 8px 0; }
+.plan-topic-details > summary { cursor: pointer; font-weight: 750; line-height: 1.7; }
+.plan-topic-number { color: var(--subtle); margin-right: 12px; font-size: 11px; }
+.plan-topic-reviewer { display: block; color: var(--muted); font-size: 11px; font-weight: 500; padding-left: 28px; }
+.guided-controls .plan-topics { margin-bottom: 0; gap: 0; }
+.guided-controls .plan-topics > li { border: 0; border-top: 1px solid var(--line); border-radius: 0; padding: 12px 0; background: transparent; }
+.guided-controls .plan-topics > li:last-child { padding-bottom: 0; }
+.profile-correction > summary:focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
+.preparation-access { font-size: 12px; font-weight: 750; margin: 0; }
+.research-next-action { display: grid; gap: 10px; }
+@media (max-width: 760px), (max-height: 500px) and (max-width: 1000px) {
+  .guided-controls .research-profile-review, .guided-controls .plan-budget-form, .guided-controls .discussion-topics { padding: 22px; }
+  .guided-primary:has(.preparation-access) { max-height: min(45dvh, 250px); overflow-y: auto; }
+  .guided-primary:has(.preparation-access) > .button-secondary { padding: 6px 12px; min-height: 36px; }
+  .guided-primary:has(.preparation-access) > p { margin: 0; }
+  .app-surface:has(.preparation-access) { scroll-padding-bottom: 260px; }
+  .app-surface:has(.preparation-access) .app-surface-inner-split { padding-bottom: 280px; }
+}
+
+.guided-controls .research-plan-heading { display: none; }
+.preparation-files { padding: 12px 16px; border: 1px solid var(--line); border-radius: 12px; font-size: .8rem; }
+.preparation-files > summary { cursor: pointer; font-weight: 750; }
+.preparation-files > ul { padding-left: 20px; margin-top: 10px; }
+.preparation-files > summary:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
