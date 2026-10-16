@@ -47,7 +47,7 @@ function setSocket(state: RoomState | null, overrides: Partial<RoomSocketState> 
   return socket;
 }
 
-beforeEach(() => { window.history.replaceState(null, "", "/"); });
+beforeEach(() => { sessionStorage.clear(); window.history.replaceState(null, "", "/"); });
 afterEach(() => { window.history.replaceState(null, "", "/"); vi.clearAllMocks(); vi.unstubAllGlobals(); });
 
 function research(overrides: Partial<RoomState> = {}) {

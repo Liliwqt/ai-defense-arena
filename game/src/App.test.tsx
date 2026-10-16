@@ -36,7 +36,7 @@ const socket = (state: RoomState | null): RoomSocketState => ({
 });
 const setSocket = (state: RoomState | null) => vi.mocked(useRoomSocket).mockReturnValue(socket(state));
 
-beforeEach(() => { window.history.replaceState(null, "", "/#/room"); });
+beforeEach(() => { sessionStorage.clear(); window.history.replaceState(null, "", "/#/room"); });
 afterEach(() => { window.history.replaceState(null, "", "/"); vi.useRealTimers(); vi.clearAllMocks(); });
 
 describe("flat room flow", () => {

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTabDraft } from "../hooks/useTabDraft";
 import { createPortal } from "react-dom";
 import type { ProfileDescription, RoomState } from "../types";
 import { isResearchCitation } from "../lib/citation";
@@ -25,14 +26,18 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
   const [waitingForMap, setWaitingForMap] = useState(false);
   const addressed = Object.values(state.coverage ?? {}).filter(topic => topic.status === "addressed").length;
   const status = state.research_planning_status ?? "none";
-  const [budget, setBudget] = useState<string>("");
-  const [dirty, setDirty] = useState(false);
+  const initialBudget = String(state.research_budget_preview ?? plan?.suggested_budget ?? "");
+  const [budget, setBudget] = useTabDraft("budget", initialBudget, { room: true, marker: plan?.id });
+  const dirty = budget !== initialBudget;
   const [profileDirty, setProfileDirty] = useState(false);
   const [error, setError] = useState("");
   const [pendingBudget, setPendingBudget] = useState<number | null>(null);
   const approvalPending = useRef(false);
-  const [reviewedProfile, setReviewedProfile] = useState(false);
-  const [acknowledgedUncertainty, setAcknowledgedUncertainty] = useState(false);
+  const [reviewedText, setReviewedText] = useTabDraft("profile-reviewed", state.research_plan_approved ? "yes" : "no", { room: true, marker: plan?.id, valid: value => ["yes", "no"].includes(value) });
+  const [uncertaintyText, setUncertaintyText] = useTabDraft("profile-uncertainty", state.research_plan_approved ? "yes" : "no", { room: true, marker: plan?.id, valid: value => ["yes", "no"].includes(value) });
+  const reviewedProfile = reviewedText === "yes";
+  const acknowledgedUncertainty = uncertaintyText === "yes";
+  const previousApproval = useRef(state.research_plan_approved);
   const editable = state.self_is_host && state.phase === "lobby" && connected && !previewMode && status !== "planning" && !waitingForMap && pendingBudget === null && !accessReason;
 
   useEffect(() => {
@@ -64,18 +69,17 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
   }
 
   useEffect(() => {
-    setReviewedProfile(Boolean(state.research_plan_approved && plan?.profile));
-    setAcknowledgedUncertainty(Boolean(state.research_plan_approved && plan?.profile));
+    if (!previousApproval.current && state.research_plan_approved && plan?.profile) { setReviewedText("yes"); setUncertaintyText("yes"); }
+    previousApproval.current = state.research_plan_approved;
   }, [plan?.id, state.research_plan_approved]);
 
   useEffect(() => {
-    setBudget(String(state.research_budget_preview ?? plan?.suggested_budget ?? ""));
-    setDirty(false); setError("");
+    setError("");
   }, [plan?.id, state.research_budget_preview, state.research_plan_approved, onScopeDraftChange]);
 
   useEffect(() => {
     if (pendingBudget !== null && state.research_plan_approved && state.research_budget_preview === pendingBudget) {
-      setDirty(false); setPendingBudget(null); approvalPending.current = false;
+      setPendingBudget(null); approvalPending.current = false;
     }
   }, [pendingBudget, state.research_plan_approved, state.research_budget_preview, onScopeDraftChange]);
 
@@ -166,16 +170,16 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
         <h3>Confirm and prepare to start</h3>
         <label className="setup-label">Question budget
           <input className="setup-input" type="number" min={4} max={100} step={1} value={budget}
-            disabled={!editable || profileDirty} onChange={event => { setBudget(event.target.value); setDirty(true); setError(""); }} />
+            disabled={!editable || profileDirty} onChange={event => { setBudget(event.target.value); setError(""); }} />
         </label>
         <p className="control-help">4–100 questions. The defense stops at this maximum or when all topics are addressed after every reviewer has spoken.</p>
         {Number(budget) > 0 && Number(budget) < plan.topics.length && <p className="plan-warning" role="status">This limit is smaller than the topic count. Some topics may remain unexplored.</p>}
         {plan.profile && <>
           <label className="profile-confirmation"><input type="checkbox" checked={reviewedProfile} disabled={!editable}
-            onChange={event => setReviewedProfile(event.target.checked)} />I reviewed the research profile</label>
+            onChange={event => setReviewedText(event.target.checked ? "yes" : "no")} />I reviewed the research profile</label>
           {plan.profile.needs_uncertainty_acknowledgment && <label className="profile-confirmation">
             <input type="checkbox" checked={acknowledgedUncertainty} disabled={!editable}
-              onChange={event => setAcknowledgedUncertainty(event.target.checked)} />I understand the profile has unclear information
+              onChange={event => setUncertaintyText(event.target.checked ? "yes" : "no")} />I understand the profile has unclear information
           </label>}
         </>}
         <button type="submit" className="button-primary" disabled={!editable || profileDirty || !validBudget || alreadyConfirmed || !plan.profile || !reviewedProfile ||

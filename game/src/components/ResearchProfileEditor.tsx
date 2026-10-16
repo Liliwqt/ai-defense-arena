@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTabDraft } from "../hooks/useTabDraft";
 import type { ProfileDescription } from "../types";
 
 const approaches: { value: ProfileDescription["approaches"][number]; label: string }[] = [
@@ -18,14 +19,17 @@ interface Props {
 
 export function ResearchProfileEditor({ description, planId, editable, onDirtyChange, onPrepare }: Props) {
   const savedKey = JSON.stringify(description);
-  const [fields, setFields] = useState(description.fields.join("\n"));
-  const [selected, setSelected] = useState(description.approaches);
-  const [setting, setSetting] = useState(description.setting ?? "");
+  const marker = JSON.stringify([planId, savedKey]);
+  const [fields, setFields] = useTabDraft("profile-fields", description.fields.join("\n"), { room: true, marker });
+  const [selectedText, setSelectedText] = useTabDraft("profile-approaches", JSON.stringify(description.approaches), {
+    room: true, marker, valid: value => { try { const parsed = JSON.parse(value); return Array.isArray(parsed) && parsed.every(item => approaches.some(option => option.value === item)); } catch { return false; } },
+  });
+  const selected = JSON.parse(selectedText) as ProfileDescription["approaches"];
+  const [setting, setSetting] = useTabDraft("profile-setting", description.setting ?? "", { room: true, marker });
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const saved = JSON.parse(savedKey) as ProfileDescription;
-    setFields(saved.fields.join("\n")); setSelected(saved.approaches); setSetting(saved.setting ?? ""); setError("");
+    setError("");
   }, [savedKey, planId]);
 
   const draft: ProfileDescription = {
@@ -59,7 +63,7 @@ export function ResearchProfileEditor({ description, planId, editable, onDirtyCh
       <legend>Study approaches</legend>
       <div className="profile-approach-options">{approaches.map(option => <label key={option.value} className="profile-confirmation">
         <input type="checkbox" checked={selected.includes(option.value)} onChange={event => {
-          setSelected(current => event.target.checked ? [...current, option.value] : current.filter(value => value !== option.value));
+          setSelectedText(JSON.stringify(event.target.checked ? [...selected, option.value] : selected.filter(value => value !== option.value)));
           setError("");
         }} />{option.label}
       </label>)}</div>

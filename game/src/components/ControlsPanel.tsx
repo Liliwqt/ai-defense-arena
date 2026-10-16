@@ -3,6 +3,7 @@ import type { RoomState } from "../types";
 import type { Account } from "../hooks/useAccount";
 import { OwnedRooms } from "./OwnedRooms";
 import { ResearchPlanPanel } from "./ResearchPlanPanel";
+import { useTabDraft } from "../hooks/useTabDraft";
 import { createRoom, RoomCreationError, type RoomCreationProgress } from "../lib/createRoom";
 
 import { deriveRoomPresentation, type RoomPresentation } from "../lib/roomPresentation";
@@ -101,9 +102,12 @@ export function ControlsPanel({
   const startPending = useRef(false);
   const [starting, setStarting] = useState(false);
   const [researchActionContainer, setResearchActionContainer] = useState<HTMLDivElement | null>(null);
-  const [defenseType, setDefenseType] = useState<"code" | "research" | "mixed">("code");
+  const [defenseType, setDefenseType] = useTabDraft("defense-type", "code", { valid: value => ["code", "research", "mixed"].includes(value) });
+  const [researchStage, setResearchStage] = useTabDraft("research-stage", "infer", { valid: value => ["infer", "proposal", "completed"].includes(value) });
+  const [joinCode, setJoinCode] = useTabDraft("join-code", "");
+  const [joinName, setJoinName] = useTabDraft("join-name", "");
 
-  const [hostName, setHostName] = useState("");
+  const [hostName, setHostName] = useTabDraft("host-name", account?.user?.name?.slice(0, 24) ?? "");
   const [nameEdited, setNameEdited] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
   useEffect(() => {
@@ -115,7 +119,7 @@ export function ControlsPanel({
     const timer = window.setInterval(() => setCreateElapsed(Math.floor((Date.now() - started) / 1000)), 1000);
     return () => window.clearInterval(timer);
   }, [createBusy]);
-  useEffect(() => { if (!nameEdited && account?.user?.name) setHostName(account.user.name.slice(0, 24)); }, [account?.user?.name, nameEdited]);
+  useEffect(() => { if (!nameEdited && !hostName && account?.user?.name) setHostName(account.user.name.slice(0, 24)); }, [account?.user?.name, nameEdited]);
   const liveAccess = account?.payment_mode === "live";
   const creditLabel = liveAccess ? "credits" : "test credits";
   const availableCredits = liveAccess ? account?.live_credits : account?.test_credits;
@@ -278,6 +282,7 @@ export function ControlsPanel({
           </div>
 
             <div hidden={activeTab !== "create"}>
+            <p className="control-help">After a refresh, select your unsubmitted files again. Accepted room files remain with the room.</p>
             <form ref={createFormRef} id="create-form" role="tabpanel" aria-busy={createBusy} onSubmit={handleCreate}>
               <fieldset disabled={createBusy} className="setup-fieldset">
               {!account?.authenticated && <div className="account-access-card"><p>Sign in with Google to create a room. Teammates can use Join room without an account.</p><button type="button" className={secondaryBtn} onClick={onOpenAccount}>Open Account</button></div>}
@@ -297,7 +302,7 @@ export function ControlsPanel({
               </label>
               {defenseType !== "code" && <label className="setup-label">
                 Research stage
-                <select name="research_stage" defaultValue="infer" className={inputClass}>
+                <select name="research_stage" value={researchStage} onChange={event => setResearchStage(event.target.value)} className={inputClass}>
                   <option value="infer">Let AI infer</option>
                   <option value="proposal">Proposal</option>
                   <option value="completed">Completed study</option>
@@ -342,11 +347,11 @@ export function ControlsPanel({
               <p className="control-help">Enter your room code and the name your teammates will see. No Google account needed.</p>
               <label className="setup-label">
                 Room code
-                <input name="room_code" maxLength={12} autoComplete="off" required placeholder="Enter room code" className={inputClass} />
+                <input name="room_code" value={joinCode} onChange={event => setJoinCode(event.target.value)} maxLength={12} autoComplete="off" required placeholder="Enter room code" className={inputClass} />
               </label>
               <label className="setup-label">
                 Your name
-                <input name="name" maxLength={24} autoComplete="name" required placeholder="Your name" className={inputClass} />
+                <input name="name" value={joinName} onChange={event => setJoinName(event.target.value)} maxLength={24} autoComplete="name" required placeholder="Your name" className={inputClass} />
               </label>
               <button hidden={surface === "page"} type="submit" disabled={joinBusy} className={primaryBtn}>
                 {joinLabel}

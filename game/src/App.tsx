@@ -7,6 +7,7 @@ import { Drawer } from "./components/Drawer";
 import { LiveRoomStatus } from "./components/LiveRoomStatus";
 import { HUD } from "./components/HUD";
 import { QuestionCard } from "./components/QuestionCard";
+import { DraftSession, clearRoomDrafts } from "./hooks/useTabDraft";
 import { useAppRoute } from "./hooks/useAppRoute";
 import { useRoomViewport } from "./hooks/useRoomViewport";
 import "./mobile.css";
@@ -64,6 +65,11 @@ export function App() {
   const [stageNotice, setStageNotice] = useState("");
   const activeRoomCode = previewMode ? (roomState?.room_code ?? null) : roomCode;
   const hasRoom = activeRoomCode !== null;
+  const priorRoomCode = useRef<string | null>(null);
+  useEffect(() => {
+    if (priorRoomCode.current && !activeRoomCode) clearRoomDrafts(priorRoomCode.current);
+    priorRoomCode.current = activeRoomCode;
+  }, [activeRoomCode]);
 
   useEffect(() => {
     if (!previewMode || mockRoomState.phase !== "reacting") return;
@@ -205,11 +211,12 @@ export function App() {
 
   const handleLeaveRoom = useCallback(() => {
     resetMoment();
+    if (activeRoomCode) clearRoomDrafts(activeRoomCode);
     leaveRoom();
     setNewRoomSetup(false);
     setMessage("");
     navigate("home");
-  }, [resetMoment, leaveRoom, navigate]);
+  }, [resetMoment, leaveRoom, navigate, activeRoomCode]);
 
   useEffect(() => { if (liveRoomState?.self_is_host) void refreshAccount(); }, [liveRoomState?.phase, refreshAccount]);
   // A socket sign-in error can persist for the life of the room. Redirect once per
@@ -277,6 +284,7 @@ export function App() {
   </section>;
 
   return (
+    <DraftSession account={account} token={playerToken} state={roomState} preview={previewMode}>
     <div className="app-root">
       {stageNotice && <p className="navigation-notice" role="status">{stageNotice}</p>}
       <div className="room-screen" hidden={screen !== "room"}>
@@ -339,5 +347,6 @@ export function App() {
         onReturnToRoom={() => navigate("room")}
         ownerHref={account?.authenticated && account.manager_enabled ? "/?manager=1" : null} />}
     </div>
+    </DraftSession>
   );
 }

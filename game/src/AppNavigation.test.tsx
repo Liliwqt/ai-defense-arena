@@ -39,7 +39,7 @@ function setSocket(state: RoomState | null, overrides: Partial<RoomSocketState> 
   return socket;
 }
 
-beforeEach(() => { window.history.replaceState(null, "", "/"); });
+beforeEach(() => { sessionStorage.clear(); window.history.replaceState(null, "", "/"); });
 afterEach(() => { window.history.replaceState(null, "", "/"); vi.clearAllMocks(); });
 
 describe("full-screen app navigation", () => {

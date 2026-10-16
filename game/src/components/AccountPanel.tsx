@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { clearPrivateDrafts } from "../hooks/useTabDraft";
 import { accountResponse, type Account } from "../hooks/useAccount";
 import { purchaseLabel, runLabel, refundReviewLabel } from "../lib/paymentHistory";
 
@@ -34,6 +35,7 @@ export function AccountPanel({ account, refresh, error, previewMode = false }: {
     setBusy(true); setMessage("");
     try {
       await accountResponse(await fetch("/api/auth/logout", { method: "POST", headers: { "X-CSRF-Token": account.csrf_token } }));
+      clearPrivateDrafts();
       // Close the host socket and recheck its session; room credentials stay saved.
       window.location.reload();
     } catch { setMessage("Could not sign out. Please try again."); setBusy(false); }

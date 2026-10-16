@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { RoomState } from "../types";
+import { useTabDraft } from "../hooks/useTabDraft";
 
 import { deriveRoomPresentation, type RoomPresentation } from "../lib/roomPresentation";
 
@@ -15,7 +16,10 @@ interface AnswerComposerProps {
 }
 
 export function AnswerComposer({ roomState, connected, previewMode, waitingForAnswerAck, actionError, actionErrorReason, onSendEvent, presentation = deriveRoomPresentation(roomState) }: AnswerComposerProps) {
-  const [draft, setDraft] = useState("");
+  const current = roomState?.turns.at(-1);
+  const inputScope = JSON.stringify([roomState?.room_code, roomState?.defense_view_id, roomState?.turns.length, current?.probe?.id ?? "answer",
+    current?.probe ? current.probe.status : current?.answer || current?.timed_out || current?.resolved ? "resolved" : "open", roomState?.selected_seat, !!roomState?.my_pending_submission]);
+  const [draft, setDraft] = useTabDraft("answer", roomState?.my_pending_submission ?? "", { room: true, marker: inputScope });
   const [localError, setLocalError] = useState("");
   const [writeRecovery, setWriteRecovery] = useState(false);
   const [interpretationLimited, setInterpretationLimited] = useState(false);
@@ -33,12 +37,11 @@ export function AnswerComposer({ roomState, connected, previewMode, waitingForAn
     : waitingForAnswerAck ? "Waiting for submission acknowledgment…"
     : submission.recoveryGuidance;
 
-  useEffect(() => { setDraft(""); setLocalError(""); setWriteRecovery(false); setInterpretationLimited(false); }, [turnKey]);
+  useEffect(() => { setLocalError(""); setWriteRecovery(false); setInterpretationLimited(false); }, [turnKey, roomState?.defense_view_id]);
   useEffect(() => {
     if (actionErrorReason === "ai_admission") setInterpretationLimited(true);
   }, [actionErrorReason]);
-  useEffect(() => { if (allClarifications > 0) { setDraft(""); setLocalError(""); } }, [allClarifications, turnKey]);
-  useEffect(() => { if (roomState?.my_pending_submission) setDraft(roomState.my_pending_submission); }, [roomState?.my_pending_submission]);
+  useEffect(() => { setLocalError(""); }, [allClarifications, turnKey]);
   useEffect(() => { setQuestionRetryPending(false); }, [roomState?.phase, roomState?.room_code]);
   useEffect(() => { if (actionError) setQuestionRetryPending(false); }, [actionError]);
 

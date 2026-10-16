@@ -67,7 +67,7 @@ const hostAccount = (overrides: Partial<Account> = {}) => account({
   csrf_token: "csrf", payment_mode: "test", test_credits: 40, ...overrides,
 });
 
-beforeEach(() => { window.history.replaceState(null, "", "/"); });
+beforeEach(() => { sessionStorage.clear(); window.history.replaceState(null, "", "/"); });
 afterEach(() => { window.history.replaceState(null, "", "/"); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
 describe("guided setup and preparation", () => {

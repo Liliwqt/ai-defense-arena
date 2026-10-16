@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AnswerComposer } from "./AnswerComposer";
 import type { RoomState } from "../types";
+import { useTabDraft } from "../hooks/useTabDraft";
 
 import { deriveRoomPresentation, type RoomPresentation } from "../lib/roomPresentation";
 
@@ -53,12 +54,12 @@ function TeamChat({ state, connected, previewMode, actionError, onSendEvent, vis
   onSendEvent: RoomDockProps["onSendEvent"];
   visible: boolean;
 }) {
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useTabDraft("chat", "", { room: true, marker: JSON.stringify([state?.room_code, state?.defense_view_id]) });
   const [localError, setLocalError] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
   const newestId = state?.chat?.at(-1)?.id ?? 0;
   useEffect(() => { if (visible && listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, [visible, newestId]);
-  useEffect(() => { setDraft(""); setLocalError(""); }, [state?.room_code]);
+  useEffect(() => { setLocalError(""); }, [state?.room_code]);
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
