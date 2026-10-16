@@ -60,6 +60,35 @@ function host() {
 }
 
 describe("Guided research preparation", () => {
+  it("guides the next action from mapping to the required review, then server-confirmed Start", async () => {
+    const socket = setSocket(research({ research_plan: null, research_planning_status: "none" }));
+    host();
+    const view = renderAt("/#/prepare");
+    const actions = within(screen.getByRole("complementary", { name: "Room and next step" }));
+    expect(actions.getByText("Next step")).toBeVisible();
+    expect(actions.getByRole("heading", { name: "Map your paper" })).toBeVisible();
+    await userEvent.click(actions.getByRole("button", { name: "Map paper" }));
+    expect(actions.getByRole("heading", { name: "Mapping your paper" })).toBeVisible();
+    socket.roomState = research();
+    view.rerender(<App />);
+    expect(actions.getByRole("heading", { name: "Review and confirm" })).toBeVisible();
+    await userEvent.click(actions.getByRole("button", { name: "Review profile and budget" }));
+    expect(screen.getByLabelText("I reviewed the research profile")).toHaveFocus();
+    expect(socket.sendEvent).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByLabelText("I reviewed the research profile"));
+    await userEvent.click(screen.getByRole("button", { name: "Confirm profile and budget" }));
+    expect(actions.getByRole("heading", { name: "Confirming your review" })).toBeVisible();
+    expect(actions.getByRole("button", { name: /Start defense/ })).toBeDisabled();
+    socket.roomState = research({ research_plan_approved: true });
+    view.rerender(<App />);
+    expect(actions.getByRole("heading", { name: "Start your defense" })).toBeVisible();
+    expect(actions.queryByRole("button", { name: "Review profile and budget" })).toBeNull();
+    await userEvent.click(actions.getByRole("button", { name: /Start defense/ }));
+    expect(vi.mocked(socket.sendEvent).mock.calls.map(([event]) => event.type)).toEqual([
+      "prepare_research_plan", "approve_research_plan", "start",
+    ]);
+  });
+
   it("puts profile and budget confirmation before expandable topics without mapping on entry", async () => {
     const socket = setSocket(research());
     host();
@@ -164,6 +193,10 @@ describe("Guided research preparation", () => {
     await userEvent.clear(fields);
     await userEvent.type(fields, "Public policy");
     expect(screen.getByRole("button", { name: /Start defense/ })).toBeDisabled();
+    await userEvent.click(screen.getByText("Correct profile"));
+    await userEvent.click(screen.getByRole("button", { name: "Review profile changes" }));
+    expect(screen.getByRole("button", { name: "Apply profile and remap" })).toHaveFocus();
+    expect(socket.sendEvent).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Account ↗" }));
     await userEvent.click(screen.getByRole("button", { name: "Back to Home" }));
     await userEvent.click(screen.getByRole("button", { name: "Create a defense" }));
@@ -269,7 +302,9 @@ describe("Guided research preparation", () => {
     socket.roomCode = "CODE2";
     socket.roomState = roomState({ room_code: "CODE2", defense_type: "code" });
     view.rerender(<App />);
-    expect(screen.getByRole("button", { name: /Start defense/ })).toBeEnabled();
+    const actions = within(screen.getByRole("complementary", { name: "Room and next step" }));
+    expect(actions.getByRole("heading", { name: "Start your defense" })).toBeVisible();
+    expect(actions.getByRole("button", { name: /Start defense/ })).toBeEnabled();
     expect(socket.sendEvent).not.toHaveBeenCalled();
   });
 

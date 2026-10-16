@@ -243,6 +243,10 @@ export function ControlsPanel({
 
   const waitText = previewMode ? "Preview mode does not send answers." : !connected && roomState
     ? "Reconnecting… Controls become available when connected." : presentation.guidance;
+  const codeStart = !previewMode && isHost && phase === "lobby" && !researchMode && <button
+    type="button" disabled={!!runReason || scopeDirty} onClick={handleStart} className={primaryBtn}>
+    {startLabel}
+  </button>;
 
   return (
     <div className={surface === "page" ? "guided-controls" : "controls-content"}>
@@ -418,16 +422,7 @@ export function ControlsPanel({
           {isHost && liveAccess && account?.ai_service_available !== false && account?.paid_starts_enabled === false && !account.free_access && <p role="status">Paid starts are temporarily paused. Voucher access remains available.</p>}
           {!previewMode && isHost && (
             <div className="grid gap-[9px]">
-              {phase === "lobby" && !researchMode && (
-                <button
-                  type="button"
-                  disabled={!!runReason || scopeDirty}
-                  onClick={handleStart}
-                  className={primaryBtn}
-                >
-                  {startLabel}
-                </button>
-              )}
+              {surface !== "page" && codeStart}
               {roomState?.defense_type && roomState.defense_type !== "code" && phase === "lobby" && !roomState.research_plan_approved && <p className="control-help">Prepare and confirm the research map and question budget to enable Start.</p>}
               {roomState?.defense_type && roomState.defense_type !== "code" && phase !== "lobby" && phase !== "complete" && <>
                 <button type="button" disabled={!connected} className={secondaryBtn}
@@ -492,9 +487,16 @@ export function ControlsPanel({
         onClosed={code => { if (code === roomCode) onLeaveRoom(); }} />}
       </div>
       {surface === "page" && <aside className="guided-sidebar" aria-label="Room and next step">
-        {pageContext}
         {showRoomControls && roomState?.defense_type && roomState.defense_type !== "code" && <div className="guided-primary" ref={setResearchActionContainer} />}
+        {showRoomControls && codeStart && <div className="guided-primary">
+          <div className="next-step-heading"><span>Next step</span><h3>Start your defense</h3></div>
+          <p className="control-help">{runReason || "Your code is ready. Start when your team is ready to answer."}</p>
+          {codeStart}
+        </div>}
         {showSetupForms && <div className="guided-primary">
+          <div className="next-step-heading" aria-live="polite" aria-atomic="true">
+            <span>Next step</span><h3>{activeTab === "join" ? "Join your team" : createBusy ? "Preparing your room" : "Create your room"}</h3>
+          </div>
           <p className="control-help">{activeTab === "create"
             ? createBusy ? "Keep this page open while your files are processed." : !account?.authenticated ? "Sign in to create a defense. Teammates can join directly." : "Create your room, then review the material before starting."
             : "Join your team at its current stage. You can join without signing in."}</p>
@@ -503,6 +505,7 @@ export function ControlsPanel({
             {activeTab === "create" ? createLabel : joinLabel}
           </button>
         </div>}
+        {pageContext}
       </aside>}
     </div>
   );

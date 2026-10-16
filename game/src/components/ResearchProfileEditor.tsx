@@ -73,7 +73,7 @@ export function ResearchProfileEditor({ description, planId, editable, onDirtyCh
         onChange={event => { setSetting(event.target.value); setError(""); }} />
     </label>
     {dirty && <p role="status" className="plan-warning">Unsaved profile changes. Apply them and remap before confirming or starting.</p>}
-    <button type="submit" className="button-secondary" disabled={!editable || !dirty}>Apply profile and remap</button>
+    <button type="submit" className={dirty ? "button-primary" : "button-secondary"} disabled={!editable || !dirty}>Apply profile and remap</button>
     {error && <p role="alert" className="drawer-error">{error}</p>}
   </form>;
 }

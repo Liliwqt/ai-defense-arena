@@ -23,6 +23,8 @@ interface Props {
 export function ResearchPlanPanel({ roomState: state, connected, previewMode, onSendEvent, onScopeDraftChange, actionContainer, actionError, accessReason, startControl }: Props) {
   const plan = state.research_plan;
   const mappingPending = useRef(false);
+  const reviewFormRef = useRef<HTMLFormElement>(null);
+  const correctionRef = useRef<HTMLDetailsElement>(null);
   const [waitingForMap, setWaitingForMap] = useState(false);
   const addressed = Object.values(state.coverage ?? {}).filter(topic => topic.status === "addressed").length;
   const status = state.research_planning_status ?? "none";
@@ -112,12 +114,12 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
   const mapReason = reviewReason || (state.plan_attempts_left === 0 ? "No mapping attempts left. Your accepted uploads are retained."
       : profileDirty ? "Apply your profile changes and remap before continuing."
       : waitingForMap ? "Waiting for the server to begin mapping…" : "");
+  const readyMap = status === "ready" && !!plan?.profile;
   const mappingButton = state.self_is_host && state.phase === "lobby" && status !== "planning" && <button type="button"
-    disabled={!editable || state.plan_attempts_left === 0 || profileDirty} className="button-secondary" onClick={() => prepare()}>
+    disabled={!editable || state.plan_attempts_left === 0 || profileDirty} className={readyMap ? "button-secondary" : "button-primary"} onClick={() => prepare()}>
     {status === "failed" ? "Retry research map" : plan ? "Prepare map again" : "Map paper"}
   </button>;
 
-  const readyMap = status === "ready" && !!plan?.profile;
   const validBudget = Number.isInteger(Number(budget)) && Number(budget) >= 4 && Number(budget) <= 100;
   const confirmationReason = profileDirty ? "Apply your profile changes and remap before confirming or starting."
     : pendingBudget !== null ? "Waiting for the server to confirm this profile and budget…"
@@ -127,15 +129,46 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
     : dirty || !state.research_plan_approved ? "Confirm the current profile and question budget before starting." : "";
   const alreadyConfirmed = !!state.research_plan_approved && !confirmationReason;
   const startReason = startControl?.reason || reviewReason || (waitingForMap ? "Waiting for the server to begin mapping…" : confirmationReason);
+  const nextTitle = !state.self_is_host ? "Waiting for the host"
+    : state.phase !== "lobby" ? "Defense overview"
+    : status === "planning" || waitingForMap ? "Mapping your paper"
+    : pendingBudget !== null ? "Confirming your review"
+    : profileDirty ? "Apply your profile changes"
+    : !readyMap ? status === "failed" ? "Retry paper mapping" : "Map your paper"
+    : alreadyConfirmed ? "Start your defense" : "Review and confirm";
+
+  function showRequiredReview() {
+    if (profileDirty && correctionRef.current) {
+      correctionRef.current.open = true;
+      const button = correctionRef.current.querySelector<HTMLButtonElement>('button[type="submit"]');
+      button?.scrollIntoView?.({ block: "center" });
+      button?.focus({ preventScroll: true });
+      return;
+    }
+    const form = reviewFormRef.current;
+    const target = !validBudget ? form?.querySelector<HTMLInputElement>('input[type="number"]')
+      : form?.querySelector<HTMLInputElement>('input[type="checkbox"]:not(:checked):not(:disabled)')
+        ?? form?.querySelector<HTMLButtonElement>('button[type="submit"]');
+    target?.scrollIntoView?.({ block: "center" });
+    target?.focus({ preventScroll: true });
+  }
+
   const actions = <>
+    <div className="next-step-heading" aria-live="polite" aria-atomic="true">
+      <span>Next step</span><h3>{nextTitle}</h3>
+    </div>
     <p className="control-help">{status === "planning" ? "Mapping your paper… Start appears when the validated map is ready."
       : waitingForMap ? "Waiting for the server to begin mapping…"
       : readyMap ? startReason || "Your team can start when you’re ready." : mapReason || "Prepare the map first. Start appears when it is ready."}</p>
     {!readyMap && mappingButton}
+    {(readyMap || profileDirty) && state.self_is_host && state.phase === "lobby" && !alreadyConfirmed && <button type="button"
+      className="button-primary" disabled={!editable} onClick={showRequiredReview}>
+      {profileDirty ? "Review profile changes" : "Review profile and budget"}
+    </button>}
+    {readyMap && state.self_is_host && state.phase === "lobby" && !previewMode && startControl && <button type="button"
+      className={alreadyConfirmed ? "button-primary" : "button-secondary"} disabled={!!startReason} onClick={startControl.onStart}>{startControl.label}</button>}
     {state.self_is_host && startControl && <p className="preparation-access">{startControl.accessLabel}</p>}
     {state.self_is_host && startControl?.onAccount && <button type="button" className="button-secondary" onClick={startControl.onAccount}>Open Account</button>}
-    {readyMap && state.self_is_host && state.phase === "lobby" && !previewMode && startControl && <button type="button"
-      className="button-primary" disabled={!!startReason} onClick={startControl.onStart}>{startControl.label}</button>}
   </>;
 
   return <section className="research-plan-panel" aria-labelledby="research-plan-heading">
@@ -149,7 +182,7 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
     {actionContainer ? createPortal(actions, actionContainer) : startControl ? <div className="research-next-action">{actions}</div> : null}
     {plan?.profile && <ResearchProfileReview profile={plan.profile} confirmed={Boolean(state.research_plan_approved && !profileDirty)} />}
     {plan && !plan.profile && <p role="alert" className="drawer-error">Prepare a new research map to review and confirm its research profile.</p>}
-    {state.self_is_host && state.phase === "lobby" && description && <details className="profile-correction">
+    {state.self_is_host && state.phase === "lobby" && description && <details ref={correctionRef} className="profile-correction">
       <summary>Correct profile</summary>
       <ResearchProfileEditor
       description={{ fields: description.fields, approaches: description.approaches, setting: description.setting }}
@@ -166,7 +199,7 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
     {mapReason && <p className="control-help">{mapReason}</p>}
     </>}
     {plan && <>
-      {state.self_is_host && state.phase === "lobby" ? <form onSubmit={approve} className="plan-budget-form">
+      {state.self_is_host && state.phase === "lobby" ? <form ref={reviewFormRef} onSubmit={approve} className="plan-budget-form">
         <h3>Confirm and prepare to start</h3>
         <label className="setup-label">Question budget
           <input className="setup-input" type="number" min={4} max={100} step={1} value={budget}
