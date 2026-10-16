@@ -55,7 +55,9 @@ export interface RoomSocketState {
 export function useRoomSocket(previewMode: boolean): RoomSocketState {
   const [roomState, setRoomState] = useState<RoomState | null>(null);
   const [connected, setConnected] = useState(false);
-  const [roomCode, setRoomCode] = useState<string | null>(null);
+  // Show restoration in progress instead of briefly calling a stored room lost.
+  // The token is still validated through hello before any snapshot/draft is used.
+  const [roomCode, setRoomCode] = useState<string | null>(() => previewMode ? null : readStoredRoom()?.code ?? null);
   const [knownHost, setKnownHost] = useState(false);
   const [waitingForAnswerAck, setWaitingForAnswerAck] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);

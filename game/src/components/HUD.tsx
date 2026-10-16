@@ -1,5 +1,5 @@
 import { RoomExpiryNotice } from "./RoomExpiryNotice";
-import type { DrawerMode, RoomState } from "../types";
+import type { RoomState } from "../types";
 import { formatCountdown, useRoomCountdown } from "../hooks/useRoomCountdown";
 
 import { deriveRoomPresentation, type RoomPresentation } from "../lib/roomPresentation";
@@ -9,13 +9,14 @@ interface HUDProps {
   roomState: RoomState | null;
   roomCode: string | null;
   previewMode: boolean;
-  onOpenDrawer: (mode: DrawerMode) => void;
+  onOpenControls: () => void;
+  onOpenTranscript?: () => void;
   onOpenAccount?: () => void;
   onOpenHome?: () => void;
   onPreviewMoment?: () => void;
 }
 
-export function HUD({ roomState, roomCode, previewMode, onOpenDrawer, onOpenAccount, onOpenHome, onPreviewMoment, presentation = deriveRoomPresentation(roomState) }: HUDProps) {
+export function HUD({ roomState, roomCode, previewMode, onOpenControls, onOpenTranscript, onOpenAccount, onOpenHome, onPreviewMoment, presentation = deriveRoomPresentation(roomState) }: HUDProps) {
   const seconds = useRoomCountdown(roomState, presentation);
   const { timer, status, progress: pillProgress, coverage } = presentation;
   const timed = timer !== null;
@@ -29,7 +30,7 @@ export function HUD({ roomState, roomCode, previewMode, onOpenDrawer, onOpenAcco
       <div className="brand-plate">
         <img className="brand-icon" src="/ai-defense-arena-icon.png" width="35" height="35" alt="" />
         <div>
-        <h1>AI Defense Arena</h1>
+        <h1 id="room-screen-title" tabIndex={-1}>AI Defense Arena</h1>
         <p
           className="hud-kicker"
           aria-hidden="true"
@@ -63,8 +64,8 @@ export function HUD({ roomState, roomCode, previewMode, onOpenDrawer, onOpenAcco
         )}
         <button
           type="button"
-          onClick={() => onOpenDrawer("controls")}
-          aria-controls="drawer"
+          onClick={onOpenControls}
+          aria-controls="preparation-page"
           className="hud-button hud-settings"
           aria-label="Settings — room controls"
           title="Settings — room controls"
@@ -88,8 +89,8 @@ export function HUD({ roomState, roomCode, previewMode, onOpenDrawer, onOpenAcco
         {!previewMode && (
           <button
             type="button"
-            onClick={() => onOpenDrawer("transcript")}
-            aria-controls="drawer"
+            onClick={onOpenTranscript}
+            aria-controls="preparation-page"
             className="hud-button hud-desktop-only"
           >
             <span aria-hidden="true">▤</span> Transcript

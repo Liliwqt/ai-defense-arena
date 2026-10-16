@@ -104,3 +104,18 @@ it("opening Controls after elapsed time never resets the countdown", () => {
   fireEvent.click(screen.getByRole("button", { name: /settings.*controls/i }));
   expect(screen.getByRole("timer", { name: "Answer time remaining" })).toHaveTextContent("ANSWER 1:55");
 });
+
+it("waits in the room for coaching generation and its optional closing before automatic Results", () => {
+  const view = render(<App />);
+  socket.roomState = room({ phase: "complete", feedback_status: "generating" });
+  view.rerender(<App />);
+  expect(window.location.hash).toBe("#/room");
+  expect(screen.getByRole("heading", { name: "Preparing coaching report" })).toBeVisible();
+  socket.roomState = room({ phase: "complete", feedback_status: "ready", closing_panelist: "Technical Architect",
+    server_now_ms: 1000, closing_deadline_ms: 2000, feedback: { summary: "Saved report.", closing: "That explains it.", strengths: [], improvements: [], next_step: "Practice." } });
+  view.rerender(<App />);
+  expect(window.location.hash).toBe("#/room");
+  socket.roomState = { ...socket.roomState, closing_deadline_ms: null };
+  view.rerender(<App />);
+  expect(screen.getByRole("heading", { name: "Defense results" })).toBeVisible();
+});

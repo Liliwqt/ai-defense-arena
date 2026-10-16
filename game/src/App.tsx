@@ -3,13 +3,14 @@ import { AccountScreen, AppPage, HomeScreen, PreparationSteps, SignInScreen } fr
 import { useAccount } from "./hooks/useAccount";
 import { RoomDock } from "./components/RoomDock";
 import { ControlsPanel } from "./components/ControlsPanel";
-import { Drawer } from "./components/Drawer";
+import { PreparationPage } from "./components/PreparationPage";
 import { LiveRoomStatus } from "./components/LiveRoomStatus";
 import { HUD } from "./components/HUD";
 import { QuestionCard } from "./components/QuestionCard";
 import { DraftSession, clearRoomDrafts } from "./hooks/useTabDraft";
 import { useAppRoute } from "./hooks/useAppRoute";
 import { internalAppHref, type AppScreen } from "./lib/appRoute";
+import { roomDestination } from "./lib/roomDestination";
 import { clearTaskIntent, rememberTask, rememberAuthTask, resolveTaskReturn, consumeTaskReturn } from "./lib/taskIntent";
 import { LivePaymentPage } from "./payments/LivePaymentPage";
 import { PaymentTestPage } from "./payments/PaymentTestPage";
@@ -20,7 +21,7 @@ import { DefenderSeats, PanelistSeats, type PresenterMoment } from "./components
 import { TranscriptPanel } from "./components/TranscriptPanel";
 import { useRoomSocket } from "./hooks/useRoomSocket";
 import { previewState } from "./previewState";
-import type { DrawerMode, RoomState } from "./types";
+import type { RoomState } from "./types";
 
 import { deriveRoomPresentation } from "./lib/roomPresentation";
 
@@ -39,7 +40,6 @@ export function App() {
     roomState: liveRoomState, connected, roomCode, waitingForAnswerAck,
     actionError, actionErrorReason, sendEvent, useRoom, leaveRoom, playerToken,
   } = useRoomSocket(previewMode);
-  const [drawerMode, setDrawerMode] = useState<DrawerMode>("controls");
   const [setupRequest, setSetupRequest] = useState<{ tab: "create" | "join"; id: number; fresh?: boolean }>({ tab: "create", id: 0 });
   // A distinct "Create another room" starts fresh setup without closing the current room.
   const [newRoomSetup, setNewRoomSetup] = useState(false);
@@ -53,9 +53,6 @@ export function App() {
   const presenterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const previousAnswered = useRef(-1);
-  const previousPhase = useRef<string | undefined>();
-  const previousFeedback = useRef<string | undefined>();
-  const previousClosing = useRef(false);
 
   const sequence = useRef(0);
   const [mockRoomState, setMockRoomState] = useState(previewState);
@@ -117,44 +114,35 @@ export function App() {
     return () => clearTimeout(timer);
   }, [mockRoomState.phase, mockRoomState.closing_deadline_ms]);
 
-  const openDrawer = useCallback((mode: DrawerMode) => {
-    setDrawerMode(mode);
-    navigate(mode === "transcript" ? "results" : "controls");
-  }, [navigate]);
-  const closeDrawer = useCallback(() => navigate("room"), [navigate]);
+  const openControls = useCallback(() => navigate("controls"), [navigate]);
   const openSetup = useCallback((tab: "create" | "join") => {
     // A monotonic id makes every explicit Home choice reapply even when it repeats
     // the previous tab, since the persisted ControlsPanel cannot see a same-value change.
     setSetupRequest(previous => ({ tab, id: previous.id + 1 }));
-    setDrawerMode("controls");
     setMessage("");
     navigate("setup");
   }, [navigate]);
   const startAnotherRoom = useCallback(() => {
     setSetupRequest(previous => ({ tab: "create", id: previous.id + 1, fresh: true }));
     setNewRoomSetup(true);
-    setDrawerMode("controls");
     setMessage("");
     navigate("setup");
   }, [navigate]);
 
   const showMessage = useCallback((value: string) => {
     setMessage(value);
-    if (value && screen === "room") openDrawer("controls");
-  }, [openDrawer, screen]);
+    if (value && screen === "room") openControls();
+  }, [openControls, screen]);
 
-  // Header Back moves to the previous meaningful screen; the room overlay still closes.
-  const handleDrawerBack = useCallback(() => {
+  // Back is navigation only; leaving a room remains explicit.
+  const handlePageBack = useCallback(() => {
     if (isControls) navigate("room");
     else if (isSetup) navigate(hasRoom ? "prepare" : "home");
     else if (isPrepare) navigate(hasRoom ? "room" : "home");
-    else closeDrawer();
-  }, [isSetup, isPrepare, isControls, hasRoom, navigate, closeDrawer]);
+    else navigate("room");
+  }, [isSetup, isPrepare, isControls, hasRoom, navigate]);
   // Finishing a preparation action on the page returns to the defense room.
-  const closeControls = useCallback(() => {
-    if (isPrepare || isControls) navigate("room");
-    else closeDrawer();
-  }, [isPrepare, isControls, navigate, closeDrawer]);
+  const finishControlAction = useCallback(() => navigate("room"), [navigate]);
 
   const endPresenter = useCallback(() => {
     if (presenterTimer.current) clearTimeout(presenterTimer.current);
@@ -165,8 +153,6 @@ export function App() {
 
   useEffect(() => {
     if (!roomState) return;
-    const phase = roomState?.phase;
-    const feedback = roomState?.feedback_status;
     const turns = roomState?.turns ?? [];
     const answered = presentation.acceptedCount;
     const firstSnapshot = previousAnswered.current === -1;
@@ -193,9 +179,6 @@ export function App() {
       setPresenterMoment(null);
     }
     previousAnswered.current = answered;
-    previousPhase.current = phase;
-    previousFeedback.current = feedback;
-    previousClosing.current = closing;
   }, [roomState]);
 
   useEffect(() => () => { if (presenterTimer.current) clearTimeout(presenterTimer.current); }, []);
@@ -212,9 +195,6 @@ export function App() {
 
   const resetMoment = useCallback(() => {
     previousAnswered.current = -1;
-    previousPhase.current = undefined;
-    previousFeedback.current = undefined;
-    previousClosing.current = false;
     if (presenterTimer.current) clearTimeout(presenterTimer.current);
     presenterTimer.current = null;
     setPresenterMoment(null);
@@ -233,9 +213,8 @@ export function App() {
     useRoom(code, token, host);
     setNewRoomSetup(false);
     setMessage("");
-    if (host) { openDrawer("controls"); navigate("prepare"); }
-    else { closeDrawer(); navigate("room"); }
-  }, [resetMoment, useRoom, openDrawer, closeDrawer, navigate]);
+    navigate(host ? "prepare" : "room");
+  }, [resetMoment, useRoom, navigate]);
 
   const handleLeaveRoom = useCallback(() => {
     resetMoment();
@@ -263,15 +242,14 @@ export function App() {
   const firstScreen = useRef(true);
   useEffect(() => {
     if (firstScreen.current) { firstScreen.current = false; return; }
-    document.getElementById("app-screen-title")?.focus();
+    document.getElementById(screen === "room" ? "room-screen-title" : "app-screen-title")?.focus();
   }, [screen]);
 
   // Follow meaningful server stage changes once; snapshots never own manual navigation.
   const stageRef = useRef<{ room: string; stage: "prepare" | "room" | "results" } | null>(null);
   useEffect(() => {
     if (!roomState) return;
-    const stage = roomState.phase === "lobby" ? "prepare"
-      : roomState.phase === "complete" && !presentation.reaction?.closing ? "results" : "room";
+    const stage = roomDestination(roomState, !!presentation.reaction?.closing);
     const prior = stageRef.current;
     const initial = !prior || prior.room !== roomState.room_code;
     const changed = !initial && prior.stage !== stage;
@@ -284,13 +262,11 @@ export function App() {
       navigate(stage);
     }
   }, [roomState, presentation.reaction?.closing, screen, navigate]);
-  const returnScreen = roomState?.phase === "lobby" ? "prepare"
-    : roomState?.phase === "complete" && !presentation.reaction?.closing ? "results" : "room";
+  const returnScreen = roomDestination(roomState, !!presentation.reaction?.closing);
   const taskReturn = hasRoom ? returnScreen : account?.authenticated ? resolveTaskReturn(account, null, false) : null;
   const returnAction = taskReturn ? <button type="button" className="button-secondary" onClick={() => { if (account?.authenticated) consumeTaskReturn(account); navigate(taskReturn); }}>
     {taskReturn === "results" ? "View defense results" : taskReturn === "setup" ? "Return to setup" : "Return to defense"}
   </button> : null;
-  const title = "Controls";
   // A bare preparation address with no room falls back to setup rather than
   // showing preparation controls a route alone cannot authorize.
   const prepareReady = isPrepare && hasRoom;
@@ -305,9 +281,9 @@ export function App() {
     <p>{hasRoom ? `${roomState?.self_is_host ? "Host" : "Teammate"} · ${roomState?.phase ?? "Connecting…"}` : "Four perspectives. Your research. Your reasoning."}</p>
     {hasRoom && <>
       <p>Share this code with your team. Your room stays connected while you prepare.</p>
-      <button type="button" className="button-secondary" onClick={() => navigate(isPrepare ? "room" : "prepare")}>
+      {!isControls && <button type="button" className="button-secondary" onClick={() => navigate(isPrepare ? "room" : "prepare")}>
         {isPrepare ? "Return to the defense room" : "Back to preparation"}
-      </button>
+      </button>}
       {isPrepare && <button type="button" className="button-secondary" onClick={() => navigate("setup")}>Back to setup</button>}
       {!newRoomSetup && <button type="button" className="button-secondary" onClick={startAnotherRoom}>Create another room</button>}
     </>}
@@ -328,7 +304,7 @@ export function App() {
       <div className="room-screen" hidden={screen !== "room"}>
         <div className="arena-shell" data-compact-viewport={viewport.compact} style={{ "--room-viewport-height": `${viewport.height}px` } as React.CSSProperties}>
           <div id="stage" className="arena-stage">
-            <HUD presentation={presentation} roomState={roomState} roomCode={roomCode} previewMode={previewMode} onOpenDrawer={openDrawer}
+            <HUD presentation={presentation} roomState={roomState} roomCode={roomCode} previewMode={previewMode} onOpenControls={openControls} onOpenTranscript={() => navigate("results")}
               onOpenAccount={() => navigate("account")} onOpenHome={() => navigate("home")} onPreviewMoment={previewPresenter} />
             <PanelistSeats presentation={presentation} roomState={roomState} />
             <QuestionCard presentation={presentation} roomState={roomState} playerToken={playerToken} />
@@ -338,34 +314,35 @@ export function App() {
             waitingForAnswerAck={waitingForAnswerAck} actionError={actionError} actionErrorReason={actionErrorReason} onSendEvent={sendEvent} />
         </div>
       </div>
-      {/* One persistent panel: an in-room overlay on the room screen, a full-screen
-          setup/preparation surface otherwise. Keeping it mounted preserves drafts. */}
-      <Drawer open={pageScreen} mode={drawerMode} title={pageTitle || title}
-        variant="page" kicker={pageScreen ? pageKicker : undefined}
+      {/* Keep preparation content mounted across screens to preserve FileList and drafts. */}
+      <PreparationPage open={pageScreen} title={pageTitle}
+        kicker={pageKicker}
+        introContent={isControls && <section className="live-controls-overview" aria-label="Current defense controls">
+          <LiveRoomStatus state={roomState} presentation={presentation} />
+          <div className="app-page-actions">{returnAction}<button type="button" className="button-secondary" onClick={() => navigate("results")}>Transcript</button></div>
+        </section>}
         steps={pageScreen && !isControls ? <PreparationSteps current={prepareReady ? 2 : 1} hasRoom={hasRoom}
           onSelect={step => navigate(step === 1 ? "setup" : step === 2 ? "prepare" : "room")} /> : undefined}
         onHome={() => navigate("home")} onAccount={() => navigate("account")}
-        description={prepareReady ? "Make sure the panel understands your work. Confirm the profile and question budget before starting."
+        description={isControls ? "Manage this run and return to your team. Room timers continue on every screen." : prepareReady ? "Make sure the panel understands your work. Confirm the profile and question budget before starting."
           : hasRoom && !newRoomSetup ? "These accepted files stay with your room. Use a new room for different material."
           : setupRequest.tab === "join" ? "Enter your room code and join your team."
           : "Choose the work you want to defend. You’ll prepare your room before anything starts."}
-        onClose={pageScreen ? handleDrawerBack : closeDrawer}>
-        {/* Controls stay mounted while the transcript shows so unsent preparation
-            drafts survive both drawer switching and screen navigation. */}
+        onClose={handlePageBack}>
+        {/* Controls and accepted files stay mounted while other tasks are open. */}
         <div>
-          {isControls && <><LiveRoomStatus state={roomState} presentation={presentation} />{returnAction}<button type="button" className="button-secondary" onClick={() => navigate("results")}>Transcript</button></>}
           <ControlsPanel presentation={presentation} roomState={previewMode ? roomState : liveRoomState} connected={connected} previewMode={previewMode}
-            actionError={actionError} setupRequest={setupRequest} surface={pageScreen ? "page" : "drawer"} pageContext={pageSide}
+            actionError={actionError} setupRequest={setupRequest} surface="page" pageContext={pageSide}
             forceSetup={isSetup && newRoomSetup} showExistingFiles={isSetup && hasRoom && !newRoomSetup}
             activeRoomCode={activeRoomCode}
             onUseRoom={handleUseRoom} onLeaveRoom={handleLeaveRoom} onSendEvent={sendEvent}
-            onCloseDrawer={closeControls} showMessage={showMessage} account={account}
-            onOpenAccount={() => navigate("account")} onOpenTranscript={() => openDrawer("transcript")}
-            onPreviewMoment={previewPresenter} />
+            onActionComplete={finishControlAction} showMessage={showMessage} account={account}
+            onOpenAccount={() => navigate("account")}
+            />
           {(message || actionError) && <div role="alert" className="drawer-error">{message || actionError}</div>}
         </div>
 
-      </Drawer>
+      </PreparationPage>
       {screen === "results" && <AppPage kicker="SESSION HISTORY · YOUR TEAM" title="Defense results"
         actions={<><button type="button" className="button-secondary" onClick={() => navigate("room")}>Return to defense</button><button type="button" className="button-secondary" onClick={() => navigate("controls")}>Live controls</button><button type="button" className="button-secondary" onClick={() => navigate("home")}>Home</button></>}>
         <LiveRoomStatus state={roomState} presentation={presentation} />

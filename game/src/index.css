@@ -222,16 +222,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .submission-retry-actions { display: flex; gap: 8px; }
 .submission-retry-actions button { min-width: 0; padding: 6px 9px; }
 
-/* Drawer, setup, transcript, and coaching use the same neutrals. */
-.drawer-scrim { position: fixed; inset: 0; z-index: 9; background: #0009; }
-.drawer-panel { position: fixed; inset: 0 0 0 auto; z-index: 10; display: flex; flex-direction: column; width: min(520px, 100vw) !important; height: 100dvh; border-left: 1px solid transparent; background: var(--base); color: var(--ink); box-shadow: -12px 0 35px #0003; }
-.drawer-header { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 12px; padding: 17px 20px; border-bottom: 1px solid var(--line); background: var(--base); color: var(--ink); }
-.drawer-kicker { margin: 0 0 4px; color: var(--subtle); font-size: .62rem; font-weight: 850; letter-spacing: .12em; }
-.drawer-title { margin: 0; color: var(--ink); font-size: 1.27rem; }
-.drawer-close { padding: 7px 12px; border: 1px solid transparent; border-radius: 11px; background: var(--base); color: var(--ink); box-shadow: var(--raise-sm); font-size: .79rem; font-weight: 800; }
-.drawer-close:hover { box-shadow: var(--press-sm); }
-.drawer-close:focus-visible { box-shadow: 0 0 0 5px var(--neu-dark); }
-.drawer-body { flex: 1; min-height: 0; overflow: auto; padding: 20px; overscroll-behavior: contain; }
+/* Setup, transcript, and coaching use the same neutrals. */
 .drawer-error { margin-top: 15px; padding: 11px; border: 1px solid var(--amber); border-radius: 7px; background: var(--amber-bg); color: var(--amber); font-size: .84rem; }
 .setup-tabs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; margin-bottom: 18px; padding: 5px; border: 1px solid transparent; border-radius: 12px; background: var(--base-deep); box-shadow: var(--press-sm); }
 .setup-tab { padding: 9px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-size: .82rem; font-weight: 750; }
@@ -449,7 +440,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .app-root { width: 100%; height: 100dvh; overflow: hidden; background: var(--base); }
 .room-screen { width: 100%; height: 100dvh; }
 .room-screen[hidden] { display: none; }
-.drawer-panel[hidden], .drawer-scrim[hidden] { display: none; }
 .app-page { width: 100%; height: 100dvh; overflow-y: auto; overscroll-behavior: contain; background: var(--base); color: var(--ink); }
 .app-page-inner { width: min(100%, 980px); margin: 0 auto; padding: clamp(14px, 2.6vw, 34px) clamp(16px, 2.4vw, 36px) 56px; display: grid; gap: 20px; align-content: start; }
 .app-page-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
@@ -572,6 +562,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .preparation-files > summary:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
 .live-room-status { margin: 0 0 20px; padding: 16px 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--base); }
 .live-room-status p { margin: 4px 0; }
+.live-controls-overview { margin-top: 22px; }
+.live-controls-overview .app-page-actions { justify-content: flex-start; }
 .live-room-status [role="timer"] { font-size: 1.2rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .navigation-notice { margin: 0; padding: 8px 20px; background: var(--base); font-size: .8rem; }
 .task-room-return { padding: 12px 24px; background: var(--base); }

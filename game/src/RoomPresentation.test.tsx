@@ -32,42 +32,42 @@ function snapshot(state: RoomState | null) {
   return socket;
 }
 
-beforeEach(() => { window.history.replaceState(null, "", "/#/room"); });
+beforeEach(() => { sessionStorage.clear(); window.history.replaceState(null, "", "/#/room"); });
 afterEach(() => { window.history.replaceState(null, "", "/"); vi.useRealTimers(); vi.clearAllMocks(); });
 
 it("keeps Controls guidance current during voting, answering, replies and submission recovery", () => {
   snapshot(room());
   const view = render(<App />);
-  const controls = within(screen.getByRole("dialog", { name: "Controls" }));
-  expect(controls.getByText(/Choose a speaker/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: /settings.*controls/i }));
+  const controls = within(screen.getByRole("heading", { name: "Live controls" }).closest<HTMLElement>("#preparation-page")!);
+  expect(controls.getAllByText(/Choose a speaker/)[0]).toBeTruthy();
   const state = room({ phase: "question", selected_seat: 1, answer_deadline_ms: 121000 });
   snapshot(state);
   view.rerender(<App />);
-  expect(controls.getByText(/Sam is answering.*Team Chat/)).toBeTruthy();
+  expect(controls.getAllByText(/Sam is answering.*Team Chat/)[0]).toBeTruthy();
   snapshot({ ...state, selected_seat: 0 });
   view.rerender(<App />);
-  expect(controls.getByText(/Your turn.*bottom dock/)).toBeTruthy();
+  expect(controls.getAllByText(/Your turn.*bottom dock/)[0]).toBeTruthy();
   const probe = { id: "reply1", request: "Explain the restart?", status: "pending" as const, references: [], reply: null, clarifications: [] };
   snapshot({ ...state, phase: "probe", selected_seat: 0, turns: [{ ...state.turns[0], answer: "Pilot only.", probe }] });
   view.rerender(<App />);
-  expect(controls.getByText(/Reply to panelist.*bottom dock/)).toBeTruthy();
+  expect(controls.getAllByText(/Reply to panelist.*bottom dock/)[0]).toBeTruthy();
   snapshot({ ...state, phase: "interpreting", clock_paused: false });
   view.rerender(<App />);
-  expect(controls.getByText(/Reviewing submission · Timer running.*Selected defender: Sam/)).toBeTruthy();
+  expect(controls.getAllByText(/Reviewing submission · Timer running.*Selected defender: Sam/)[0]).toBeTruthy();
   snapshot({ ...state, phase: "interpretation_retry", clock_paused: true, interpretation_attempts_left: 2 });
   view.rerender(<App />);
-  expect(controls.getByText(/Submission review failed · Timer paused.*You can retry the panelist.*selected defender/)).toBeTruthy();
+  expect(controls.getAllByText(/Submission review failed · Timer paused.*You can retry the panelist.*selected defender/)[0]).toBeTruthy();
   snapshot({ ...state, phase: "interpretation_retry", self_seat: 1, self_is_host: false,
     interpretation_attempts_left: 0, my_pending_submission: "Saved draft." });
   view.rerender(<App />);
-  expect(controls.getByText(/No panelist retries remain.*write a new answer.*saved submission/)).toBeTruthy();
+  expect(controls.getAllByText(/No panelist retries remain.*write a new answer.*saved submission/)[0]).toBeTruthy();
 });
 
 it("keeps real seats, question, countdown and action guidance in step from vote to answer and reassignment", () => {
   vi.useFakeTimers();
   snapshot(room());
   const view = render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: /close panel/i }));
   expect(within(document.getElementById("room-dock")!).getByText(/Choose a speaker\. You can change/)).toBeTruthy();
   expect(screen.getByLabelText("Technical Architect, asking this question")).toHaveAttribute("aria-current", "true");
   expect(screen.getByLabelText(/Defender seat 2: Sam, online, 2 votes/)).toHaveTextContent("2 votes");
@@ -105,7 +105,6 @@ it("keeps a research reaction separate until a server snapshot opens voting", ()
   });
   snapshot(state);
   const view = render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: /close panel/i }));
   expect(screen.getByLabelText("Critical Reviewer, speaking")).toHaveTextContent("Speaking");
   expect(screen.getByRole("heading", { name: "Critical Reviewer" })).toBeTruthy();
   expect(screen.getByText("The pilot supports a narrower claim.")).toBeTruthy();
@@ -129,7 +128,6 @@ it("shows factual no-defender guidance and an unknown countdown without a deadli
   snapshot(room({ phase: "question", selected_seat: null, answer_deadline_ms: null,
     players: room().players.map(player => ({ ...player, online: false })) }));
   const view = render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: /close panel/i }));
   expect(within(document.getElementById("room-dock")!).getByText(/Waiting for a defender to reconnect/)).toBeTruthy();
   expect(screen.queryByRole("textbox", { name: /chosen to answer/i })).toBeNull();
   expect(screen.getByRole("timer")).toHaveTextContent("ANSWER --:--");
@@ -149,7 +147,6 @@ it("keeps clarification and a pending reply on the same turn and describes pause
     turns: [{ ...source, clarifications: [{ request: "Say it simply?", reply: "Why store requests only while the app runs?" }] }] });
   snapshot(state);
   const view = render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: /close panel/i }));
   expect(screen.getByText("Say it simply?")).toBeTruthy();
   expect(screen.getByText("Why store requests only while the app runs?")).toBeTruthy();
   expect(screen.queryByText(source.question)).toBeNull();
@@ -186,7 +183,6 @@ it("offers recovery only to the host and selected defender, respecting exhausted
     remaining_answer_ms: 45000, my_pending_submission: null });
   snapshot(state);
   const view = render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: /close panel/i }));
   expect(screen.getByRole("button", { name: "Retry panelist" })).toBeDisabled();
   expect(screen.queryByRole("button", { name: "Write a new answer" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Use this as my answer" })).toBeNull();
@@ -220,7 +216,6 @@ it("gives truthful shared mapping, preparation, missed-turn and exhausted recove
     research_planning_status: "planning" });
   snapshot(state);
   const view = render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: /close panel/i }));
   expect(screen.getByRole("status", { name: "Room status" })).toHaveTextContent("Mapping research…");
   expect(within(screen.getByRole("region", { name: "Answer area" })).getByText(/Mapping research/)).toBeTruthy();
   expect(screen.queryByRole("timer")).toBeNull();
@@ -239,7 +234,7 @@ it("gives truthful shared mapping, preparation, missed-turn and exhausted recove
   view.rerender(<App />);
   fireEvent.click(screen.getByRole("button", { name: /settings.*controls/i }));
   expect(screen.getByRole("button", { name: "Retry question" })).toBeDisabled();
-  expect(within(screen.getByRole("region", { name: "Answer area" })).getByText(/No question retries remain/)).toBeTruthy();
+  expect(screen.getAllByText(/No question retries remain/).some(node => !node.closest("[hidden]"))).toBe(true);
 });
 
 it.each(["none", "generating", "failed", "ready"] as const)("shows completion and %s coaching without an answering seat or countdown", (feedback_status) => {
@@ -248,7 +243,7 @@ it.each(["none", "generating", "failed", "ready"] as const)("shows completion an
     turns: [{ ...room().turns[0], answer: "A saved answer", resolved: true, answered_by: "Alex" }] });
   snapshot(state);
   render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: /close panel/i }));
+  if (feedback_status !== "generating") fireEvent.click(screen.getByRole("button", { name: "Return to defense" }));
   expect(screen.queryByRole("timer")).toBeNull();
   expect(screen.getByLabelText(/Defender seat 1: Alex/)).not.toHaveClass("is-active");
   expect(screen.getByText("1 RESOLVED")).toBeTruthy();
@@ -256,7 +251,7 @@ it.each(["none", "generating", "failed", "ready"] as const)("shows completion an
     expect(within(screen.getByRole("region", { name: "Answer area" })).getByText(/No coaching report retries remain/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /settings.*controls/i }));
     expect(screen.getByRole("button", { name: "Retry coaching report" })).toBeDisabled();
-    fireEvent.click(within(screen.getByRole("dialog", { name: "Controls" })).getByRole("button", { name: "Transcript" }));
+    fireEvent.click(screen.getByRole("button", { name: "Transcript" }));
     expect(within(screen.getByRole("region", { name: "Coaching report" })).getByText(/No coaching report retries remain/)).toBeTruthy();
   } else if (feedback_status === "generating") {
     expect(screen.getByRole("status", { name: "Room status" })).toHaveTextContent("Preparing coaching…");

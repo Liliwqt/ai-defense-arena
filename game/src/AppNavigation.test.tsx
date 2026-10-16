@@ -288,11 +288,11 @@ describe("full-screen app navigation", () => {
     }));
     renderAt("/#/room");
     await userEvent.click(screen.getByRole("button", { name: /settings.*controls/i }));
-    const budget = within(screen.getByRole("heading", { name: "Live controls" }).closest("#drawer")!).getByLabelText(/question budget/i);
+    const budget = within(screen.getByRole("heading", { name: "Live controls" }).closest("#preparation-page")!).getByLabelText(/question budget/i);
     await userEvent.clear(budget);
     await userEvent.type(budget, "12");
     await userEvent.click(screen.getByText("Correct profile"));
-    await userEvent.type(within(screen.getByRole("heading", { name: "Live controls" }).closest("#drawer")!).getByLabelText(/research fields/i), "\nHuman-computer interaction");
+    await userEvent.type(within(screen.getByRole("heading", { name: "Live controls" }).closest("#preparation-page")!).getByLabelText(/research fields/i), "\nHuman-computer interaction");
 
     await userEvent.click(screen.getByRole("button", { name: /Account ↗/ }));
     expect(screen.getByRole("heading", { name: "Account" })).toBeTruthy();
@@ -300,7 +300,7 @@ describe("full-screen app navigation", () => {
     await userEvent.click(screen.getByRole("button", { name: /return to your room ROOM1/i }));
 
     await userEvent.click(screen.getByRole("button", { name: /settings.*controls/i }));
-    const reopened = within(screen.getByRole("heading", { name: "Live controls" }).closest("#drawer")!);
+    const reopened = within(screen.getByRole("heading", { name: "Live controls" }).closest("#preparation-page")!);
     expect(reopened.getByLabelText(/question budget/i)).toHaveValue(12);
     expect(reopened.getByLabelText(/research fields/i)).toHaveValue("Education\nSoftware engineering\nHuman-computer interaction");
   });

@@ -32,7 +32,7 @@ const defaultProps = {
   onUseRoom: vi.fn(),
   onLeaveRoom: vi.fn(),
   onSendEvent: vi.fn(() => true),
-  onCloseDrawer: vi.fn(),
+  onActionComplete: vi.fn(),
   showMessage: vi.fn(),
 };
 

@@ -13,13 +13,11 @@ interface ControlsPanelProps {
   account?: Account | null;
   setupRequest?: { tab: "create" | "join"; id: number; fresh?: boolean };
   onOpenAccount?: () => void;
-  onOpenTranscript?: () => void;
-  onPreviewMoment?: () => void;
   roomState: RoomState | null;
   connected: boolean;
   previewMode: boolean;
   /** "page" renders inside the full-screen setup/preparation surface. */
-  surface?: "drawer" | "page";
+  surface?: "inline" | "page";
   pageContext?: ReactNode;
   actionError?: string | null;
   /** Show fresh create/join forms even inside an existing room ("Create another room"). */
@@ -30,7 +28,7 @@ interface ControlsPanelProps {
   onUseRoom: (code: string, token: string, host: boolean) => void;
   onLeaveRoom: () => void;
   onSendEvent: (payload: Record<string, unknown>) => boolean;
-  onCloseDrawer: () => void;
+  onActionComplete: () => void;
   showMessage: (msg: string) => void;
 }
 
@@ -57,12 +55,10 @@ export function ControlsPanel({
   account,
   setupRequest,
   onOpenAccount,
-  onOpenTranscript,
-  onPreviewMoment,
   roomState,
   connected,
   previewMode,
-  surface = "drawer",
+  surface = "inline",
   pageContext,
   actionError,
   forceSetup = false,
@@ -71,7 +67,7 @@ export function ControlsPanel({
   onUseRoom,
   onLeaveRoom,
   onSendEvent,
-  onCloseDrawer,
+  onActionComplete,
   showMessage,
   presentation = deriveRoomPresentation(roomState),
 }: ControlsPanelProps) {
@@ -213,18 +209,18 @@ export function ControlsPanel({
       ? { type: "start", confirm_cost: true, plan_id: roomState.research_plan?.id, question_budget: roomState.research_budget_preview }
       : { type: "start", confirm_cost: true };
     startPending.current = true;
-    if (onSendEvent(payload)) { setStarting(true); onCloseDrawer(); }
+    if (onSendEvent(payload)) { setStarting(true); onActionComplete(); }
     else startPending.current = false;
   }
   function handleRetry() {
-    if (onSendEvent({ type: "retry" })) onCloseDrawer();
+    if (onSendEvent({ type: "retry" })) onActionComplete();
   }
   function handleRetryCoaching() {
-    if (onSendEvent({ type: "retry_coaching" })) onCloseDrawer();
+    if (onSendEvent({ type: "retry_coaching" })) onActionComplete();
   }
   function handleRestart() {
     if (!account?.free_access && !confirmRestart) { setConfirmRestart(true); return; }
-    if (onSendEvent({ type: "restart", confirm_cost: true })) { setConfirmRestart(false); onCloseDrawer(); }
+    if (onSendEvent({ type: "restart", confirm_cost: true })) { setConfirmRestart(false); onActionComplete(); }
   }
 
   function handleSetupTabKey(event: React.KeyboardEvent<HTMLButtonElement>) {
@@ -251,8 +247,6 @@ export function ControlsPanel({
   return (
     <div className={surface === "page" ? "guided-controls" : "controls-content"}>
       <div className="controls-main grid gap-[15px]">
-      {surface === "drawer" && onOpenTranscript && <button type="button" className={secondaryBtn} onClick={onOpenTranscript}>Transcript</button>}
-      {previewMode && surface === "drawer" && onPreviewMoment && <button type="button" className={secondaryBtn} onClick={onPreviewMoment}>Preview presenter</button>}
       {/* Keep forms mounted so page and tab changes retain FileList and drafts. */}
         <div hidden={!showSetupForms}>
           {/* Tab switcher */}
@@ -437,7 +431,7 @@ export function ControlsPanel({
               {roomState?.defense_type && roomState.defense_type !== "code" && phase === "lobby" && !roomState.research_plan_approved && <p className="control-help">Prepare and confirm the research map and question budget to enable Start.</p>}
               {roomState?.defense_type && roomState.defense_type !== "code" && phase !== "lobby" && phase !== "complete" && <>
                 <button type="button" disabled={!connected} className={secondaryBtn}
-                  onClick={() => { if (onSendEvent({ type: "end_defense" })) onCloseDrawer(); }}>End defense</button>
+                  onClick={() => { if (onSendEvent({ type: "end_defense" })) onActionComplete(); }}>End defense</button>
                 <p className="control-help">End now and keep accepted answers. An active unanswered question is marked ended early.</p>
               </>}
               {presentation.controls.questionRetry && (
@@ -460,7 +454,7 @@ export function ControlsPanel({
                   Retry coaching report
                 </button>
               )}
-              {liveAccess && (phase === "retry" || (phase === "complete" && feedbackStatus === "failed")) && <button type="button" className={secondaryBtn} disabled={!connected} onClick={() => { if(onSendEvent({type:"end_unavailable"})) onCloseDrawer(); }}>End unavailable defense{account?.free_access ? "" : " · return credits"}</button>}
+              {liveAccess && (phase === "retry" || (phase === "complete" && feedbackStatus === "failed")) && <button type="button" className={secondaryBtn} disabled={!connected} onClick={() => { if(onSendEvent({type:"end_unavailable"})) onActionComplete(); }}>End unavailable defense{account?.free_access ? "" : " · return credits"}</button>}
               {phase !== "lobby" && (
                 <button
                   type="button"

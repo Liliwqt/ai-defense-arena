@@ -41,7 +41,13 @@ export function AnswerComposer({ roomState, connected, previewMode, waitingForAn
   useEffect(() => {
     if (actionErrorReason === "ai_admission") setInterpretationLimited(true);
   }, [actionErrorReason]);
-  useEffect(() => { setLocalError(""); }, [allClarifications, turnKey]);
+  useEffect(() => {
+    setLocalError("");
+    const acceptedRequest = current?.probe?.status === "pending" ? current.probe.clarifications.at(-1)?.request : current?.clarifications?.at(-1)?.request;
+    // An acknowledged clarification clears only the text actually submitted;
+    // a newer unsent answer on the same question must survive it.
+    if (acceptedRequest && draft.trim() === acceptedRequest.trim()) setDraft("");
+  }, [allClarifications, turnKey]);
   useEffect(() => { setQuestionRetryPending(false); }, [roomState?.phase, roomState?.room_code]);
   useEffect(() => { if (actionError) setQuestionRetryPending(false); }, [actionError]);
 

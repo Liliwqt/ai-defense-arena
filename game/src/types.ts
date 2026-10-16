@@ -171,5 +171,3 @@ export interface RoomState {
   my_vote?: number | null;
   chat?: ChatMessage[];
 }
-
-export type DrawerMode = "controls" | "transcript";

@@ -34,7 +34,7 @@
   .page-citation-body { padding: 12px; font-size: .87rem; line-height: 1.6; }
   #room-dock { flex-basis: 167px; padding: 8px 12px max(8px, env(safe-area-inset-bottom)); }
   .dock-tabs button { min-height: 36px; }
-  #answer-textarea, #chat-input, .drawer-panel input, .drawer-panel select, .drawer-panel textarea { font-size: 16px; }
+  #answer-textarea, #chat-input, .app-surface input, .app-surface select, .app-surface textarea { font-size: 16px; }
   .vote-choices button { min-height: 44px; }
 }
 

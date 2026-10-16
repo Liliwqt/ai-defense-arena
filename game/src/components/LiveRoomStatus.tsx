@@ -7,10 +7,11 @@ export function LiveRoomStatus({ state, presentation }: { state: RoomState | nul
   const seconds = useRoomCountdown(state, presentation);
   const timer = presentation.timer;
   return <div className="live-room-status">
-    <p role="status">{state ? `Room ${state.room_code} · ${presentation.status}` : "Waiting for room membership…"}</p>
+    <p role="status">{state ? `Room ${state.room_code} · ${timer ? presentation.guidance : presentation.status}` : "Waiting for room membership…"}</p>
     {timer && <p role={timer.mode === "paused" ? "status" : "timer"} aria-label={timer.accessibleLabel}>
       {timer.label} {formatCountdown(timer.mode === "paused" ? timer.savedSeconds : seconds)}
     </p>}
-    <p>Room timers continue while you’re on another screen.</p>
+    <p>{state?.phase === "complete" ? "This defense is complete. Results remain available while the room exists."
+      : state?.phase === "lobby" ? "No defense has started." : "Room timers continue while you’re on another screen."}</p>
   </div>;
 }

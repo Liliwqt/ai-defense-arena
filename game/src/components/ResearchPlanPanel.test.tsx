@@ -18,7 +18,7 @@ describe("ResearchPlanPanel", () => {
   it("blocks Start and old confirmation while a host profile correction is unsaved", () => {
     const p = props();
     const controls = { account: { authenticated: true, google_enabled: true, free_access: true }, ...p,
-      onUseRoom: vi.fn(), onLeaveRoom: vi.fn(), onCloseDrawer: vi.fn(), showMessage: vi.fn() };
+      onUseRoom: vi.fn(), onLeaveRoom: vi.fn(), onActionComplete: vi.fn(), showMessage: vi.fn() };
     render(<ControlsPanel {...controls} roomState={{ ...state, research_plan_approved: true }} />);
     const start = screen.getByRole("button", { name: /Start defense/ });
     expect(start).not.toBeDisabled();
@@ -155,7 +155,7 @@ describe("ResearchPlanPanel", () => {
 
   it("requires confirmation before sending the research start budget", () => {
     const p = props();
-    const controls = { account: { authenticated: true, google_enabled: true, free_access: true }, ...p, onUseRoom: vi.fn(), onLeaveRoom: vi.fn(), onCloseDrawer: vi.fn(), showMessage: vi.fn() };
+    const controls = { account: { authenticated: true, google_enabled: true, free_access: true }, ...p, onUseRoom: vi.fn(), onLeaveRoom: vi.fn(), onActionComplete: vi.fn(), showMessage: vi.fn() };
     const { rerender } = render(<ControlsPanel {...controls} roomState={{ ...state, research_plan: null, research_planning_status: "planning" }} />);
     expect(screen.queryByRole("button", { name: /Start defense/ })).toBeNull();
     expect(screen.getByRole("status").textContent).toContain("Mapping");
@@ -169,7 +169,7 @@ describe("ResearchPlanPanel", () => {
   it("requires remapping a legacy profile-less plan before start", () => {
     const p = props();
     const controls = { account: { authenticated: true, google_enabled: true, free_access: true }, ...p,
-      onUseRoom: vi.fn(), onLeaveRoom: vi.fn(), onCloseDrawer: vi.fn(), showMessage: vi.fn() };
+      onUseRoom: vi.fn(), onLeaveRoom: vi.fn(), onActionComplete: vi.fn(), showMessage: vi.fn() };
     render(<ControlsPanel {...controls} roomState={{ ...state, research_plan_approved: true,
       research_plan: { ...researchPlanPreview, profile: null } }} />);
     expect(screen.getByRole("alert")).toHaveTextContent("Prepare a new research map");
@@ -178,7 +178,7 @@ describe("ResearchPlanPanel", () => {
   });
 
   it("hides research Start until the server finishes mapping, then requires confirmation", () => {
-    const controls = { account: { authenticated: true, google_enabled: true, free_access: true }, ...props(), onUseRoom: vi.fn(), onLeaveRoom: vi.fn(), onCloseDrawer: vi.fn(), showMessage: vi.fn() };
+    const controls = { account: { authenticated: true, google_enabled: true, free_access: true }, ...props(), onUseRoom: vi.fn(), onLeaveRoom: vi.fn(), onActionComplete: vi.fn(), showMessage: vi.fn() };
     const { rerender } = render(<ControlsPanel {...controls} roomState={{ ...state, research_planning_status: "none", research_plan: null }} />);
     for (const status of ["none", "planning", "failed"] as const) {
       rerender(<ControlsPanel {...controls} roomState={{ ...state, research_planning_status: status }} />);

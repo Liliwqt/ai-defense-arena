@@ -1,6 +1,7 @@
 import type { Account } from "../hooks/useAccount";
 import type { RoomState } from "../types";
 import type { AppScreen } from "./appRoute";
+import { roomDestination } from "./roomDestination";
 
 const KEY = "arena-navigation-task-v1";
 const MAX_AGE = 2 * 60 * 60 * 1000;
@@ -38,8 +39,9 @@ export function resolveTaskReturn(account: Account, state: RoomState | null, clo
   if (intent.room && (!state || state.room_code !== intent.room || state.self_seat === null)) { clearTaskIntent(); return null; }
   if (["room", "controls", "prepare", "results"].includes(target) || (target === "setup" && intent.room)) {
     if (!state || !intent.room) { clearTaskIntent(); return null; }
-    if (state.phase === "complete") return closing ? "room" : "results";
-    if (state.phase === "lobby") return target === "setup" ? "setup" : "prepare";
+    const stage = roomDestination(state, closing);
+    if (stage === "results") return "results";
+    if (stage === "prepare") return target === "setup" ? "setup" : "prepare";
     return target === "controls" ? "controls" : "room";
   }
   return target;

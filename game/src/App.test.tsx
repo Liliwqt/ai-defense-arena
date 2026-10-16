@@ -122,7 +122,7 @@ describe("flat room flow", () => {
     await userEvent.type(answer, "Keep this same-turn draft.");
     const settings = screen.getByRole("button", { name: /settings.*controls/i });
     await userEvent.click(settings);
-    const controls = screen.getByRole("heading", { name: "Live controls" }).closest<HTMLElement>("#drawer")!;
+    const controls = screen.getByRole("heading", { name: "Live controls" }).closest<HTMLElement>("#preparation-page")!;
     expect(within(controls).getAllByText("ROOM1")[0]).toBeTruthy();
     await userEvent.click(within(controls).getByRole("button", { name: "Transcript" }));
     expect(screen.getByRole("heading", { name: "Defense results" }).closest("section")!).toBeTruthy();
@@ -156,7 +156,7 @@ describe("flat room flow", () => {
   ] as const)("shows a factual room status during %s", (_label, state, expected) => {
     setSocket(state);
     render(<App />);
-    if (state?.phase === "complete") expect(screen.getByText(`Room ROOM1 · ${expected}`)).toBeVisible();
+    if (state?.phase === "complete" && state.feedback_status !== "generating") expect(screen.getByText(`Room ROOM1 · ${expected}`)).toBeVisible();
     else expect(screen.getByRole("status", { name: "Room status" })).toHaveTextContent(expected);
     expect(screen.queryByRole("timer")).toBeNull();
   });
@@ -192,7 +192,7 @@ describe("flat room flow", () => {
     render(<App />);
     expect(screen.getByText("QUESTION 11 OF 24")).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: /settings.*controls/i }));
-    const controls = screen.getByRole("heading", { name: "Live controls" }).closest<HTMLElement>("#drawer")!;
+    const controls = screen.getByRole("heading", { name: "Live controls" }).closest<HTMLElement>("#preparation-page")!;
     expect(within(controls).getByText(`1 of ${researchPlanPreview.topics.length} topics addressed`)).toBeTruthy();
     expect(within(controls).queryByRole("button", { name: "End defense" })).toBeNull();
     await userEvent.click(within(controls).getByRole("button", { name: "Transcript" }));
@@ -206,7 +206,7 @@ describe("flat room flow", () => {
     });
     render(<App />);
     await userEvent.click(screen.getByRole("button", { name: /settings.*controls/i }));
-    const controls = screen.getByRole("heading", { name: "Live controls" }).closest<HTMLElement>("#drawer")!;
+    const controls = screen.getByRole("heading", { name: "Live controls" }).closest<HTMLElement>("#preparation-page")!;
     expect(controls.textContent).toContain("You need 10 available test credits");
     expect(screen.getByTestId("seat-rows")).toBeTruthy();
   });

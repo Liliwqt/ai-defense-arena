@@ -30,47 +30,47 @@ describe("HUD clarification pause", () => {
   it("shows saved answer time instead of a running deadline", () => {
     const state = { ...baseState, phase: "interpreting" as const, remaining_answer_ms: 45_000,
       answer_deadline_ms: null };
-    render(<HUD roomState={state} roomCode="TEST" previewMode={false} onOpenDrawer={() => {}} />);
+    render(<HUD roomState={state} roomCode="TEST" previewMode={false} onOpenControls={() => {}} />);
     expect(screen.getByRole("status", { name: /answer timer paused/i }).textContent).toContain("0:45");
   });
 });
 
 describe("HUD", () => {
   it("labels the speaking phase without a vote or answer countdown", () => {
-    render(<HUD roomState={{ ...baseState, phase: "reacting", reaction_deadline_ms: 1_010_000 }} roomCode="ABCD12" previewMode={false} onOpenDrawer={() => {}} />);
+    render(<HUD roomState={{ ...baseState, phase: "reacting", reaction_deadline_ms: 1_010_000 }} roomCode="ABCD12" previewMode={false} onOpenControls={() => {}} />);
     expect(screen.getByRole("status", { name: "Room status" }).textContent).toBe("Panelist speaking…");
     expect(screen.queryByRole("timer")).toBeNull();
   });
   it("shows No room yet when roomState is null", () => {
     render(
-      <HUD roomState={null} roomCode={null} previewMode={false} onOpenDrawer={vi.fn()} />,
+      <HUD roomState={null} roomCode={null} previewMode={false} onOpenControls={vi.fn()} />,
     );
     expect(screen.getByText("No room yet")).toBeTruthy();
   });
 
   it("shows room code from state", () => {
     render(
-      <HUD roomState={baseState} roomCode="ABCD12" previewMode={false} onOpenDrawer={vi.fn()} />,
+      <HUD roomState={baseState} roomCode="ABCD12" previewMode={false} onOpenControls={vi.fn()} />,
     );
     expect(screen.getByText("Room ABCD12")).toBeTruthy();
   });
 
-  it("calls onOpenDrawer with controls when Controls button is clicked", async () => {
+  it("calls onOpenControls with controls when Controls button is clicked", async () => {
     const spy = vi.fn();
     render(
-      <HUD roomState={baseState} roomCode="ABCD12" previewMode={false} onOpenDrawer={spy} />,
+      <HUD roomState={baseState} roomCode="ABCD12" previewMode={false} onOpenControls={spy} />,
     );
     await userEvent.click(screen.getByRole("button", { name: /controls/i }));
-    expect(spy).toHaveBeenCalledWith("controls");
+    expect(spy).toHaveBeenCalledOnce();
   });
 
-  it("calls onOpenDrawer with transcript when Transcript button is clicked", async () => {
+  it("calls onOpenControls with transcript when Transcript button is clicked", async () => {
     const spy = vi.fn();
     render(
-      <HUD roomState={baseState} roomCode="ABCD12" previewMode={false} onOpenDrawer={spy} />,
+      <HUD roomState={baseState} roomCode="ABCD12" previewMode={false} onOpenControls={vi.fn()} onOpenTranscript={spy} />,
     );
     await userEvent.click(screen.getByRole("button", { name: /transcript/i }));
-    expect(spy).toHaveBeenCalledWith("transcript");
+    expect(spy).toHaveBeenCalledOnce();
   });
 
   it("shows answered count without a fixed total during an adaptive defense", () => {
@@ -82,7 +82,7 @@ describe("HUD", () => {
         { panelist: "Technical Architect", question: "Q2", filename: "f.py", evidence_line: 2, evidence_text: "y", answer: "b", answered_by: "Sam" },
       ],
     };
-    render(<HUD roomState={state} roomCode="ABCD12" previewMode={false} onOpenDrawer={vi.fn()} />);
+    render(<HUD roomState={state} roomCode="ABCD12" previewMode={false} onOpenControls={vi.fn()} />);
     expect(screen.getByText("2 RESOLVED")).toBeTruthy();
   });
 
@@ -99,7 +99,7 @@ describe("HUD", () => {
       feedback_status: "ready",
     };
     render(
-      <HUD roomState={state} roomCode="ABCD12" previewMode={false} onOpenDrawer={vi.fn()} />,
+      <HUD roomState={state} roomCode="ABCD12" previewMode={false} onOpenControls={vi.fn()} />,
     );
     expect(screen.getByText("COMPLETE")).toBeTruthy();
   });
