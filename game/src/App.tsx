@@ -30,7 +30,7 @@ export function App() {
   const [drawerOpen, setDrawerOpen] = useState(() =>
     screen === "room" && (!previewMode || new URLSearchParams(window.location.search).get("plan") === "1"));
   const [drawerMode, setDrawerMode] = useState<DrawerMode>("controls");
-  const [controlsTab, setControlsTab] = useState<"create" | "join">("create");
+  const [setupRequest, setSetupRequest] = useState<{ tab: "create" | "join"; id: number }>({ tab: "create", id: 0 });
   const { account, refresh: refreshAccount, error: accountError } = useAccount(previewMode);
   useEffect(() => {
     const refresh = () => { void refreshAccount(); };
@@ -76,7 +76,9 @@ export function App() {
   }, []);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const openSetup = useCallback((tab: "create" | "join") => {
-    setControlsTab(tab);
+    // A monotonic id makes every explicit Home choice reapply even when it repeats
+    // the previous tab, since the persisted ControlsPanel cannot see a same-value change.
+    setSetupRequest(previous => ({ tab, id: previous.id + 1 }));
     setDrawerMode("controls");
     setDrawerOpen(true);
     navigate("room");
@@ -228,7 +230,7 @@ export function App() {
                 drafts survive both drawer switching and screen navigation. */}
             <div hidden={drawerMode !== "controls"}>
               <ControlsPanel presentation={presentation} roomState={previewMode ? roomState : liveRoomState} connected={connected} previewMode={previewMode}
-                initialTab={controlsTab}
+                setupRequest={setupRequest}
                 onUseRoom={handleUseRoom} onLeaveRoom={handleLeaveRoom} onSendEvent={sendEvent}
                 onCloseDrawer={closeDrawer} showMessage={showMessage} account={account}
                 onOpenAccount={() => navigate("account")} onOpenTranscript={() => openDrawer("transcript")}

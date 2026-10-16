@@ -10,7 +10,7 @@ import { deriveRoomPresentation, type RoomPresentation } from "../lib/roomPresen
 interface ControlsPanelProps {
   presentation?: RoomPresentation;
   account?: Account | null;
-  initialTab?: "create" | "join";
+  setupRequest?: { tab: "create" | "join"; id: number };
   onOpenAccount?: () => void;
   onOpenTranscript?: () => void;
   onPreviewMoment?: () => void;
@@ -45,7 +45,7 @@ async function responseJson(response: Response): Promise<Record<string, unknown>
 
 export function ControlsPanel({
   account,
-  initialTab = "create",
+  setupRequest,
   onOpenAccount,
   onOpenTranscript,
   onPreviewMoment,
@@ -59,10 +59,11 @@ export function ControlsPanel({
   showMessage,
   presentation = deriveRoomPresentation(roomState),
 }: ControlsPanelProps) {
-  const [activeTab, setActiveTab] = useState<"create" | "join">(initialTab);
-  // The panel stays mounted across drawer/screen changes, so follow explicit
-  // setup intent (e.g. Home "Join a room") instead of only the mount value.
-  useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
+  const [activeTab, setActiveTab] = useState<"create" | "join">(setupRequest?.tab ?? "create");
+  // The panel stays mounted across drawer/screen changes. Each explicit Home entry
+  // is a fresh request (new object with a new id), so a repeated choice reapplies;
+  // manual tab clicks and keyboard arrows keep owning activeTab between requests.
+  useEffect(() => { if (setupRequest) setActiveTab(setupRequest.tab); }, [setupRequest]);
   const [createBusy, setCreateBusy] = useState(false);
   const [createProgress, setCreateProgress] = useState<RoomCreationProgress | null>(null);
   const [createElapsed, setCreateElapsed] = useState(0);

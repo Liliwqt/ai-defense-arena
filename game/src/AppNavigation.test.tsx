@@ -163,6 +163,49 @@ describe("full-screen app navigation", () => {
     expect(document.querySelector("#create-form")).toBeNull();
   });
 
+  it("re-selects the Join form when Home asks to join again after a manual switch to Create", async () => {
+    setAccount(account());
+    setSocket(null, { connected: false });
+    renderAt("/");
+
+    await userEvent.click(screen.getByRole("button", { name: "Join a room" }));
+    expect(screen.getByRole("tab", { name: "Join room" }).getAttribute("aria-selected")).toBe("true");
+
+    await userEvent.click(screen.getByRole("tab", { name: "Create room" }));
+    expect(screen.getByRole("tab", { name: "Create room" }).getAttribute("aria-selected")).toBe("true");
+
+    await userEvent.click(screen.getByRole("button", { name: /close panel/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Home" }));
+    await userEvent.click(screen.getByRole("button", { name: "Join a room" }));
+
+    expect(screen.getByRole("tab", { name: "Join room" }).getAttribute("aria-selected")).toBe("true");
+    expect(document.querySelector("#join-form")).not.toBeNull();
+    expect(document.querySelector("#create-form")).toBeNull();
+  });
+
+  it("re-selects the Create form when a signed-in Home asks to create again after a manual switch to Join", async () => {
+    setAccount(account({
+      authenticated: true, user: { id: "u1", name: "Host", email: "host@example.com" },
+      csrf_token: "csrf", payment_mode: "test", test_credits: 40,
+    }));
+    setSocket(null, { connected: false });
+    renderAt("/");
+
+    await userEvent.click(screen.getByRole("button", { name: "Create a defense" }));
+    expect(screen.getByRole("tab", { name: "Create room" }).getAttribute("aria-selected")).toBe("true");
+
+    await userEvent.click(screen.getByRole("tab", { name: "Join room" }));
+    expect(screen.getByRole("tab", { name: "Join room" }).getAttribute("aria-selected")).toBe("true");
+
+    await userEvent.click(screen.getByRole("button", { name: /close panel/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Home" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create a defense" }));
+
+    expect(screen.getByRole("tab", { name: "Create room" }).getAttribute("aria-selected")).toBe("true");
+    expect(document.querySelector("#create-form")).not.toBeNull();
+    expect(document.querySelector("#join-form")).toBeNull();
+  });
+
   it("shows the active-room return and the owner entry on Home only when they apply", async () => {
     setSocket(roomState());
     setAccount(account({ authenticated: true, google_enabled: true, manager_enabled: true }));
