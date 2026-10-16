@@ -8,6 +8,20 @@ interface RoomCredentials {
   player_token: string;
 }
 
+/**
+ * `uncertain` distinguishes a definite rejection from an outcome we cannot
+ * confirm — a lost response may still have created the room server-side, so
+ * callers must offer owned-room recovery rather than replay the request.
+ */
+export class RoomCreationError extends Error {
+  uncertain: boolean;
+  constructor(message: string, uncertain: boolean) {
+    super(message);
+    this.name = "RoomCreationError";
+    this.uncertain = uncertain;
+  }
+}
+
 /** Percent measures the multipart upload, not server extraction or remaining time. */
 export function createRoom(
   form: FormData,
@@ -29,18 +43,18 @@ export function createRoom(
       if (request.status < 200 || request.status >= 300) {
         const detail = typeof body?.detail === "string" ? body.detail
           : typeof body?.message === "string" ? body.message : `Request failed (${request.status}).`;
-        reject(new Error(detail));
+        reject(new RoomCreationError(detail, false));
       } else if (typeof body?.room_code !== "string" || !body.room_code ||
                  typeof body?.player_token !== "string" || !body.player_token) {
-        reject(new Error("The server returned an incomplete room response. Please retry."));
+        reject(new RoomCreationError("The server returned an incomplete room response. Please retry.", true));
       } else {
         onProgress({ percent: 100, stage: "ready" });
         resolve({ room_code: body.room_code, player_token: body.player_token });
       }
     });
-    request.addEventListener("error", () => reject(new Error("Could not connect to create the room. Check your connection and retry.")));
-    request.addEventListener("abort", () => reject(new Error("Room creation was interrupted. Please retry.")));
-    request.addEventListener("timeout", () => reject(new Error("Room creation took too long. Please retry.")));
+    request.addEventListener("error", () => reject(new RoomCreationError("Could not connect to create the room. Check your connection and retry.", true)));
+    request.addEventListener("abort", () => reject(new RoomCreationError("Room creation was interrupted. Please retry.", true)));
+    request.addEventListener("timeout", () => reject(new RoomCreationError("Room creation took too long. Please retry.", true)));
     request.open("POST", "/api/rooms");
     // Same-origin XHR sends the host session cookie; retain CSRF validation.
     request.setRequestHeader("X-CSRF-Token", csrfToken);

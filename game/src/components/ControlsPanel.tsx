@@ -3,7 +3,7 @@ import type { RoomState } from "../types";
 import type { Account } from "../hooks/useAccount";
 import { OwnedRooms } from "./OwnedRooms";
 import { ResearchPlanPanel } from "./ResearchPlanPanel";
-import { createRoom, type RoomCreationProgress } from "../lib/createRoom";
+import { createRoom, RoomCreationError, type RoomCreationProgress } from "../lib/createRoom";
 
 import { deriveRoomPresentation, type RoomPresentation } from "../lib/roomPresentation";
 
@@ -17,6 +17,13 @@ interface ControlsPanelProps {
   roomState: RoomState | null;
   connected: boolean;
   previewMode: boolean;
+  /** "page" renders inside the full-screen setup/preparation surface. */
+  surface?: "drawer" | "page";
+  /** Show fresh create/join forms even inside an existing room ("Create another room"). */
+  forceSetup?: boolean;
+  /** On the setup page for an existing room: show its fixed accepted files, not a replacement form. */
+  showExistingFiles?: boolean;
+  activeRoomCode?: string | null;
   onUseRoom: (code: string, token: string, host: boolean) => void;
   onLeaveRoom: () => void;
   onSendEvent: (payload: Record<string, unknown>) => boolean;
@@ -52,6 +59,10 @@ export function ControlsPanel({
   roomState,
   connected,
   previewMode,
+  surface = "drawer",
+  forceSetup = false,
+  showExistingFiles = false,
+  activeRoomCode = null,
   onUseRoom,
   onLeaveRoom,
   onSendEvent,
@@ -67,6 +78,8 @@ export function ControlsPanel({
   const [createBusy, setCreateBusy] = useState(false);
   const [createProgress, setCreateProgress] = useState<RoomCreationProgress | null>(null);
   const [createElapsed, setCreateElapsed] = useState(0);
+  // A lost create response may still have made a room; never silently retry it.
+  const [createUncertain, setCreateUncertain] = useState(false);
   const createPending = useRef(false);
   const progressRef = useRef<HTMLDivElement>(null);
   const [joinBusy, setJoinBusy] = useState(false);
@@ -92,17 +105,25 @@ export function ControlsPanel({
   const canRun = !!account?.authenticated && (!liveAccess || account.ai_service_available !== false)
     && (!!account.free_access || ((!liveAccess || account.paid_starts_enabled !== false) && (availableCredits ?? 0) >= 10));
 
-  const inRoom = roomState !== null || !!connected;
+  const inRoom = roomState !== null || !!connected || !!activeRoomCode;
   const phase = roomState?.phase ?? "none";
   const feedbackStatus = roomState?.feedback_status ?? "none";
   const isHost = roomState?.self_is_host ?? false;
-  const roomCode = roomState?.room_code ?? null;
+  const roomCode = roomState?.room_code ?? activeRoomCode;
+
+  // Mode selection: fresh setup forms, the fixed files of an existing room, or the
+  // live preparation/room controls. They never overlap, so a room cannot appear to
+  // offer a replacement upload form.
+  const showExisting = showExistingFiles && !forceSetup;
+  const showSetupForms = forceSetup || (!inRoom && !previewMode);
+  const showRoomControls = (inRoom || previewMode) && !showExisting && !forceSetup;
 
   async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (createPending.current || !account?.authenticated) return;
     createPending.current = true;
     showMessage("");
+    setCreateUncertain(false);
     setCreateElapsed(0);
     setCreateProgress({ percent: 0, stage: "uploading" });
     setCreateBusy(true);
@@ -112,6 +133,7 @@ export function ControlsPanel({
       onUseRoom(body.room_code, body.player_token, true);
     } catch (err) {
       setCreateProgress(null);
+      setCreateUncertain(err instanceof RoomCreationError ? err.uncertain : true);
       showMessage((err as Error).message ?? "Could not create the room.");
     } finally {
       createPending.current = false;
@@ -182,10 +204,10 @@ export function ControlsPanel({
 
   return (
     <div className="grid gap-[15px]">
-      {onOpenTranscript && <button type="button" className={secondaryBtn} onClick={onOpenTranscript}>Transcript</button>}
+      {surface === "drawer" && onOpenTranscript && <button type="button" className={secondaryBtn} onClick={onOpenTranscript}>Transcript</button>}
       {previewMode && onPreviewMoment && <button type="button" className={secondaryBtn} onClick={onPreviewMoment}>Preview presenter</button>}
-      {/* Connect forms — shown before joining */}
-      {!inRoom && !previewMode && (
+      {/* Connect forms — shown before joining, or for an explicit new room */}
+      {showSetupForms && (
         <div>
           {/* Tab switcher */}
           <div className="setup-tabs" role="tablist" aria-label="Room setup">
@@ -287,12 +309,33 @@ export function ControlsPanel({
         </div>
       )}
 
+      {/* Existing room on the setup page: fixed accepted files, never a replacement form */}
+      {showExisting && (
+        <div className="grid gap-[15px]">
+          <p className="control-help">This room keeps its accepted uploads. To defend different files, use Create another room; this room stays open.</p>
+          {roomState?.accepted_files?.length ? (
+            <div className="accepted-files" aria-label="Accepted files">
+              <strong>Accepted files · {roomState.defense_type === "code" ? "Code project" : roomState.defense_type === "mixed" ? "Research + code" : "Research paper"}</strong>
+              <ul className="mt-2 pl-5">{roomState.accepted_files.map((file) => <li key={file.name}>{file.name}{file.detail ? ` · ${file.detail}` : ""}</li>)}</ul>
+            </div>
+          ) : <p role="status">Loading this room’s accepted uploads…</p>}
+        </div>
+      )}
+
+      {/* A lost create response may still have made a room; offer recovery, never replay */}
+      {createUncertain && (
+        <div className="account-access-card" role="status">
+          <strong>We couldn’t confirm whether the room was created.</strong>
+          <p>Check your rooms before trying again — a room may already exist with your uploads.</p>
+        </div>
+      )}
+
       {!previewMode && account?.authenticated && account.csrf_token && <OwnedRooms csrf={account.csrf_token}
-        onResume={(code, token) => { onUseRoom(code, token, true); onCloseDrawer(); }}
+        onResume={(code, token) => onUseRoom(code, token, true)}
         onClosed={code => { if (code === roomCode) onLeaveRoom(); }} />}
       {roomState?.expires_at_ms && <p role="status" className="control-help">This room expires at {new Date(roomState.expires_at_ms).toLocaleTimeString()}. Save the transcript before expiry.</p>}
       {/* In-room controls */}
-      {(inRoom || previewMode) && (
+      {showRoomControls && (
         <div className="grid gap-[15px]">
             <div className="room-code-card">
             <span className="room-code-kicker">

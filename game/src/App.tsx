@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AccountScreen, HomeScreen, SignInScreen } from "./components/AppScreens";
+import { AccountScreen, HomeScreen, PreparationSteps, SignInScreen } from "./components/AppScreens";
 import { useAccount } from "./hooks/useAccount";
 import { RoomDock } from "./components/RoomDock";
 import { ControlsPanel } from "./components/ControlsPanel";
@@ -31,6 +31,8 @@ export function App() {
     screen === "room" && (!previewMode || new URLSearchParams(window.location.search).get("plan") === "1"));
   const [drawerMode, setDrawerMode] = useState<DrawerMode>("controls");
   const [setupRequest, setSetupRequest] = useState<{ tab: "create" | "join"; id: number }>({ tab: "create", id: 0 });
+  // A distinct "Create another room" starts fresh setup without closing the current room.
+  const [newRoomSetup, setNewRoomSetup] = useState(false);
   const { account, refresh: refreshAccount, error: accountError } = useAccount(previewMode);
   useEffect(() => {
     const refresh = () => { void refreshAccount(); };
@@ -51,6 +53,12 @@ export function App() {
   const roomState: RoomState | null = previewMode ? mockRoomState : liveRoomState;
   const presentation = deriveRoomPresentation(roomState);
   closingActive.current = !!presentation.reaction?.closing;
+
+  const isSetup = screen === "setup";
+  const isPrepare = screen === "prepare";
+  const pageScreen = isSetup || isPrepare;
+  const activeRoomCode = previewMode ? (roomState?.room_code ?? null) : roomCode;
+  const hasRoom = activeRoomCode !== null;
 
   useEffect(() => {
     if (!previewMode || mockRoomState.phase !== "reacting") return;
@@ -79,15 +87,34 @@ export function App() {
     // A monotonic id makes every explicit Home choice reapply even when it repeats
     // the previous tab, since the persisted ControlsPanel cannot see a same-value change.
     setSetupRequest(previous => ({ tab, id: previous.id + 1 }));
+    setNewRoomSetup(false);
     setDrawerMode("controls");
-    setDrawerOpen(true);
-    navigate("room");
+    setMessage("");
+    navigate("setup");
   }, [navigate]);
+  const startAnotherRoom = useCallback(() => {
+    setSetupRequest(previous => ({ tab: "create", id: previous.id + 1 }));
+    setNewRoomSetup(true);
+    setDrawerMode("controls");
+    setMessage("");
+  }, []);
   useEffect(() => { if (screen !== "room") setDrawerOpen(false); }, [screen]);
   const showMessage = useCallback((value: string) => {
     setMessage(value);
     if (value) openDrawer("controls");
   }, [openDrawer]);
+
+  // Header Back moves to the previous meaningful screen; the room overlay still closes.
+  const handleDrawerBack = useCallback(() => {
+    if (isSetup) navigate(hasRoom ? "prepare" : "home");
+    else if (isPrepare) navigate(hasRoom ? "room" : "home");
+    else closeDrawer();
+  }, [isSetup, isPrepare, hasRoom, navigate, closeDrawer]);
+  // Finishing a preparation action on the page returns to the defense room.
+  const closeControls = useCallback(() => {
+    if (isPrepare) navigate("room");
+    else closeDrawer();
+  }, [isPrepare, navigate, closeDrawer]);
 
   const endPresenter = useCallback(() => {
     if (presenterTimer.current) clearTimeout(presenterTimer.current);
@@ -179,15 +206,20 @@ export function App() {
     presenterTimer.current = setTimeout(endPresenter, PRESENTER_MS);
   }, [endPresenter]);
 
+  // A host lands on the shareable preparation screen; a guest enters the room itself.
   const handleUseRoom = useCallback((code: string, token: string, host: boolean) => {
     resetMoment();
     useRoom(code, token, host);
-    if (host) openDrawer("controls"); else closeDrawer();
-  }, [resetMoment, useRoom, openDrawer, closeDrawer]);
+    setMessage("");
+    if (host) { openDrawer("controls"); navigate("prepare"); }
+    else { closeDrawer(); navigate("room"); }
+  }, [resetMoment, useRoom, openDrawer, closeDrawer, navigate]);
 
   const handleLeaveRoom = useCallback(() => {
     resetMoment();
     leaveRoom();
+    setNewRoomSetup(false);
+    setMessage("");
     openDrawer("controls");
   }, [resetMoment, leaveRoom, openDrawer]);
 
@@ -211,6 +243,36 @@ export function App() {
   }, [screen]);
 
   const title = drawerMode === "transcript" ? "Transcript" : "Controls";
+  // A bare preparation address with no room falls back to setup rather than
+  // showing preparation controls a route alone cannot authorize.
+  const prepareReady = isPrepare && hasRoom;
+  const pageTitle = prepareReady ? "Prepare your defense"
+    : hasRoom ? (newRoomSetup ? "Create another room" : "Your material")
+    : setupRequest.tab === "join" ? "Join a room" : "Create a defense";
+  const pageKicker = prepareReady ? "DEFENSE PREPARATION" : "HOST SETUP";
+
+  const pageSide = prepareReady ? (
+    <>
+      <h2 className="app-surface-side-title">Room actions</h2>
+      <p>Your room stays connected while you prepare. Share its code so your team can join.</p>
+      <button type="button" className="button-secondary" onClick={startAnotherRoom}>Create another room</button>
+      <button type="button" className="button-secondary" onClick={() => navigate("setup")}>Back to setup</button>
+      <button type="button" className="button-secondary" onClick={() => navigate("room")}>Return to the defense room</button>
+    </>
+  ) : hasRoom ? (
+    <>
+      <h2 className="app-surface-side-title">Room actions</h2>
+      <p>This room keeps its accepted files. Creating another room does not close or change it.</p>
+      {!newRoomSetup && <button type="button" className="button-secondary" onClick={startAnotherRoom}>Create another room</button>}
+      <button type="button" className="button-secondary" onClick={() => navigate("prepare")}>Back to preparation</button>
+    </>
+  ) : (
+    <>
+      <h2 className="app-surface-side-title">About this step</h2>
+      <p>Upload your material once. Nothing is sent until you explicitly create the room.</p>
+      {isPrepare && <p>No room is open yet. Create or join one to prepare.</p>}
+    </>
+  );
 
   return (
     <div className="app-root">
@@ -225,22 +287,30 @@ export function App() {
           </div>
           <RoomDock presentation={presentation} roomState={roomState} connected={connected} previewMode={previewMode}
             waitingForAnswerAck={waitingForAnswerAck} actionError={actionError} actionErrorReason={actionErrorReason} onSendEvent={sendEvent} />
-          <Drawer open={drawerOpen} mode={drawerMode} title={title} onClose={closeDrawer}>
-            {/* Controls stay mounted while the transcript shows so unsent preparation
-                drafts survive both drawer switching and screen navigation. */}
-            <div hidden={drawerMode !== "controls"}>
-              <ControlsPanel presentation={presentation} roomState={previewMode ? roomState : liveRoomState} connected={connected} previewMode={previewMode}
-                setupRequest={setupRequest}
-                onUseRoom={handleUseRoom} onLeaveRoom={handleLeaveRoom} onSendEvent={sendEvent}
-                onCloseDrawer={closeDrawer} showMessage={showMessage} account={account}
-                onOpenAccount={() => navigate("account")} onOpenTranscript={() => openDrawer("transcript")}
-                onPreviewMoment={previewPresenter} />
-              {(message || actionError) && <div role="alert" className="drawer-error">{message || actionError}</div>}
-            </div>
-            {drawerOpen && drawerMode === "transcript" && <TranscriptPanel presentation={presentation} roomState={roomState} previewMode={previewMode} />}
-          </Drawer>
         </div>
       </div>
+      {/* One persistent panel: an in-room overlay on the room screen, a full-screen
+          setup/preparation surface otherwise. Keeping it mounted preserves drafts. */}
+      <Drawer open={pageScreen || drawerOpen} mode={drawerMode} title={pageScreen ? pageTitle : title}
+        variant={pageScreen ? "page" : "overlay"} kicker={pageScreen ? pageKicker : undefined}
+        steps={pageScreen ? <PreparationSteps current={prepareReady ? 2 : 1} /> : undefined}
+        side={pageScreen ? pageSide : undefined}
+        onClose={pageScreen ? handleDrawerBack : closeDrawer}>
+        {/* Controls stay mounted while the transcript shows so unsent preparation
+            drafts survive both drawer switching and screen navigation. */}
+        <div hidden={!pageScreen && drawerMode !== "controls"}>
+          <ControlsPanel presentation={presentation} roomState={previewMode ? roomState : liveRoomState} connected={connected} previewMode={previewMode}
+            setupRequest={setupRequest} surface={pageScreen ? "page" : "drawer"}
+            forceSetup={isSetup && newRoomSetup} showExistingFiles={isSetup && hasRoom && !newRoomSetup}
+            activeRoomCode={activeRoomCode}
+            onUseRoom={handleUseRoom} onLeaveRoom={handleLeaveRoom} onSendEvent={sendEvent}
+            onCloseDrawer={closeControls} showMessage={showMessage} account={account}
+            onOpenAccount={() => navigate("account")} onOpenTranscript={() => openDrawer("transcript")}
+            onPreviewMoment={previewPresenter} />
+          {(message || actionError) && <div role="alert" className="drawer-error">{message || actionError}</div>}
+        </div>
+        {!pageScreen && drawerOpen && drawerMode === "transcript" && <TranscriptPanel presentation={presentation} roomState={roomState} previewMode={previewMode} />}
+      </Drawer>
       {screen === "account" && (
         <AccountScreen account={account} error={actionError?.startsWith("Sign in") ? actionError : accountError}
           refresh={refreshAccount} previewMode={previewMode} onBack={() => navigate("home")} />

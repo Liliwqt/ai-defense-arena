@@ -468,3 +468,26 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .app-card .button-primary, .app-card .button-secondary, .app-card .account-login { width: 100%; }
 .app-number { color: var(--subtle); font: 800 .72rem/1 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .1em; }
 .app-status { margin: 0; color: var(--muted); font-size: .84rem; line-height: 1.5; }
+
+/* Full-screen setup/preparation surface (Guided steps A): header, visible
+   preparation steps, then a main-content/room-action split on desktop. */
+.app-surface { width: 100%; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; background: var(--base); color: var(--ink); }
+.app-surface[hidden] { display: none; }
+.app-surface-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; width: min(100%, 1120px); margin: 0 auto; padding: clamp(14px, 2.6vw, 30px) clamp(16px, 2.4vw, 36px) 0; }
+.app-surface-back { width: auto !important; }
+.app-surface-inner-split { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; width: min(100%, 1120px); margin: 0 auto; padding: clamp(12px, 2vw, 22px) clamp(16px, 2.4vw, 36px) 56px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; align-content: start; }
+.app-surface-main { min-width: 0; display: grid; gap: 15px; align-content: start; }
+.app-surface-title { margin: 0; font-size: clamp(1.6rem, 4vw, 2.3rem); font-weight: 850; letter-spacing: -.03em; line-height: 1.1; }
+.app-surface-title:focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
+.app-surface-side { display: grid; gap: 10px; align-content: start; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface-alt); }
+.app-surface-side-title { margin: 0; font-size: .95rem; font-weight: 800; }
+.app-surface-side p { margin: 0; color: var(--muted); font-size: .84rem; line-height: 1.5; }
+.app-surface-side .button-secondary { width: 100%; }
+@media (min-width: 860px) {
+  .app-surface-inner-split:has(.app-surface-side) { grid-template-columns: minmax(0, 1.9fr) minmax(240px, 1fr); }
+  .app-surface-side { position: sticky; top: 0; }
+}
+.prepare-steps { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 auto; width: min(100%, 1120px); padding: 14px clamp(16px, 2.4vw, 36px) 0; list-style: none; }
+.prepare-step { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: .78rem; font-weight: 800; }
+.prepare-step[aria-current="step"] { border-color: transparent; background: var(--ink); color: var(--base); }
+.prepare-step-number { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 999px; background: var(--base); color: var(--ink); font: 800 .68rem/1 ui-monospace, SFMono-Regular, Consolas, monospace; }

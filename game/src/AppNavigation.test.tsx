@@ -115,11 +115,11 @@ describe("full-screen app navigation", () => {
 
   it("moves between Home and the room with browser Back and Forward", async () => {
     setAccount(account());
-    setSocket(null);
+    setSocket(roomState());
     renderAt("/");
     const roomMarker = () => screen.getByRole("button", { name: /settings.*controls/i });
 
-    await userEvent.click(screen.getByRole("button", { name: "Join a room" }));
+    await userEvent.click(screen.getByRole("button", { name: /return to your room ROOM1/i }));
     expect(window.location.hash).toBe("#/room");
     expect(roomMarker()).toBeTruthy();
 
@@ -174,8 +174,7 @@ describe("full-screen app navigation", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Create room" }));
     expect(screen.getByRole("tab", { name: "Create room" }).getAttribute("aria-selected")).toBe("true");
 
-    await userEvent.click(screen.getByRole("button", { name: /close panel/i }));
-    await userEvent.click(screen.getByRole("button", { name: "Home" }));
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
     await userEvent.click(screen.getByRole("button", { name: "Join a room" }));
 
     expect(screen.getByRole("tab", { name: "Join room" }).getAttribute("aria-selected")).toBe("true");
@@ -197,8 +196,7 @@ describe("full-screen app navigation", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Join room" }));
     expect(screen.getByRole("tab", { name: "Join room" }).getAttribute("aria-selected")).toBe("true");
 
-    await userEvent.click(screen.getByRole("button", { name: /close panel/i }));
-    await userEvent.click(screen.getByRole("button", { name: "Home" }));
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
     await userEvent.click(screen.getByRole("button", { name: "Create a defense" }));
 
     expect(screen.getByRole("tab", { name: "Create room" }).getAttribute("aria-selected")).toBe("true");
@@ -234,7 +232,7 @@ describe("full-screen app navigation", () => {
     expect(screen.queryByRole("heading", { name: "Account" })).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: "Join a room" }));
-    expect(window.location.hash).toBe("#/room");
+    expect(window.location.hash).toBe("#/setup");
     expect(document.querySelector("#join-form")).not.toBeNull();
 
     socket.actionError = "Sign in to use host controls.";

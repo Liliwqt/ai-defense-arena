@@ -6,17 +6,26 @@ interface DrawerProps {
   mode: DrawerMode;
   title: string;
   onClose: () => void;
+  /** "overlay" is the in-room side drawer; "page" is a full-screen preparation surface. */
+  variant?: "overlay" | "page";
+  kicker?: string;
+  steps?: React.ReactNode;
+  side?: React.ReactNode;
+  closeLabel?: string;
   children: React.ReactNode;
 }
 
-export function Drawer({ open, mode, title, onClose, children }: DrawerProps) {
+export function Drawer({ open, mode, title, onClose, variant = "overlay", kicker, steps, side, closeLabel, children }: DrawerProps) {
+  const isPage = variant === "page";
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const drawerRef = useRef<HTMLElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const wasOpenRef = useRef(false);
 
   // Place focus inside the dialog and restore it to its opener when dismissed.
+  // Full-screen pages announce their own heading instead of grabbing the Back control.
   useEffect(() => {
+    if (isPage) return;
     if (open) {
       if (!wasOpenRef.current) {
         returnFocusRef.current = document.activeElement as HTMLElement | null;
@@ -30,11 +39,11 @@ export function Drawer({ open, mode, title, onClose, children }: DrawerProps) {
       if (opener?.isConnected && !opener.closest("[hidden]")) opener.focus();
       returnFocusRef.current = null;
     }
-  }, [open, mode]);
+  }, [open, mode, isPage]);
 
-  // Escape key + Tab trap
+  // Escape key + Tab trap are overlay behaviour; a page is left with its Back action.
   useEffect(() => {
-    if (!open) return;
+    if (!open || isPage) return;
 
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
@@ -69,60 +78,59 @@ export function Drawer({ open, mode, title, onClose, children }: DrawerProps) {
 
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open, onClose]);
+  }, [open, isPage, onClose]);
 
-  // The panel stays mounted while closed so preparation drafts survive navigation;
-  // `hidden` keeps its inputs out of the tab order and the accessibility tree.
+  // The panel and its children keep the same element slots whether the variant is
+  // overlay or page, so preparation drafts and file selections never remount.
   return (
     <>
-      {/* Scrim */}
+      {!isPage && (
+        <div id="drawer-scrim" className="drawer-scrim" hidden={!open} onClick={onClose} aria-hidden="true" />
+      )}
       <div
-        id="drawer-scrim"
-        className="drawer-scrim"
-        hidden={!open}
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      {/* Panel */}
-      <aside
         id="drawer"
         ref={drawerRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="drawer-title"
-        className="drawer-panel"
+        role={isPage ? undefined : "dialog"}
+        aria-modal={isPage ? undefined : true}
+        aria-labelledby={isPage ? "app-screen-title" : "drawer-title"}
+        className={isPage ? "app-surface" : "drawer-panel"}
         hidden={!open}
-        style={{ width: "min(460px, 100vw)", height: "100dvh" }}
+        style={isPage ? undefined : { width: "min(460px, 100vw)", height: "100dvh" }}
       >
-        {/* Header */}
-        <div className="drawer-header">
-          <div>
-            <p className="drawer-kicker">
-              DEFENSE ROOM
-            </p>
-            <h2 id="drawer-title" className="drawer-title">
-              {title}
-            </h2>
-          </div>
+        <div className={isPage ? "app-surface-header" : "drawer-header"}>
+          {isPage ? (
+            <div className="app-page-brand">
+              <img className="brand-icon" src="/ai-defense-arena-icon.png" width="35" height="35" alt="" />
+              <span>AI Defense Arena</span>
+            </div>
+          ) : (
+            <div>
+              <p className="drawer-kicker">DEFENSE ROOM</p>
+              <h2 id="drawer-title" className="drawer-title">{title}</h2>
+            </div>
+          )}
           <button
             ref={closeButtonRef}
             type="button"
             id="drawer-close"
-            aria-label="Close panel"
+            aria-label={isPage ? (closeLabel ?? "Back") : (closeLabel ?? "Close panel")}
             onClick={onClose}
-            className="drawer-close"
+            className={isPage ? "button-secondary app-surface-back" : "drawer-close"}
           >
-            Close <span aria-hidden="true" className="text-[1.15rem] align-[-1px] ml-1">×</span>
+            {isPage ? (closeLabel ?? "Back") : <>Close <span aria-hidden="true" className="text-[1.15rem] align-[-1px] ml-1">×</span></>}
           </button>
         </div>
-        {/* Body */}
-        <div
-          className="drawer-body"
-          style={{ overscrollBehavior: "contain" }}
-        >
-          {children}
+        {isPage ? steps : null}
+        <div className={isPage ? "app-surface-inner-split" : "drawer-body"} style={isPage ? undefined : { overscrollBehavior: "contain" }}>
+          {/* Stable slot: children never remount when the variant changes. */}
+          <div className={isPage ? "app-surface-main" : "drawer-main"}>
+            {isPage && kicker && <p className="app-page-kicker">{kicker}</p>}
+            {isPage && <h1 id="app-screen-title" className="app-surface-title" tabIndex={-1}>{title}</h1>}
+            {children}
+          </div>
+          {isPage && side && <aside className="app-surface-side" aria-label="Room actions">{side}</aside>}
         </div>
-      </aside>
+      </div>
     </>
   );
 }

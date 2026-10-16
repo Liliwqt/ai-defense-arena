@@ -1,5 +1,5 @@
 /** Root-fragment app screens. Screen addresses are navigation intent, not permission. */
-export type AppScreen = "home" | "signin" | "account" | "room";
+export type AppScreen = "home" | "signin" | "account" | "setup" | "prepare" | "room";
 
 export interface AppRoute {
   screen: AppScreen;
@@ -13,6 +13,8 @@ const SCREENS = new Map<string, AppScreen>([
   ["/home", "home"],
   ["/signin", "signin"],
   ["/account", "account"],
+  ["/setup", "setup"],
+  ["/prepare", "prepare"],
   ["/room", "room"],
 ]);
 

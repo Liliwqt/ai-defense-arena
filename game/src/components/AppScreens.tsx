@@ -33,6 +33,24 @@ export function AppPage({ kicker, title, notice, actions, children }: AppPagePro
   );
 }
 
+/** Guided preparation progress: a description of the flow, not room authority. */
+export function PreparationSteps({ current }: { current: 1 | 2 | 3 }) {
+  const steps = ["Set up", "Prepare", "Defend"];
+  return (
+    <ol className="prepare-steps" aria-label="Preparation steps">
+      {steps.map((label, index) => {
+        const number = index + 1;
+        return (
+          <li key={label} className="prepare-step" aria-current={number === current ? "step" : undefined}>
+            <span className="prepare-step-number" aria-hidden="true">{number}</span>
+            <span className="prepare-step-label">{label}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 export function AccountScreen({ account, error, refresh, previewMode, onBack }: {
   account: Account | null;
   error: string;
