@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AccountPanel } from "./components/AccountPanel";
+import { AccountScreen, HomeScreen, SignInScreen } from "./components/AppScreens";
 import { useAccount } from "./hooks/useAccount";
 import { RoomDock } from "./components/RoomDock";
 import { ControlsPanel } from "./components/ControlsPanel";
 import { Drawer } from "./components/Drawer";
 import { HUD } from "./components/HUD";
 import { QuestionCard } from "./components/QuestionCard";
+import { useAppRoute } from "./hooks/useAppRoute";
 import { useRoomViewport } from "./hooks/useRoomViewport";
 import "./mobile.css";
 import { DefenderSeats, PanelistSeats, type PresenterMoment } from "./components/FlatRoom";
@@ -21,12 +22,15 @@ const previewMode = new URLSearchParams(window.location.search).get("preview") =
 
 export function App() {
   const viewport = useRoomViewport();
+  const { screen, invalid, navigate } = useAppRoute();
   const {
     roomState: liveRoomState, connected, roomCode, waitingForAnswerAck,
     actionError, actionErrorReason, sendEvent, useRoom, leaveRoom, playerToken,
   } = useRoomSocket(previewMode);
-  const [drawerOpen, setDrawerOpen] = useState(!previewMode || new URLSearchParams(window.location.search).get("plan") === "1");
-  const [drawerMode, setDrawerMode] = useState<DrawerMode>(new URLSearchParams(location.search).get("account") === "1" ? "account" : "controls");
+  const [drawerOpen, setDrawerOpen] = useState(() =>
+    screen === "room" && (!previewMode || new URLSearchParams(window.location.search).get("plan") === "1"));
+  const [drawerMode, setDrawerMode] = useState<DrawerMode>("controls");
+  const [controlsTab, setControlsTab] = useState<"create" | "join">("create");
   const { account, refresh: refreshAccount, error: accountError } = useAccount(previewMode);
   useEffect(() => {
     const refresh = () => { void refreshAccount(); };
@@ -71,6 +75,13 @@ export function App() {
     setDrawerOpen(true);
   }, []);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const openSetup = useCallback((tab: "create" | "join") => {
+    setControlsTab(tab);
+    setDrawerMode("controls");
+    setDrawerOpen(true);
+    navigate("room");
+  }, [navigate]);
+  useEffect(() => { if (screen !== "room") setDrawerOpen(false); }, [screen]);
   const showMessage = useCallback((value: string) => {
     setMessage(value);
     if (value) openDrawer("controls");
@@ -180,37 +191,55 @@ export function App() {
 
   useEffect(() => { if (liveRoomState?.self_is_host) void refreshAccount(); }, [liveRoomState?.phase, refreshAccount]);
   useEffect(() => {
-    if (actionError?.startsWith("Sign in")) { openDrawer("account"); void refreshAccount(); }
-  }, [actionError, openDrawer, refreshAccount]);
+    if (actionError?.startsWith("Sign in")) {
+      if (screen !== "account") navigate("account");
+      void refreshAccount();
+    }
+  }, [actionError, screen, navigate, refreshAccount]);
 
-  const title = drawerMode === "transcript" ? "Transcript" : drawerMode === "account" ? "Account" : "Controls";
+  const title = drawerMode === "transcript" ? "Transcript" : "Controls";
 
   return (
-    <div className="arena-shell" data-compact-viewport={viewport.compact} style={{ "--room-viewport-height": `${viewport.height}px` } as React.CSSProperties}>
-      <div id="stage" className="arena-stage">
-        <HUD presentation={presentation} roomState={roomState} roomCode={roomCode} previewMode={previewMode} onOpenDrawer={openDrawer} onPreviewMoment={previewPresenter} />
-        <PanelistSeats presentation={presentation} roomState={roomState} />
-        <QuestionCard presentation={presentation} roomState={roomState} playerToken={playerToken} />
-        <DefenderSeats presentation={presentation} roomState={roomState} presenterMoment={presenterMoment} />
+    <div className="app-root">
+      <div className="room-screen" hidden={screen !== "room"}>
+        <div className="arena-shell" data-compact-viewport={viewport.compact} style={{ "--room-viewport-height": `${viewport.height}px` } as React.CSSProperties}>
+          <div id="stage" className="arena-stage">
+            <HUD presentation={presentation} roomState={roomState} roomCode={roomCode} previewMode={previewMode} onOpenDrawer={openDrawer}
+              onOpenAccount={() => navigate("account")} onOpenHome={() => navigate("home")} onPreviewMoment={previewPresenter} />
+            <PanelistSeats presentation={presentation} roomState={roomState} />
+            <QuestionCard presentation={presentation} roomState={roomState} playerToken={playerToken} />
+            <DefenderSeats presentation={presentation} roomState={roomState} presenterMoment={presenterMoment} />
+          </div>
+          <RoomDock presentation={presentation} roomState={roomState} connected={connected} previewMode={previewMode}
+            waitingForAnswerAck={waitingForAnswerAck} actionError={actionError} actionErrorReason={actionErrorReason} onSendEvent={sendEvent} />
+          <Drawer open={drawerOpen} mode={drawerMode} title={title} onClose={closeDrawer}>
+            {drawerMode === "controls" ? (
+              <>
+                <ControlsPanel presentation={presentation} roomState={previewMode ? roomState : liveRoomState} connected={connected} previewMode={previewMode}
+                  initialTab={controlsTab}
+                  onUseRoom={handleUseRoom} onLeaveRoom={handleLeaveRoom} onSendEvent={sendEvent}
+                  onCloseDrawer={closeDrawer} showMessage={showMessage} account={account}
+                  onOpenAccount={() => navigate("account")} onOpenTranscript={() => openDrawer("transcript")}
+                  onPreviewMoment={previewPresenter} />
+                {(message || actionError) && <div role="alert" className="drawer-error">{message || actionError}</div>}
+              </>
+            ) : (
+              <TranscriptPanel presentation={presentation} roomState={roomState} previewMode={previewMode} />
+            )}
+          </Drawer>
+        </div>
       </div>
-      <RoomDock presentation={presentation} roomState={roomState} connected={connected} previewMode={previewMode}
-        waitingForAnswerAck={waitingForAnswerAck} actionError={actionError} actionErrorReason={actionErrorReason} onSendEvent={sendEvent} />
-      <Drawer open={drawerOpen} mode={drawerMode} title={title} onClose={closeDrawer}>
-        {drawerMode === "controls" ? (
-          <>
-            <ControlsPanel presentation={presentation} roomState={previewMode ? roomState : liveRoomState} connected={connected} previewMode={previewMode}
-              onUseRoom={handleUseRoom} onLeaveRoom={handleLeaveRoom} onSendEvent={sendEvent}
-              onCloseDrawer={closeDrawer} showMessage={showMessage} account={account}
-              onOpenAccount={() => openDrawer("account")} onOpenTranscript={() => openDrawer("transcript")}
-              onPreviewMoment={previewPresenter} />
-            {(message || actionError) && <div role="alert" className="drawer-error">{message || actionError}</div>}
-          </>
-        ) : drawerMode === "account" ? (
-          <AccountPanel account={account} refresh={refreshAccount} error={actionError?.startsWith("Sign in") ? actionError : accountError} previewMode={previewMode} />
-        ) : (
-          <TranscriptPanel presentation={presentation} roomState={roomState} previewMode={previewMode} />
-        )}
-      </Drawer>
+      {screen === "account" && (
+        <AccountScreen account={account} error={actionError?.startsWith("Sign in") ? actionError : accountError}
+          refresh={refreshAccount} previewMode={previewMode} onBack={() => navigate("home")} />
+      )}
+      {screen === "signin" && <SignInScreen account={account}
+        onBack={() => navigate("home")} onAccount={() => navigate("account")} />}
+      {screen === "home" && <HomeScreen notice={invalid ? "We couldn’t open that screen. You’re on Home." : null}
+        onCreate={() => { if (account?.authenticated) openSetup("create"); else navigate("signin"); }}
+        onJoin={() => openSetup("join")} roomCode={roomCode}
+        onReturnToRoom={() => navigate("room")}
+        ownerHref={account?.authenticated && account.manager_enabled ? "/?manager=1" : null} />}
     </div>
   );
 }

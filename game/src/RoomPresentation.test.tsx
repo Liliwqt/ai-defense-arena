@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { useRoomSocket, type RoomSocketState } from "./hooks/useRoomSocket";
 import type { RoomState } from "./types";
@@ -32,7 +32,8 @@ function snapshot(state: RoomState | null) {
   return socket;
 }
 
-afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); });
+beforeEach(() => { window.history.replaceState(null, "", "/#/room"); });
+afterEach(() => { window.history.replaceState(null, "", "/"); vi.useRealTimers(); vi.clearAllMocks(); });
 
 it("keeps Controls guidance current during voting, answering, replies and submission recovery", () => {
   snapshot(room());

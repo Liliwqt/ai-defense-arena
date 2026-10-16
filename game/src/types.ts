@@ -172,4 +172,4 @@ export interface RoomState {
   chat?: ChatMessage[];
 }
 
-export type DrawerMode = "controls" | "transcript" | "account";
+export type DrawerMode = "controls" | "transcript";

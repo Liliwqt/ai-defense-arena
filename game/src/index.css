@@ -443,3 +443,27 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .profile-approach-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .profile-approach-options .profile-confirmation { font-size: 14px; overflow-wrap: anywhere; }
 .profile-source-description { border-left: 2px solid var(--ink); padding-left: 12px; }
+
+/* Full-screen app pages keep the room mounted but hidden behind them, so screen
+   navigation never disconnects the room owner or discards valid room inputs. */
+.app-root { width: 100%; height: 100dvh; overflow: hidden; background: var(--base); }
+.room-screen { width: 100%; height: 100dvh; }
+.room-screen[hidden] { display: none; }
+.app-page { width: 100%; height: 100dvh; overflow-y: auto; overscroll-behavior: contain; background: var(--base); color: var(--ink); }
+.app-page-inner { width: min(100%, 980px); margin: 0 auto; padding: clamp(14px, 2.6vw, 34px) clamp(16px, 2.4vw, 36px) 56px; display: grid; gap: 20px; align-content: start; }
+.app-page-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+.app-page-brand { display: flex; align-items: center; gap: 11px; color: var(--ink); font-size: .95rem; font-weight: 850; letter-spacing: -.02em; }
+.app-page-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.app-page-actions .button-primary, .app-page-actions .button-secondary { width: auto; }
+.app-page-intro { display: grid; gap: 8px; }
+.app-page-kicker { margin: 0; color: var(--subtle); font-size: .68rem; font-weight: 800; letter-spacing: .12em; }
+.app-page h1 { margin: 0; font-size: clamp(1.7rem, 4.4vw, 2.5rem); font-weight: 850; letter-spacing: -.03em; line-height: 1.1; }
+.app-page h1:focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
+.app-page-notice { margin: 0; padding: 12px 14px; border-left: 3px solid var(--ink); background: var(--surface-alt); border-radius: 10px; font-size: .85rem; }
+.app-choice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.app-card { display: grid; gap: 10px; align-content: start; padding: 20px; border: 1px solid transparent; border-radius: 18px; background: var(--base); box-shadow: var(--raise-sm); overflow-wrap: anywhere; }
+.app-card h2 { margin: 0; font-size: 1.08rem; font-weight: 800; }
+.app-card p { margin: 0; color: var(--muted); font-size: .86rem; line-height: 1.55; }
+.app-card .button-primary, .app-card .button-secondary, .app-card .account-login { width: 100%; }
+.app-number { color: var(--subtle); font: 800 .72rem/1 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .1em; }
+.app-status { margin: 0; color: var(--muted); font-size: .84rem; line-height: 1.5; }

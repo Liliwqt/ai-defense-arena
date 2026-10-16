@@ -1,6 +1,6 @@
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { useRoomSocket } from "./hooks/useRoomSocket";
 import type { RoomSocketState } from "./hooks/useRoomSocket";
@@ -36,7 +36,8 @@ const socket = (state: RoomState | null): RoomSocketState => ({
 });
 const setSocket = (state: RoomState | null) => vi.mocked(useRoomSocket).mockReturnValue(socket(state));
 
-afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); });
+beforeEach(() => { window.history.replaceState(null, "", "/#/room"); });
+afterEach(() => { window.history.replaceState(null, "", "/"); vi.useRealTimers(); vi.clearAllMocks(); });
 
 describe("flat room flow", () => {
   it("does not let a final answer's seat highlight delay coaching after closing ends", () => {
@@ -135,7 +136,8 @@ describe("flat room flow", () => {
     expect(settings).toHaveFocus();
     expect(answer).toHaveValue("Keep this same-turn draft.");
     await userEvent.click(screen.getByRole("button", { name: "Account" }));
-    expect(screen.getByRole("dialog", { name: "Account" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Account" })).toBeTruthy();
+    expect(answer).toHaveValue("Keep this same-turn draft.");
   });
 
   it("distinguishes opening preparation, answer review and missed-turn review", async () => {

@@ -10,6 +10,7 @@ import { deriveRoomPresentation, type RoomPresentation } from "../lib/roomPresen
 interface ControlsPanelProps {
   presentation?: RoomPresentation;
   account?: Account | null;
+  initialTab?: "create" | "join";
   onOpenAccount?: () => void;
   onOpenTranscript?: () => void;
   onPreviewMoment?: () => void;
@@ -44,6 +45,7 @@ async function responseJson(response: Response): Promise<Record<string, unknown>
 
 export function ControlsPanel({
   account,
+  initialTab = "create",
   onOpenAccount,
   onOpenTranscript,
   onPreviewMoment,
@@ -57,7 +59,7 @@ export function ControlsPanel({
   showMessage,
   presentation = deriveRoomPresentation(roomState),
 }: ControlsPanelProps) {
-  const [activeTab, setActiveTab] = useState<"create" | "join">("create");
+  const [activeTab, setActiveTab] = useState<"create" | "join">(initialTab);
   const [createBusy, setCreateBusy] = useState(false);
   const [createProgress, setCreateProgress] = useState<RoomCreationProgress | null>(null);
   const [createElapsed, setCreateElapsed] = useState(0);
