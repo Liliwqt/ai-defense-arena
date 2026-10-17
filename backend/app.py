@@ -188,8 +188,14 @@ st.title("AI Defense Arena")
 st.caption("Upload a code project, a research paper, or both for a practice defense.")
 
 st.subheader("1. Add defense materials")
-defense_type = st.selectbox("Defense type", ["Code project", "Research paper", "Research + code"])
+defense_type = st.selectbox("Defense type", ["Code project", "Research paper", "Research + code"],
+    index=1, key="practice_defense_type",
+    format_func=lambda choice: "Code project · Experimental" if choice == "Code project" else choice)
 mode = {"Code project": "code", "Research paper": "research", "Research + code": "mixed"}[defense_type]
+if mode != "code":
+    st.markdown("**Practice a clear explanation**")
+    st.markdown("Answer directly → explain why → support with evidence → acknowledge a relevant limitation.")
+    st.caption("For spoken practice, use the microphone in the multiplayer app when voice is available. This fallback uses typing.")
 research_stage = "infer"
 if mode != "code":
     research_stage = st.selectbox("Research stage", ["Let AI infer", "Proposal", "Completed study"])

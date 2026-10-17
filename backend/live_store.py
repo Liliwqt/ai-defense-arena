@@ -271,15 +271,19 @@ class LiveStore:
 
     def charge_run(self,account_id,run_id):
         with self.transaction() as db:
-            self._check_run_service(db,run_id)
-            row=db.execute('SELECT * FROM live_runs WHERE id=? AND account_id=?',(run_id,account_id)).fetchone()
-            if not row or row['outcome'] not in {'opening','active'} or row['status'] not in {'reserved','charged'}:
-                raise AccessError('Run access has expired. Retry the opening question to reserve access again.')
-            for item in db.execute("SELECT * FROM live_allocations WHERE run_id=? AND status='reserved'",(run_id,)).fetchall():
-                db.execute('UPDATE live_lots SET ever_spent=ever_spent+? WHERE topup_id=?',(item['credits'],item['topup_id']))
-            db.execute("UPDATE live_allocations SET status='charged' WHERE run_id=? AND status='reserved'",(run_id,))
-            db.execute("UPDATE live_grant_allocations SET status='charged' WHERE run_id=? AND status='reserved'",(run_id,))
-            db.execute("UPDATE live_runs SET status='charged',outcome='active',charged_at=COALESCE(charged_at,?),updated_at=? WHERE id=?",(int(time.time()),int(time.time()),run_id))
+            self.charge_in_transaction(db,account_id,run_id)
+
+    @staticmethod
+    def charge_in_transaction(db,account_id,run_id):
+        LiveStore._check_run_service(db,run_id)
+        row=db.execute('SELECT * FROM live_runs WHERE id=? AND account_id=?',(run_id,account_id)).fetchone()
+        if not row or row['outcome'] not in {'opening','active'} or row['status'] not in {'reserved','charged'}:
+            raise AccessError('Run access has expired. Retry the opening question to reserve access again.')
+        for item in db.execute("SELECT * FROM live_allocations WHERE run_id=? AND status='reserved'",(run_id,)).fetchall():
+            db.execute('UPDATE live_lots SET ever_spent=ever_spent+? WHERE topup_id=?',(item['credits'],item['topup_id']))
+        db.execute("UPDATE live_allocations SET status='charged' WHERE run_id=? AND status='reserved'",(run_id,))
+        db.execute("UPDATE live_grant_allocations SET status='charged' WHERE run_id=? AND status='reserved'",(run_id,))
+        db.execute("UPDATE live_runs SET status='charged',outcome='active',charged_at=COALESCE(charged_at,?),updated_at=? WHERE id=?",(int(time.time()),int(time.time()),run_id))
 
     def finish_run(self,run_id,outcome):
         if outcome not in {'completed','ended','abandoned'}:

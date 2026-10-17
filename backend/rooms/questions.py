@@ -1,7 +1,7 @@
 """Detached question generation and validation; the coordinator owns its tasks."""
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import os
 from typing import TYPE_CHECKING
 from collections.abc import Awaitable, Callable
@@ -13,9 +13,10 @@ from backend.defense_progression import PreparedProgression, prepare_progression
 from backend.project_files import ProjectFile
 from backend.financial_policy import live_mode
 from backend.live_store import LiveStore
+from backend.opening_history import OpeningQuestion, RepeatedOpening, paper_key, recent_openings
 from backend.resource_limits import limit
 from backend.question_generator import (
-    DEFAULT_MODEL, InvalidQuestionResponse, generate_first_question,
+    DEFAULT_MODEL, InvalidQuestionResponse, QuestionGenerationError, generate_first_question,
     generate_next_move, generate_research_move,
     GroundedQuestion, PanelMove, ResearchMove,
 )
@@ -47,68 +48,86 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
     next_clock = None
     feedback_id = None
     try:
-        # One extra attempt after a resolved turn; both attempts use the existing
-        # admission budget and detached session. No answer or charge is replayed.
+        # Each candidate is detached. History and access commit before publication;
+        # rejected/racing duplicate candidates roll back without charging the run.
         for attempt in range(2):
             async with room.lock:
                 if not owner._question_current(work):
                     return
                 cap = limit('AI_QUESTION_ATTEMPTS', 3, 10)
                 attempt_key = f'question:{len(room.defense.turns) if room.defense else 0}'
-                room.ai_budget.admit(attempt_key, cap, room.owner_account_id or room.code)
                 request = prepare_progression(room.defense, defense_type=room.defense_type,
                                               research_stage=room.research_stage)
                 files = tuple(room.files)
+                opening_key = None
+                if room.owner_account_id and room.run_id and room.defense_type != "code" and (room.defense is None or not room.defense.turns):
+                    opening_key = paper_key(files)
+                    try:
+                        recent = recent_openings(room.owner_account_id, opening_key)
+                    except Exception as failure:
+                        raise QuestionGenerationError("Recent opening history could not be checked. No defense was charged; retry when storage recovers.") from failure
+                    request = replace(request, recent_openings=tuple(recent))
+                room.ai_budget.admit(attempt_key, cap, room.owner_account_id or room.code)
             try:
                 result = await owner._workflows.question_request(request, files)
                 try:
                     session = request.apply(result)
                 except ValueError as error:
                     raise InvalidQuestionResponse(str(error)) from error
-            except (InvalidQuestionResponse, ValidationError, APIConnectionError, APIStatusError) as error:
-                # Authentication, quota/rate limits, request errors and storage
-                # failures need explicit recovery rather than another AI call.
+                async with room.lock:
+                    if not owner._question_current(work):
+                        return
+                    room.question_retry_generation_id = None
+                    opening = room.defense is None or not room.defense.turns
+                    if room.run_id and opening and session.turns:
+                        if opening_key:
+                            turn = session.turns[0]
+                            candidate = OpeningQuestion(opening_key, turn.question.question, turn.panelist, turn.topic_id)
+                            try:
+                                charge_run(room.owner_account_id, room.run_id, opening=candidate)
+                            except RepeatedOpening:
+                                raise
+                            except Exception as failure:
+                                raise QuestionGenerationError("Opening history and access could not be saved. No new opening was charged; retry when storage recovers.") from failure
+                        else:
+                            charge_run(room.owner_account_id, room.run_id)
+                    elif live_mode() and room.run_id:
+                        LiveStore().service_state(room.run_id, "coaching" if session.completed else "active")
+                    room.defense = commit_progression(room.defense, session)
+                    if room.defense.completed:
+                        room.phase = "complete"
+                        room.feedback_status = "generating"
+                        room.feedback_generation_id += 1
+                        feedback_id = room.feedback_generation_id
+                    else:
+                        room.present_question(room.defense, owner._workflows.now())
+                        next_clock = (room.clock_id, room.reaction_deadline_ms or room.vote_deadline_ms)
+                    room.error = None
+                    room.revision += 1
+            except (RepeatedOpening, InvalidQuestionResponse, ValidationError, APIConnectionError, APIStatusError) as error:
                 recoverable = not isinstance(error, APIStatusError) or error.status_code >= 500
                 async with room.lock:
                     if not owner._question_current(work):
                         return
                     resolved = room.defense is not None and bool(room.defense.turns) and (
                         room.defense.turns[-1].answer is not None or room.defense.turns[-1].timed_out)
-                    if attempt or first or not recoverable or not resolved or not room.ai_budget.remaining(attempt_key, cap):
+                    duplicate = isinstance(error, RepeatedOpening)
+                    if attempt or not recoverable or (not duplicate and (first or not resolved)) or not room.ai_budget.remaining(attempt_key, cap):
                         raise
                     room.question_retry_generation_id = work.generation_id
                     room.revision += 1
                 await owner._publish()
-                await owner._workflows.sleep(1)
+                if not duplicate:
+                    await owner._workflows.sleep(1)
                 continue
             break
-        async with room.lock:
-            if not owner._question_current(work):
-                return
-            room.question_retry_generation_id = None
-            opening=room.defense is None or not room.defense.turns
-            if room.run_id and opening and session.turns:
-                charge_run(room.owner_account_id, room.run_id)
-            elif live_mode() and room.run_id:
-                LiveStore().service_state(room.run_id,"coaching" if session.completed else "active")
-            room.defense = commit_progression(room.defense, session)
-            if room.defense.completed:
-                room.phase = "complete"
-                room.feedback_status = "generating"
-                room.feedback_generation_id += 1
-                feedback_id = room.feedback_generation_id
-            else:
-                room.present_question(room.defense, owner._workflows.now())
-                next_clock = (room.clock_id, room.reaction_deadline_ms or room.vote_deadline_ms)
-            room.error = None
-            room.revision += 1
     except Exception as error:
         async with room.lock:
             if not owner._question_current(work):
                 return
             room.question_retry_generation_id = None
             room.phase = "retry"
-            room.error = safe_generation_error(error)
+            room.error = str(error) if isinstance(error, RepeatedOpening) else safe_generation_error(error)
             try:
                 if room.defense is None or not room.defense.turns:
                     release_run(room.run_id)

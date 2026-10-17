@@ -115,6 +115,11 @@ async def _room_maintenance():
             for room in list(rooms.values()):
                 await _coordinator(room).execute(ObserveAbsence())
         await _cleanup_rooms()
+        try:
+            from backend.opening_history import prune_openings
+            await asyncio.to_thread(prune_openings)
+        except Exception:
+            logging.getLogger(__name__).warning("Opening-history retention cleanup unavailable.")
         await asyncio.sleep(5)
 
 @asynccontextmanager

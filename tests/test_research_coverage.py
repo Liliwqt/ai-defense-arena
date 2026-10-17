@@ -63,8 +63,16 @@ def proposal(context, history, *, followup=False, mixed=False):
     option = next((o for o in choices if o['is_follow_up']), None) if followup else next((o for o in choices if not o['is_follow_up']), None)
     option = option or choices[0]
     topic = next(t for t in context['plan']['topics'] if t['id'] == option['topic_id'])
+    question = f"How will the team justify {topic['title'].lower()} in discussion {len(history)+1}?"
+    if not history:
+        recent = {entry['question'] for entry in context.get('recent_openings', [])}
+        alternatives = [question] + [f"{angle} {topic['title'].lower()}?" for angle in (
+            'Which limitation matters most for', 'What evidence would support',
+            'Which assumption needs checking for', 'How will the setting affect',
+            'What alternative would you compare with', 'How would you explain the scope of')]
+        question = next((candidate for candidate in alternatives if candidate not in recent), question)
     return dict(action='ask', **option, lead_in='' if previous is None else ('No answer was recorded. We can return to that issue.' if previous.timed_out else 'You described a pilot decision. Let’s examine its evidence.'),
-                question=f"How will the team justify {topic['title'].lower()} in discussion {len(history)+1}?",
+                question=question,
                 source_file=2 if mixed and len(history) % 2 else 1,
                 evidence_line=1 if mixed and len(history) % 2 else topic['references'][0]['evidence_line'], assessment=assessment)
 

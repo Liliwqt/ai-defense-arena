@@ -355,7 +355,7 @@ class ResearchTwoClientTests(unittest.TestCase):
                 host = response.json()
                 guest = self.client.post(f"/api/rooms/{host['room_code']}/join", json={'name': 'Sam'}).json()
                 roles = [role for role in RESEARCH_PANELISTS for _ in range(2)] if followups else list(RESEARCH_PANELISTS)
-                questions = [GroundedQuestion(f'How will turn {i + 1} work?', 'paper.pdf', 1,
+                questions = [GroundedQuestion('Which constraint affects the planned interviews?' if followups and i == 0 else f'How will turn {i + 1} work?', 'paper.pdf', 1,
                     'Planned student interviews', '', 'Page 1 · extracted line 1', 'research_pdf') for i in range(len(roles))]
                 moves = []
                 for i, (role, question) in enumerate(zip(roles, questions)):

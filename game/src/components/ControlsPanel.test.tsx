@@ -60,6 +60,7 @@ describe("Room creation loading", () => {
     const requests = mockRoomRequests();
     const onUseRoom = vi.fn();
     render(<ControlsPanel {...defaultProps} roomState={null} connected={false} onUseRoom={onUseRoom} />);
+    fireEvent.change(screen.getByLabelText("Defense type"), { target: { value: "code" } });
     fireEvent.change(screen.getByRole("textbox", { name: "Your name" }), { target: { value: "My team name" } });
     const form = document.querySelector("#create-form")!;
     fireEvent.submit(form);
@@ -194,8 +195,9 @@ describe("ControlsPanel", () => {
 
   it("offers separate research documents and stage for paper defenses", () => {
     render(<ControlsPanel {...defaultProps} roomState={null} connected={false} />);
-    expect(screen.getByLabelText("Project source files or ZIP")).toBeTruthy();
+    expect(screen.getByLabelText("Defense type")).toHaveValue("research");
     fireEvent.change(screen.getByLabelText("Defense type"), { target: { value: "mixed" } });
+    expect(screen.getByLabelText("Project source files or ZIP")).toBeTruthy();
     expect(screen.getByLabelText("Research documents")).toBeTruthy();
     expect(screen.getByLabelText("Research stage")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Defense type"), { target: { value: "research" } });

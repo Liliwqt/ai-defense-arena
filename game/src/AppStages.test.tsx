@@ -25,9 +25,11 @@ beforeEach(() => {
     waitingForAnswerAck: false, actionError: null, actionErrorReason: null, sendEvent: vi.fn(() => true), useRoom: vi.fn(), leaveRoom: vi.fn() };
   vi.mocked(useRoomSocket).mockImplementation(() => socket);
 });
-afterEach(() => { vi.clearAllMocks(); vi.useRealTimers(); });
+afterEach(() => { vi.clearAllMocks(); vi.restoreAllMocks(); vi.useRealTimers(); });
 
 it("opens full-screen Controls and returns with the same answer and server deadline", async () => {
+  vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+  vi.spyOn(performance, "now").mockReturnValue(1000);
   socket.roomState = room({ server_now_ms: Date.now(), answer_deadline_ms: Date.now() + 120_000 });
   render(<App />);
   const answer = screen.getByRole("textbox", { name: /chosen to answer/i });

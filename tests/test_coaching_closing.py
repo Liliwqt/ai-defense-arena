@@ -151,6 +151,7 @@ class CoachingClosingStreamlitTests(unittest.TestCase):
         report = CoachingReport("Discussion complete.", [], [], "Practice.", closing=text)
         with patch("backend.question_generator.generate_coaching_report") as coach:
             app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "backend/app.py")).run()
+            app.selectbox[0].select("Code project").run()
             app.file_uploader[0].set_value([("queue.py", b"queue = []", "text/x-python")]).run()
             app.session_state["defense_session"] = completed_room({"id": "unused"}).defense
             app.session_state["research_coaching"] = report

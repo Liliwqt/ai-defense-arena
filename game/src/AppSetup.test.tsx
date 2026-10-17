@@ -71,6 +71,19 @@ beforeEach(() => { sessionStorage.clear(); window.history.replaceState(null, "",
 afterEach(() => { window.history.replaceState(null, "", "/"); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
 describe("guided setup and preparation", () => {
+  it("defaults fresh setup to research and keeps an explicit experimental code choice", async () => {
+    setAccount(hostAccount());
+    setSocket(null);
+    const view = renderAt("/#/setup");
+    const mode = screen.getByRole("combobox", { name: "Defense type" });
+    expect(mode).toHaveValue("research");
+    expect(screen.getByRole("complementary", { name: "Answer practice guide" })).toHaveTextContent("Answer directly");
+    await userEvent.selectOptions(mode, "code");
+    expect(mode).toHaveDisplayValue("Code project · Experimental");
+    view.unmount();
+    renderAt("/#/setup");
+    expect(screen.getByRole("combobox", { name: "Defense type" })).toHaveValue("code");
+  });
   it("opens a full-screen create setup from Home for a signed-in host without creating a room", async () => {
     setSocket(null);
     setAccount(hostAccount());
@@ -137,6 +150,7 @@ describe("guided setup and preparation", () => {
     renderAt("/#/setup");
     expect(screen.getByRole("heading", { name: "What are you preparing?" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Your work" })).toBeVisible();
+    await userEvent.selectOptions(screen.getByLabelText("Defense type"), "code");
     await userEvent.upload(screen.getByLabelText("Project source files or ZIP"), new File(["print(1)"], "app.py", { type: "text/plain" }));
     const next = within(screen.getByRole("complementary", { name: "Room and next step" })).getByRole("button", { name: "Create defense room" });
     // jsdom's native file-required validation does not see userEvent's FileList.
@@ -176,6 +190,7 @@ describe("guided setup and preparation", () => {
     setSocket(null);
     setAccount(hostAccount());
     renderAt("/#/setup");
+    await userEvent.selectOptions(screen.getByLabelText("Defense type"), "code");
     const upload = screen.getByLabelText("Project source files or ZIP") as HTMLInputElement;
     await userEvent.upload(upload, new File(["print(1)"], "old.py", { type: "text/plain" }));
     fireEvent.submit(document.querySelector("#create-form")!);
@@ -207,6 +222,7 @@ describe("guided setup and preparation", () => {
     await userEvent.click(screen.getByRole("button", { name: "Create another room" }));
     expect(window.location.hash).toBe("#/setup?new=1");
     const file = new File(["print(1)"], "sample.py", { type: "text/plain" });
+    await userEvent.selectOptions(screen.getByLabelText("Defense type"), "code");
     await userEvent.upload(screen.getByLabelText("Project source files or ZIP"), file);
     await userEvent.click(screen.getByRole("button", { name: "Back" }));
     await userEvent.click(screen.getByRole("button", { name: "Back to setup" }));

@@ -51,6 +51,14 @@ async function responseJson(response: Response): Promise<Record<string, unknown>
   return body;
 }
 
+function AnswerPracticeGuide() {
+  return <aside className="setup-card" aria-label="Answer practice guide">
+    <strong>Practice a clear explanation</strong>
+    <p className="control-help">Answer directly → explain why → support with evidence → acknowledge a relevant limitation.</p>
+    <p className="control-help">For spoken practice, use the microphone when voice is available. Typing remains available.</p>
+  </aside>;
+}
+
 export function ControlsPanel({
   account,
   setupRequest,
@@ -98,7 +106,7 @@ export function ControlsPanel({
   const startPending = useRef(false);
   const [starting, setStarting] = useState(false);
   const [researchActionContainer, setResearchActionContainer] = useState<HTMLDivElement | null>(null);
-  const [defenseType, setDefenseType] = useTabDraft("defense-type", "code", { valid: value => ["code", "research", "mixed"].includes(value) });
+  const [defenseType, setDefenseType] = useTabDraft("defense-type", "research", { valid: value => ["code", "research", "mixed"].includes(value) });
   const [researchStage, setResearchStage] = useTabDraft("research-stage", "infer", { valid: value => ["infer", "proposal", "completed"].includes(value) });
   const [joinCode, setJoinCode] = useTabDraft("join-code", "");
   const [joinName, setJoinName] = useTabDraft("join-name", "");
@@ -281,6 +289,7 @@ export function ControlsPanel({
 
             <div hidden={activeTab !== "create"}>
             <p className="control-help">After a refresh, select your unsubmitted files again. Accepted room files remain with the room.</p>
+            {defenseType !== "code" && <AnswerPracticeGuide />}
             <form ref={createFormRef} id="create-form" role="tabpanel" aria-busy={createBusy} onSubmit={handleCreate}>
               <fieldset disabled={createBusy} className="setup-fieldset">
               {!account?.authenticated && <div className="account-access-card"><p>Sign in with Google to create a room. Teammates can use Join room without an account.</p><button type="button" className={secondaryBtn} onClick={onOpenAccount}>Open Account</button></div>}
@@ -293,9 +302,9 @@ export function ControlsPanel({
               <label className="setup-label">
                 Defense type
                 <select name="defense_type" value={defenseType} onChange={(event) => setDefenseType(event.target.value as typeof defenseType)} className={inputClass}>
-                  <option value="code">Code project</option>
                   <option value="research">Research paper</option>
                   <option value="mixed">Research + code</option>
+                  <option value="code">Code project · Experimental</option>
                 </select>
               </label>
               {defenseType !== "code" && <label className="setup-label">
@@ -408,6 +417,7 @@ export function ControlsPanel({
             {previewMode ? "Visual preview · no AI calls or room connection" : connected ? "Connected · team state is live" : "Disconnected · reconnecting…"}
           </p>}
 
+          {researchMode && phase === "lobby" && <AnswerPracticeGuide />}
           {roomState?.defense_type && roomState.defense_type !== "code" && <ResearchPlanPanel key={roomState.room_code}
             roomState={roomState} connected={connected} previewMode={previewMode} onSendEvent={onSendEvent} onScopeDraftChange={setScopeDirty}
             startControl={{ label: startLabel, reason: runReason, onStart: handleStart, onAccount: onOpenAccount,

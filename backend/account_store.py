@@ -83,6 +83,8 @@ def _initialize_store(db, *, postgres=False):
     initialize(db)
     from backend.management_store import initialize as initialize_management
     initialize_management(db)
+    from backend.opening_history import initialize as initialize_openings
+    initialize_openings(db, postgres=postgres)
 
 
 @contextmanager
@@ -231,23 +233,31 @@ def reserve_run(account_id: str, run_id: str) -> dict:
         mode, cost = ("voucher", 0) if access["free_access"] else ("credits", RUN_COST)
         # A voucher authorizes this whole run even if it is later rotated.
         status = "charged" if cost == 0 else "reserved"
-        db.execute("""INSERT INTO defense_runs VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+        db.execute("""INSERT INTO defense_runs (id,account_id,mode,cost,status,created_at,charged_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
             mode=excluded.mode, cost=excluded.cost, status=excluded.status, charged_at=excluded.charged_at""",
                    (run_id, account_id, mode, cost, status, int(time.time()), None))
         return dict(db.execute("SELECT * FROM defense_runs WHERE id=?", (run_id,)).fetchone())
 
 
-def charge_run(account_id: str, run_id: str) -> None:
+def charge_run(account_id: str, run_id: str, *, opening=None) -> None:
     from backend.financial_policy import live_mode
-    if live_mode():
+    live = live_mode()
+    if live and opening is None:
         from backend.live_store import LiveStore
         return LiveStore().charge_run(account_id,run_id)
     with connect_store(database_path()) as db:
         db.execute("BEGIN IMMEDIATE")
-        row = db.execute("SELECT * FROM defense_runs WHERE id=? AND account_id=?", (run_id, account_id)).fetchone()
-        if row is None or row["status"] == "released":
-            raise AccessError("Run access has expired. Retry the opening question to reserve access again.")
-        db.execute("UPDATE defense_runs SET status='charged', charged_at=? WHERE id=? AND status='reserved'", (int(time.time()), run_id))
+        if live:
+            from backend.live_store import LiveStore
+            LiveStore.charge_in_transaction(db, account_id, run_id)
+        else:
+            row = db.execute("SELECT * FROM defense_runs WHERE id=? AND account_id=?", (run_id, account_id)).fetchone()
+            if row is None or row["status"] == "released":
+                raise AccessError("Run access has expired. Retry the opening question to reserve access again.")
+            db.execute("UPDATE defense_runs SET status='charged', charged_at=? WHERE id=? AND status='reserved'", (int(time.time()), run_id))
+        if opening is not None:
+            from backend.opening_history import commit_opening
+            commit_opening(db, account_id, run_id, opening, live=live)
 
 
 def release_run(run_id: str | None) -> None:

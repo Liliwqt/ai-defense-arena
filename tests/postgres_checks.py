@@ -29,6 +29,7 @@ from tests import test_live_runs
 from tests import test_live_refunds
 from tests import test_management
 from tests import test_service_handoff
+from tests import test_opening_history
 
 
 class LocalDatabase:
@@ -53,6 +54,10 @@ class LocalDatabase:
 
 
 class PostgresServiceHandoff(LocalDatabase, test_service_handoff.ServiceHandoffTests):
+    pass
+
+
+class PostgresOpeningHistory(LocalDatabase, test_opening_history.OpeningHistoryTests):
     pass
 
 

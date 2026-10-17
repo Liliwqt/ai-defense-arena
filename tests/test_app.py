@@ -40,6 +40,7 @@ class DefenseAppTests(unittest.TestCase):
             ),
         ):
             app = AppTest.from_file('../backend/app.py').run()
+            app.selectbox[0].select("Code project").run()
             app.file_uploader[0].set_value(
                 [
                     ("README.md", readme, "text/markdown"),
@@ -105,6 +106,7 @@ class DefenseAppTests(unittest.TestCase):
             patch('backend.defense_session.generate_next_move', return_value=PanelMove("Security Reviewer", second)),
         ):
             app = AppTest.from_file('../backend/app.py').run()
+            app.selectbox[0].select("Code project").run()
             app.file_uploader[0].set_value([("README.md", readme, "text/markdown")]).run()
             next(button for button in app.button if button.label == "Start defense").click().run()
             app.text_area[0].set_value("Can you explain that simply?")
