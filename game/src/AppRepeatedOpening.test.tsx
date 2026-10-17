@@ -63,7 +63,9 @@ it("offers the same choice in full-screen Controls and retains it after action f
   socket.roomState = repeated(); window.history.replaceState(null, "", "/#/controls");
   const view = render(<App />);
   expect(screen.getByText("Methodology Reviewer: Why this campus?")).toBeVisible();
-  expect(within(screen.getByRole("complementary", { name: "Room and next step" })).getByRole("button", { name: "Accept repeated question" })).toBeVisible();
+  const nextStep = within(screen.getByRole("complementary", { name: "Room and next step" }));
+  expect(nextStep.getByRole("button", { name: "Accept repeated question" })).toBeVisible();
+  expect(nextStep.queryByRole("heading", { name: "Defense overview" })).toBeNull();
   await userEvent.click(screen.getByRole("button", { name: "Accept repeated question" }));
   socket.actionError = "Nothing new was charged. Try again.";
   view.rerender(<App />);

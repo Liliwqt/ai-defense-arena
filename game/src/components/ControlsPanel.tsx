@@ -424,7 +424,7 @@ export function ControlsPanel({
             roomState={roomState} connected={connected} previewMode={previewMode} onSendEvent={onSendEvent} onScopeDraftChange={setScopeDirty}
             startControl={roomState.opening_repeated ? undefined : { label: startLabel, reason: runReason, onStart: handleStart, onAccount: onOpenAccount,
               accessLabel: previewMode ? "Visual preview · no credits used" : account?.free_access ? "Free access active" : `${availableCredits ?? 0} available · ${liveAccess ? account?.live_reserved_credits ?? 0 : account?.reserved_credits ?? 0} reserved ${creditLabel} · 10 per defense` }}
-            actionError={actionError} actionContainer={surface === "page" && showRoomControls ? researchActionContainer : null}
+            actionError={actionError} actionContainer={!roomState.opening_repeated && surface === "page" && showRoomControls ? researchActionContainer : null}
             accessReason={accessReason} />}
 
           {isHost && !previewMode && !researchMode && <div className="account-access-card"><strong>{account?.free_access ? "Free access active" : `10 ${creditLabel} per defense run`}</strong><p>{account?.authenticated ? `${availableCredits ?? 0} available · ${liveAccess ? account.live_reserved_credits ?? 0 : account.reserved_credits ?? 0} reserved ${creditLabel}` : "Sign in with the room owner’s Google account to use host controls."}</p><button type="button" className={secondaryBtn} onClick={onOpenAccount}>Open Account</button></div>}
