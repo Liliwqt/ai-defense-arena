@@ -1,6 +1,7 @@
 """Authenticated room openings with AI mocked and a controlled room clock."""
 
 from dataclasses import replace
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -26,7 +27,7 @@ class OpeningHistoryProtocolTests(unittest.TestCase):
                 return state
         self.fail("Expected room snapshot was not published.")
 
-    def start_opening(self, generate, *, filename="paper.md", expected="voting"):
+    def start_opening(self, generate, *, filename="paper.md", expected="voting", during_history=None):
         response = self.client.post("/api/rooms", data={"host_name": "Host", "defense_type": "research"},
                                     files=[("research_files", (filename, coverage.PAPER.encode(), "text/markdown"))])
         self.assertEqual(response.status_code, 201, response.text)
@@ -45,6 +46,8 @@ class OpeningHistoryProtocolTests(unittest.TestCase):
                               "question_budget": 4, "confirm_profile": True})
             self.until(socket, research_plan_approved=True)
             socket.send_json({"type": "start", "plan_id": plan.id, "question_budget": 4})
+            if during_history:
+                during_history(socket)
             return self.until(socket, expected)
 
     @staticmethod
@@ -92,3 +95,27 @@ class OpeningHistoryProtocolTests(unittest.TestCase):
         self.assertEqual(state["turns"], [])
         self.assertIn("history could not be checked", state["error"])
         self.assertNotIn("private-database-details", state["error"])
+
+    def test_slow_history_storage_does_not_block_room_chat(self):
+        entered, release, timed_out = threading.Event(), threading.Event(), threading.Event()
+        def slow_history(*args, **kwargs):
+            entered.set()
+            if not release.wait(5):
+                timed_out.set()
+            return []
+        def use_room(socket):
+            try:
+                self.assertTrue(entered.wait(2))
+                socket.send_json({"type": "send_chat", "text": "We can still coordinate."})
+                for _ in range(10):
+                    event = socket.receive_json()
+                    if any(item["text"] == "We can still coordinate." for item in event.get("state", {}).get("chat", [])):
+                        break
+                else:
+                    self.fail("Room chat did not progress while history was loading.")
+                self.assertFalse(timed_out.is_set(), "The history read blocked the room event loop.")
+            finally:
+                release.set()
+        with patch.object(questions, "recent_openings", side_effect=slow_history):
+            state = self.start_opening(lambda files, *args, **kwargs: self.move(files, "Why this campus?"), during_history=use_room)
+        self.assertEqual(state["turns"][0]["question"], "Why this campus?")

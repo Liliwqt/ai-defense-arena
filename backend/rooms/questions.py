@@ -62,11 +62,16 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
                 opening_key = None
                 if room.owner_account_id and room.run_id and room.defense_type != "code" and (room.defense is None or not room.defense.turns):
                     opening_key = paper_key(files)
-                    try:
-                        recent = recent_openings(room.owner_account_id, opening_key)
-                    except Exception as failure:
-                        raise QuestionGenerationError("Recent opening history could not be checked. No defense was charged; retry when storage recovers.") from failure
-                    request = replace(request, recent_openings=tuple(recent))
+                account_id = room.owner_account_id
+            if opening_key:
+                try:
+                    recent = await asyncio.to_thread(recent_openings, account_id, opening_key)
+                except Exception as failure:
+                    raise QuestionGenerationError("Recent opening history could not be checked. No defense was charged; retry when storage recovers.") from failure
+                request = replace(request, recent_openings=tuple(recent))
+            async with room.lock:
+                if not owner._question_current(work):
+                    return
                 room.ai_budget.admit(attempt_key, cap, room.owner_account_id or room.code)
             try:
                 result = await owner._workflows.question_request(request, files)
