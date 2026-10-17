@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { App } from "./App";
@@ -63,6 +63,7 @@ it("offers the same choice in full-screen Controls and retains it after action f
   socket.roomState = repeated(); window.history.replaceState(null, "", "/#/controls");
   const view = render(<App />);
   expect(screen.getByText("Methodology Reviewer: Why this campus?")).toBeVisible();
+  expect(within(screen.getByRole("complementary", { name: "Room and next step" })).getByRole("button", { name: "Accept repeated question" })).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "Accept repeated question" }));
   socket.actionError = "Nothing new was charged. Try again.";
   view.rerender(<App />);

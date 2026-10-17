@@ -27,9 +27,9 @@ class OpeningHistoryProtocolTests(unittest.TestCase):
                 return state
         self.fail("Expected room snapshot was not published.")
 
-    def start_opening(self, generate, *, filename="paper.md", expected="voting", during_history=None, on_state=None):
+    def start_opening(self, generate, *, filename="paper.md", expected="voting", during_history=None, on_state=None, paper=coverage.PAPER):
         response = self.client.post("/api/rooms", data={"host_name": "Host", "defense_type": "research"},
-                                    files=[("research_files", (filename, coverage.PAPER.encode(), "text/markdown"))])
+                                    files=[("research_files", (filename, paper.encode(), "text/markdown"))])
         self.assertEqual(response.status_code, 201, response.text)
         host = response.json()
         self.latest_host = host
@@ -128,6 +128,10 @@ class OpeningHistoryProtocolTests(unittest.TestCase):
         self.start_opening(lambda files, *args, **kwargs: self.move(files, "Why this campus?"))
         def choose(socket, state):
             self.assertTrue(state.get("opening_repeated"))
+            socket.send_json({"type": "approve_research_plan", "plan_id": "obsolete-map", "question_budget": 4, "confirm_profile": True})
+            self.assertEqual(socket.receive_json()["type"], "error")
+            socket.send_json({"type": "prepare_research_plan"})
+            self.assertEqual(socket.receive_json()["type"], "error")
             choice = state["opening_candidate"]
             self.assertEqual(choice["question"], "Why this campus?")
             self.assertEqual(state["turns"], [])
@@ -200,3 +204,16 @@ class OpeningHistoryProtocolTests(unittest.TestCase):
             self.assertEqual(active["turns"][0]["question"], "Why this campus?")
             self.assertEqual(len(recent_openings(self._offline_credentials[2]["id"], paper_key(coverage.FILES))), 2)
         self.start_opening(lambda files, *args, **kwargs: self.move(files, "Why this campus?"), expected="retry", on_state=choose)
+
+    def test_repeated_opening_with_unicode_line_separator_keeps_authoritative_citation(self):
+        from backend.question_generator import numbered_source_lines
+        paper = coverage.PAPER.replace("Section 1:", "Section 1:\u2028continued:")
+        def generate(files, *args, **kwargs):
+            return ResearchMove(RESEARCH_PANELISTS[0], GroundedQuestion("Why this campus?", files[0].name, 1,
+                numbered_source_lines(files[0].content)[0][1], evidence_kind="research_text"), "topic-1", False, None)
+        self.start_opening(generate, paper=paper)
+        def choose(socket, state):
+            socket.send_json({"type": "accept_repeated_opening", "candidate_id": state["opening_candidate"]["id"]})
+            active = self.until(socket, "voting", allow_retry=True)
+            self.assertEqual(active["turns"][0]["evidence_text"], "Section 1:\u2028")
+        self.start_opening(generate, paper=paper, expected="retry", on_state=choose)

@@ -419,9 +419,10 @@ export function ControlsPanel({
           </p>}
 
           {researchMode && phase === "lobby" && <AnswerPracticeGuide />}
+          {isHost && roomState?.opening_repeated && <OpeningChoice state={roomState} connected={connected} previewMode={previewMode} actionError={actionError} onSendEvent={onSendEvent} showPreview actionContainer={surface === "page" && showRoomControls ? researchActionContainer : null} />}
           {roomState?.defense_type && roomState.defense_type !== "code" && <ResearchPlanPanel key={roomState.room_code}
             roomState={roomState} connected={connected} previewMode={previewMode} onSendEvent={onSendEvent} onScopeDraftChange={setScopeDirty}
-            startControl={{ label: startLabel, reason: runReason, onStart: handleStart, onAccount: onOpenAccount,
+            startControl={roomState.opening_repeated ? undefined : { label: startLabel, reason: runReason, onStart: handleStart, onAccount: onOpenAccount,
               accessLabel: previewMode ? "Visual preview · no credits used" : account?.free_access ? "Free access active" : `${availableCredits ?? 0} available · ${liveAccess ? account?.live_reserved_credits ?? 0 : account?.reserved_credits ?? 0} reserved ${creditLabel} · 10 per defense` }}
             actionError={actionError} actionContainer={surface === "page" && showRoomControls ? researchActionContainer : null}
             accessReason={accessReason} />}
@@ -440,7 +441,6 @@ export function ControlsPanel({
                   onClick={() => { if (onSendEvent({ type: "end_defense" })) onActionComplete(); }}>End defense</button>
                 <p className="control-help">End now and keep accepted answers. An active unanswered question is marked ended early.</p>
               </>}
-              {roomState?.opening_repeated && <OpeningChoice state={roomState} connected={connected} previewMode={previewMode} actionError={actionError} onSendEvent={onSendEvent} showPreview />}
               {presentation.controls.questionRetry && !roomState?.opening_repeated && (
                 <button
                   type="button"

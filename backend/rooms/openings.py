@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from backend.account_store import AccessError, charge_run, release_run
 from backend.defense_progression import prepare_progression, commit_progression
 from backend.opening_history import OpeningQuestion, paper_key
-from backend.question_generator import ResearchMove
+from backend.question_generator import ResearchMove, numbered_source_lines
 from backend.resource_limits import limit
 from backend.rooms.commands import CommandResult
 
@@ -40,10 +40,9 @@ class OpeningCandidate:
             raise AccessError("This opening choice has expired. Review the current room state.")
         question = self.move.question
         source = next((file for file in room.files if file.name == question.filename), None)
-        lines = source.content.splitlines() if source else []
+        lines = dict(numbered_source_lines(source.content)) if source else {}
         if (source is None or type(question.evidence_line) is not int
-                or not 1 <= question.evidence_line <= len(lines)
-                or lines[question.evidence_line - 1] != question.evidence_text
+                or lines.get(question.evidence_line) != question.evidence_text
                 or source.kind != question.evidence_kind):
             raise AccessError("The candidate citation is no longer valid. Retry the opening question.")
         # Reapply against the current session, not a saved mutable session.
