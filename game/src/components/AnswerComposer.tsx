@@ -1,3 +1,4 @@
+import { OpeningChoice } from "./OpeningChoice";
 import { useEffect, useState } from "react";
 import type { RoomState } from "../types";
 import { useTabDraft } from "../hooks/useTabDraft";
@@ -64,7 +65,7 @@ export function AnswerComposer({ roomState, connected, previewMode, waitingForAn
 
   return (
     <section id="answer-composer" aria-label="Answer area">
-      {presentation.controls.questionRetry && roomState ? (
+      {roomState?.opening_repeated ? <OpeningChoice state={roomState} connected={connected} previewMode={previewMode} actionError={actionError} onSendEvent={onSendEvent} /> : presentation.controls.questionRetry && roomState ? (
         <div className="submission-retry" role="status">
           <p>{localError || actionError || (!connected ? "Reconnecting… Your saved turns are retained." : presentation.guidance)}</p>
           {roomState.self_is_host && <button type="button"

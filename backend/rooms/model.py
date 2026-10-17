@@ -13,6 +13,7 @@ from backend.project_files import ProjectFile
 from backend.question_generator import CoachingReport
 from backend.research_plan import ResearchPlan, ResearchPlanProgress, ResearchProfileDescription
 from backend.resource_limits import AIBudget, limit
+from backend.rooms.openings import OpeningCandidate
 from backend.timed_turn import TimedTurn
 from backend.room_documents import RoomDocuments
 
@@ -40,6 +41,7 @@ class Room(TimedTurn):
     revision: int = 0
     published_revision: int = -1
     generation_id: int = 0
+    opening_candidate: OpeningCandidate | None = None
     question_retry_generation_id: int | None = None
     feedback_status: str = "none"   # none | generating | ready | failed
     feedback: CoachingReport | None = None
@@ -167,6 +169,8 @@ class Room(TimedTurn):
             "clock_paused": self.pause_deadline_ms is not None and now < self.pause_deadline_ms,
             "pause_deadline_ms": self.pause_deadline_ms,
             "question_attempts_left": self.ai_budget.remaining(f'question:{len(self.defense.turns) if self.defense else 0}', limit('AI_QUESTION_ATTEMPTS', 3, 10)),
+            "opening_repeated": self.opening_candidate is not None,
+            "opening_candidate": self.opening_candidate.preview() if self.opening_candidate and recipient and recipient.is_host else None,
             "question_retrying": self.phase == "generating" and self.question_retry_generation_id == self.generation_id,
             "coaching_attempts_left": self.ai_budget.remaining('coaching', limit('AI_COACHING_ATTEMPTS', 3, 10)),
             "plan_attempts_left": self.ai_budget.remaining('plan', limit('AI_PLAN_ATTEMPTS', 3, 10)),

@@ -8,7 +8,7 @@ from collections.abc import Awaitable, Callable
 from typing import get_args
 
 from backend.rooms.commands import (
-    SendChat, CastVote, GenerateQuestion, CatchUpDeadline,
+    ChooseOpening, SendChat, CastVote, GenerateQuestion, CatchUpDeadline,
     Command, CommandResult, VerifiedActor, decode_command,
     SubmissionCommand, InterpretSubmission, PlanCommand, GenerateResearchPlan,
     RetryCoaching, GenerateCoaching, PublishRoom, ObserveAbsence, JoinDefender, DefenderConnected, DefenderDisconnected,
@@ -26,6 +26,7 @@ from backend.rooms.planning import (
 )
 from backend.rooms.publication import SocketDelivery, SocketClose, deliver_socket, close_socket, publish
 from backend.rooms.presence import join, connect, disconnect, observe_absence
+from backend.rooms.openings import choose_opening
 from backend.rooms.lifecycle import handle_lifecycle, reclaim_room
 from backend.rooms.model import Room, now_ms
 from backend.timed_turn import DeadlineExpired
@@ -137,6 +138,8 @@ class RoomCoordinator:
         if isinstance(command, DefenderConnected):
             return await connect(self, actor, command)
         await self._expire_deadline()
+        if isinstance(command, ChooseOpening):
+            return await choose_opening(self, actor, command)
         if isinstance(command, RetryCoaching):
             return await retry_coaching(self, actor)
         if isinstance(command, get_args(PlanCommand)):
@@ -192,6 +195,7 @@ class RoomCoordinator:
         room.feedback_generation_id += 1
         room.discard_pending()
         room.question_retry_generation_id = None
+        room.opening_candidate = None
         self._clear_clock()
         tasks = {task for task in self._tasks if task is not asyncio.current_task()}
         for task in tasks:

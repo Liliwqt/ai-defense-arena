@@ -114,6 +114,29 @@ class OpeningHistoryTests(unittest.TestCase):
         self.assertEqual(len(recent_openings(self.account_id, paper_key(self.files))), 1)
         self.assertEqual(account_store.account_access(self.account_id)["spent_credits"], 10)
 
+    def test_explicit_repeat_acceptance_is_atomic_and_idempotent_under_racing_writes(self):
+        account_store.reserve_run(self.account_id, "prior")
+        account_store.charge_run(self.account_id, "prior", opening=self.opening())
+        account_store.reserve_run(self.account_id, "accepted-repeat")
+        postgres = bool(os.environ.get("DATABASE_URL"))
+        with account_store.connect_store(self.db_path) as db:
+            db.execute("ALTER TABLE research_openings ADD CONSTRAINT reject_repeat CHECK(run_id <> 'accepted-repeat')" if postgres else
+                       "CREATE TRIGGER reject_repeat BEFORE INSERT ON research_openings WHEN NEW.run_id='accepted-repeat' BEGIN SELECT RAISE(ABORT,'fixture failure'); END")
+        with self.assertRaises(sqlite3.IntegrityError):
+            account_store.charge_run(self.account_id, "accepted-repeat", opening=self.opening(), accept_repeat=True)
+        self.assertEqual(account_store.account_access(self.account_id)["spent_credits"], 10)
+        self.assertEqual(len(recent_openings(self.account_id, paper_key(self.files))), 1)
+        with account_store.connect_store(self.db_path) as db:
+            db.execute("ALTER TABLE research_openings DROP CONSTRAINT reject_repeat" if postgres else "DROP TRIGGER reject_repeat")
+        def accept(_):
+            account_store.charge_run(self.account_id, "accepted-repeat", opening=self.opening(), accept_repeat=True)
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            list(pool.map(accept, range(3)))
+        self.assertEqual(account_store.account_access(self.account_id)["spent_credits"], 20)
+        self.assertEqual(len(recent_openings(self.account_id, paper_key(self.files))), 2)
+        with self.assertRaises(account_store.AccessError):
+            account_store.charge_run(self.account_id, "accepted-repeat", opening=self.opening("An obsolete candidate?"), accept_repeat=True)
+
     def test_existing_run_schema_migrates_without_losing_funding(self):
         from backend import postgres_store
         account_store.reserve_run(self.account_id, "legacy-run")
@@ -144,9 +167,16 @@ class OpeningHistoryTests(unittest.TestCase):
             self.assertEqual(store.overview(self.account_id)["live_reserved_credits"], 10)
             store.release_run("live-repeat")
             self.assertEqual(store.overview(self.account_id)["live_credits"], 20)
+            store.reserve_run(self.account_id, "live-repeat", "history-service", "ROOM")
+            def accept(_):
+                account_store.charge_run(self.account_id, "live-repeat", opening=self.opening(), accept_repeat=True)
+            with ThreadPoolExecutor(max_workers=3) as pool:
+                list(pool.map(accept, range(3)))
+            self.assertEqual(store.overview(self.account_id)["live_credits"], 10)
+            store.finish_run("live-repeat", "ended")
             with patch.dict(os.environ, {"FREE_ACCESS_VOUCHER": "history-voucher"}):
                 account_store.redeem_voucher(self.account_id, "history-voucher")
                 store.reserve_run(self.account_id, "live-free", "history-service", "ROOM")
                 account_store.charge_run(self.account_id, "live-free", opening=self.opening("What limits the pilot?"))
-            self.assertEqual(store.overview(self.account_id)["live_credits"], 20)
-            self.assertEqual(len(recent_openings(self.account_id, paper_key(self.files))), 2)
+            self.assertEqual(store.overview(self.account_id)["live_credits"], 10)
+            self.assertEqual(len(recent_openings(self.account_id, paper_key(self.files))), 3)

@@ -139,6 +139,12 @@ class RestartDefense:
 
 
 @dataclass(frozen=True)
+class ChooseOpening:
+    candidate_id: object
+    accept: bool
+
+
+@dataclass(frozen=True)
 class RetryQuestion:
     pass
 
@@ -161,7 +167,7 @@ class ReclaimRoom:
 LifecycleCommand = StartDefense | RestartDefense | RetryQuestion | EndDefense | EndUnavailable
 
 
-Command = CastVote | SendChat | LifecycleCommand | ReclaimRoom | GenerateQuestion | CatchUpDeadline | SubmissionCommand | InterpretSubmission | PlanCommand | GenerateResearchPlan | RetryCoaching | GenerateCoaching | PublishRoom | ObserveAbsence | JoinDefender | DefenderConnected | DefenderDisconnected
+Command = ChooseOpening | CastVote | SendChat | LifecycleCommand | ReclaimRoom | GenerateQuestion | CatchUpDeadline | SubmissionCommand | InterpretSubmission | PlanCommand | GenerateResearchPlan | RetryCoaching | GenerateCoaching | PublishRoom | ObserveAbsence | JoinDefender | DefenderConnected | DefenderDisconnected
 
 
 def decode_command(message: dict) -> Command:
@@ -194,6 +200,8 @@ def decode_command(message: dict) -> Command:
         return StartDefense(message.get("plan_id"), message.get("question_budget"), message.get("confirm_cost") is True)
     if action == "restart":
         return RestartDefense(message.get("confirm_cost") is True)
+    if action in {"accept_repeated_opening", "retry_opening"}:
+        return ChooseOpening(message.get("candidate_id"), action == "accept_repeated_opening")
     if action == "retry":
         return RetryQuestion()
     if action == "end_defense":

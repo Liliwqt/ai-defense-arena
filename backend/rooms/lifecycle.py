@@ -61,6 +61,8 @@ async def handle_lifecycle(owner: "RoomCoordinator", actor: VerifiedActor, comma
         player = room.players.get(actor.token)
         if player is None:
             return CommandResult(False, "This room link is no longer valid. Join again.")
+        if isinstance(command, RetryQuestion) and room.opening_candidate is not None:
+            return CommandResult(False, "Use Retry opening or Accept repeated question for the current candidate.")
         # Authorize before mutation or scheduling any paid AI work.
         try:
             if player.is_host and isinstance(command, StartDefense) and room.phase == "lobby" and room.defense is None:

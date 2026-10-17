@@ -239,7 +239,7 @@ def reserve_run(account_id: str, run_id: str) -> dict:
         return dict(db.execute("SELECT * FROM defense_runs WHERE id=?", (run_id,)).fetchone())
 
 
-def charge_run(account_id: str, run_id: str, *, opening=None) -> None:
+def charge_run(account_id: str, run_id: str, *, opening=None, accept_repeat: bool = False) -> None:
     from backend.financial_policy import live_mode
     live = live_mode()
     if live and opening is None:
@@ -257,7 +257,7 @@ def charge_run(account_id: str, run_id: str, *, opening=None) -> None:
             db.execute("UPDATE defense_runs SET status='charged', charged_at=? WHERE id=? AND status='reserved'", (int(time.time()), run_id))
         if opening is not None:
             from backend.opening_history import commit_opening
-            commit_opening(db, account_id, run_id, opening, live=live)
+            commit_opening(db, account_id, run_id, opening, live=live, accept_repeat=accept_repeat)
 
 
 def release_run(run_id: str | None) -> None:

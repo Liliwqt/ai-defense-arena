@@ -1,3 +1,4 @@
+import { OpeningChoice } from "./OpeningChoice";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { RoomState } from "../types";
 import type { Account } from "../hooks/useAccount";
@@ -439,7 +440,8 @@ export function ControlsPanel({
                   onClick={() => { if (onSendEvent({ type: "end_defense" })) onActionComplete(); }}>End defense</button>
                 <p className="control-help">End now and keep accepted answers. An active unanswered question is marked ended early.</p>
               </>}
-              {presentation.controls.questionRetry && (
+              {roomState?.opening_repeated && <OpeningChoice state={roomState} connected={connected} previewMode={previewMode} actionError={actionError} onSendEvent={onSendEvent} showPreview />}
+              {presentation.controls.questionRetry && !roomState?.opening_repeated && (
                 <button
                   type="button"
                   disabled={!connected || !presentation.controls.questionRetryAvailable}

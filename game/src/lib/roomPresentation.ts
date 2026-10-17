@@ -87,6 +87,13 @@ function deriveContent(state: Readonly<RoomState> | null, currentIndex: number, 
     }
     return { name: "Preparing defense", question: "Preparing the first question…", number: "PREPARING" };
   }
+  if (phase === "retry" && state?.opening_repeated) {
+    const candidate = state.opening_candidate;
+    return candidate && state.self_is_host ? { name: candidate.panelist, question: candidate.question,
+      number: "PREVIEW · NOT ACTIVE", filename: candidate.filename, evidence: candidate.evidence_text,
+      location: candidate.evidence_location, kind: "research_text", reviewStatus: "Choose whether to retry or accept this repeated opening. Voting has not started." }
+      : { name: "Opening on hold", question: "Waiting for the host to choose an opening. No question timer has started.", number: "WAITING" };
+  }
   if (phase === "retry") {
     return { name: "Question paused", question: `${state?.error ?? "The next question could not be generated."} ${lifecycleGuidance(state)}`, number: "RETRY" };
   }
@@ -150,7 +157,7 @@ function deriveTimer(state: Readonly<RoomState> | null): RoomTimer | null {
 
 function roomStatus(state: Readonly<RoomState> | null): string {
   if (state?.phase === "complete") return state.feedback_status === "generating" ? "Preparing coaching…" : state.feedback_status === "failed" ? "Coaching unavailable" : state.feedback_status === "ready" ? "Coaching ready" : "Complete";
-  if (state?.phase === "retry") return "Retry needed";
+  if (state?.phase === "retry") return state.opening_repeated ? "Opening choice" : "Retry needed";
   if (state?.phase === "reacting") return "Panelist speaking…";
   if (state?.phase === "generating") {
     if (state.question_retrying) return "Retrying next question…";
@@ -187,6 +194,7 @@ function lifecycleGuidance(state: Readonly<RoomState> | null): string {
   }
   if (state.phase === "reacting") return "Listen to the panelist. Your full voting and answer time starts afterward.";
   if (state.phase === "retry") {
+    if (state.opening_repeated) return state.self_is_host ? "Review the preview, then retry or accept the repeated opening. Voting has not started." : "Waiting for the host to choose an opening. No question timer has started.";
     if (state.question_attempts_left === 0) return recoveryGuidance(state, "question", 0);
     const saved = state.turns.some(turn => isResolved(turn)) ? "Your resolved turns are saved. " : "Your uploads are retained. ";
     return saved + (state.self_is_host ? "Retry the question below or in Controls." : "The host can retry the question; you do not need to resubmit.");

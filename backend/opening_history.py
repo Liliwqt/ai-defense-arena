@@ -85,7 +85,7 @@ def prune_openings() -> None:
         _prune_expired(db, int(time.time()))
 
 
-def commit_opening(db, account_id: str, run_id: str, opening: OpeningQuestion, *, live: bool) -> None:
+def commit_opening(db, account_id: str, run_id: str, opening: OpeningQuestion, *, live: bool, accept_repeat: bool = False) -> None:
     table, kind = ("live_runs", "live") if live else ("defense_runs", "test")
     row = db.execute(f"SELECT opening_commit FROM {table} WHERE id=? AND account_id=?", (run_id, account_id)).fetchone()
     if row is None:
@@ -97,7 +97,7 @@ def commit_opening(db, account_id: str, run_id: str, opening: OpeningQuestion, *
     now = int(time.time())
     _prune_expired(db, now)
     if any(entry["question_key"] == question_key(opening.question)
-           for entry in _recent(db, account_id, opening.paper_key, now)):
+           for entry in _recent(db, account_id, opening.paper_key, now)) and not accept_repeat:
         raise RepeatedOpening("The AI repeated a recent opening. Retry the first question for another supported angle; no defense was charged.")
     order = db.execute("SELECT COALESCE(MAX(commit_order),0)+1 FROM research_openings WHERE account_id=? AND paper_key=?",
                        (account_id, opening.paper_key)).fetchone()[0]

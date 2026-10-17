@@ -20,6 +20,7 @@ from backend.question_generator import (
     generate_next_move, generate_research_move,
     GroundedQuestion, PanelMove, ResearchMove,
 )
+from backend.rooms.openings import OpeningCandidate
 from backend.rooms.errors import safe_generation_error
 
 if TYPE_CHECKING:
@@ -47,6 +48,7 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
     room, first = owner._room, work.first
     next_clock = None
     feedback_id = None
+    repeated_candidate = None
     try:
         # Each candidate is detached. History and access commit before publication;
         # rejected/racing duplicate candidates roll back without charging the run.
@@ -91,6 +93,8 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
                             try:
                                 charge_run(room.owner_account_id, room.run_id, opening=candidate)
                             except RepeatedOpening:
+                                repeated_candidate = OpeningCandidate(room.run_id, work.generation_id,
+                                    room.research_plan.id, opening_key, result)
                                 raise
                             except Exception as failure:
                                 raise QuestionGenerationError("Opening history and access could not be saved. No new opening was charged; retry when storage recovers.") from failure
@@ -132,6 +136,7 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
                 return
             room.question_retry_generation_id = None
             room.phase = "retry"
+            room.opening_candidate = repeated_candidate if isinstance(error, RepeatedOpening) else None
             room.error = str(error) if isinstance(error, RepeatedOpening) else safe_generation_error(error)
             try:
                 if room.defense is None or not room.defense.turns:
