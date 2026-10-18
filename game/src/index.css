@@ -575,3 +575,34 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 /* Opening decisions share the persistent Controls area without horizontal clipping. */
 .guided-primary .opening-choice-actions { display: grid; grid-template-columns: minmax(0, 1fr); }
+
+/* Research Speaker desk: question context beside the speaking workspace. */
+.arena-shell[data-speaker-desk="true"] { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr); gap: 16px; padding: 16px; }
+.arena-shell[data-speaker-desk="true"] .arena-stage { min-width: 0; }
+.arena-shell[data-speaker-desk="true"] #room-dock { min-width: 0; height: 100%; border-radius: 20px; overflow: auto; }
+.arena-shell[data-speaker-desk="true"] .dock-content { overflow: auto; }
+.arena-shell[data-speaker-desk="true"] #answer-composer { height: auto; min-height: 100%; }
+.arena-shell[data-speaker-desk="true"] #answer-form { height: auto; min-height: 100%; }
+.arena-shell[data-speaker-desk="true"] .answer-controls { flex-wrap: wrap; }
+.arena-shell[data-speaker-desk="true"] .answer-controls textarea { min-height: 180px; flex-basis: 100%; }
+.voice-answer { display: grid; gap: 12px; padding-block: 12px; align-content: start; }
+.speaker-desk-heading { display: grid; gap: 6px; }
+.speaker-desk-heading strong { font-size: 1.2rem; }
+.speaker-desk-heading span, .voice-disclosure, #voice-status { font-size: .8rem; line-height: 1.5; }
+.voice-disclosure summary { cursor: pointer; font-weight: 700; padding: 8px 0; }
+.voice-disclosure p { margin: 8px 0; }
+#spoken-answer { width: 100%; min-height: 180px; resize: vertical; border: 1px solid #b8b7b0; border-radius: 12px; background: #dcdcd5; color: #292923; opacity: 1; padding: 12px; font: inherit; line-height: 1.5; }
+.voice-actions, .voice-mode-choice { display: flex; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 760px) {
+  .arena-shell[data-speaker-desk="true"] { display: flex; overflow-y: auto; padding: 0; gap: 0; }
+  .arena-shell[data-speaker-desk="true"] .arena-stage { flex: 0 0 max(430px, 70dvh); }
+  .arena-shell[data-speaker-desk="true"] #room-dock { flex: 0 0 auto; height: auto; min-height: 260px; overflow: visible; }
+  .arena-shell[data-speaker-desk="true"] #answer-composer { min-height: 230px; }
+  .voice-answer { padding: 8px 0; }
+}
+
+.voice-remaining { font-size: .75rem; margin: 8px 0; }
+.speaker-desk-shortcut { display: none; }
+@media (max-width: 760px) { .speaker-desk-shortcut { display: block; padding: 8px; border-radius: 8px; border: 1px solid var(--ink); font-size: .75rem; } }
+
+.voice-answer-timer { font-variant-numeric: tabular-nums; font-weight: 800; }

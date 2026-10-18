@@ -27,6 +27,7 @@ from backend.rooms.planning import (
 from backend.rooms.publication import SocketDelivery, SocketClose, deliver_socket, close_socket, publish
 from backend.rooms.presence import join, connect, disconnect, observe_absence
 from backend.rooms.openings import choose_opening
+from backend.rooms.speech import run_speech, revoke_obsolete
 from backend.rooms.lifecycle import handle_lifecycle, reclaim_room
 from backend.rooms.model import Room, now_ms
 from backend.timed_turn import DeadlineExpired
@@ -193,6 +194,7 @@ class RoomCoordinator:
         room.generation_id += 1
         room.research_plan_generation_id += 1
         room.feedback_generation_id += 1
+        room.speech.revoke()
         room.discard_pending()
         room.question_retry_generation_id = None
         room.opening_candidate = None
@@ -303,7 +305,12 @@ class RoomCoordinator:
         task.add_done_callback(finished)
         return task
 
+    async def open_speech(self, actor, socket, hello):
+        await run_speech(self, actor, socket, hello)
+
     async def _publish(self) -> None:
+        async with self._room.lock:
+            revoke_obsolete(self)
         await publish(self)
 
     def _clear_clock(self) -> None:

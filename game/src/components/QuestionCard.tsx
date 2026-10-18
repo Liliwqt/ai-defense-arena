@@ -54,6 +54,10 @@ export function QuestionCard({ roomState, playerToken, presentation = deriveRoom
         </div>
         <span className="question-number">{content.number}</span>
       </div>
+      {roomState?.voice?.enabled && <button type="button" className="speaker-desk-shortcut" onClick={() => {
+        document.getElementById("answer-composer")?.scrollIntoView({block:"start",behavior:"smooth"});
+        document.querySelector<HTMLElement>('#answer-composer textarea, #answer-composer button')?.focus({preventScroll:true});
+      }}>Go to answer</button>}
       {hasPaper && <div className="paper-tabs" role="tablist" aria-label="Question or paper">
         {(["question", "paper"] as const).map(tab => <button key={tab} id={`paper-tab-${tab}`} type="button" role="tab" aria-controls={tab === "paper" ? "paper-reading-panel" : "paper-question-panel"} aria-selected={paperTab === tab} tabIndex={paperTab === tab ? 0 : -1}
           onKeyDown={event => { if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) { event.preventDefault(); const next = event.key === "Home" ? "question" : event.key === "End" ? "paper" : tab === "paper" ? "question" : "paper"; setPaperTab(next); if (next === "question") setExpanded(false); document.getElementById(`paper-tab-${next}`)?.focus(); } }}

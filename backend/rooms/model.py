@@ -14,6 +14,7 @@ from backend.question_generator import CoachingReport
 from backend.research_plan import ResearchPlan, ResearchPlanProgress, ResearchProfileDescription
 from backend.resource_limits import AIBudget, limit
 from backend.rooms.openings import OpeningCandidate
+from backend.rooms.speech import SpeechState
 from backend.timed_turn import TimedTurn
 from backend.room_documents import RoomDocuments
 
@@ -41,6 +42,7 @@ class Room(TimedTurn):
     revision: int = 0
     published_revision: int = -1
     generation_id: int = 0
+    speech: SpeechState = field(default_factory=SpeechState, repr=False)
     opening_candidate: OpeningCandidate | None = None
     question_retry_generation_id: int | None = None
     feedback_status: str = "none"   # none | generating | ready | failed
@@ -132,6 +134,7 @@ class Room(TimedTurn):
                         "evidence_after": turn.question.evidence_after,
                         "clarifications": [exchange.__dict__ for exchange in turn.clarifications],
                         "answer": turn.answer,
+                        "input_provenance": turn.input_provenance,
                         "probe": asdict(turn.probe) if turn.probe else None,
                         "resolved": turn.resolved,
                         "timed_out": turn.timed_out,
@@ -162,6 +165,7 @@ class Room(TimedTurn):
             }
         return {
             "room_code": self.code,
+            "voice": self.speech.snapshot() if self.defense_type != "code" else None,
             "defense_view_id": self.defense_view_id,
             "documents": self.documents.snapshot() if self.documents else [],
             "expires_at_ms": self.expires_at(),

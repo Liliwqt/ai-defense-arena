@@ -6,6 +6,8 @@ import { useTabDraft } from "../hooks/useTabDraft";
 import { deriveRoomPresentation, type RoomPresentation } from "../lib/roomPresentation";
 
 interface RoomDockProps {
+  active?: boolean;
+  playerToken?: string | null;
   presentation?: RoomPresentation;
   roomState: RoomState | null;
   connected: boolean;
@@ -90,7 +92,7 @@ function TeamChat({ state, connected, previewMode, actionError, onSendEvent, vis
   );
 }
 
-export function RoomDock({ roomState, connected, previewMode, waitingForAnswerAck, actionError, actionErrorReason, onSendEvent, presentation = deriveRoomPresentation(roomState) }: RoomDockProps) {
+export function RoomDock({ active = true, playerToken, roomState, connected, previewMode, waitingForAnswerAck, actionError, actionErrorReason, onSendEvent, presentation = deriveRoomPresentation(roomState) }: RoomDockProps) {
   const [tab, setTab] = useState<"action" | "chat">("action");
   const [seenChatId, setSeenChatId] = useState(0);
   const latestChatId = roomState?.chat?.at(-1)?.id ?? 0;
@@ -115,10 +117,11 @@ export function RoomDock({ roomState, connected, previewMode, waitingForAnswerAc
         <button type="button" role="tab" aria-selected={tab === "chat"} aria-controls="dock-chat" tabIndex={tab === "chat" ? 0 : -1} onKeyDown={handleDockTabKey}
           disabled={!roomState} onClick={() => setTab("chat")}>Team chat{unread > 0 ? ` (${unread})` : ""}</button>
       </div>
+      {roomState?.voice?.enabled && <p className="voice-remaining">{Math.ceil(roomState.voice.remaining_ms / 1000)}s shared voice remaining</p>}
       <div id="dock-action" role="tabpanel" hidden={tab !== "action"} className="dock-content">
         {presentation.voting && roomState ? <VotePanel state={roomState} connected={connected} previewMode={previewMode}
           actionError={actionError} onSendEvent={onSendEvent} instruction={presentation.voteInstruction} /> :
-          <AnswerComposer presentation={presentation} roomState={roomState} connected={connected} previewMode={previewMode}
+          <AnswerComposer active={active && tab === "action"} playerToken={playerToken} presentation={presentation} roomState={roomState} connected={connected} previewMode={previewMode}
             waitingForAnswerAck={waitingForAnswerAck} actionError={actionError} actionErrorReason={actionErrorReason} onSendEvent={onSendEvent} />}
       </div>
       <div id="dock-chat" role="tabpanel" hidden={tab !== "chat"} className="dock-content">

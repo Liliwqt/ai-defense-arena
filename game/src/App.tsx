@@ -322,7 +322,7 @@ export function App() {
     }}>
       {stageNotice && <p className="navigation-notice" role="status">{stageNotice}</p>}
       <div className="room-screen" hidden={screen !== "room"}>
-        <div className="arena-shell" data-compact-viewport={viewport.compact} style={{ "--room-viewport-height": `${viewport.height}px` } as React.CSSProperties}>
+        <div className="arena-shell" data-speaker-desk={!!roomState?.voice?.enabled && roomState.defense_type !== "code"} data-compact-viewport={viewport.compact} style={{ "--room-viewport-height": `${viewport.height}px` } as React.CSSProperties}>
           <div id="stage" className="arena-stage">
             <HUD presentation={presentation} roomState={roomState} roomCode={roomCode} previewMode={previewMode} onOpenControls={openControls} onOpenTranscript={() => navigate("results")}
               onOpenAccount={() => navigate("account")} onOpenHome={() => navigate("home")} onPreviewMoment={previewPresenter} />
@@ -330,7 +330,7 @@ export function App() {
             <QuestionCard presentation={presentation} roomState={roomState} playerToken={playerToken} />
             <DefenderSeats presentation={presentation} roomState={roomState} presenterMoment={presenterMoment} />
           </div>
-          <RoomDock presentation={presentation} roomState={roomState} connected={connected} previewMode={previewMode}
+          <RoomDock active={screen === "room"} playerToken={playerToken} presentation={presentation} roomState={roomState} connected={connected} previewMode={previewMode}
             waitingForAnswerAck={waitingForAnswerAck} actionError={actionError} actionErrorReason={actionErrorReason} onSendEvent={sendEvent} />
         </div>
       </div>

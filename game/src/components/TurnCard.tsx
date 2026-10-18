@@ -27,6 +27,7 @@ export function TurnCard({ turn, index, research = false }: TurnCardProps) {
       {turn.answer && <p className="transcript-answer">
         <strong>Team answer{turn.answered_by ? ` · ${turn.answered_by}` : ""}:</strong> {turn.answer}
       </p>}
+      {turn.answer && turn.input_provenance?.method === "voice" && <p className="voice-provenance">Voice transcript · {turn.input_provenance.provider} · {(turn.input_provenance.audio_ms / 1000).toFixed(1)}s audio forwarded. Recognition can differ from speech.</p>}
       <ProbeExchange probe={turn.probe} panelist={panelist} />
     </article>
   );

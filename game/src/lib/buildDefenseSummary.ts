@@ -57,6 +57,7 @@ function turnLines(turn: Turn, index: number, research = false): string[] {
   } else if (turn.answer) {
     const who = turn.answered_by ? ` (${turn.answered_by})` : "";
     lines.push(`   Team answer${who}: ${turn.answer}`);
+    if (turn.input_provenance?.method === "voice") lines.push(`   Input: voice transcript · ${turn.input_provenance.provider} · ${(turn.input_provenance.audio_ms / 1000).toFixed(1)}s audio forwarded; recognition may differ from speech.`);
   }
   if (turn.probe) {
     lines.push(`   Panelist probe: ${turn.probe.request}`);

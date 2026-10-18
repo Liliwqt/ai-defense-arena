@@ -2,7 +2,7 @@
 
 import asyncio
 import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import os
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
@@ -21,6 +21,7 @@ from backend.rooms.commands import (
     SubmitDirectAnswer, SubmitProbeReply, FinishProbe, RetryInterpretation, UsePendingAnswer,
 )
 from backend.rooms.errors import safe_generation_error
+from backend.rooms.speech import validate_submission
 
 if TYPE_CHECKING:
     from backend.rooms.coordinator import RoomCoordinator
@@ -115,6 +116,8 @@ async def run_interpretation(owner: "RoomCoordinator", work: InterpretationWork,
                 outcome = "failed"
         if outcome is None:
             return
+        if outcome in {"answered", "probed"}:
+            room.defense.turns[work.pending.turn].input_provenance = work.pending.input_provenance
         if outcome in {"clarified", "probed"}:
             next_clock = (room.clock_id, room.answer_deadline_ms)
         elif outcome == "answered":
@@ -141,6 +144,9 @@ async def handle_submission(owner: "RoomCoordinator", actor: VerifiedActor,
         try:
             player = owner._player(actor)
             now = owner._workflows.now()
+            provenance = None
+            if isinstance(command, (SubmitAnswer, SubmitDirectAnswer)) and command.voice_attempt is not None:
+                provenance = validate_submission(owner, actor, command.turn, command.answer, command.voice_attempt)
             if (isinstance(command, (RetryInterpretation, UsePendingAnswer))
                     and room.phase == "interpretation_retry"
                     and room.answer_deadline_ms is not None and now >= room.answer_deadline_ms):
@@ -156,7 +162,11 @@ async def handle_submission(owner: "RoomCoordinator", actor: VerifiedActor,
                 room.retry_interpretation(is_host=player.is_host, seat=player.seat)
                 interpretation_id = room.interpretation_id
             elif isinstance(command, UsePendingAnswer):
+                provenance = room.pending_submission.input_provenance if room.pending_submission else None
+                turn_index = room.pending_submission.turn if room.pending_submission else None
                 room.accept_saved_answer(room.defense, player.token, player.seat)
+                if turn_index is not None:
+                    room.defense.turns[turn_index].input_provenance = provenance
                 generation_id, feedback_id = owner._resolve_turn_locked()
             elif isinstance(command, SubmitDirectAnswer):
                 room.submit_direct(player.token, player.name, player.seat, command.turn,
@@ -194,6 +204,11 @@ async def handle_submission(owner: "RoomCoordinator", actor: VerifiedActor,
             result = CommandResult(False, str(failure))
             expired = isinstance(failure, DeadlineExpired)
         else:
+            if isinstance(command, (SubmitAnswer, SubmitDirectAnswer)) and provenance:
+                if room.pending_submission:
+                    room.pending_submission = replace(room.pending_submission, input_provenance=provenance)
+                else:
+                    room.defense.turns[command.turn].input_provenance = provenance
             if interpretation_id is not None:
                 owner._schedule_clock(room.clock_id, room.active_deadline_ms)
                 # Claim task identity and capture inputs before publication awaits.

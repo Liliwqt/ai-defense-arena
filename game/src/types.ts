@@ -50,6 +50,7 @@ export interface Turn {
   is_follow_up?: boolean;
   assigned_seat?: number | null;
   answered_by: string | null;
+  input_provenance?: {method: "voice"; provider: string; model: string; audio_ms: number} | null;
   answered_by_seat?: number | null;
 }
 
@@ -120,6 +121,7 @@ export interface ResearchPlan {
 }
 
 export interface RoomState {
+  voice?: { enabled: boolean; remaining_ms: number; provider: string; model: string; language: string } | null;
   defense_view_id?: string;
   documents?: {id: string; filename: string; page_count: number}[];
   probe_recovery_available?: boolean;

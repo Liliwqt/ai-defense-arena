@@ -40,6 +40,8 @@ def reserve_room_run(owner: "RoomCoordinator", account_id: str, confirmed: bool,
         reserve_run(account_id, run_id)
     if not live_mode() and run_id != room.run_id:
         release_run(room.run_id)
+    if room.run_id != run_id:
+        room.speech.reset(run_id)
     room.run_id = run_id
     room.settled = False
     room.terminal_ms = None

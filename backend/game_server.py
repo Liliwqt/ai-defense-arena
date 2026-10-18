@@ -548,6 +548,47 @@ async def _handle_action(room: Room, player: Player, socket: WebSocket, message:
         await _send_error(socket, result.error, result.reason)
 
 
+@app.websocket("/ws/{code}/speech")
+async def speech_socket(socket: WebSocket, code: str) -> None:
+    network = client_network(socket)
+    acquired = False
+    try:
+        socket_connect_rate.admit(network, 60)
+        socket_capacity.acquire(network, 256, 32)
+        acquired = True
+        await asyncio.wait_for(socket.accept(), 1)
+        if socket.headers.get("origin") != auth_settings()[2]:
+            raise ValueError("Open voice practice from the app's trusted address.")
+        if live_mode() and app.state.room_service_status != "ready":
+            raise ValueError(SERVICE_STARTING_MESSAGE)
+        room = rooms.get(code.upper())
+        if room is None:
+            raise ValueError("Room not found. Join again.")
+        raw = await asyncio.wait_for(socket.receive_text(), 10)
+        if len(raw) > 500:
+            raise ValueError("Invalid voice start.")
+        hello = json.loads(raw)
+        if not isinstance(hello, dict) or hello.get("type") != "start":
+            raise ValueError("Start the microphone explicitly.")
+        async with room.lock:
+            player = room.players.get(hello.get('token')) if isinstance(hello.get('token'), str) else None
+        if player is None:
+            raise ValueError("This room link is no longer valid. Join again.")
+        account = _host_account(room, socket) if player.is_host else None
+        await _coordinator(room).open_speech(VerifiedActor(player.token, account['id'] if account else None), socket, hello)
+    except (ValueError, HTTPException) as error:
+        await _send_error(socket, str(error.detail) if isinstance(error, HTTPException) else str(error))
+    except (asyncio.TimeoutError, RuntimeError, OSError, WebSocketDisconnect):
+        pass
+    finally:
+        if acquired:
+            socket_capacity.release(network)
+        try:
+            await asyncio.wait_for(socket.close(), 1)
+        except (RuntimeError, OSError, WebSocketDisconnect, asyncio.TimeoutError):
+            pass
+
+
 @app.websocket("/ws/{code}")
 async def room_socket(socket: WebSocket, code: str) -> None:
     network = client_network(socket)

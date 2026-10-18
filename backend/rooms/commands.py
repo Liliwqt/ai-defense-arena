@@ -29,12 +29,14 @@ class CatchUpDeadline:
 class SubmitAnswer:
     turn: object
     answer: object
+    voice_attempt: object = None
 
 
 @dataclass(frozen=True)
 class SubmitDirectAnswer:
     turn: object
     answer: object
+    voice_attempt: object = None
 
 
 @dataclass(frozen=True)
@@ -177,9 +179,9 @@ def decode_command(message: dict) -> Command:
     if action == "send_chat":
         return SendChat(message.get("text"))
     if action == "submit_answer":
-        return SubmitAnswer(message.get("turn"), message.get("answer"))
+        return SubmitAnswer(message.get("turn"), message.get("answer"), message.get("voice_attempt"))
     if action == "submit_direct_answer":
-        return SubmitDirectAnswer(message.get("turn"), message.get("answer"))
+        return SubmitDirectAnswer(message.get("turn"), message.get("answer"), message.get("voice_attempt"))
     if action == "submit_probe_reply":
         return SubmitProbeReply(message.get("turn"), message.get("answer"), message.get("probe_id"), message.get("direct") is True)
     if action == "finish_probe":

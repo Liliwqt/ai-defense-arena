@@ -1,3 +1,5 @@
+import { isNativeShell } from "../lib/saveDefenseSummary";
+import { VoiceAnswer } from "./VoiceAnswer";
 import { OpeningChoice } from "./OpeningChoice";
 import { useEffect, useState } from "react";
 import type { RoomState } from "../types";
@@ -6,6 +8,8 @@ import { useTabDraft } from "../hooks/useTabDraft";
 import { deriveRoomPresentation, type RoomPresentation } from "../lib/roomPresentation";
 
 interface AnswerComposerProps {
+  active?: boolean;
+  playerToken?: string | null;
   presentation?: RoomPresentation;
   roomState: RoomState | null;
   connected: boolean;
@@ -16,12 +20,14 @@ interface AnswerComposerProps {
   onSendEvent: (payload: Record<string, unknown>) => boolean;
 }
 
-export function AnswerComposer({ roomState, connected, previewMode, waitingForAnswerAck, actionError, actionErrorReason, onSendEvent, presentation = deriveRoomPresentation(roomState) }: AnswerComposerProps) {
+export function AnswerComposer({ active = true, playerToken, roomState, connected, previewMode, waitingForAnswerAck, actionError, actionErrorReason, onSendEvent, presentation = deriveRoomPresentation(roomState) }: AnswerComposerProps) {
   const current = roomState?.turns.at(-1);
   const inputScope = JSON.stringify([roomState?.room_code, roomState?.defense_view_id, roomState?.turns.length, current?.probe?.id ?? "answer",
     current?.probe ? current.probe.status : current?.answer || current?.timed_out || current?.resolved ? "resolved" : "open", roomState?.selected_seat, !!roomState?.my_pending_submission]);
   const [draft, setDraft] = useTabDraft("answer", roomState?.my_pending_submission ?? "", { room: true, marker: inputScope });
   const [localError, setLocalError] = useState("");
+  const [voiceMode, setVoiceMode] = useState(false);
+  const [confirmVoice, setConfirmVoice] = useState(false);
   const [writeRecovery, setWriteRecovery] = useState(false);
   const [interpretationLimited, setInterpretationLimited] = useState(false);
   const [questionRetryPending, setQuestionRetryPending] = useState(false);
@@ -51,6 +57,8 @@ export function AnswerComposer({ roomState, connected, previewMode, waitingForAn
   }, [allClarifications, turnKey]);
   useEffect(() => { setQuestionRetryPending(false); }, [roomState?.phase, roomState?.room_code]);
   useEffect(() => { if (actionError) setQuestionRetryPending(false); }, [actionError]);
+
+  useEffect(() => { setVoiceMode(false); setConfirmVoice(false); }, [inputScope]);
 
   function submitAnswer(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -90,8 +98,14 @@ export function AnswerComposer({ roomState, connected, previewMode, waitingForAn
           </div>
           {actionError && <p role="alert">{actionError}</p>}
         </div>
-      ) : canWrite ? (
+      ) : canWrite && voiceMode && roomState && !probing ? <VoiceAnswer state={roomState} token={playerToken}
+        active={active && connected && !previewMode && !waitingForAnswerAck} onSend={onSendEvent} direct={direct}
+        actionError={actionError} onTyping={() => {setDraft("");setVoiceMode(false);}} /> : canWrite ? (
         <form id="answer-form" onSubmit={submitAnswer}>
+          {!probing && roomState?.defense_type !== "code" && roomState?.voice?.enabled && !isNativeShell() && <div className="voice-mode-choice">
+            {confirmVoice ? <><p>Your unsent typed answer will be discarded when you switch.</p><button type="button" onClick={() => {setDraft("");setConfirmVoice(false);setVoiceMode(true);}}>Discard typed draft and use voice</button><button type="button" onClick={() => setConfirmVoice(false)}>Keep typing</button></>
+              : <button type="button" disabled={!connected || previewMode || waitingForAnswerAck} onClick={() => {if(draft.trim())setConfirmVoice(true);else setVoiceMode(true);}}>Use voice</button>}
+          </div>}
           <label htmlFor="answer-textarea">{presentation.answerPrompt}{direct ? "" : " or clarify"} question {turnIndex + 1} · {Math.max(0, 2 - allClarifications)} clarifications left</label>
           <div className="answer-controls">
             <textarea id="answer-textarea" name="answer" rows={3} maxLength={4000} value={draft}

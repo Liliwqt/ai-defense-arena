@@ -30,6 +30,7 @@ class PendingSubmission:
     text: str
     remaining_ms: int
     probe_id: str | None = None
+    input_provenance: dict | None = None
 
 
 @dataclass(kw_only=True)
