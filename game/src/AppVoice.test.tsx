@@ -123,3 +123,55 @@ it('stops acquired tracks when audio context construction fails',async()=>{
   expect(await screen.findByRole('alert')).toHaveTextContent('Audio context unavailable');
   expect(stopTrack).toHaveBeenCalled();expect(SpeechSocket.sockets).toHaveLength(0);
 });
+
+it('records a same-question probe reply with a separate identity and reply labels',async()=>{
+  roomSocket.roomState={...roomSocket.roomState!,phase:'probe',turns:[{...roomSocket.roomState!.turns[0],answer:'Our original explanation.',answered_by:'Alex',
+    input_provenance:{method:'voice',provider:'OpenAI',model:'gpt-live-transcribe',audio_ms:100},
+    probe:{id:'probe-current',request:'Which comparison?',references:[],status:'pending',reply:null,clarifications:[]}}]};
+  render(<App/>);
+  await userEvent.click(screen.getByRole('button',{name:'Use voice'}));
+  expect(screen.getByRole('textbox',{name:'Spoken reply'})).toHaveAttribute('readonly');
+  await userEvent.click(screen.getByRole('button',{name:'Start mic'}));
+  const speech=SpeechSocket.sockets[0];
+  expect(speech.sent).toContainEqual({type:'start',token:'token',turn:0,view_id:'run-one',probe_id:'probe-current'});
+  await act(async()=>speech.event({type:'started',attempt_id:'reply-attempt',remaining_ms:599900}));
+  await userEvent.click(screen.getByRole('button',{name:'Send voice reply'}));
+  await act(async()=>speech.event({type:'ready',attempt_id:'reply-attempt',text:'We will compare the measured waiting times.'}));
+  expect(roomSocket.sendEvent).toHaveBeenCalledWith({type:'submit_probe_reply',turn:0,probe_id:'probe-current',answer:'We will compare the measured waiting times.',voice_attempt:'reply-attempt',direct:false});
+});
+
+it('retains only finalized unsent words across navigation and requires a fresh manual Send',async()=>{
+  render(<App/>);await userEvent.click(screen.getByRole('button',{name:'Use voice'}));
+  await userEvent.click(screen.getByRole('button',{name:'Start mic'}));
+  const speech=SpeechSocket.sockets[0];
+  await act(async()=>speech.event({type:'started',attempt_id:'saved',remaining_ms:100}));
+  await act(async()=>speech.event({type:'allowance',remaining_ms:0,capped:true}));
+  await act(async()=>speech.event({type:'ready',attempt_id:'saved',text:'A finalized unsent explanation.'}));
+  await userEvent.click(screen.getByRole('button',{name:/Settings.*Controls/i}));
+  expect(speech.readyState).toBe(3);
+  await act(async()=>speech.event({type:'ready',attempt_id:'saved',text:'Obsolete injected replacement'}));
+  await userEvent.click(screen.getByRole('button',{name:'Return to defense'}));
+  expect(screen.getByRole('textbox',{name:'Spoken answer'})).toHaveValue('A finalized unsent explanation.');
+  expect(roomSocket.sendEvent).not.toHaveBeenCalled();
+  expect(getUserMedia).toHaveBeenCalledTimes(1);
+  await userEvent.click(screen.getByRole('button',{name:'Send voice answer'}));
+  expect(roomSocket.sendEvent).toHaveBeenCalledTimes(1);
+  expect(roomSocket.sendEvent).toHaveBeenCalledWith({type:'submit_answer',turn:0,answer:'A finalized unsent explanation.',voice_attempt:'saved'});
+});
+
+it('restores a server-validated draft read-only after reconnect without replacing typed work',async()=>{
+  const view=render(<App/>);
+  await userEvent.type(screen.getByRole('textbox',{name:/Your turn/}),'My unrelated typed draft.');
+  roomSocket={...roomSocket,connected:false};view.rerender(<App/>);
+  roomSocket={...roomSocket,connected:true,roomState:{...roomSocket.roomState!,voice:{...roomSocket.roomState!.voice!,remaining_ms:599900},
+    my_voice_draft:{attempt_id:'restored',text:'Verified final words.',turn:0,probe_id:null,view_id:'run-one'}}};
+  view.rerender(<App/>);
+  expect(screen.getByRole('textbox',{name:/Your turn/})).toHaveValue('My unrelated typed draft.');
+  await userEvent.click(screen.getByRole('button',{name:'Review unsent voice draft'}));
+  await userEvent.click(screen.getByRole('button',{name:'Discard typed draft and use voice'}));
+  expect(screen.getByRole('textbox',{name:'Spoken answer'})).toHaveValue('Verified final words.');
+  expect(getUserMedia).not.toHaveBeenCalled();expect(roomSocket.sendEvent).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole('button',{name:'Switch to typing'}));
+  expect(screen.getByRole('textbox',{name:/Your turn/})).toHaveValue('');
+  expect(roomSocket.sendEvent).toHaveBeenCalledWith({type:'discard_voice_draft',attempt_id:'restored'});
+});

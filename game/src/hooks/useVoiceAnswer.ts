@@ -19,7 +19,10 @@ export function useVoiceAnswer(state: RoomState, token: string | null | undefine
   const readyText = useRef('');
   const flushing = useRef(false);
   const startupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scope = `${state.room_code}:${state.defense_view_id}:${state.turns.length}:${state.selected_seat}`;
+  const probe = state.turns.at(-1)?.probe;
+  const probeId = probe?.status === 'pending' ? probe.id : null;
+  const scope = JSON.stringify([state.room_code, state.defense_view_id, state.turns.length,
+    state.selected_seat, token, probeId, state.phase, !!state.my_pending_submission]);
   const latest = useRef({ state, onSend, direct }); latest.current = { state, onSend, direct };
   function change(value: Status) { currentStatus.current = value; setStatus(value); }
   function stopMedia() { capture.current?.stop(); capture.current = null; }
@@ -29,17 +32,42 @@ export function useVoiceAnswer(state: RoomState, token: string | null | undefine
     stopMedia();
     const previous = socket.current; socket.current = null;
     try { if (previous?.readyState === WebSocket.OPEN) previous.send(JSON.stringify({type:'cancel'})); } catch { /* Already disconnected. */ }
-    previous?.close(); attempt.current = ''; change('idle'); setText(''); setFinalized('');
+    previous?.close();
+    const draftId = attempt.current || latest.current.state.my_voice_draft?.attempt_id;
+    if(draftId) latest.current.onSend({type:'discard_voice_draft',attempt_id:draftId});
+    attempt.current = ''; change('idle'); setText(''); setFinalized('');
   }
   function fail(message: string) {
     cancel(); setError(message); change('failed');
   }
+  function suspend() {
+    version.current++; requestedSend.current = false; flushing.current = false;
+    if(startupTimer.current)clearTimeout(startupTimer.current);
+    stopMedia(); socket.current?.close(); socket.current = null;
+    // Only a finalized draft can survive leaving; provisional words never become typed input.
+    if(currentStatus.current === 'ready' || currentStatus.current === 'sending') {
+      change('ready');
+      setError('Capture stopped. Review this final transcript and Send manually when connected.');
+    } else {
+      attempt.current = ''; readyText.current = ''; setText(''); setFinalized(''); change('idle');
+    }
+  }
   useEffect(() => {
-    if (!active) cancel();
+    suspend(); attempt.current = ''; readyText.current = ''; setText(''); setFinalized(''); change('idle'); setError('');
     return () => { version.current++; requestedSend.current = false; if(startupTimer.current)clearTimeout(startupTimer.current); stopMedia(); socket.current?.close(); socket.current = null; };
-  }, [scope, active]);
+  }, [scope]);
+  useEffect(() => { if(!active) suspend(); }, [active]);
   useEffect(() => {
-    const stop = () => { if (currentStatus.current !== 'idle') fail('Capture stopped while away. Nothing was submitted automatically; record again or type.'); };
+    const draft = state.my_voice_draft;
+    if(active && draft && draft.turn === state.turns.length-1 && draft.view_id === state.defense_view_id
+        && draft.probe_id === probeId && ['idle','failed'].includes(currentStatus.current)) {
+      attempt.current = draft.attempt_id; readyText.current = draft.text;
+      setText(draft.text); setFinalized(draft.text); change('ready'); setError('');
+    }
+  }, [scope, active, state.my_voice_draft]);
+  useEffect(() => { setRemaining(state.voice?.remaining_ms ?? 0); }, [state.voice?.remaining_ms]);
+  useEffect(() => {
+    const stop = () => suspend();
     const visibility = () => { if (document.visibilityState === 'hidden') stop(); };
     document.addEventListener('visibilitychange', visibility); window.addEventListener('pagehide', stop); window.addEventListener('defense-native-background', stop);
     return () => { document.removeEventListener('visibilitychange', visibility); window.removeEventListener('pagehide', stop); window.removeEventListener('defense-native-background', stop); };
@@ -53,7 +81,11 @@ export function useVoiceAnswer(state: RoomState, token: string | null | undefine
     const {state: room, onSend: send, direct: submitDirect} = latest.current;
     if (!finalText.trim() || finalText.length > 4000) { fail('The transcript is empty or exceeds 4000 characters. Nothing was submitted; record again or type.'); return; }
     change('sending');
-    if (!send({type:submitDirect?'submit_direct_answer':'submit_answer',turn:room.turns.length-1,answer:finalText,voice_attempt:attempt.current})) {
+    const pendingProbe = room.turns.at(-1)?.probe;
+    const payload = pendingProbe?.status === 'pending'
+      ? {type:'submit_probe_reply',turn:room.turns.length-1,probe_id:pendingProbe.id,answer:finalText,voice_attempt:attempt.current,direct:submitDirect}
+      : {type:submitDirect?'submit_direct_answer':'submit_answer',turn:room.turns.length-1,answer:finalText,voice_attempt:attempt.current};
+    if (!send(payload)) {
       setError('Could not send. Reconnect and record again or type.'); change('ready');
     }
   }
@@ -73,7 +105,7 @@ export function useVoiceAnswer(state: RoomState, token: string | null | undefine
       const ws = new WebSocket(`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/ws/${encodeURIComponent(state.room_code)}/speech`);
       socket.current = ws;
       startupTimer.current = setTimeout(() => { if(isCurrent())fail("Voice connection timed out. Nothing was submitted; use typing."); },8000);
-      ws.addEventListener('open', () => { if (isCurrent()) ws.send(JSON.stringify({type:'start',token,turn:state.turns.length-1,view_id:state.defense_view_id})); });
+      ws.addEventListener('open', () => { if (isCurrent()) ws.send(JSON.stringify({type:'start',token,turn:state.turns.length-1,view_id:state.defense_view_id,...(probeId?{probe_id:probeId}:{})})); });
       ws.addEventListener('message', event => {
         if (!isCurrent()) return;
         try {
@@ -88,11 +120,20 @@ export function useVoiceAnswer(state: RoomState, token: string | null | undefine
             readyText.current = message.text; setText(message.text); setFinalized(message.text);
             if(!flushing.current) { stopMedia(); change('ready'); submit(message.text); }
           }
-          if (message.type === 'error' || message.type === 'stopped') fail(message.message || 'Voice stopped. Nothing was submitted; use typing.');
+          if (message.type === 'error' || message.type === 'stopped') {
+            if(message.type === 'stopped' && currentStatus.current === 'ready') suspend();
+            else fail(message.message || 'Voice stopped. Nothing was submitted; use typing.');
+          }
         } catch { fail('Invalid speech response. Nothing was submitted; use typing.'); }
       });
-      ws.addEventListener('close', () => { if (isCurrent() && currentStatus.current !== 'sending') fail('Voice disconnected. Nothing was submitted; record again or type.'); });
-      ws.addEventListener('error', () => { if (isCurrent()) fail('Voice connection failed. Nothing was submitted; use typing.'); });
+      ws.addEventListener('close', () => { if (isCurrent() && currentStatus.current !== 'sending') {
+        if(currentStatus.current === 'ready') suspend();
+        else fail('Voice disconnected. Nothing was submitted; record again or type.');
+      } });
+      ws.addEventListener('error', () => { if (isCurrent()) {
+        if(currentStatus.current === 'ready') suspend();
+        else fail('Voice connection failed. Nothing was submitted; use typing.');
+      } });
     } catch (failure) {
       if (isCurrent()) fail(failure instanceof Error ? failure.message : 'Microphone permission denied. Use typing.');
     }

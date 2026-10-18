@@ -98,13 +98,13 @@ export function AnswerComposer({ active = true, playerToken, roomState, connecte
           </div>
           {actionError && <p role="alert">{actionError}</p>}
         </div>
-      ) : canWrite && voiceMode && roomState && !probing ? <VoiceAnswer state={roomState} token={playerToken}
+      ) : canWrite && voiceMode && roomState ? <VoiceAnswer state={roomState} token={playerToken}
         active={active && connected && !previewMode} onSend={onSendEvent} direct={direct}
         actionError={actionError} onTyping={() => {setDraft("");setVoiceMode(false);}} /> : canWrite ? (
         <form id="answer-form" onSubmit={submitAnswer}>
-          {!probing && roomState?.defense_type !== "code" && roomState?.voice?.enabled && !isNativeShell() && <div className="voice-mode-choice">
+          {roomState?.defense_type !== "code" && roomState?.voice?.enabled && !isNativeShell() && <div className="voice-mode-choice">
             {confirmVoice ? <><p>Your unsent typed answer will be discarded when you switch.</p><button type="button" onClick={() => {setDraft("");setConfirmVoice(false);setVoiceMode(true);}}>Discard typed draft and use voice</button><button type="button" onClick={() => setConfirmVoice(false)}>Keep typing</button></>
-              : <button type="button" disabled={!connected || previewMode || waitingForAnswerAck} onClick={() => {if(draft.trim())setConfirmVoice(true);else setVoiceMode(true);}}>Use voice</button>}
+              : <button type="button" disabled={!connected || previewMode || waitingForAnswerAck} onClick={() => {if(draft.trim())setConfirmVoice(true);else setVoiceMode(true);}}>{roomState?.my_voice_draft ? "Review unsent voice draft" : "Use voice"}</button>}
           </div>}
           <label htmlFor="answer-textarea">{presentation.answerPrompt}{direct ? "" : " or clarify"} question {turnIndex + 1} · {Math.max(0, 2 - allClarifications)} clarifications left</label>
           <div className="answer-controls">

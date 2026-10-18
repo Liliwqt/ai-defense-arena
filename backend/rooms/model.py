@@ -14,7 +14,7 @@ from backend.question_generator import CoachingReport
 from backend.research_plan import ResearchPlan, ResearchPlanProgress, ResearchProfileDescription
 from backend.resource_limits import AIBudget, limit
 from backend.rooms.openings import OpeningCandidate
-from backend.rooms.speech import SpeechState
+from backend.rooms.speech import SpeechState, draft_snapshot
 from backend.timed_turn import TimedTurn
 from backend.room_documents import RoomDocuments
 
@@ -135,7 +135,7 @@ class Room(TimedTurn):
                         "clarifications": [exchange.__dict__ for exchange in turn.clarifications],
                         "answer": turn.answer,
                         "input_provenance": turn.input_provenance,
-                        "probe": asdict(turn.probe) if turn.probe else None,
+                        "probe": {**asdict(turn.probe), "input_provenance": turn.probe_input_provenance} if turn.probe else None,
                         "resolved": turn.resolved,
                         "timed_out": turn.timed_out,
                         "ended_early": turn.ended_early,
@@ -220,6 +220,7 @@ class Room(TimedTurn):
             "reaction_deadline_ms": self.reaction_deadline_ms,
             "answer_deadline_ms": self.answer_deadline_ms,
             "remaining_answer_ms": self.pending_submission.remaining_ms if self.pending_submission else None,
+            "my_voice_draft": draft_snapshot(self, recipient, now),
             "my_pending_submission": (
                 self.pending_submission.text if recipient is not None and self.pending_submission
                 and recipient.token == self.pending_submission.token else None

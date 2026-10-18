@@ -67,6 +67,7 @@ function turnLines(turn: Turn, index: number, research = false): string[] {
       lines.push(`   ${panelist} explains: ${c.reply}`);
     }
     lines.push(`   Probe status: ${turn.probe.status}`);
+    if (turn.probe.reply != null && turn.probe.input_provenance?.method === "voice") lines.push(`   Reply input: voice transcript · ${turn.probe.input_provenance.provider} · ${(turn.probe.input_provenance.audio_ms / 1000).toFixed(1)}s audio forwarded; recognition may differ from speech.`);
     if (turn.probe.reply != null) lines.push(`   Probe reply (${turn.probe.speaker_name ?? "Defender"}): ${turn.probe.reply}`);
   }
   lines.push("");

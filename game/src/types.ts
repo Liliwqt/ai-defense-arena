@@ -63,6 +63,7 @@ export interface PanelistProbe {
   speaker_name?: string | null;
   speaker_seat?: number | null;
   clarifications: ClarificationExchange[];
+  input_provenance?: Turn["input_provenance"];
 }
 
 export interface CoachingPoint {
@@ -121,6 +122,7 @@ export interface ResearchPlan {
 }
 
 export interface RoomState {
+  my_voice_draft?: {attempt_id: string; text: string; turn: number; probe_id: string | null; view_id: string} | null;
   voice?: { enabled: boolean; remaining_ms: number; provider: string; model: string; language: string } | null;
   defense_view_id?: string;
   documents?: {id: string; filename: string; page_count: number}[];

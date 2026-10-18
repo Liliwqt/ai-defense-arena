@@ -49,7 +49,7 @@ def remove_socket(owner: "RoomCoordinator", socket, token: str | None = None) ->
     for player in room.players.values():
         if (token is None or player.token == token) and socket in player.sockets:
             if room.speech.current and room.speech.current.token == player.token:
-                room.speech.revoke()
+                room.speech.revoke(preserve_draft=True)
             player.sockets.discard(socket)
             room.revision += 1
             changed = True

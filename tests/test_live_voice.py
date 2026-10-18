@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from backend import game_server
 from backend.rooms.commands import CatchUpDeadline
-from backend.question_generator import SubmissionDecision
+from backend.question_generator import SubmissionDecision, ProbeRequest
 from tests import test_opening_history_protocol as opening_protocol
 from tests import test_research_coverage as coverage
 
@@ -354,3 +354,157 @@ class LiveVoiceProtocolTests(unittest.TestCase):
                         self.assertEqual(accepted['turns'][0]['answered_by'],'Sam')
                         self.assertEqual(accepted['turns'][0]['input_provenance']['audio_ms'],100)
         with patch('backend.rooms.submissions.interpret_submission',return_value=SubmissionDecision('answer')):self.answering(check)
+
+    def test_voice_probe_reply_keeps_original_and_reply_provenance_separate(self):
+        def check(socket,state,provider):
+            with self.client.websocket_connect(f"/ws/{state['room_code']}/speech") as speech:
+                speech.send_json(self.hello(state));started=speech.receive_json()
+                speech.send_bytes(bytes(4800));self.speech_until(speech,'allowance')
+                speech.send_json({'type':'finalize'});ready=self.speech_until(speech,'ready')
+                socket.send_json({'type':'submit_answer','turn':0,'answer':ready['text'],'voice_attempt':started['attempt_id']})
+                probing=self.until(socket,'probe')
+                original=probing['turns'][0]['input_provenance']
+            probe_id=probing['turns'][0]['probe']['id']
+            provider.commits=0  # A fresh provider connection starts a new segment chain.
+            with self.client.websocket_connect(f"/ws/{state['room_code']}/speech") as reply:
+                reply.send_json({**self.hello(probing),'probe_id':probe_id})
+                started=reply.receive_json();self.assertEqual(started['type'],'started',started)
+                reply.send_bytes(bytes(9600));self.speech_until(reply,'allowance')
+                reply.send_json({'type':'finalize'});ready=self.speech_until(reply,'ready')
+                socket.send_json({'type':'submit_probe_reply','turn':0,'probe_id':probe_id,'answer':ready['text'],'voice_attempt':started['attempt_id'],'direct':True})
+                accepted=self.until(socket,allow_retry=True)
+                while accepted['turns'][0]['probe']['reply'] is None:accepted=self.until(socket,allow_retry=True)
+                self.assertEqual(len(accepted['turns']),1)
+                self.assertEqual(accepted['turns'][0]['input_provenance'],original)
+                self.assertEqual(original['audio_ms'],100)
+                self.assertEqual(accepted['turns'][0]['probe']['input_provenance']['audio_ms'],200)
+                self.assertEqual(accepted['turns'][0]['probe']['speaker_name'],'Host')
+                self.assertEqual(accepted['voice']['remaining_ms'],599700)
+        with patch('backend.rooms.submissions.interpret_submission',return_value=SubmissionDecision('probe',probe=ProbeRequest('What will you compare?'))):self.answering(check)
+
+    def test_finalized_unsent_draft_survives_navigation_privately_and_requires_fresh_send(self):
+        def check(socket,state,provider):
+            with self.client.websocket_connect(f"/ws/{state['room_code']}/speech") as speech:
+                speech.send_json(self.hello(state));started=speech.receive_json()
+                speech.send_bytes(bytes(4800));self.speech_until(speech,'allowance')
+                speech.send_json({'type':'finalize'});ready=self.speech_until(speech,'ready')
+            socket.send_json({'type':'send_chat','text':'Back from Account'})
+            restored=self.until(socket,'question')
+            while not any(item['text']=='Back from Account' for item in restored['chat']):restored=self.until(socket,'question')
+            self.assertIsNone(restored['turns'][0]['answer'])
+            self.assertEqual(restored['my_voice_draft']['attempt_id'],started['attempt_id'])
+            self.assertEqual(restored['my_voice_draft']['text'],ready['text'])
+            self.assertEqual(restored['voice']['remaining_ms'],599900)
+            guest=self.client.post(f"/api/rooms/{state['room_code']}/join",json={'name':'Guest'}).json()
+            with self.client.websocket_connect(f"/ws/{state['room_code']}") as other:
+                other.send_json({'type':'hello','token':guest['player_token']})
+                self.assertIsNone(self.until(other,'question').get('my_voice_draft'))
+                socket.send_json({'type':'submit_direct_answer','turn':0,'answer':ready['text'],'voice_attempt':started['attempt_id']})
+                accepted=self.until(socket,allow_retry=True)
+                while accepted['turns'][0]['answer'] is None:accepted=self.until(socket,allow_retry=True)
+                self.assertEqual(accepted['turns'][0]['input_provenance']['audio_ms'],100)
+                self.assertIsNone(accepted['my_voice_draft'])
+        self.answering(check)
+
+    def test_discard_finalized_draft_revokes_proof_without_restoring_allowance(self):
+        def check(socket,state,provider):
+            with self.client.websocket_connect(f"/ws/{state['room_code']}/speech") as speech:
+                speech.send_json(self.hello(state));started=speech.receive_json()
+                speech.send_bytes(bytes(4800));self.speech_until(speech,'allowance')
+                speech.send_json({'type':'finalize'});ready=self.speech_until(speech,'ready')
+            socket.send_json({'type':'discard_voice_draft','attempt_id':started['attempt_id']})
+            socket.send_json({'type':'send_chat','text':'Discard acknowledged'})
+            fresh=self.until(socket,'question')
+            while not any(item['text']=='Discard acknowledged' for item in fresh['chat']):fresh=self.until(socket,'question')
+            self.assertIsNone(fresh.get('my_voice_draft'))
+            self.assertEqual(fresh['voice']['remaining_ms'],599900)
+            socket.send_json({'type':'submit_direct_answer','turn':0,'answer':ready['text'],'voice_attempt':started['attempt_id']})
+            event=socket.receive_json()
+            while event['type']!='error':event=socket.receive_json()
+            self.assertIn('not a current finalized',event['message'])
+        self.answering(check)
+
+    def final_draft(self, state, provider, *, token=None):
+        provider.commits=0  # Independent upstream session per capture.
+        with self.client.websocket_connect(f"/ws/{state['room_code']}/speech") as speech:
+            speech.send_json({**self.hello(state,token), 'probe_id':(state['turns'][-1].get('probe') or {}).get('id')})
+            started=speech.receive_json();self.assertEqual(started['type'],'started',started)
+            speech.send_bytes(bytes(4800));self.speech_until(speech,'allowance')
+            speech.send_json({'type':'finalize'});ready=self.speech_until(speech,'ready')
+        return {'answer':ready['text'],'voice_attempt':started['attempt_id']}
+
+    def test_failed_voice_probe_interpretation_retry_and_saved_acceptance_keep_attribution(self):
+        def check(socket,state,provider):
+            initial=self.final_draft(state,provider)
+            socket.send_json({'type':'submit_answer','turn':0,**initial})
+            probing=self.until(socket,'probe');probe_id=probing['turns'][0]['probe']['id']
+            reply=self.final_draft(probing,provider)
+            socket.send_json({'type':'submit_probe_reply','turn':0,'probe_id':probe_id,**reply})
+            failed=self.until(socket,'interpretation_retry')
+            self.assertEqual(failed['my_pending_submission'],reply['answer'])
+            self.assertIsNone(failed['turns'][0]['probe']['reply'])
+            self.assertIsNone(failed.get('my_voice_draft'))
+            socket.send_json({'type':'retry_interpretation'})
+            self.until(socket,'interpretation_retry')
+            socket.send_json({'type':'use_pending_as_answer'})
+            accepted=self.until(socket,allow_retry=True)
+            while accepted['turns'][0]['probe']['reply'] is None:accepted=self.until(socket,allow_retry=True)
+            self.assertEqual(accepted['turns'][0]['probe']['input_provenance']['audio_ms'],100)
+            self.assertEqual(accepted['turns'][0]['input_provenance']['audio_ms'],100)
+            socket.send_json({'type':'submit_probe_reply','turn':0,'probe_id':probe_id,'direct':True,**reply})
+            event=socket.receive_json()
+            while event['type']!='error':event=socket.receive_json()
+            self.assertIn('not a current finalized',event['message'])
+        decisions=[SubmissionDecision('probe',probe=ProbeRequest('What will you compare?')),RuntimeError('Offline failure'),RuntimeError('Offline failure')]
+        with patch('backend.rooms.submissions.interpret_submission',side_effect=decisions):self.answering(check)
+
+    def test_recognized_voice_clarification_is_not_an_answer_and_obsolete_proof_is_rejected(self):
+        def check(socket,state,provider):
+            words=self.final_draft(state,provider)
+            socket.send_json({'type':'submit_answer','turn':0,**words})
+            clarified=self.until(socket,'question')
+            while not clarified['turns'][0]['clarifications']:clarified=self.until(socket,'question')
+            self.assertIsNone(clarified['turns'][0]['answer'])
+            self.assertIsNone(clarified['turns'][0]['input_provenance'])
+            self.assertIsNone(clarified.get('my_voice_draft'))
+            socket.send_json({'type':'submit_direct_answer','turn':0,**words})
+            event=socket.receive_json()
+            while event['type']!='error':event=socket.receive_json()
+            self.assertIn('not a current finalized',event['message'])
+            socket.send_json({'type':'submit_direct_answer','turn':0,'answer':'A fresh typed answer.'})
+            accepted=self.until(socket,allow_retry=True)
+            while accepted['turns'][0]['answer'] is None:accepted=self.until(socket,allow_retry=True)
+            self.assertIsNone(accepted['turns'][0]['input_provenance'])
+        with patch('backend.rooms.submissions.interpret_submission',return_value=SubmissionDecision('clarify','Explain the comparison you plan.')):self.answering(check)
+
+    def test_new_direct_answer_during_failed_voice_interpretation_never_inherits_old_provenance(self):
+        def check(socket,state,provider):
+            words=self.final_draft(state,provider)
+            socket.send_json({'type':'submit_answer','turn':0,**words})
+            self.until(socket,'interpretation_retry')
+            socket.send_json({'type':'submit_direct_answer','turn':0,'answer':'A different typed explanation.'})
+            accepted=self.until(socket,allow_retry=True)
+            while accepted['turns'][0]['answer'] is None:accepted=self.until(socket,allow_retry=True)
+            self.assertEqual(accepted['turns'][0]['answer'],'A different typed explanation.')
+            self.assertIsNone(accepted['turns'][0]['input_provenance'])
+        with patch('backend.rooms.submissions.interpret_submission',side_effect=RuntimeError('Offline failure')):self.answering(check)
+
+    def test_selection_change_after_disconnect_invalidates_private_finalized_draft(self):
+        def check(socket,state,provider):
+            guest=self.client.post(f"/api/rooms/{state['room_code']}/join",json={'name':'Sam'}).json()
+            with self.client.websocket_connect(f"/ws/{state['room_code']}") as second:
+                second.send_json({'type':'hello','token':guest['player_token']});self.until(second,'question')
+                words=self.final_draft(state,provider)
+                socket.close()
+                chosen=self.until(second,'question')
+                while chosen['selected_seat']!=1:chosen=self.until(second,'question')
+                self.assertIsNone(chosen.get('my_voice_draft'))
+                with self.client.websocket_connect(f"/ws/{state['room_code']}") as host:
+                    host.send_json({'type':'hello','token':self.latest_host['player_token']})
+                    restored=self.until(host,'question');self.assertIsNone(restored.get('my_voice_draft'))
+                    host.send_json({'type':'submit_direct_answer','turn':0,**words})
+                    event=host.receive_json()
+                    while event['type']!='error':event=host.receive_json()
+                    self.assertIn('not a current finalized',event['message'])
+                    self.assertEqual(restored['voice']['remaining_ms'],599900)
+        self.answering(check)

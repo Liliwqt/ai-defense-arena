@@ -18,7 +18,7 @@ from backend.timed_turn import PendingSubmission, DeadlineExpired
 from backend.defense_session import ResearchDefenseSession
 from backend.rooms.commands import (
     CommandResult, VerifiedActor, SubmissionCommand, SubmitAnswer,
-    SubmitDirectAnswer, SubmitProbeReply, FinishProbe, RetryInterpretation, UsePendingAnswer,
+    SubmitDirectAnswer, SubmitProbeReply, DiscardVoiceDraft, FinishProbe, RetryInterpretation, UsePendingAnswer,
 )
 from backend.rooms.errors import safe_generation_error
 from backend.rooms.speech import validate_submission
@@ -117,7 +117,7 @@ async def run_interpretation(owner: "RoomCoordinator", work: InterpretationWork,
         if outcome is None:
             return
         if outcome in {"answered", "probed"}:
-            room.defense.turns[work.pending.turn].input_provenance = work.pending.input_provenance
+            attach_provenance(room, work.pending.turn, work.pending.probe_id, work.pending.input_provenance)
         if outcome in {"clarified", "probed"}:
             next_clock = (room.clock_id, room.answer_deadline_ms)
         elif outcome == "answered":
@@ -130,6 +130,15 @@ async def run_interpretation(owner: "RoomCoordinator", work: InterpretationWork,
         owner._schedule_question(generation_id, False)
     if feedback_id is not None:
         owner._schedule_coaching(feedback_id)
+
+
+def attach_provenance(room, turn_index, probe_id, provenance):
+    turn = room.defense.turns[turn_index]
+    if probe_id is not None:
+        if turn.probe and turn.probe.id == probe_id:
+            turn.probe_input_provenance = provenance
+    else:
+        turn.input_provenance = provenance
 
 
 async def handle_submission(owner: "RoomCoordinator", actor: VerifiedActor,
@@ -145,15 +154,21 @@ async def handle_submission(owner: "RoomCoordinator", actor: VerifiedActor,
             player = owner._player(actor)
             now = owner._workflows.now()
             provenance = None
-            if isinstance(command, (SubmitAnswer, SubmitDirectAnswer)) and command.voice_attempt is not None:
-                provenance = validate_submission(owner, actor, command.turn, command.answer, command.voice_attempt)
+            if isinstance(command, (SubmitAnswer, SubmitDirectAnswer, SubmitProbeReply)) and command.voice_attempt is not None:
+                provenance = validate_submission(owner, actor, command.turn, command.answer, command.voice_attempt, command.probe_id if isinstance(command, SubmitProbeReply) else None)
             if (isinstance(command, (RetryInterpretation, UsePendingAnswer))
                     and room.phase == "interpretation_retry"
                     and room.answer_deadline_ms is not None and now >= room.answer_deadline_ms):
                 raise DeadlineExpired("Answer time is over.")
             cap = limit('AI_INTERPRETATION_ATTEMPTS', 6, 20)
             attempt_key = f'interpret:{len(room.defense.turns)-1}' if room.defense else ''
-            if isinstance(command, RetryInterpretation):
+            if isinstance(command, DiscardVoiceDraft):
+                draft = room.speech.draft
+                if draft and draft.token == actor.token and draft.id == command.attempt_id:
+                    room.speech.draft = None
+                    if room.speech.current and room.speech.current.id == command.attempt_id:
+                        room.speech.revoke()
+            elif isinstance(command, RetryInterpretation):
                 if room.phase != 'interpretation_retry' or room.pending_submission is None or not (player.is_host or room.selected_seat == player.seat):
                     raise ValueError('Only the host or chosen defender can retry a failed submission.')
                 if room.interpretation_attempts >= cap:
@@ -164,9 +179,10 @@ async def handle_submission(owner: "RoomCoordinator", actor: VerifiedActor,
             elif isinstance(command, UsePendingAnswer):
                 provenance = room.pending_submission.input_provenance if room.pending_submission else None
                 turn_index = room.pending_submission.turn if room.pending_submission else None
+                probe_id = room.pending_submission.probe_id if room.pending_submission else None
                 room.accept_saved_answer(room.defense, player.token, player.seat)
                 if turn_index is not None:
-                    room.defense.turns[turn_index].input_provenance = provenance
+                    attach_provenance(room, turn_index, probe_id, provenance)
                 generation_id, feedback_id = owner._resolve_turn_locked()
             elif isinstance(command, SubmitDirectAnswer):
                 room.submit_direct(player.token, player.name, player.seat, command.turn,
@@ -204,11 +220,11 @@ async def handle_submission(owner: "RoomCoordinator", actor: VerifiedActor,
             result = CommandResult(False, str(failure))
             expired = isinstance(failure, DeadlineExpired)
         else:
-            if isinstance(command, (SubmitAnswer, SubmitDirectAnswer)) and provenance:
+            if isinstance(command, (SubmitAnswer, SubmitDirectAnswer, SubmitProbeReply)):
                 if room.pending_submission:
                     room.pending_submission = replace(room.pending_submission, input_provenance=provenance)
                 else:
-                    room.defense.turns[command.turn].input_provenance = provenance
+                    attach_provenance(room, command.turn, command.probe_id if isinstance(command, SubmitProbeReply) else None, provenance)
             if interpretation_id is not None:
                 owner._schedule_clock(room.clock_id, room.active_deadline_ms)
                 # Claim task identity and capture inputs before publication awaits.

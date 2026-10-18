@@ -41,6 +41,7 @@ class DefenseTurn:
     topic_id: str | None = None
     is_follow_up: bool = False
     ended_early: bool = False
+    probe_input_provenance: dict | None = None
     input_provenance: dict | None = None
     probe: PanelistProbe | None = None
 

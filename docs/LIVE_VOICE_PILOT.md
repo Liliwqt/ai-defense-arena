@@ -1,6 +1,6 @@
 # Live voice pilot — local implementation
 
-Ticket 03 adds research/mixed web voice; code-only and Streamlit keep typed input.
+Tickets 03–04 add research/mixed web voice; code-only and Streamlit keep typed input.
 Voice is disabled by default. No real microphone, speech account, hosted relay or
 installed-device verification is implied by the offline tests.
 
@@ -44,8 +44,14 @@ readable. Send stops capture, finishes the last segment and submits server-final
 text through existing interpretation/direct-answer and acknowledgment rules.
 Silence, provider finals and the shared cap never submit automatically. The
 server rechecks current speaker/run/turn and deadline. Navigation, background,
-disconnect, selection/run change and lifecycle invalidation stop capture/relay.
-No automatic mic restart or Send replay occurs on reconnect.
+disconnect, selection/probe/run change and lifecycle invalidation stop capture/relay.
+No automatic mic restart or Send replay occurs on reconnect. A finalized unsent
+draft may remain privately in this room's bounded memory while its exact speaker,
+run, turn, probe and interpretation window remain valid. Navigation/disconnection
+stops capture; returning requires a fresh manual Send. Provisional words cannot
+be restored as typed answers. Discard, switching to typing, new recording,
+accepted submission or an obsolete window removes the draft; refresh adds no
+new durability guarantee. No draft or audio is added to browser storage.
 
 The Speaker desk places paper/question context beside the workspace on desktop,
 stacks it on phones, and includes an answer shortcut, existing citations/PDF,
@@ -53,8 +59,10 @@ seats, chat and authoritative timer. Switching to typing discards the voice draf
 and opens an empty editable answer. Submitted provenance records OpenAI/model and
 forwarded audio duration with the original answer; duration is not speaking pace.
 Typed claims cannot fabricate that provenance. Original-answer and later typed
-probe content remain distinct. Probe voice/reconnect refinements are ticket04;
-native microphone releases are08/09. English is the initial pilot; Tagalog/Bisaya
+probe content remain distinct. Same-question probe voice uses its own identity, deadline and reply provenance;
+original answer attribution is preserved through interpretation retry, direct
+replacement and saved-answer acceptance. Team chat and explicit clarification
+controls stay typed. Native microphone releases are tickets 08/09. English is the initial pilot; Tagalog/Bisaya
 are not advertised as verified. Provider recognition errors are not delivery grades.
 
 ## Primary documentation checked 2026-10-18

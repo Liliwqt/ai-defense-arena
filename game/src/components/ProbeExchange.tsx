@@ -15,6 +15,7 @@ export function ProbeExchange({ probe, panelist }: { probe?: PanelistProbe | nul
       <p><strong>{panelist} explains:</strong> {exchange.reply}</p>
     </div>)}
     {probe.reply != null && <p><strong>Probe reply{probe.speaker_name ? ` · ${probe.speaker_name}` : ""}:</strong> {probe.reply}</p>}
+    {probe.reply != null && probe.input_provenance?.method === "voice" && <p className="voice-provenance">Reply voice transcript · {probe.input_provenance.provider} · {(probe.input_provenance.audio_ms / 1000).toFixed(1)}s audio forwarded. Recognition can differ from speech.</p>}
     {probe.status === "expired" && <p>Probe reply time expired. The original answer is retained.</p>}
     {probe.status === "ended_early" && <p>Probe ended early. The original answer is retained.</p>}
   </section>;

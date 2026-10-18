@@ -92,6 +92,8 @@ class SpeechAttempt:
     turn: int
     view_id: str
     task: asyncio.Task
+    probe_id: str | None = None
+    interpretation_id: int = 0
     id: str = field(default_factory=lambda: secrets.token_hex(24))
     transcript: Transcript = field(default_factory=Transcript)
     status: str = 'starting'
@@ -106,18 +108,34 @@ class SpeechAttempt:
     finalizing_at: float | None = None
 
 
+@dataclass(frozen=True)
+class FinalizedDraft:
+    token: str
+    run_id: str
+    turn: int
+    view_id: str
+    probe_id: str | None
+    interpretation_id: int
+    id: str
+    text: str
+    provenance: dict
+
+
 @dataclass
 class SpeechState:
     run_id: str | None = None
     used: int = 0
     attempts: int = 0
     current: SpeechAttempt | None = None
+    draft: FinalizedDraft | None = None
 
     def reset(self, run_id):
         self.revoke()
         self.run_id, self.used, self.attempts = run_id, 0, 0
 
-    def revoke(self):
+    def revoke(self, *, preserve_draft=False):
+        if not preserve_draft:
+            self.draft = None
         current, self.current = self.current, None
         if current:
             current.status = 'stopped'
@@ -132,34 +150,60 @@ class SpeechState:
                 'provider': 'OpenAI', 'model': speech_provider.MODEL, 'language': 'en'}
 
 
-def authorized(owner, attempt):
-    room = owner._room
-    player = room.players.get(attempt.token)
-    return (not room.closed and speech_provider.configured() and room.speech.current is attempt
-        and room.run_id == attempt.run_id and room.defense_view_id == attempt.view_id
-        and room.defense_type in {'research', 'mixed'} and room.phase == 'question'
-        and room.defense is not None and len(room.defense.turns) - 1 == attempt.turn
+def current_probe_id(room):
+    if room.defense and room.defense.turns:
+        probe = room.defense.turns[-1].probe
+        if probe and probe.status == "pending":
+            return probe.id
+    return None
+
+
+def scope_current(room, scope, now):
+    player = room.players.get(scope.token)
+    return (not room.closed and speech_provider.configured()
+        and room.run_id == scope.run_id and room.defense_view_id == scope.view_id
+        and room.defense_type in {'research', 'mixed'}
+        and (room.phase in {'question', 'probe', 'interpretation_retry'}
+             or room.phase == 'interpreting' and (room.pause_deadline_ms is None or now >= room.pause_deadline_ms))
+        and room.defense is not None and len(room.defense.turns) - 1 == scope.turn
+        and room.interpretation_id == scope.interpretation_id
+        and scope.probe_id == current_probe_id(room)
         and player is not None and bool(player.sockets) and player.seat == room.selected_seat
-        and room.answer_deadline_ms is not None and owner._workflows.now() < room.answer_deadline_ms)
+        and room.answer_deadline_ms is not None and now < room.answer_deadline_ms)
+
+
+def authorized(owner, attempt):
+    return owner._room.speech.current is attempt and scope_current(owner._room, attempt, owner._workflows.now())
+
+
+def draft_snapshot(room, recipient, now):
+    draft = room.speech.draft
+    if draft and recipient and recipient.token == draft.token and scope_current(room, draft, now):
+        return {'attempt_id': draft.id, 'text': draft.text, 'turn': draft.turn,
+                'probe_id': draft.probe_id, 'view_id': draft.view_id}
+    return None
 
 
 def revoke_obsolete(owner):
-    attempt = owner._room.speech.current
+    room = owner._room
+    draft = room.speech.draft
+    if draft and not scope_current(room, draft, owner._workflows.now()):
+        room.speech.draft = None
+    attempt = room.speech.current
     if attempt and not authorized(owner, attempt):
-        owner._room.speech.revoke()
+        room.speech.revoke(preserve_draft=True)
 
 
-def validate_submission(owner, actor, turn, text, attempt_id):
-    attempt = owner._room.speech.current
-    if (attempt is None or attempt.id != attempt_id or attempt.token != actor.token or attempt.turn != turn
-            or not authorized(owner, attempt) or attempt.status != 'ready'
-            or text != attempt.transcript.text(final_only=True) or not text):
+def validate_submission(owner, actor, turn, text, attempt_id, probe_id=None):
+    draft = owner._room.speech.draft
+    if (draft is None or draft.id != attempt_id or draft.token != actor.token or draft.turn != turn
+            or draft.probe_id != probe_id or not scope_current(owner._room, draft, owner._workflows.now())
+            or text != draft.text or not text):
         raise ValueError('This voice draft is not a current finalized answer. Nothing was accepted; use typing or record again.')
-    return {'method': 'voice', 'provider': 'OpenAI', 'model': speech_provider.MODEL,
-            'audio_ms': attempt.samples * 1000 // RATE, 'padding_ms': attempt.padding_samples * 1000 // RATE}
+    return dict(draft.provenance)
 
 
-def ready_event(attempt):
+def ready_event(room, attempt):
     order = attempt.transcript.ordered()
     if (attempt.status == 'finalizing' and attempt.commits > 0 and len(order) == attempt.commits
             and all(item in attempt.transcript.final for item in order)):
@@ -167,6 +211,11 @@ def ready_event(attempt):
         if not text:
             raise ValueError('No speech was recognized. Nothing was submitted; record again or type.')
         attempt.status = 'ready'
+        room.speech.draft = FinalizedDraft(attempt.token, attempt.run_id, attempt.turn, attempt.view_id,
+            attempt.probe_id, attempt.interpretation_id, attempt.id, text,
+            {'method': 'voice', 'provider': 'OpenAI', 'model': speech_provider.MODEL,
+             'audio_ms': attempt.samples * 1000 // RATE, 'padding_ms': attempt.padding_samples * 1000 // RATE})
+        room.revision += 1
         return {'type': 'ready', 'attempt_id': attempt.id, 'text': text}
     return None
 
@@ -184,7 +233,7 @@ async def run_speech(owner, actor, socket, hello):
                 room.speech.reset(room.run_id)
             if room.speech.current is not None:
                 raise ValueError('A voice attempt is already active. Stop it before recording again.')
-            attempt = SpeechAttempt(actor.token, room.run_id, hello.get('turn'), hello.get('view_id'), asyncio.current_task())
+            attempt = SpeechAttempt(actor.token, room.run_id, hello.get('turn'), hello.get('view_id'), asyncio.current_task(), probe_id=hello.get('probe_id'), interpretation_id=room.interpretation_id)
             room.speech.current = attempt
             if type(attempt.turn) is not int or not authorized(owner, attempt):
                 room.speech.current = None
@@ -194,6 +243,7 @@ async def run_speech(owner, actor, socket, hello):
             starts.admit(room.owner_account_id, 12)
             capacity.acquire(room.owner_account_id, limit('VOICE_MAX_STREAMS', 16, 64), 1)
             acquired = True
+            room.speech.draft = None
             room.speech.attempts += 1
             owner._retain(attempt.task)
         async with speech_provider.open_transcription(room.owner_account_id) as upstream:
@@ -262,6 +312,9 @@ async def run_speech(owner, actor, socket, hello):
                             raise ValueError('Invalid speech control.')
                         control = json.loads(raw).get('type')
                         if control == 'cancel':
+                            async with room.lock:
+                                if room.speech.draft and room.speech.draft.id == attempt.id:
+                                    room.speech.draft = None
                             return
                         if control != 'finalize':
                             raise ValueError('Invalid speech control.')
@@ -273,8 +326,10 @@ async def run_speech(owner, actor, socket, hello):
                         async with room.lock:
                             if not authorized(owner, attempt):
                                 raise ValueError('Voice authorization ended. Nothing was submitted.')
-                            finalized = ready_event(attempt)
+                            finalized = ready_event(room, attempt)
                         await send(finalized or {'type': 'finalizing'})
+                        if finalized:
+                            await owner._publish()
             async def provider_events():
                 for _ in range(4096):
                     event = json.loads(await upstream.recv())
@@ -282,9 +337,11 @@ async def run_speech(owner, actor, socket, hello):
                         if not authorized(owner, attempt):
                             raise ValueError('Voice authorization ended. Nothing was submitted.')
                         attempt.transcript.receive(event)
-                        outgoing = ready_event(attempt) or {'type': 'transcript', 'text': attempt.transcript.text(),
+                        outgoing = ready_event(room, attempt) or {'type': 'transcript', 'text': attempt.transcript.text(),
                             'finalized_text': attempt.transcript.text(True)}
                     await send(outgoing)
+                    if outgoing['type'] == 'ready':
+                        await owner._publish()
                 raise ValueError('Speech event limit reached. Use typing.')
             async def watchdog():
                 while True:

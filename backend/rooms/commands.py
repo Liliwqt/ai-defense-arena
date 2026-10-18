@@ -45,6 +45,12 @@ class SubmitProbeReply:
     answer: object
     probe_id: object
     direct: bool = False
+    voice_attempt: object = None
+
+
+@dataclass(frozen=True)
+class DiscardVoiceDraft:
+    attempt_id: object
 
 
 @dataclass(frozen=True)
@@ -125,7 +131,7 @@ class DefenderDisconnected:
 
 
 PlanCommand = PrepareResearchPlan | ApproveResearchPlan
-SubmissionCommand = SubmitAnswer | SubmitDirectAnswer | SubmitProbeReply | FinishProbe | RetryInterpretation | UsePendingAnswer
+SubmissionCommand = DiscardVoiceDraft | SubmitAnswer | SubmitDirectAnswer | SubmitProbeReply | FinishProbe | RetryInterpretation | UsePendingAnswer
 
 
 @dataclass(frozen=True)
@@ -183,7 +189,9 @@ def decode_command(message: dict) -> Command:
     if action == "submit_direct_answer":
         return SubmitDirectAnswer(message.get("turn"), message.get("answer"), message.get("voice_attempt"))
     if action == "submit_probe_reply":
-        return SubmitProbeReply(message.get("turn"), message.get("answer"), message.get("probe_id"), message.get("direct") is True)
+        return SubmitProbeReply(message.get("turn"), message.get("answer"), message.get("probe_id"), message.get("direct") is True, message.get("voice_attempt"))
+    if action == "discard_voice_draft":
+        return DiscardVoiceDraft(message.get("attempt_id"))
     if action == "finish_probe":
         return FinishProbe(message.get("turn"), message.get("probe_id"))
     if action == "retry_interpretation":
