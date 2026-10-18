@@ -9,7 +9,7 @@ export function VoiceAnswer({state,token,active,onSend,direct,actionError,onTypi
   const seconds=useRoomCountdown(state);
   const busy=['starting','finalizing','sending'].includes(voice.status);
   return <section className="voice-answer" aria-label="Speaker desk">
-    <div className="speaker-desk-heading"><span className="voice-answer-timer" aria-label="Answer deadline">Answer time {formatCountdown(seconds)}</span><strong>Speaker desk</strong><span>{Math.ceil(voice.remaining/1000)}s voice remaining · shared by the team</span></div>
+    <div className="speaker-desk-heading"><span className="voice-answer-timer" aria-label="Answer deadline">Answer time {formatCountdown(seconds)}</span><strong>Speaker desk</strong><span>{formatCountdown(Math.ceil(voice.remaining/1000))} voice time left · shared by the team</span></div>
     <details className="voice-disclosure" open={voice.status==='idle'||voice.status==='failed'}><summary>Microphone and privacy</summary>
       <p>For spoken defense practice, use voice. Typing is always available. English pilot; Tagalog and Bisaya recognition are not yet verified.</p>
       <p>Audio streams to OpenAI only after Start mic. This app keeps no audio archive. OpenAI’s default abuse-monitoring retention is up to 30 days, with separate account controls and exceptions. Your submitted transcript stays with this room’s results.</p>

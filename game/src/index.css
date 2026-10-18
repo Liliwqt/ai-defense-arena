@@ -606,3 +606,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 @media (max-width: 760px) { .speaker-desk-shortcut { display: block; padding: 8px; border-radius: 8px; border: 1px solid var(--ink); font-size: .75rem; } }
 
 .voice-answer-timer { font-variant-numeric: tabular-nums; font-weight: 800; }
+
+.arena-shell[data-speaker-desk="true"] #arena-hud { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.arena-shell[data-speaker-desk="true"] .hud-actions { justify-content: flex-start; flex-wrap: wrap; }
+.arena-shell[data-speaker-desk="true"] #room-dock:has(.voice-answer) > .voice-remaining { display: none; }
+
+.arena-shell[data-speaker-desk="true"] #answer-form { display: flex; flex-direction: column; gap: 10px; }

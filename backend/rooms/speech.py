@@ -220,11 +220,17 @@ async def run_speech(owner, actor, socket, hello):
                         if not 2 <= len(frame) <= 9600 or len(frame) % 2:
                             raise ValueError('Invalid audio frame. Nothing was submitted; use typing.')
                         async with room.lock:
-                            if not authorized(owner, attempt) or attempt.status != 'listening':
+                            if not authorized(owner, attempt):
                                 raise ValueError('Voice authorization ended. Nothing was submitted.')
                             attempt.frames += 1
                             if attempt.frames > (monotonic() - attempt.started + .5) * 60 + 1:
                                 raise ValueError("Audio frame rate exceeded. Nothing was submitted; use typing.")
+                            if room.speech.used >= allowance() and attempt.status in {'finalizing', 'ready'}:
+                                # A bounded in-flight frame can precede the browser's cap notification.
+                                # It must not cancel the already-paid finalization or be forwarded.
+                                continue
+                            if attempt.status != 'listening':
+                                raise ValueError('This voice attempt is no longer recording.')
                             samples = len(frame) // 2
                             if attempt.samples + samples > (monotonic() - attempt.started + .5) * RATE:
                                 raise ValueError('Audio arrived faster than real time. Nothing was submitted.')

@@ -1,3 +1,4 @@
+import { formatCountdown } from "../hooks/useRoomCountdown";
 import { useEffect, useRef, useState } from "react";
 import { AnswerComposer } from "./AnswerComposer";
 import type { RoomState } from "../types";
@@ -117,7 +118,7 @@ export function RoomDock({ active = true, playerToken, roomState, connected, pre
         <button type="button" role="tab" aria-selected={tab === "chat"} aria-controls="dock-chat" tabIndex={tab === "chat" ? 0 : -1} onKeyDown={handleDockTabKey}
           disabled={!roomState} onClick={() => setTab("chat")}>Team chat{unread > 0 ? ` (${unread})` : ""}</button>
       </div>
-      {roomState?.voice?.enabled && <p className="voice-remaining">{Math.ceil(roomState.voice.remaining_ms / 1000)}s shared voice remaining</p>}
+      {roomState?.voice?.enabled && <p className="voice-remaining">{formatCountdown(Math.ceil(roomState.voice.remaining_ms / 1000))} shared voice time left</p>}
       <div id="dock-action" role="tabpanel" hidden={tab !== "action"} className="dock-content">
         {presentation.voting && roomState ? <VotePanel state={roomState} connected={connected} previewMode={previewMode}
           actionError={actionError} onSendEvent={onSendEvent} instruction={presentation.voteInstruction} /> :

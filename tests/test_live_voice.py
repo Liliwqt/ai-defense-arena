@@ -302,3 +302,55 @@ class LiveVoiceProtocolTests(unittest.TestCase):
                 self.assertTrue(cancelled.wait(1))
                 self.assertEqual(provider.forwarded,[])
         self.answering(check,provider)
+
+    def test_inflight_audio_after_cap_is_discarded_while_finalization_remains_usable(self):
+        clock=[100.0];provider=FakeSpeechSocket();original=provider.send
+        async def delayed(raw):
+            if json.loads(raw)['type']=='input_audio_buffer.commit':provider.commits+=1
+            else:await original(raw)
+        provider.send=delayed
+        def check(socket,state,provider):
+            with self.client.websocket_connect(f"/ws/{state['room_code']}/speech") as speech:
+                speech.send_json(self.hello(state));started=speech.receive_json()
+                for _ in range(4):
+                    clock[0]+=.2;speech.send_bytes(bytes(9600));self.speech_until(speech,'allowance')
+                clock[0]+=.2;speech.send_bytes(bytes(9600));speech.send_bytes(bytes(4800))
+                self.assertTrue(self.speech_until(speech,'allowance')['capped'])
+                for event in ({'type':'input_audio_buffer.committed','item_id':'cap','previous_item_id':None},
+                    {'type':'conversation.item.input_audio_transcription.completed','item_id':'cap','transcript':'Usable final words.'}):
+                    self.client.portal.call(provider.events.put,event)
+                ready=self.speech_until(speech,'ready')
+                self.assertEqual(len(provider.forwarded),5)
+                socket.send_json({'type':'submit_direct_answer','turn':0,'answer':ready['text'],'voice_attempt':started['attempt_id']})
+                accepted=self.until(socket,allow_retry=True)
+                while accepted['turns'][0]['answer'] is None:accepted=self.until(socket,allow_retry=True)
+                self.assertEqual(accepted['turns'][0]['answer'],'Usable final words.')
+        with patch.dict(os.environ,{'VOICE_ALLOWANCE_SECONDS':'1'}),patch('backend.rooms.speech.monotonic',side_effect=lambda:clock[0]):self.answering(check,provider)
+
+    def test_chosen_guest_can_submit_voice_and_both_clients_share_the_accepted_record(self):
+        def check(socket,state,provider):
+            guest=self.client.post(f"/api/rooms/{state['room_code']}/join",json={'name':'Sam'}).json()
+            with self.client.websocket_connect(f"/ws/{state['room_code']}") as teammate:
+                teammate.send_json({'type':'hello','token':guest['player_token']});self.until(teammate,'question')
+                socket.close()
+                chosen=self.until(teammate,'question')
+                while chosen['selected_seat']!=1:chosen=self.until(teammate,'question')
+                with self.client.websocket_connect(f"/ws/{state['room_code']}") as host:
+                    host.send_json({'type':'hello','token':self.latest_host['player_token']});self.until(host,'question')
+                    with self.client.websocket_connect(f"/ws/{state['room_code']}/speech") as speech:
+                        speech.send_json(self.hello(chosen,guest['player_token']));started=speech.receive_json()
+                        speech.send_bytes(bytes(4800));self.speech_until(speech,'allowance')
+                        speech.send_json({'type':'finalize'});ready=self.speech_until(speech,'ready')
+                        host.send_json({'type':'submit_answer','turn':0,'answer':ready['text'],'voice_attempt':started['attempt_id']})
+                        event=host.receive_json()
+                        while event['type']!='error':event=host.receive_json()
+                        self.assertIn('not a current finalized',event['message'])
+                        teammate.send_json({'type':'submit_answer','turn':0,'answer':ready['text'],'voice_attempt':started['attempt_id']})
+                        accepted=self.until(teammate,allow_retry=True)
+                        while accepted['turns'][0]['answer'] is None:accepted=self.until(teammate,allow_retry=True)
+                        observed=self.until(host,allow_retry=True)
+                        while observed['turns'][0]['answer'] is None:observed=self.until(host,allow_retry=True)
+                        self.assertEqual(observed['turns'],accepted['turns'])
+                        self.assertEqual(accepted['turns'][0]['answered_by'],'Sam')
+                        self.assertEqual(accepted['turns'][0]['input_provenance']['audio_ms'],100)
+        with patch('backend.rooms.submissions.interpret_submission',return_value=SubmissionDecision('answer')):self.answering(check)
