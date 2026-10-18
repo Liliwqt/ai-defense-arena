@@ -47,7 +47,7 @@ beforeEach(() => {
   Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia}});
   vi.stubGlobal('AudioContext',Context);vi.stubGlobal('AudioWorkletNode',Worklet);vi.stubGlobal('WebSocket',SpeechSocket);
 });
-afterEach(()=>{act(()=>window.dispatchEvent(new Event('pagehide')));vi.unstubAllGlobals();vi.restoreAllMocks();vi.clearAllMocks();});
+afterEach(()=>{act(()=>window.dispatchEvent(new Event('pagehide')));delete (window as unknown as {webkit?:unknown}).webkit;vi.unstubAllGlobals();vi.restoreAllMocks();vi.clearAllMocks();});
 it('captures explicitly, shows read-only words and finalizes once only after manual Send',async()=>{
   const view=render(<App/>);
   expect(getUserMedia).not.toHaveBeenCalled();
@@ -273,4 +273,67 @@ it('stops forwarding and offers recovery when the operating system mutes capture
   expect(screen.getByRole('alert')).toHaveTextContent('Microphone stopped unexpectedly');
   expect(roomSocket.sendEvent).toHaveBeenCalledWith({type:'discard_voice_draft',attempt_id:'muted'});
   expect(roomSocket.sendEvent).not.toHaveBeenCalledWith(expect.objectContaining({type:'submit_answer'}));
+});
+
+// iOS WKWebView uses the reply bridge instead of a transferred port.
+class IosAudioHandler {
+  messages: {type:string;id:string}[]=[];
+  private replies: {resolve:(value:unknown)=>void;reject:(error:Error)=>void}[]=[];
+  postMessage(value:{type:string;id:string}) {
+    this.messages.push(value);
+    if(value.type==='cancel')return Promise.resolve({type:'cancelled',id:value.id});
+    return new Promise((resolve,reject)=>this.replies.push({resolve,reject}));
+  }
+  reply(type:'prepared'|'denied',id=this.messages.filter(m=>m.type==='prepare').at(-1)!.id) {
+    this.replies.shift()?.resolve({type,id});
+  }
+}
+function iosShell(handler:IosAudioHandler) {
+  vi.spyOn(navigator,'userAgent','get').mockReturnValue('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148');
+  Object.defineProperty(window,'webkit',{configurable:true,value:{messageHandlers:{defenseAudio:handler}}});
+}
+it('waits for the iOS audio reply before capture and releases it on stop',async()=>{
+  const handler=new IosAudioHandler();iosShell(handler);render(<App/>);
+  await userEvent.click(screen.getByRole('button',{name:'Use voice'}));
+  await userEvent.click(screen.getByRole('button',{name:'Start mic'}));
+  expect(handler.messages).toEqual([{type:'prepare',id:expect.any(String)}]);
+  expect(getUserMedia).not.toHaveBeenCalled();
+  await act(async()=>handler.reply('prepared'));
+  expect(getUserMedia).toHaveBeenCalledTimes(1);
+  const speech=SpeechSocket.sockets[0];
+  await act(async()=>speech.event({type:'started',attempt_id:'ios',remaining_ms:600000}));
+  await act(async()=>speech.event({type:'transcript',text:'Our pilot',finalized_text:''}));
+  expect(screen.getByRole('textbox',{name:'Spoken answer'})).toHaveValue('Our pilot');
+  await userEvent.click(screen.getByRole('button',{name:'Send voice answer'}));
+  expect(stopTrack).toHaveBeenCalled();
+  expect(handler.messages.at(-1)).toEqual({type:'cancel',id:expect.any(String)});
+});
+it('offers typing when the iOS audio bridge denies permission',async()=>{
+  const handler=new IosAudioHandler();iosShell(handler);render(<App/>);
+  await userEvent.click(screen.getByRole('button',{name:'Use voice'}));
+  await userEvent.click(screen.getByRole('button',{name:'Start mic'}));
+  await act(async()=>handler.reply('denied'));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Microphone access was denied');
+  expect(getUserMedia).not.toHaveBeenCalled();expect(SpeechSocket.sockets).toHaveLength(0);
+  await userEvent.click(screen.getByRole('button',{name:'Switch to typing'}));
+  expect(screen.getByRole('textbox',{name:/Your turn/})).toHaveValue('');
+});
+it('ignores a late iOS permission reply after backgrounding until a new start',async()=>{
+  const handler=new IosAudioHandler();iosShell(handler);render(<App/>);
+  await userEvent.click(screen.getByRole('button',{name:'Use voice'}));
+  await userEvent.click(screen.getByRole('button',{name:'Start mic'}));
+  const id=handler.messages[0].id;
+  await act(async()=>window.dispatchEvent(new Event('defense-native-background')));
+  await act(async()=>handler.reply('prepared',id));
+  await act(async()=>window.dispatchEvent(new Event('defense-native-resume')));
+  expect(getUserMedia).not.toHaveBeenCalled();expect(SpeechSocket.sockets).toHaveLength(0);
+  expect(screen.getByRole('button',{name:'Start mic'})).toBeEnabled();
+  expect(roomSocket.sendEvent).not.toHaveBeenCalled();
+});
+it('keeps typing in an older iOS WebView without the audio bridge',()=>{
+  vi.spyOn(navigator,'userAgent','get').mockReturnValue('Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148');
+  render(<App/>);
+  expect(screen.getByRole('textbox',{name:/Your turn/})).toBeVisible();
+  expect(screen.queryByRole('button',{name:'Use voice'})).toBeNull();
+  expect(getUserMedia).not.toHaveBeenCalled();
 });

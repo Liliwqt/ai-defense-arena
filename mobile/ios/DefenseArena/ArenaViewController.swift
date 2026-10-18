@@ -3,6 +3,7 @@ import WebKit
 import AuthenticationServices
 import CryptoKit
 import Security
+import AVFoundation
 
 // WKUserContentController retains handlers; this proxy prevents a controller cycle.
 private final class ExportHandler: NSObject, WKScriptMessageHandler {
@@ -10,6 +11,17 @@ private final class ExportHandler: NSObject, WKScriptMessageHandler {
     init(_ owner: ArenaViewController) { self.owner = owner }
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
         owner?.userContentController(controller, didReceive: message)
+    }
+}
+
+// WKWebView has no MessagePort. A reply-capable handler lets the explicit Start-mic
+// request wait for the native permission result instead of requesting on page load.
+private final class AudioHandler: NSObject, WKScriptMessageHandlerWithReply {
+    weak var owner: ArenaViewController?
+    init(_ owner: ArenaViewController) { self.owner = owner }
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage, replyHandler: @escaping (Any?, String?) -> Void) {
+        guard let owner = owner else { replyHandler(["type": "denied", "id": ""], nil); return }
+        owner.audioMessage(message, replyHandler: replyHandler)
     }
 }
 
@@ -28,6 +40,13 @@ final class ArenaViewController: UIViewController, WKNavigationDelegate, WKUIDel
     private var failed = false
     private var exporting = false
     private let http = URLSession(configuration: .ephemeral)
+    private var armPolicy = MicrophoneArmPolicy()
+    private var promptPolicy = MicrophonePromptPolicy()
+    private var activeAudioId: String?
+    private var audioGeneration = 0
+    private var audioDocumentUnloaded = false
+    private var resumeAfterAudio: URL?
+    private var teardownNavigation = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -44,6 +63,7 @@ final class ArenaViewController: UIViewController, WKNavigationDelegate, WKUIDel
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
         configuration.userContentController.add(ExportHandler(self), name: "defenseExport")
+        configuration.userContentController.addScriptMessageHandler(AudioHandler(self), contentWorld: .page, name: "defenseAudio")
         web = WKWebView(frame: .zero, configuration: configuration)
         web.navigationDelegate = self; web.uiDelegate = self
         web.translatesAutoresizingMaskIntoConstraints = false
@@ -71,6 +91,8 @@ final class ArenaViewController: UIViewController, WKNavigationDelegate, WKUIDel
             self?.progress.progress = Float(web.estimatedProgress)
         }
         NotificationCenter.default.addObserver(self, selector: #selector(resume), name: UIApplication.didBecomeActiveNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(becameInactive), name: UIApplication.willResignActiveNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(suspendAudio), name: UIApplication.didEnterBackgroundNotification, object: nil)
         reloadWebsite()
     }
     private func trusted(_ url: URL) -> Bool {
@@ -79,9 +101,46 @@ final class ArenaViewController: UIViewController, WKNavigationDelegate, WKUIDel
     private func show(_ text: String, retryable: Bool) {
         message.text = text; retry.isHidden = !retryable; progress.isHidden = retryable; banner.isHidden = false
     }
-    @objc private func reloadWebsite() { web.load(URLRequest(url: origin)) }
+    @objc private func reloadWebsite() {
+        // Foreground recovery: drop any saved teardown state. Start mic stays the
+        // only way to arm capture after the reload.
+        resumeAfterAudio = nil; audioDocumentUnloaded = false; teardownNavigation = false
+        web.load(URLRequest(url: origin))
+    }
     @objc private func resume() {
-        web?.evaluateJavaScript("window.dispatchEvent(new Event('defense-native-resume'))", completionHandler: nil)
+        guard let web = web else { return }
+        teardownNavigation = false
+        if let url = resumeAfterAudio {
+            resumeAfterAudio = nil
+            web.load(URLRequest(url: url))
+            return
+        }
+        web.evaluateJavaScript("window.dispatchEvent(new Event('defense-native-resume'))", completionHandler: nil)
+    }
+    private func clearAudioIntent() {
+        audioGeneration += 1
+        promptPolicy.clearPending(); armPolicy.reset(); activeAudioId = nil
+    }
+    // WKWebView has no stop-all-media API. Once capture was requested, leaving the
+    // foreground unloads the document so cached grants and suspended timers cannot resume it.
+    @objc private func suspendAudio() { unloadAudioDocument() }
+    // The system microphone prompt makes the app inactive; that is our own prompt,
+    // not a user interruption, so it must not cancel the request it belongs to.
+    @objc private func becameInactive() {
+        guard !promptPolicy.outstanding else { return }
+        unloadAudioDocument()
+    }
+    private func unloadAudioDocument() {
+        let now = ProcessInfo.processInfo.systemUptime
+        let capturing = promptPolicy.pending != nil || armPolicy.isArmed(now: now) || activeAudioId != nil
+        clearAudioIntent()
+        guard capturing, !audioDocumentUnloaded, let current = web?.url, trusted(current) else { return }
+        resumeAfterAudio = current
+        audioDocumentUnloaded = true
+        teardownNavigation = true
+        web?.evaluateJavaScript("window.dispatchEvent(new Event('defense-native-background'))", completionHandler: nil)
+        web?.stopLoading()
+        web?.load(URLRequest(url: URL(string: "about:blank")!))
     }
     func returnFromCheckout() {
         loadViewIfNeeded()
@@ -97,6 +156,11 @@ final class ArenaViewController: UIViewController, WKNavigationDelegate, WKUIDel
     }
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let url = action.request.url else { decisionHandler(.cancel); return }
+        // Native teardown: about:blank is allowed only for the unload this
+        // controller started; every other untrusted main-frame URL stays blocked.
+        if teardownNavigation, action.targetFrame?.isMainFrame != false, url.absoluteString == "about:blank" {
+            decisionHandler(.allow); return
+        }
         if action.targetFrame?.isMainFrame == false {
             decisionHandler(trusted(url) ? .allow : .cancel); return
         }
@@ -109,6 +173,9 @@ final class ArenaViewController: UIViewController, WKNavigationDelegate, WKUIDel
         else { external(url); decisionHandler(.cancel) }
     }
     func webView(_ webView: WKWebView, decidePolicyFor response: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+        if teardownNavigation, response.isForMainFrame, response.response.url?.absoluteString == "about:blank" {
+            decisionHandler(.allow); return
+        }
         if response.isForMainFrame, let url = response.response.url, !trusted(url) {
             external(url); decisionHandler(.cancel); return
         }
@@ -119,16 +186,24 @@ final class ArenaViewController: UIViewController, WKNavigationDelegate, WKUIDel
         decisionHandler(.allow)
     }
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        clearAudioIntent()
         failed = false; show("Loading website…", retryable: false)
     }
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { if !failed { banner.isHidden = true } }
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        clearAudioIntent()
+        teardownNavigation = false
+        if let url = webView.url, trusted(url) { audioDocumentUnloaded = false }
+        if !failed { banner.isHidden = true }
+    }
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { loadFailed(error) }
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { loadFailed(error) }
     private func loadFailed(_ error: Error) {
+        teardownNavigation = false
         if (error as NSError).code == NSURLErrorCancelled { return }
         failed = true; show("The website could not load securely. Check your connection and retry.", retryable: true)
     }
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        clearAudioIntent(); resumeAfterAudio = nil; audioDocumentUnloaded = false; teardownNavigation = false
         show("The page was closed by iOS. Retry to reconnect to your room.", retryable: true)
     }
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
@@ -214,6 +289,65 @@ final class ArenaViewController: UIViewController, WKNavigationDelegate, WKUIDel
         share.popoverPresentationController?.sourceView = web
         share.completionWithItemsHandler = { [weak self] _, _, _, _ in try? FileManager.default.removeItem(at: path); self?.exporting = false }
         present(share, animated: true)
+    }
+    fileprivate func audioMessage(_ message: WKScriptMessage, replyHandler: @escaping (Any?, String?) -> Void) {
+        let source = message.frameInfo.securityOrigin
+        let body = message.body as? [String: Any]
+        let id = body?["id"] as? String
+        let denied: (String) -> Void = { value in replyHandler(["type": "denied", "id": value], nil) }
+        guard message.name == "defenseAudio", message.frameInfo.isMainFrame,
+              source.protocol == "https", source.host == origin.host,
+              (source.port == 0 ? 443 : source.port) == (origin.port ?? 443),
+              let current = web?.url, trusted(current),
+              UIApplication.shared.applicationState == .active,
+              let id = id, id.range(of: "^mic-[0-9]{1,6}$", options: .regularExpression) != nil else {
+            denied(id ?? ""); return
+        }
+        if body?["type"] as? String == "cancel" {
+            promptPolicy.cancel(id: id)
+            armPolicy.cancel(id: id)
+            if activeAudioId == id { activeAudioId = nil }
+            replyHandler(["type": "cancelled", "id": id], nil); return
+        }
+        guard body?["type"] as? String == "prepare", armPolicy.intent == nil,
+              activeAudioId == nil, promptPolicy.begin(id: id) else { denied(id); return }
+        let generation = audioGeneration
+        let complete: (Bool) -> Void = { [weak self] allowed in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                // Settle resolves the requesting id exactly once: a stale, denied or
+                // cancelled request is denied, and a newer request is never cleared.
+                let sameDocument = self.audioGeneration == generation
+                    && UIApplication.shared.applicationState == .active
+                    && self.web?.url.map(self.trusted) == true
+                switch self.promptPolicy.settle(id: id, allowed: allowed && sameDocument) {
+                case .prepared(let value):
+                    self.armPolicy.arm(id: value, now: ProcessInfo.processInfo.systemUptime)
+                    replyHandler(["type": "prepared", "id": value], nil)
+                case .denied(let value):
+                    denied(value)
+                }
+            }
+        }
+        if #available(iOS 17.0, *) {
+            AVAudioApplication.requestRecordPermission(completionHandler: complete)
+        } else {
+            AVAudioSession.sharedInstance().requestRecordPermission(complete)
+        }
+    }
+    func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+        let sameOrigin = origin.protocol == "https" && origin.host == self.origin.host
+            && (origin.port == 0 ? 443 : origin.port) == (self.origin.port ?? 443)
+        guard type == .microphone, frame.isMainFrame, sameOrigin, let frameURL = frame.request.url, trusted(frameURL),
+              UIApplication.shared.applicationState == .active,
+              let current = webView.url, trusted(current) else {
+            decisionHandler(.deny); return
+        }
+        guard let armed = armPolicy.consume(now: ProcessInfo.processInfo.systemUptime) else {
+            decisionHandler(.deny); return
+        }
+        activeAudioId = armed
+        decisionHandler(.grant)
     }
     deinit { NotificationCenter.default.removeObserver(self); http.invalidateAndCancel() }
 }

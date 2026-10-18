@@ -30,7 +30,7 @@ with this branch. Do not point it at frozen main or disable certificate checks.
 
 ## Android microphone pilot (local ticket 08)
 
-Version **0.2.0 / code 2** adds the native half of research/mixed voice practice.
+Version **0.2.0 / code 2** adds the native half of research/mixed speaking practice.
 It needs the matching website update, the existing operator-enabled speech pilot,
 and a configured speech provider. Voice remains disabled by default. Code-only
 practice is unchanged. No speech service credential is embedded in the APK.
@@ -47,7 +47,7 @@ and [runtime permission flow](https://developer.android.com/training/permissions
 
 Words appear read-only in the existing answer/probe area. Send stops capture,
 finishes the transcript and submits manually; silence never submits. Authorization,
-selected speaker, run/question identity, deadlines and the ten shared voice minutes
+selected speaker, run/question identity, deadlines and the ten shared voice allowance
 remain server-owned. No app audio archive is added. The existing provider/retention
 disclosure still appears before starting; actual provider retention/cost checks
 are separate from these native changes.
@@ -55,12 +55,18 @@ are separate from these native changes.
 Denial offers typing. Revocation, track mute/end, leaving the screen, backgrounding
 and destruction stop the current attempt. After this WebView has prepared a mic,
 backgrounding unloads its document, including when JavaScript is suspended or an
-origin grant is cached. Foregrounding reloads the trusted URL and uses existing
+origin grant is cached. **Retry website** after a failed load first restores the
+suspended policy and clears the unloaded-document latch, then reloads, so the
+audio/export ports and loading notice recover; the mic still needs a fresh Start
+mic. A system permission result applies only to the document that requested it.
+Foregrounding reloads the trusted URL and uses existing
 room-token/tab-draft recovery. Finalized server drafts still need manual Send;
 provisional words are not accepted answers. The server timer continues. There is
-no automatic mic restart. Typed-only sessions keep the usual mounted-page behavior.
-Older Android shells and the current iOS shell keep typing until their native audio
-capability is available; ordinary supported browsers retain browser microphone use.
+no automatic mic restart. A session that never prepared a mic keeps the usual
+mounted-page behavior; once this WebView has prepared one, backgrounding unloads
+the document for the rest of the app session, including after switching to typing.
+Older Android and iOS shells keep typing until their native audio capability is
+installed; ordinary supported browsers retain browser microphone use.
 
 Offline native policy and rendered-App checks plus a debug build establish source
 integration only. Actual Android microphone permission/capture, system privacy
@@ -99,11 +105,49 @@ Choose the shared DefenseArena scheme and your provisioned iPhone, then Run.
 Or use `./mobile/scripts/build-ios.sh` to build for a generic iOS device.
 Minimum iOS is 15.0. For an iOS simulator, Xcode can build with signing disabled;
 that simulator build is not an installable iPhone app.
+The shared `DefenseArenaTests` scheme runs the microphone policy checks without a
+device (Product > Test, or `xcodebuild test -scheme DefenseArenaTests
+-destination 'platform=iOS Simulator,name=iPhone 15'`).
 
 For a distributable test artifact, use Xcode Archive and your supported signing
 and export method. Do not present an unsigned `.app` or source ZIP as an iPhone
 download. TestFlight/public stores and their account/payment policies are a later
 publication decision.
+
+## iOS microphone pilot (local ticket 09)
+
+Version **0.2.0 / code 2** adds the iOS half of the same speaking practice. It
+needs the matching website update, the existing operator-enabled speech pilot and
+a configured provider. Voice remains disabled by default and no provider
+credential is embedded in the app.
+
+Start mic first asks the trusted top-level page's `defenseAudio` reply bridge to
+prepare capture. `NSMicrophoneUsageDescription` explains the purpose; iOS asks for
+microphone access only for that explicit action. WebKit's media-capture delegate
+grants **microphone only**, only to the configured HTTPS main-frame origin after a
+fresh ten-second single-use intent; camera, mixed, subframe, other-origin and
+unprepared requests are denied. The page receives no general native bridge: the
+reply channel accepts only bounded prepare/cancel intents.
+
+Words and submission behave as on Android: read-only transcript in the existing
+answer/probe area, manual Send, server-owned authorization/deadlines/cap. Denial
+offers typing. Backgrounding, navigation, revocation/termination and app teardown
+stop the attempt; while capture is pending or active, backgrounding unloads the
+document to `about:blank`, and foregrounding reloads the trusted URL with existing
+room-token/tab-draft recovery. Losing active state without backgrounding (Control
+Center, a call) stops capture the same way; the app's own microphone permission
+prompt is exempt so it cannot cancel the request it belongs to. The native
+`about:blank` teardown is allowed only for the unload the shell itself starts; the
+HTTPS-only policy still denies every other untrusted navigation. There is no
+automatic mic restart. Older iOS shells without the bridge keep typing.
+
+The iOS project is source-only on this Linux host: no macOS/Xcode build, signed
+artifact, installed capture or TCC/background check is claimed. A hostless
+`DefenseArenaTests` scheme adds Foundation-only policy checks for the single-use
+ten-second arm and the exactly-once permission settlement; running them requires
+macOS/Xcode and is pending here. Use a Mac with
+Xcode and a provisioned iPhone to record iOS version, device, app version/hash and
+server commit for the checklist below.
 
 ## Authentication and private account state
 
@@ -191,6 +235,14 @@ test-key-gated sandbox simulation remain the existing confirmation paths.
   and compare the accepted transcript with a browser teammate. Check old-shell
   typing, Google/payment returns, file picker and summary export too. Record any
   missing hardware/provider check rather than marking it passed.
+- iOS voice on a controlled matching HTTPS build, with pilot enabled: **pending**
+  (macOS/Xcode/signing required). Allow/deny the purpose prompt; cancel it or press
+  Home while it is open; retry explicitly; revoke microphone access in Settings
+  during capture; navigate, lock/background and return. Verify the iOS mic indicator
+  stops, upstream speech closes, no provisional words submit, and resume stays idle.
+  Repeat after a prior grant, through a probe reply, reconnect, deadline expiry and
+  the shared cap, then manually Send once. Check old-shell typing, Google/payment
+  returns, document picking and summary share too.
 - Live Google/PayMongo, hosted deployment, physical second device and user visual
   approval are **not** established by offline tests or the APK build.
 

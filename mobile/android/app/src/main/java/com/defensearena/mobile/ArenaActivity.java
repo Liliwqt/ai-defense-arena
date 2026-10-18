@@ -41,6 +41,7 @@ public class ArenaActivity extends Activity {
     private WebMessagePort audioPort;
     private String pendingAudioId, preparedAudioId, resumeAfterCapture;
     private boolean permissionPrompt, visible, destroyed, webPaused, activeAudioGrant, audioDocumentUnloaded;
+    private long documentGeneration, permissionDocument;
     private final android.os.Handler permissionHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private final Runnable permissionCheck = new Runnable() {
         @Override public void run() {
@@ -65,7 +66,7 @@ public class ArenaActivity extends Activity {
         status = new TextView(this);
         retry = new Button(this);
         retry.setText("Retry website");
-        retry.setOnClickListener(v -> web.loadUrl(BuildConfig.ARENA_URL));
+        retry.setOnClickListener(v -> retryWebsite());
         notice.addView(status); notice.addView(retry);
         root.addView(notice, new FrameLayout.LayoutParams(-1, -2));
         setContentView(root);
@@ -95,6 +96,7 @@ public class ArenaActivity extends Activity {
                 external(url); return true;
             }
             @Override public void onPageStarted(WebView view, String url, android.graphics.Bitmap icon) {
+                documentGeneration++;
                 closeExportPort(); closeAudioPort(); microphone.enterDocument(url);
                 if (visible && !audioDocumentUnloaded && trusted(Uri.parse(url))) resumeAfterCapture = null;
                 if (!"about:blank".equals(url)) { pageFailed = false; showNotice("Loading website…", false); }
@@ -162,6 +164,17 @@ public class ArenaActivity extends Activity {
         status.setText(message); retry.setVisibility(canRetry ? View.VISIBLE : View.GONE); notice.setVisibility(View.VISIBLE);
     }
     private void failPage() { stopAudioDocument(); pageFailed = true; showNotice("The website could not load securely. Check your connection and retry.", true); }
+    private void retryWebsite() {
+        // Foreground recovery transition: a failed load suspended the microphone
+        // policy and may have unloaded the document. Restore both without arming
+        // the microphone; Start mic remains the only way to prepare capture.
+        pageFailed = false; resumeAfterCapture = null; audioDocumentUnloaded = false;
+        microphone.resume();
+        showNotice("Loading website…", false);
+        if (webPaused) { web.onResume(); webPaused = false; }
+        web.stopLoading();
+        web.loadUrl(BuildConfig.ARENA_URL);
+    }
     private void closeExportPort() { if (exportPort != null) { exportPort.close(); exportPort = null; } }
     private void installExportPort() {
         closeExportPort();
@@ -216,7 +229,7 @@ public class ArenaActivity extends Activity {
                         if (allowed) { preparedAudioId = id; watchMicrophonePermission(); }
                         audioReply(id, allowed);
                     } else {
-                        pendingAudioId = id; permissionPrompt = true;
+                        pendingAudioId = id; permissionPrompt = true; permissionDocument = documentGeneration;
                         requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, MICROPHONE);
                     }
                 } catch (Exception invalid) { microphone.cancelIntent(); }
@@ -229,8 +242,13 @@ public class ArenaActivity extends Activity {
         if (request != MICROPHONE) return;
         permissionPrompt = false;
         String id = pendingAudioId; pendingAudioId = null;
-        if (id == null || destroyed || !visible || audioPort == null) return;
-        boolean allowed = permissions.length == 1 && Manifest.permission.RECORD_AUDIO.equals(permissions[0])
+        if (id == null) return;
+        String current = web.getUrl() == null ? "" : web.getUrl();
+        // A stale system result must resolve the old request without arming the
+        // microphone or clearing a document that arrived while the prompt was up.
+        boolean currentDocument = !destroyed && visible && !pageFailed && documentGeneration == permissionDocument
+            && audioPort != null && trusted(Uri.parse(current));
+        boolean allowed = currentDocument && permissions.length == 1 && Manifest.permission.RECORD_AUDIO.equals(permissions[0])
             && results.length == 1 && results[0] == PackageManager.PERMISSION_GRANTED && hasMicrophonePermission();
         if (allowed && microphone.arm(SystemClock.elapsedRealtime())) { preparedAudioId = id; watchMicrophonePermission(); audioReply(id, true); }
         else audioReply(id, false);
@@ -255,7 +273,10 @@ public class ArenaActivity extends Activity {
         // onPause alone does not guarantee that WebView media/JS stops. Unload any
         // document after this WebView has prepared capture, retaining a trusted URL
         // for normal room-token/tab-draft restoration. Never auto-restart the mic.
-        if (microphone.mustUnloadCapture() && !audioDocumentUnloaded) {
+        // An outstanding file picker owns this WebView's callback: unloading here
+        // would deliver the selection to a destroyed document. Capture still stops
+        // through the background event and suspend() above.
+        if (microphone.mustUnloadCapture() && !audioDocumentUnloaded && fileCallback == null) {
             String current = web.getUrl();
             if (current != null && trusted(Uri.parse(current))) resumeAfterCapture = current;
             audioDocumentUnloaded = true; web.stopLoading(); web.loadUrl("about:blank");

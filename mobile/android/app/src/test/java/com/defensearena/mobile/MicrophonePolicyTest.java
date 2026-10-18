@@ -56,4 +56,28 @@ public class MicrophonePolicyTest {
         policy.arm(1000);
         assertFalse(policy.request(SITE, new String[]{AUDIO}, 12000, true));
     }
+
+    @Test public void foregroundFailureRecoveryRequiresTheResumeTransition() {
+        MicrophonePolicy policy = new MicrophonePolicy(SITE); policy.resume();
+        policy.enterDocument(SITE); assertTrue(policy.arm(1000));
+        policy.suspend(); // The page failed and stopAudioDocument suspended capture.
+        policy.enterDocument(SITE); // Retry loads the website again.
+        assertFalse(policy.arm(2000)); // Still suspended until the retry transition resumes.
+        policy.resume(); // The retry recovery transition.
+        assertTrue(policy.arm(2001));
+        assertTrue(policy.request(SITE, new String[]{AUDIO}, 2002, true));
+    }
+
+    @Test public void unloadedDocumentsAndTheTenSecondWindowStayBounded() {
+        MicrophonePolicy policy = new MicrophonePolicy(SITE); policy.resume();
+        policy.enterDocument("about:blank");
+        assertFalse(policy.arm(1000)); // The unloaded document cannot be armed.
+        policy.enterDocument(SITE); assertTrue(policy.arm(1000));
+        assertTrue(policy.request(SITE, new String[]{AUDIO}, 10999, true)); // Inside ten seconds.
+        policy.enterDocument(SITE); policy.arm(1000);
+        assertFalse(policy.request(SITE, new String[]{AUDIO}, 11000, true)); // Expires at arm time plus ten seconds.
+        policy.enterDocument(SITE); policy.arm(1000);
+        assertTrue(policy.request(SITE, new String[]{AUDIO}, 1001, true));
+        assertFalse(policy.request(SITE, new String[]{AUDIO}, 1002, true)); // Consumed exactly once.
+    }
 }
