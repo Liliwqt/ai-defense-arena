@@ -13,7 +13,7 @@ from backend.financial_policy import live_mode
 from backend.live_store import LiveStore
 from backend.project_files import ProjectFile
 from backend.question_generator import DEFAULT_MODEL, AnsweredQuestion, CoachingReport, generate_coaching_report
-from backend.research_coaching import validate_complete, validate_overview, validate_section, has_discussion, factual_cards
+from backend.research_coaching import validate_complete, has_discussion, factual_cards
 from backend.coaching_progress import CoachingInput
 from backend.resource_limits import limit
 from backend.timed_turn import reaction_reading_ms
@@ -142,8 +142,7 @@ async def run_progressive_coaching(owner, work):
         async with room.lock:
             if not current():return
             if section.status!='pending':continue
-            section.status='generating';section.error=None
-            section.attempts+=1
+            job.begin(section)
             room.revision+=1
         await owner._publish()
         try:
@@ -158,12 +157,10 @@ async def run_progressive_coaching(owner, work):
                     answer_cards=None if section.turns is None else factual_cards(request.history,section.turns))
             else:
                 report=await owner._workflows.coaching_request(section_request)
-            if section.turns is None:validate_overview(report,request.history)
-            else:validate_section(report,request.history,section.turns)
             next_clock=None
             async with room.lock:
                 if not current():return
-                section.report=report;section.status='ready'
+                job.accept(section,report)
                 room.feedback=job.assembled()
                 if section.turns is None and not job.closing_started:
                     owner._clear_clock();job.closing_started=True

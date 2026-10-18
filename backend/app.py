@@ -16,7 +16,7 @@ from backend.defense_session import (
     advance_defense,
     sync_project_session,
 )
-from backend.streamlit_coaching import render_research_coaching, progressive_research_report
+from backend.streamlit_coaching import render_research_coaching, progressive_research_report, advance_research_report
 from backend.defense_progression import prepare_progression
 from backend.project_files import (
     ALLOWED_EXTENSIONS,
@@ -383,6 +383,8 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                     if mode != "code" and report.answer_cards is not None:
                         render_research_coaching(report.answer_cards)
                     st.write(report.next_step)
+                if isinstance(session, ResearchDefenseSession):
+                    advance_research_report(api_key, model)
             elif session.needs_question:
                 st.info("Your answer is saved. Retry generating the next question.")
                 if st.button("Retry next question", disabled=not bool(api_key)):

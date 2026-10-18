@@ -46,6 +46,20 @@ class CoachingProgress:
         if count>100:raise ValueError('Coaching membership exceeds the supported question budget.')
         self.sections=[CoachingSection('overview',None)] + [CoachingSection(f'answers-{start}',tuple(range(start,min(start+COACHING_BATCH_SIZE,count)))) for start in range(0,count,COACHING_BATCH_SIZE)]
 
+    def begin(self, section):
+        if self.cancelled or section.status != 'pending' or section.attempts >= self.attempt_limit:
+            raise ValueError('This coaching section cannot be started.')
+        section.status, section.error = 'generating', None
+        section.attempts += 1
+
+    def accept(self, section, report):
+        from backend.research_coaching import validate_overview, validate_section
+        if self.cancelled or section.status != 'generating':
+            raise ValueError('This coaching section is no longer current.')
+        if section.turns is None:validate_overview(report, self.request.history)
+        else:validate_section(report, self.request.history, section.turns)
+        section.report, section.status = report, 'ready'
+
     @property
     def overview(self):
         return self.sections[0]

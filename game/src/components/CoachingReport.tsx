@@ -22,8 +22,9 @@ export function CoachingReport({ feedbackStatus, feedback, closingPanelist, prog
       {progress && <section className="coaching-progress" aria-label="Coaching progress">
         <p role="status">{progress.cards_ready} of {progress.cards_required} answers coached</p>
         {progress.completion_status !== "ready" && <p>{progress.completion_status === "failed" ? "Ready coaching is retained. Completion could not be saved." : ["cancelled","returned","abandoned"].includes(progress.completion_status) ? "This run ended with incomplete coaching. Ready sections are retained." : "Coaching is incomplete. Finished sections remain available while the rest are prepared."}</p>}
-        <ul>{progress.sections.map(section=><li key={section.id}>{section.turns ? `Questions ${section.turns.map(i=>i+1).join(', ')}` : 'Team overview'} · {section.status}{section.error ? ` · ${section.error}` : ''}{section.status==='failed' ? ` · ${section.attempts_left} attempts left` : ''}</li>)}</ul>
-        {feedbackStatus==='failed' && onRetry && progress.can_retry && <button type="button" disabled={retryDisabled} onClick={()=>onRetry()}>{progress.completion_status==='failed'?'Retry saving completion':'Retry failed coaching sections'}</button>}
+        <progress aria-label="Answer coaching progress" value={progress.cards_ready} max={Math.max(1,progress.cards_required)} />
+        <details><summary>Section status and recovery</summary><ul>{progress.sections.map(section=><li key={section.id}>{section.turns ? `Questions ${section.turns.map(i=>i+1).join(', ')}` : 'Team overview'} · {section.status}{section.error ? ` · ${section.error}` : ''}{section.status==='failed' ? ` · ${section.attempts_left} attempts left` : ''}</li>)}</ul></details>
+        {feedbackStatus==='failed' && onRetry && progress.can_retry && <button type="button" className="button-primary" disabled={retryDisabled} onClick={()=>onRetry()}>{progress.completion_status==='failed'?'Retry saving completion':'Retry failed coaching sections'}</button>}
         {feedbackStatus==='failed' && !progress.can_retry && <p>Coaching retry allowance used. Review Controls for available recovery actions.</p>}
       </section>}
       {(feedbackStatus === "ready" || progress?.overview_status === "ready") && feedback && <>

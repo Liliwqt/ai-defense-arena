@@ -53,11 +53,8 @@ def render_research_coaching(cards):
 def progressive_research_report(files, history, context, mode, stage, api_key, model):
     """Single-browser, bounded sections; never calls live funding/compensation."""
     import copy
-    from dataclasses import replace
     from backend.coaching_progress import CoachingInput, CoachingProgress
-    from backend.question_generator import generate_coaching_report, QuestionGenerationError, describe_openai_error
-    from openai import OpenAIError
-    from backend.research_coaching import has_discussion, validate_overview, validate_section, validate_complete
+    from backend.research_coaching import has_discussion
     job = st.session_state.get('research_coaching_job')
     if job is None:
         if has_discussion(history) and not st.button('Generate coaching', disabled=not bool(api_key)):
@@ -74,19 +71,26 @@ def progressive_research_report(files, history, context, mode, stage, api_key, m
             job.retry()
         elif not job.can_retry:
             st.info('Coaching retry allowance used. Keep the ready cards or start a new practice. This fallback does not process credit returns.')
+    return job.assembled()
+
+
+def advance_research_report(api_key, model):
+    """Run after rendering ready work so the next slow request cannot hide it."""
+    from backend.question_generator import generate_coaching_report, QuestionGenerationError, describe_openai_error
+    from backend.research_coaching import validate_complete
+    from openai import OpenAIError
+    job = st.session_state.get('research_coaching_job')
+    if job is None or job.cancelled:return
     section = next((item for item in job.sections if item.status == 'pending'), None)
     if section and (section.turns is None or job.overview.status == 'ready'):
-        section.status = 'generating'
-        section.attempts += 1
+        job.begin(section)
         request = job.request
         try:
             with st.spinner('Preparing the next coaching section…'):
-                section.report = generate_coaching_report(list(request.files), list(request.history), api_key, model,
+                report = generate_coaching_report(list(request.files), list(request.history), api_key, model,
                     defense_type=request.defense_type, research_stage=request.research_stage,
                     research_context=request.research_context, overview_only=section.turns is None, section_turns=section.turns)
-                if section.turns is None:validate_overview(section.report, request.history)
-                else:validate_section(section.report, request.history, section.turns)
-                section.status = 'ready'
+                job.accept(section, report)
         except Exception as error:
             section.status = 'failed'
             section.error = str(error) if isinstance(error,QuestionGenerationError) else describe_openai_error(error,model,api_key) if isinstance(error,OpenAIError) else 'The coaching section could not be prepared. Retry when the service recovers.'
@@ -95,4 +99,3 @@ def progressive_research_report(files, history, context, mode, stage, api_key, m
             job.completion_status = 'ready'
         st.session_state['research_coaching'] = job.assembled()
         st.rerun()
-    return job.assembled()

@@ -202,7 +202,7 @@ class PlanningCoachingCoordinationTests(unittest.IsolatedAsyncioTestCase):
 
         async def deliver(socket, payload):
             state = payload["state"]
-            ready.set()
+            if state["feedback_status"] == "ready":ready.set()
 
         coordinator = RoomCoordinator(room, RoomWorkflows(deliver=deliver, coaching_request=coach))
         self.addAsyncCleanup(coordinator.shutdown)
@@ -232,7 +232,7 @@ class PlanningCoachingCoordinationTests(unittest.IsolatedAsyncioTestCase):
 
         async def deliver(socket, payload):
             state = payload["state"]
-            ready.set()
+            if state["feedback_status"] == "ready":ready.set()
 
         coordinator = RoomCoordinator(room, RoomWorkflows(deliver=deliver, coaching_request=coach))
         self.addAsyncCleanup(coordinator.shutdown)
