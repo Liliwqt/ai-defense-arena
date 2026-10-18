@@ -1,4 +1,4 @@
-import { isNativeShell } from "../lib/saveDefenseSummary";
+import {useVoiceCaptureSupported} from "../audio/nativeCapture";
 import { VoiceAnswer } from "./VoiceAnswer";
 import { OpeningChoice } from "./OpeningChoice";
 import { useEffect, useState } from "react";
@@ -21,6 +21,7 @@ interface AnswerComposerProps {
 }
 
 export function AnswerComposer({ active = true, playerToken, roomState, connected, previewMode, waitingForAnswerAck, actionError, actionErrorReason, onSendEvent, presentation = deriveRoomPresentation(roomState) }: AnswerComposerProps) {
+  const voiceAvailable = useVoiceCaptureSupported();
   const current = roomState?.turns.at(-1);
   const inputScope = JSON.stringify([roomState?.room_code, roomState?.defense_view_id, roomState?.turns.length, current?.probe?.id ?? "answer",
     current?.probe ? current.probe.status : current?.answer || current?.timed_out || current?.resolved ? "resolved" : "open", roomState?.selected_seat, !!roomState?.my_pending_submission]);
@@ -28,6 +29,7 @@ export function AnswerComposer({ active = true, playerToken, roomState, connecte
   const [localError, setLocalError] = useState("");
   const [voiceMode, setVoiceMode] = useState(false);
   const [confirmVoice, setConfirmVoice] = useState(false);
+  useEffect(()=>{if(!voiceAvailable){setVoiceMode(false);setConfirmVoice(false);}},[voiceAvailable]);
   const [writeRecovery, setWriteRecovery] = useState(false);
   const [interpretationLimited, setInterpretationLimited] = useState(false);
   const [questionRetryPending, setQuestionRetryPending] = useState(false);
@@ -98,14 +100,15 @@ export function AnswerComposer({ active = true, playerToken, roomState, connecte
           </div>
           {actionError && <p role="alert">{actionError}</p>}
         </div>
-      ) : canWrite && voiceMode && roomState ? <VoiceAnswer state={roomState} token={playerToken}
+      ) : canWrite && voiceMode && voiceAvailable && roomState ? <VoiceAnswer state={roomState} token={playerToken}
         active={active && connected && !previewMode} onSend={onSendEvent} direct={direct}
         actionError={actionError} onTyping={() => {setDraft("");setVoiceMode(false);}} /> : canWrite ? (
         <form id="answer-form" onSubmit={submitAnswer}>
-          {roomState?.defense_type !== "code" && roomState?.voice?.enabled && !isNativeShell() && <div className="voice-mode-choice">
+          {roomState?.defense_type !== "code" && roomState?.voice?.enabled && voiceAvailable && <div className="voice-mode-choice">
             {confirmVoice ? <><p>Your unsent typed answer will be discarded when you switch.</p><button type="button" onClick={() => {setDraft("");setConfirmVoice(false);setVoiceMode(true);}}>Discard typed draft and use voice</button><button type="button" onClick={() => setConfirmVoice(false)}>Keep typing</button></>
               : <button type="button" disabled={!connected || previewMode || waitingForAnswerAck} onClick={() => {if(draft.trim())setConfirmVoice(true);else setVoiceMode(true);}}>{roomState?.my_voice_draft ? "Review unsent voice draft" : "Use voice"}</button>}
           </div>}
+          {roomState?.defense_type !== "code" && roomState?.voice?.enabled && !voiceAvailable && <p className="control-help">Voice is unavailable in this app/browser. Typing still works.</p>}
           <label htmlFor="answer-textarea">{presentation.answerPrompt}{direct ? "" : " or clarify"} question {turnIndex + 1} · {Math.max(0, 2 - allClarifications)} clarifications left</label>
           <div className="answer-controls">
             <textarea id="answer-textarea" name="answer" rows={3} maxLength={4000} value={draft}

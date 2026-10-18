@@ -28,6 +28,46 @@ An APK loading that URL receives the currently deployed website. To test the
 new integration before publication, configure a controlled HTTPS staging server
 with this branch. Do not point it at frozen main or disable certificate checks.
 
+## Android microphone pilot (local ticket 08)
+
+Version **0.2.0 / code 2** adds the native half of research/mixed voice practice.
+It needs the matching website update, the existing operator-enabled speech pilot,
+and a configured speech provider. Voice remains disabled by default. Code-only
+practice is unchanged. No speech service credential is embedded in the APK.
+
+Start mic first asks the trusted top-page audio port to prepare capture. Android
+requests `RECORD_AUDIO` only for that explicit action. The current foreground
+page, exact HTTPS origin, fresh single-use intent and OS permission must all pass
+before WebView receives **audio only**. Camera, mixed/unknown resource requests,
+other origins and stale document requests are denied. The transferred port goes
+only to the configured top page; Android's permission callback exposes origin,
+not a frame ID. Same-origin content shares the site's trust boundary. This follows
+Android's [resource-specific WebView permission contract](https://developer.android.com/reference/android/webkit/PermissionRequest)
+and [runtime permission flow](https://developer.android.com/training/permissions/requesting).
+
+Words appear read-only in the existing answer/probe area. Send stops capture,
+finishes the transcript and submits manually; silence never submits. Authorization,
+selected speaker, run/question identity, deadlines and the ten shared voice minutes
+remain server-owned. No app audio archive is added. The existing provider/retention
+disclosure still appears before starting; actual provider retention/cost checks
+are separate from these native changes.
+
+Denial offers typing. Revocation, track mute/end, leaving the screen, backgrounding
+and destruction stop the current attempt. After this WebView has prepared a mic,
+backgrounding unloads its document, including when JavaScript is suspended or an
+origin grant is cached. Foregrounding reloads the trusted URL and uses existing
+room-token/tab-draft recovery. Finalized server drafts still need manual Send;
+provisional words are not accepted answers. The server timer continues. There is
+no automatic mic restart. Typed-only sessions keep the usual mounted-page behavior.
+Older Android shells and the current iOS shell keep typing until their native audio
+capability is available; ordinary supported browsers retain browser microphone use.
+
+Offline native policy and rendered-App checks plus a debug build establish source
+integration only. Actual Android microphone permission/capture, system privacy
+controls and background/reconnect behavior remain **pending** on an installed
+device. Record Android version, device, WebView version, app version/hash and server
+commit for the checks below. Do not treat a build or fake audio as a device pass.
+
 ## Android build and test installation
 
 Install JDK 17, Android SDK platform 36 and build tools 36.0.0. Set `ANDROID_HOME`
@@ -116,8 +156,9 @@ text size are restricted; document contents are never logged. Browsers retain th
 ordinary text-file download.
 
 Foregrounding refreshes the private account and keeps a healthy WebSocket open.
-A closed connection reconnects for the authoritative room snapshot. The same React
-page remains mounted so same-turn drafts survive resize/reconnect. Server timers keep running; selection may change while a player
+A closed connection reconnects for the authoritative room snapshot. For typed-only sessions, the same React
+page remains mounted so same-turn drafts survive resize/reconnect. The Android
+microphone pilot instead unloads after mic preparation when backgrounded, as above. Server timers keep running; selection may change while a player
 is offline. QR top-ups use the same embedded website screen as phone browsers,
 with no hosted-checkout creation or provider redirect. Foregrounding refreshes
 server-owned receipt and balance data. The fixed HTTPS **Return to app** page
@@ -140,6 +181,16 @@ test-key-gated sandbox simulation remain the existing confirmation paths.
   navigation/TLS, picker cancellation/multiple PDF/DOCX/ZIP, summary save/share,
   Google sign-in/out/expiry, QR top-up/resume and legacy checkout return, keyboard/rotation draft,
   chosen-speaker reassignment and same room with a browser teammate.
+- Android voice on a controlled matching HTTPS build, with pilot enabled: **pending**.
+  Deny/allow system permission; cancel the prompt or press Home while it is open;
+  retry explicitly; revoke permission and use the system mic privacy switch during
+  capture; navigate, rotate, lock/background and return. Verify the mic indicator
+  stops, upstream speech closes, no provisional words submit, and resume stays idle.
+  Repeat after a prior grant (cached WebView permission), through a probe reply,
+  reconnect, deadline expiry and the shared cap. Manually Send finalized words once
+  and compare the accepted transcript with a browser teammate. Check old-shell
+  typing, Google/payment returns, file picker and summary export too. Record any
+  missing hardware/provider check rather than marking it passed.
 - Live Google/PayMongo, hosted deployment, physical second device and user visual
   approval are **not** established by offline tests or the APK build.
 

@@ -18,7 +18,8 @@ class SpeechSocket extends EventTarget {
   event(value: unknown) { this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(value) })); }
 }
 const stopTrack = vi.fn();
-const getUserMedia = vi.fn(async () => ({ getTracks: () => [{ stop: stopTrack, addEventListener: vi.fn() }] }));
+let mediaTrack: EventTarget & {stop: typeof stopTrack};
+const getUserMedia = vi.fn(async () => ({ getTracks: () => [mediaTrack] }));
 class Context {
   sampleRate = 24000; destination = {};
   audioWorklet = { addModule: vi.fn(async () => {}) };
@@ -32,6 +33,7 @@ class Worklet {
   constructor() { Worklet.instance = this; }
 }
 beforeEach(() => {
+  mediaTrack=Object.assign(new EventTarget(),{stop:stopTrack});
   sessionStorage.clear(); window.history.replaceState(null, '', '/#/room'); SpeechSocket.sockets = [];
   vi.mocked(useAccount).mockReturnValue({ account: { authenticated: true, google_enabled: true, free_access: true }, error: '', refresh: vi.fn(async () => {}) });
   const state: RoomState = { room_code:'VOICE1', defense_view_id:'run-one', self_is_host:true,self_seat:0,
@@ -45,7 +47,7 @@ beforeEach(() => {
   Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia}});
   vi.stubGlobal('AudioContext',Context);vi.stubGlobal('AudioWorkletNode',Worklet);vi.stubGlobal('WebSocket',SpeechSocket);
 });
-afterEach(()=>{vi.unstubAllGlobals();vi.clearAllMocks();});
+afterEach(()=>{act(()=>window.dispatchEvent(new Event('pagehide')));vi.unstubAllGlobals();vi.restoreAllMocks();vi.clearAllMocks();});
 it('captures explicitly, shows read-only words and finalizes once only after manual Send',async()=>{
   const view=render(<App/>);
   expect(getUserMedia).not.toHaveBeenCalled();
@@ -174,4 +176,101 @@ it('restores a server-validated draft read-only after reconnect without replacin
   await userEvent.click(screen.getByRole('button',{name:'Switch to typing'}));
   expect(screen.getByRole('textbox',{name:/Your turn/})).toHaveValue('');
   expect(roomSocket.sendEvent).toHaveBeenCalledWith({type:'discard_voice_draft',attempt_id:'restored'});
+});
+
+it('keeps typing available in older Android WebViews without the audio capability',()=>{
+ vi.spyOn(navigator,'userAgent','get').mockReturnValue('Mozilla/5.0 (Linux; Android 13; Pixel; wv) AppleWebKit/537.36 Version/4.0 Chrome/120.0 Mobile Safari/537.36');
+ render(<App/>);
+ expect(screen.getByRole('textbox',{name:/Your turn/})).toBeVisible();
+ expect(screen.queryByRole('button',{name:'Use voice'})).toBeNull();
+ expect(getUserMedia).not.toHaveBeenCalled();
+});
+
+// Native media and speech remain fake; these exercise the rendered App boundary.
+class NativeAudioPort {
+  onmessage: ((event: {data:string})=>void)|null=null;
+  messages: {type:string;id:string}[]=[];
+  start() {} close() {}
+  postMessage(raw:string) { this.messages.push(JSON.parse(raw)); }
+  reply(type:'prepared'|'denied',id=this.messages.at(-1)!.id) {
+    this.onmessage?.({data:JSON.stringify({type,id})});
+  }
+}
+function nativeShell() {
+  vi.spyOn(navigator,'userAgent','get').mockReturnValue('Mozilla/5.0 (Linux; Android 13; Pixel; wv) AppleWebKit/537.36 DefenseArenaAndroid/2');
+}
+function transferAudio(port:NativeAudioPort,source:MessageEventSource|null=null,origin='') {
+  window.dispatchEvent(new MessageEvent('message',{data:'defense-audio-port-v1',ports:[port as unknown as MessagePort],source,origin}));
+}
+it('waits for a trusted top-page capability and explicit native preparation before capture',async()=>{
+  nativeShell();render(<App/>);const port=new NativeAudioPort();
+  await act(async()=>transferAudio(port,window,'https://external.example'));
+  expect(screen.queryByRole('button',{name:'Use voice'})).toBeNull();
+  await act(async()=>transferAudio(port));
+  expect(getUserMedia).not.toHaveBeenCalled();expect(port.messages).toEqual([]);
+  await userEvent.click(screen.getByRole('button',{name:'Use voice'}));
+  await userEvent.click(screen.getByRole('button',{name:'Start mic'}));
+  expect(port.messages).toEqual([{type:'prepare',id:expect.any(String)}]);
+  expect(getUserMedia).not.toHaveBeenCalled();
+  await act(async()=>port.reply('prepared'));
+  expect(getUserMedia).toHaveBeenCalledTimes(1);
+  const speech=SpeechSocket.sockets[0];
+  await act(async()=>speech.event({type:'started',attempt_id:'native',remaining_ms:600000}));
+  await act(async()=>speech.event({type:'transcript',text:'Our pilot',finalized_text:''}));
+  expect(screen.getByRole('textbox',{name:'Spoken answer'})).toHaveAttribute('readonly');
+  expect(roomSocket.sendEvent).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole('button',{name:'Send voice answer'}));
+  expect(stopTrack).toHaveBeenCalled();expect(port.messages.at(-1)?.type).toBe('cancel');
+  await act(async()=>speech.event({type:'ready',attempt_id:'native',text:'Our pilot uses measured waiting times.'}));
+  expect(roomSocket.sendEvent).toHaveBeenCalledWith({type:'submit_answer',turn:0,answer:'Our pilot uses measured waiting times.',voice_attempt:'native'});
+});
+it('offers typing after native permission denial without capturing or connecting speech',async()=>{
+  nativeShell();render(<App/>);const port=new NativeAudioPort();await act(async()=>transferAudio(port));
+  await userEvent.click(screen.getByRole('button',{name:'Use voice'}));
+  await userEvent.click(screen.getByRole('button',{name:'Start mic'}));
+  await act(async()=>port.reply('denied'));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Microphone access was denied');
+  expect(getUserMedia).not.toHaveBeenCalled();expect(SpeechSocket.sockets).toHaveLength(0);
+  await userEvent.click(screen.getByRole('button',{name:'Switch to typing'}));
+  expect(screen.getByRole('textbox',{name:/Your turn/})).toHaveValue('');
+});
+it('ignores a late native permission approval after backgrounding and requires a new start',async()=>{
+  nativeShell();render(<App/>);const port=new NativeAudioPort();await act(async()=>transferAudio(port));
+  await userEvent.click(screen.getByRole('button',{name:'Use voice'}));
+  await userEvent.click(screen.getByRole('button',{name:'Start mic'}));
+  const pendingId=port.messages[0].id;
+  await act(async()=>window.dispatchEvent(new Event('defense-native-background')));
+  await act(async()=>port.reply('prepared',pendingId));
+  await act(async()=>window.dispatchEvent(new Event('defense-native-resume')));
+  expect(getUserMedia).not.toHaveBeenCalled();expect(SpeechSocket.sockets).toHaveLength(0);
+  expect(screen.getByRole('button',{name:'Start mic'})).toBeEnabled();
+  expect(roomSocket.sendEvent).not.toHaveBeenCalled();
+});
+it('backgrounding stops native tracks and upstream forwarding without sending provisional words',async()=>{
+  nativeShell();render(<App/>);const port=new NativeAudioPort();await act(async()=>transferAudio(port));
+  await userEvent.click(screen.getByRole('button',{name:'Use voice'}));
+  await userEvent.click(screen.getByRole('button',{name:'Start mic'}));
+  await act(async()=>port.reply('prepared'));
+  const speech=SpeechSocket.sockets[0];
+  await act(async()=>speech.event({type:'started',attempt_id:'background',remaining_ms:600000}));
+  await act(async()=>speech.event({type:'transcript',text:'Unfinished',finalized_text:''}));
+  await act(async()=>window.dispatchEvent(new Event('defense-native-background')));
+  expect(stopTrack).toHaveBeenCalled();expect(speech.readyState).toBe(3);
+  await act(async()=>speech.event({type:'ready',attempt_id:'background',text:'Late final words.'}));
+  await act(async()=>window.dispatchEvent(new Event('defense-native-resume')));
+  expect(getUserMedia).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole('textbox',{name:'Spoken answer'})).toHaveValue('');
+  expect(roomSocket.sendEvent).not.toHaveBeenCalled();
+});
+
+it('stops forwarding and offers recovery when the operating system mutes capture',async()=>{
+  render(<App/>);await userEvent.click(screen.getByRole('button',{name:'Use voice'}));
+  await userEvent.click(screen.getByRole('button',{name:'Start mic'}));
+  const speech=SpeechSocket.sockets[0];
+  await act(async()=>speech.event({type:'started',attempt_id:'muted',remaining_ms:600000}));
+  await act(async()=>mediaTrack.dispatchEvent(new Event('mute')));
+  expect(stopTrack).toHaveBeenCalled();expect(speech.readyState).toBe(3);
+  expect(screen.getByRole('alert')).toHaveTextContent('Microphone stopped unexpectedly');
+  expect(roomSocket.sendEvent).toHaveBeenCalledWith({type:'discard_voice_draft',attempt_id:'muted'});
+  expect(roomSocket.sendEvent).not.toHaveBeenCalledWith(expect.objectContaining({type:'submit_answer'}));
 });

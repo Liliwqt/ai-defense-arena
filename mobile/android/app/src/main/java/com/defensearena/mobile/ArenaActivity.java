@@ -1,6 +1,9 @@
 package com.defensearena.mobile;
 
 import android.app.Activity;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.os.SystemClock;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.net.Uri;
@@ -23,7 +26,7 @@ import java.util.concurrent.Executors;
 
 /** URL-loading shell. Account/room policy stays entirely on the web server. */
 public class ArenaActivity extends Activity {
-    private static final int PICK_FILES = 10, SAVE_SUMMARY = 11;
+    private static final int PICK_FILES = 10, SAVE_SUMMARY = 11, MICROPHONE = 12;
     private final ExecutorService network = Executors.newSingleThreadExecutor();
     private WebView web;
     private LinearLayout notice;
@@ -34,6 +37,21 @@ public class ArenaActivity extends Activity {
     private WebMessagePort exportPort;
     private boolean pageFailed;
     private boolean authBusy;
+    private final MicrophonePolicy microphone = new MicrophonePolicy(BuildConfig.ARENA_URL);
+    private WebMessagePort audioPort;
+    private String pendingAudioId, preparedAudioId, resumeAfterCapture;
+    private boolean permissionPrompt, visible, destroyed, webPaused, activeAudioGrant, audioDocumentUnloaded;
+    private final android.os.Handler permissionHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable permissionCheck = new Runnable() {
+        @Override public void run() {
+            if (destroyed || !visible || !activeAudioGrant) return;
+            if (!hasMicrophonePermission()) {
+                stopAudioDocument(); microphone.resume();
+                restoreAudioDocument();
+            } else permissionHandler.postDelayed(this, 500);
+        }
+    };
+
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -57,6 +75,7 @@ public class ArenaActivity extends Activity {
             return insets;
         });
         WebSettings settings = web.getSettings();
+        settings.setUserAgentString(settings.getUserAgentString() + " DefenseArenaAndroid/2");
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setAllowFileAccess(false);
@@ -76,10 +95,12 @@ public class ArenaActivity extends Activity {
                 external(url); return true;
             }
             @Override public void onPageStarted(WebView view, String url, android.graphics.Bitmap icon) {
-                closeExportPort(); pageFailed = false; showNotice("Loading website…", false);
+                closeExportPort(); closeAudioPort(); microphone.enterDocument(url);
+                if (visible && !audioDocumentUnloaded && trusted(Uri.parse(url))) resumeAfterCapture = null;
+                if (!"about:blank".equals(url)) { pageFailed = false; showNotice("Loading website…", false); }
             }
             @Override public void onPageFinished(WebView view, String url) {
-                if (!pageFailed && trusted(Uri.parse(url))) { notice.setVisibility(View.GONE); installExportPort(); }
+                if (!destroyed && visible && !pageFailed && !audioDocumentUnloaded && trusted(Uri.parse(url))) { notice.setVisibility(View.GONE); installExportPort(); installAudioPort(); }
             }
             @Override public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 if (request.isForMainFrame()) failPage();
@@ -92,6 +113,17 @@ public class ArenaActivity extends Activity {
             }
         });
         web.setWebChromeClient(new WebChromeClient() {
+            @Override public void onPermissionRequest(PermissionRequest request) {
+                runOnUiThread(() -> {
+                    if (!destroyed && visible && !pageFailed && trusted(Uri.parse(web.getUrl() == null ? "" : web.getUrl()))
+                            && microphone.request(request.getOrigin().toString(), request.getResources(), SystemClock.elapsedRealtime(), hasMicrophonePermission())) {
+                        request.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+                        watchMicrophonePermission();
+                    } else request.deny();
+                });
+            }
+            @Override public void onPermissionRequestCanceled(PermissionRequest request) { microphone.cancelIntent(); }
+
             @Override public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
                 if (!trusted(Uri.parse(web.getUrl() == null ? "" : web.getUrl()))) return false;
                 if (fileCallback != null) fileCallback.onReceiveValue(null);
@@ -129,7 +161,7 @@ public class ArenaActivity extends Activity {
     private void showNotice(String message, boolean canRetry) {
         status.setText(message); retry.setVisibility(canRetry ? View.VISIBLE : View.GONE); notice.setVisibility(View.VISIBLE);
     }
-    private void failPage() { pageFailed = true; showNotice("The website could not load securely. Check your connection and retry.", true); }
+    private void failPage() { stopAudioDocument(); pageFailed = true; showNotice("The website could not load securely. Check your connection and retry.", true); }
     private void closeExportPort() { if (exportPort != null) { exportPort.close(); exportPort = null; } }
     private void installExportPort() {
         closeExportPort();
@@ -150,6 +182,87 @@ public class ArenaActivity extends Activity {
         });
         web.postWebMessage(new WebMessage("defense-export-port", new WebMessagePort[]{ports[1]}), Uri.parse(BuildConfig.ARENA_URL));
     }
+    private boolean hasMicrophonePermission() {
+        return checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+    }
+    private void audioReply(String id, boolean allowed) {
+        if (audioPort == null || id == null) return;
+        try { audioPort.postMessage(new WebMessage(new JSONObject().put("type", allowed ? "prepared" : "denied").put("id", id).toString())); }
+        catch (Exception closed) { /* The document may have left during the system prompt. */ }
+    }
+    private void closeAudioPort() {
+        microphone.cancelIntent(); pendingAudioId = null; preparedAudioId = null;
+        if (audioPort != null) { audioPort.close(); audioPort = null; }
+    }
+    private void installAudioPort() {
+        closeAudioPort();
+        WebMessagePort[] ports = web.createWebMessageChannel(); audioPort = ports[0];
+        audioPort.setWebMessageCallback(new WebMessagePort.WebMessageCallback() {
+            @Override public void onMessage(WebMessagePort port, WebMessage message) {
+                if (port != audioPort || destroyed || !visible || pageFailed || !trusted(Uri.parse(web.getUrl() == null ? "" : web.getUrl()))) return;
+                try {
+                    String raw = message.getData(); if (raw == null || raw.length() > 200) return;
+                    JSONObject data = new JSONObject(raw); String id = data.getString("id");
+                    if (!id.matches("[A-Za-z0-9-]{1,64}")) return;
+                    if ("cancel".equals(data.optString("type"))) {
+                        if (id.equals(pendingAudioId)) pendingAudioId = null;
+                        if (id.equals(preparedAudioId)) { preparedAudioId = null; microphone.cancelIntent(); activeAudioGrant = false; permissionHandler.removeCallbacks(permissionCheck); }
+                        return;
+                    }
+                    if (!"prepare".equals(data.optString("type"))) return;
+                    if (permissionPrompt || pendingAudioId != null) { audioReply(id, false); return; }
+                    if (hasMicrophonePermission()) {
+                        boolean allowed = microphone.arm(SystemClock.elapsedRealtime());
+                        if (allowed) { preparedAudioId = id; watchMicrophonePermission(); }
+                        audioReply(id, allowed);
+                    } else {
+                        pendingAudioId = id; permissionPrompt = true;
+                        requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, MICROPHONE);
+                    }
+                } catch (Exception invalid) { microphone.cancelIntent(); }
+            }
+        });
+        web.postWebMessage(new WebMessage("defense-audio-port-v1", new WebMessagePort[]{ports[1]}), Uri.parse(BuildConfig.ARENA_URL));
+    }
+    @Override public void onRequestPermissionsResult(int request, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(request, permissions, results);
+        if (request != MICROPHONE) return;
+        permissionPrompt = false;
+        String id = pendingAudioId; pendingAudioId = null;
+        if (id == null || destroyed || !visible || audioPort == null) return;
+        boolean allowed = permissions.length == 1 && Manifest.permission.RECORD_AUDIO.equals(permissions[0])
+            && results.length == 1 && results[0] == PackageManager.PERMISSION_GRANTED && hasMicrophonePermission();
+        if (allowed && microphone.arm(SystemClock.elapsedRealtime())) { preparedAudioId = id; watchMicrophonePermission(); audioReply(id, true); }
+        else audioReply(id, false);
+    }
+    private void watchMicrophonePermission() {
+        // WebView may reuse an earlier origin grant without another permission callback.
+        activeAudioGrant = true;
+        permissionHandler.removeCallbacks(permissionCheck); permissionHandler.postDelayed(permissionCheck, 500);
+    }
+    private void restoreAudioDocument() {
+        if (resumeAfterCapture == null) return;
+        String url = resumeAfterCapture; resumeAfterCapture = null; audioDocumentUnloaded = false;
+        web.loadUrl(url);
+    }
+    private void stopAudioDocument() {
+        activeAudioGrant = false; permissionHandler.removeCallbacks(permissionCheck);
+        microphone.suspend();
+        if (pendingAudioId != null) audioReply(pendingAudioId, false);
+        pendingAudioId = null; preparedAudioId = null;
+        if (web == null || destroyed) return;
+        web.evaluateJavascript("window.dispatchEvent(new Event('defense-native-background'))", null);
+        // onPause alone does not guarantee that WebView media/JS stops. Unload any
+        // document after this WebView has prepared capture, retaining a trusted URL
+        // for normal room-token/tab-draft restoration. Never auto-restart the mic.
+        if (microphone.mustUnloadCapture() && !audioDocumentUnloaded) {
+            String current = web.getUrl();
+            if (current != null && trusted(Uri.parse(current))) resumeAfterCapture = current;
+            audioDocumentUnloaded = true; web.stopLoading(); web.loadUrl("about:blank");
+        }
+    }
+    private void pauseWeb() { if (web != null && !webPaused) { web.onPause(); webPaused = true; } }
+
     private static String randomVerifier() {
         byte[] bytes = new byte[48]; new SecureRandom().nextBytes(bytes);
         return Base64.encodeToString(bytes, Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
@@ -250,8 +363,21 @@ public class ArenaActivity extends Activity {
             else if (web.canGoBack()) web.goBack(); else super.onBackPressed();
         });
     }
-    @Override protected void onPause() { super.onPause(); web.onPause(); }
-    @Override protected void onResume() { super.onResume(); if (web != null) { web.onResume(); web.evaluateJavascript("window.dispatchEvent(new Event('defense-native-resume'))", null); } }
+    @Override protected void onPause() {
+        // The app's own runtime permission dialog is not a user background event.
+        // A real background transition still reaches onStop and cancels the intent.
+        if (!permissionPrompt) { visible = false; stopAudioDocument(); pauseWeb(); }
+        super.onPause();
+    }
+    @Override protected void onStop() { visible = false; stopAudioDocument(); pauseWeb(); super.onStop(); }
+    @Override protected void onResume() {
+        super.onResume(); visible = true; microphone.resume();
+        if (web != null) {
+            if (webPaused) { web.onResume(); webPaused = false; }
+            if (resumeAfterCapture != null) restoreAudioDocument();
+            else web.evaluateJavascript("window.dispatchEvent(new Event('defense-native-resume'))", null);
+        }
+    }
     @Override public void onConfigurationChanged(Configuration config) { super.onConfigurationChanged(config); }
-    @Override protected void onDestroy() { closeExportPort(); if(fileCallback != null) fileCallback.onReceiveValue(null); web.destroy(); network.shutdownNow(); super.onDestroy(); }
+    @Override protected void onDestroy() { stopAudioDocument(); destroyed = true; visible = false; closeAudioPort(); closeExportPort(); if(fileCallback != null) fileCallback.onReceiveValue(null); web.destroy(); network.shutdownNow(); super.onDestroy(); }
 }

@@ -1,10 +1,14 @@
+import {prepareNativeCapture} from "./nativeCapture";
 /** Browser media boundary. Speech drafts and audio never use browser storage. */
 export async function startCapture(onFrame: (frame: ArrayBuffer) => void, onFailure: () => void, current: () => boolean) {
   if (!navigator.mediaDevices?.getUserMedia || typeof AudioContext === 'undefined' || typeof AudioWorkletNode === 'undefined') {
     throw new Error('Microphone capture is unavailable in this browser. Use typing.');
   }
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }, video: false });
-  const stopTracks = () => stream.getTracks().forEach(track => track.stop());
+  const releaseNative = await prepareNativeCapture(current);
+  let stream:MediaStream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }, video: false }); }
+  catch(error){releaseNative();throw error;}
+  const stopTracks = () => {stream.getTracks().forEach(track => track.stop());releaseNative();};
   if (!current()) { stopTracks(); throw new Error('Voice capture was cancelled.'); }
   let context: AudioContext;
   try { context = new AudioContext({ sampleRate: 24000 }); }
@@ -28,7 +32,7 @@ export async function startCapture(onFrame: (frame: ArrayBuffer) => void, onFail
       else if (event.data?.type === 'flushed') flushed?.();
     };
     node.addEventListener('processorerror', onFailure);
-    stream.getTracks().forEach(track => track.addEventListener('ended', onFailure));
+    stream.getTracks().forEach(track => {track.addEventListener('ended', onFailure);track.addEventListener('mute', onFailure);});
     source = context.createMediaStreamSource(stream); source.connect(node); node.connect(context.destination);
     await context.resume();
     if (!current()) throw new Error('Voice capture was cancelled.');
