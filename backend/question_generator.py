@@ -9,7 +9,7 @@ from typing import Literal, Sequence
 from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI, OpenAIError
 from pydantic import BaseModel, StrictInt, StrictBool, create_model, ConfigDict, field_validator
 
-from backend.research_coaching import AnswerCardDraft, CARD_GUIDANCE, MAX_SHORT_REPORT_TURNS, build_cards, validate_complete, has_discussion, factual_cards
+from backend.research_coaching import AnswerCardDraft, CARD_GUIDANCE, MAX_SHORT_REPORT_TURNS, build_cards, validate_complete, has_discussion, factual_cards, validate_overview, validate_section, COACHING_BATCH_SIZE
 from backend.project_files import MAX_TOTAL_BYTES, ProjectFile
 from backend.research_panel import RESEARCH_ROLE_GUIDANCE, research_panel_guidance, serialize_research_scope
 
@@ -1120,11 +1120,18 @@ def generate_coaching_report(
     client=None,
     defense_type: str = "code", research_stage: str = "infer",
     research_context: dict | None = None,
+    overview_only: bool = False, section_turns: Sequence[int] | None = None,
 ) -> CoachingReport:
     """Generate one shared coaching report after a completed adaptive defense."""
+    if (overview_only and section_turns is not None) or (defense_type == "code" and (overview_only or section_turns is not None)):
+        raise QuestionGenerationError("Invalid coaching request scope.")
+    if section_turns is not None and (not 1 <= len(section_turns) <= COACHING_BATCH_SIZE
+            or len(set(section_turns)) != len(section_turns)
+            or any(type(i) is not int or not 0 <= i < len(history) for i in section_turns)):
+        raise QuestionGenerationError("Invalid coaching section membership.")
     if defense_type != "code" and not has_discussion(history):
         return CoachingReport("The host ended before any answer or timeout was recorded. No discussion coverage was confirmed.",
-            [], [], "Review the paper map and practice a direct answer when ready.", answer_cards=factual_cards(history))
+            [], [], "Review the paper map and practice a direct answer when ready.", answer_cards=None if overview_only else factual_cards(history, section_turns))
     closing_history = [item for item in history if not item.ended_early]
     minimum, maximum = (MIN_TURNS, MAX_TURNS) if defense_type == "code" else (1, 100)
     if not minimum <= len(history) <= maximum:
@@ -1132,7 +1139,7 @@ def generate_coaching_report(
             f"Coaching requires {minimum} to {maximum} resolved turns; got {len(history)}."
         )
 
-    if defense_type != "code" and len(history) > MAX_SHORT_REPORT_TURNS:
+    if defense_type != "code" and not overview_only and section_turns is None and len(history) > MAX_SHORT_REPORT_TURNS:
         raise QuestionGenerationError("Coaching exceeds the current complete-report limit. Your answers are saved; use recovery controls.")
 
     api_key = (api_key or "").strip()
@@ -1151,6 +1158,12 @@ def generate_coaching_report(
         client = OpenAI(api_key=api_key, timeout=90.0, max_retries=0)
 
     transcript_data = serialize_transcript(history)
+    card_guidance = CARD_GUIDANCE if defense_type != 'code' and not overview_only else ''
+    if section_turns is not None:
+        card_guidance = card_guidance.replace('every recorded turn', f'only these required zero-based turn indices: {list(section_turns)}')
+    if overview_only:
+        card_guidance = 'Return the grounded team overview and optional closing only; answer cards are generated in separate admitted sections. '
+
     response = client.responses.parse(
         model=model,
         reasoning={"effort": "low"},
@@ -1160,7 +1173,7 @@ def generate_coaching_report(
                 "role": "system",
                 "content": (
                     "You are a practice-defense coach reviewing a team's complete defense. "
-                    f"{CARD_GUIDANCE if defense_type != 'code' else ''} "
+                    f"{card_guidance} "
                     f"{PROBE_CONTEXT_GUIDANCE} "
                     f"{_research_guidance(defense_type, research_stage)} "
                     f"{research_panel_guidance(defense_type)}"
@@ -1201,7 +1214,7 @@ def generate_coaching_report(
                 ),
             },
         ],
-        text_format=CoachingDraft if defense_type == "code" else ResearchCoachingDraft,
+        text_format=CoachingDraft if defense_type == "code" or overview_only else ResearchCoachingDraft,
     )
 
     draft = response.output_parsed
@@ -1240,7 +1253,7 @@ def generate_coaching_report(
     improvements = _validate_points(draft.improvements, "improvement")
 
     try:
-        cards = build_cards(getattr(draft, "answer_cards", None), history) if defense_type != "code" else None
+        cards = build_cards(getattr(draft, "answer_cards", None), history, section_turns) if defense_type != "code" and not overview_only else None
     except ValueError as error:
         raise QuestionGenerationError(str(error)) from error
     report = CoachingReport(
@@ -1252,7 +1265,12 @@ def generate_coaching_report(
         closing=getattr(draft, "closing", ""),
     )
     try:
-        validate_complete(report, history, defense_type)
+        if overview_only:
+            validate_overview(report, history)
+        elif section_turns is not None:
+            validate_section(report, history, section_turns)
+        else:
+            validate_complete(report, history, defense_type)
     except ValueError as error:
         raise QuestionGenerationError(str(error)) from error
     return report

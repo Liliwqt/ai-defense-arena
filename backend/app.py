@@ -16,7 +16,7 @@ from backend.defense_session import (
     advance_defense,
     sync_project_session,
 )
-from backend.streamlit_coaching import render_research_coaching
+from backend.streamlit_coaching import render_research_coaching, progressive_research_report
 from backend.defense_progression import prepare_progression
 from backend.project_files import (
     ALLOWED_EXTENSIONS,
@@ -60,6 +60,7 @@ def prepare_research_scope(files, api_key, model, mode, research_stage):
     """Explicit preparation retains saved host descriptions even on failure."""
     st.session_state.pop("defense_session", None)
     st.session_state.pop("research_coaching", None)
+    st.session_state.pop("research_coaching_job", None)
     st.session_state.pop("defense_error", None)
     for key in ("research_plan_error", "research_budget_preview", "research_confirmed_budget"):
         st.session_state.pop(key, None)
@@ -273,6 +274,7 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                             st.session_state["research_confirmed_budget"], mode, research_stage)
                         st.session_state["defense_run_id"] = st.session_state.get("defense_run_id", 0) + 1
                         st.session_state.pop("research_coaching", None)
+                        st.session_state.pop("research_coaching_job", None)
                         st.session_state["defense_session"] = new_session
                         advance_defense(new_session, files, api_key, model=model)
             except (QuestionGenerationError, OpenAIError, ValidationError) as error:
@@ -280,6 +282,7 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
             else:
                 session = new_session
                 st.session_state.pop("research_coaching", None)
+                st.session_state.pop("research_coaching_job", None)
                 st.session_state["defense_session"] = session
                 if mode == "code":
                     st.session_state["defense_run_id"] = st.session_state.get("defense_run_id", 0) + 1
@@ -353,17 +356,15 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                     st.write("Unresolved topics: " + (", ".join(unresolved) if unresolved else "none"))
                 coaching_history = session.coaching_history() if isinstance(session, ResearchDefenseSession) else session.answered_history()
                 report = st.session_state.get("research_coaching")
-                if isinstance(session, ResearchDefenseSession) and not session.answered_history() and report is None:
-                    report = generate_coaching_report(files, coaching_history, None, defense_type=mode)
-                    st.session_state["research_coaching"] = report
-                if not session.answered_history():
-                    st.info("The host ended before any answer or timeout was recorded. No discussion coverage was confirmed.")
+                if isinstance(session, ResearchDefenseSession):
+                    if st.session_state.get('research_coaching_job') is not None or report is None:
+                        report = progressive_research_report(files, coaching_history, session.context(), mode, research_stage, api_key, model)
+                    if not session.answered_history():
+                        st.info("The host ended before any answer or timeout was recorded. No discussion coverage was confirmed.")
                 elif report is None and st.button("Generate coaching", disabled=not bool(api_key)):
                     try:
                         with st.spinner("Preparing coaching..."):
-                            context = {"research_context": session.context()} if isinstance(session, ResearchDefenseSession) else {}
-                            report = generate_coaching_report(files, coaching_history, api_key, model,
-                                defense_type=mode, research_stage=research_stage, **context)
+                            report = generate_coaching_report(files, coaching_history, api_key, model, defense_type=mode, research_stage=research_stage)
                     except (QuestionGenerationError, OpenAIError, ValidationError) as exc:
                         st.error(generation_error_message(exc, model, api_key))
                     else:

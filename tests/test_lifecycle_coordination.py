@@ -311,7 +311,7 @@ class LifecycleCoordinationTests(unittest.IsolatedAsyncioTestCase):
 
                 async def coach(request):
                     reports.append(request)
-                    return with_cards(CoachingReport("Current closing report", [], [], "Review the remaining topics."),request.history)
+                    return with_cards(CoachingReport("Current closing report", [], [], "Review the remaining topics."),request.history,overview_only=request.overview_only,section_turns=request.section_turns)
 
                 async def deliver(socket, payload):
                     await socket.send_json(payload)
@@ -336,7 +336,7 @@ class LifecycleCoordinationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(before["turns"][0]["answer"], "We will compare completion time.")
                 self.assertEqual(before["completion_reason"], "ended by host")
                 self.assertEqual(before["feedback"]["summary"], "Current closing report")
-                self.assertEqual(len(reports), 1)
+                self.assertEqual(len(reports), 2)
                 self.assertEqual(reports[0].history[0].speaker_name, "Alex")
                 self.assertEqual(reports[0].history[0].citation, question)
 

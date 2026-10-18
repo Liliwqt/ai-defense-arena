@@ -13,6 +13,7 @@ from backend.project_files import ProjectFile
 from backend.question_generator import CoachingReport
 from backend.research_plan import ResearchPlan, ResearchPlanProgress, ResearchProfileDescription
 from backend.resource_limits import AIBudget, limit
+from backend.coaching_progress import CoachingProgress
 from backend.rooms.openings import OpeningCandidate
 from backend.rooms.speech import SpeechState, draft_snapshot
 from backend.timed_turn import TimedTurn
@@ -47,6 +48,7 @@ class Room(TimedTurn):
     question_retry_generation_id: int | None = None
     feedback_status: str = "none"   # none | generating | ready | failed
     feedback: CoachingReport | None = None
+    coaching_progress: CoachingProgress | None = None
     closing_panelist: str | None = None
     closing_deadline_ms: int | None = None
     research_planning_status: str = "none"  # none | planning | ready | failed
@@ -87,7 +89,7 @@ class Room(TimedTurn):
 
     @property
     def active_deadline_ms(self) -> int | None:
-        if self.phase == "complete" and self.feedback_status == "ready":
+        if self.phase == "complete" and self.closing_deadline_ms is not None:
             return self.closing_deadline_ms
         return super().active_deadline_ms
 
@@ -177,7 +179,7 @@ class Room(TimedTurn):
             "opening_repeated": self.opening_candidate is not None,
             "opening_candidate": self.opening_candidate.preview() if self.opening_candidate and recipient and recipient.is_host else None,
             "question_retrying": self.phase == "generating" and self.question_retry_generation_id == self.generation_id,
-            "coaching_attempts_left": self.ai_budget.remaining('coaching', limit('AI_COACHING_ATTEMPTS', 3, 10)),
+            "coaching_attempts_left": (1 if self.coaching_progress.can_retry else 0) if self.coaching_progress else self.ai_budget.remaining('coaching', limit('AI_COACHING_ATTEMPTS', 3, 10)),
             "plan_attempts_left": self.ai_budget.remaining('plan', limit('AI_PLAN_ATTEMPTS', 3, 10)),
             "self_seat": recipient.seat if recipient is not None else None,
             "self_is_host": recipient.is_host if recipient is not None else False,
@@ -212,6 +214,7 @@ class Room(TimedTurn):
             "coverage": self.defense.coverage if isinstance(self.defense, ResearchDefenseSession) else {},
             "current_topic": self.defense.turns[-1].topic_id if isinstance(self.defense, ResearchDefenseSession) and self.defense.turns else None,
             "completion_reason": self.defense.completion_reason if isinstance(self.defense, ResearchDefenseSession) else None,
+            "coaching_progress": self.coaching_progress.snapshot() if self.coaching_progress else None,
             "feedback_status": self.feedback_status,
             "feedback": feedback_dict,
             "closing_panelist": self.closing_panelist,

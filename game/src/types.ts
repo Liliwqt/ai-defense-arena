@@ -95,6 +95,18 @@ export interface AnswerCoachingCard {
   probe_feedback: AnswerFeedback | null;
 }
 
+export type CoachingSectionStatus = "pending" | "generating" | "ready" | "failed" | "cancelled";
+export interface CoachingProgress {
+  job_id: string;
+  overview_status: CoachingSectionStatus;
+  cards_ready: number;
+  cards_required: number;
+  completion_status: "pending" | "ready" | "failed" | "cancelled" | "returned" | "abandoned";
+  completion_error: string | null;
+  can_retry: boolean;
+  sections: {id:string; turns:number[] | null; status:CoachingSectionStatus; attempts_left:number; error:string | null}[];
+}
+
 export interface CoachingFeedback {
   answer_cards?: AnswerCoachingCard[] | null;
   summary: string;
@@ -147,6 +159,7 @@ export interface ResearchPlan {
 }
 
 export interface RoomState {
+  coaching_progress?: CoachingProgress | null;
   my_voice_draft?: {attempt_id: string; text: string; turn: number; probe_id: string | null; view_id: string} | null;
   voice?: { enabled: boolean; remaining_ms: number; provider: string; model: string; language: string } | null;
   defense_view_id?: string;

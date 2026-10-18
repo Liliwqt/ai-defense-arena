@@ -458,7 +458,7 @@ export function ControlsPanel({
                   onClick={handleRetryCoaching}
                   className={primaryBtn}
                 >
-                  Retry coaching report
+                  {roomState?.coaching_progress ? (roomState.coaching_progress.completion_status === "failed" ? "Retry saving completion" : "Retry failed coaching sections") : "Retry coaching report"}
                 </button>
               )}
               {liveAccess && (phase === "retry" || (phase === "complete" && feedbackStatus === "failed")) && <button type="button" className={secondaryBtn} disabled={!connected} onClick={() => { if(onSendEvent({type:"end_unavailable"})) onActionComplete(); }}>End unavailable defense{account?.free_access ? "" : " · return credits"}</button>}

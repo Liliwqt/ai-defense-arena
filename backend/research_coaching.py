@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 MAX_SHORT_REPORT_TURNS = 12
 MAX_REPORT_CHARS = 64_000
+COACHING_BATCH_SIZE = 3
 
 
 class AnswerFeedbackDraft(BaseModel):
@@ -78,13 +79,16 @@ def checked_feedback(feedback, original):
     return value
 
 
-def build_cards(raw_cards, history):
-    if not isinstance(raw_cards, (list, tuple)) or len(raw_cards) != len(history):
+def build_cards(raw_cards, history, required_turns=None):
+    required = tuple(range(len(history))) if required_turns is None else tuple(required_turns)
+    if len(set(required)) != len(required) or any(type(i) is not int or not 0 <= i < len(history) for i in required):
+        raise ValueError('Coaching section has invalid question membership.')
+    if not isinstance(raw_cards, (list, tuple)) or len(raw_cards) != len(required):
         raise ValueError('Coaching is missing required answer cards. Your answers are saved; retry the report.')
     cards = {}
     for raw in raw_cards:
         card = AnswerCardDraft.model_validate(raw.model_dump() if isinstance(raw, BaseModel) else raw)
-        if card.turn in cards or not 0 <= card.turn < len(history):
+        if card.turn in cards or card.turn not in required:
             raise ValueError('Coaching has duplicate or unknown question cards. Please retry.')
         item = history[card.turn]
         if card.probe_id != (item.probe.id if item.probe else None):
@@ -95,40 +99,62 @@ def build_cards(raw_cards, history):
         cards[card.turn] = {**original_record(item, card.turn),
             'feedback': checked_feedback(card.feedback, item.answer),
             'probe_feedback': checked_feedback(card.probe_feedback, reply) if card.probe_feedback else None}
-    ordered = [cards[i] for i in range(len(history))]
+    ordered = [cards[i] for i in required]
     if len(json.dumps(ordered, ensure_ascii=False)) > MAX_REPORT_CHARS:
         raise ValueError('Coaching exceeded the complete-report limit. Your answers are saved; use recovery controls.')
     return ordered
 
 
-def validate_complete(report, history, defense_type):
-    """Validate the published contract before any research completion/settlement."""
-    if defense_type == 'code' or not history:
-        return
+def validate_overview(report, history):
     if (not isinstance(report.summary, str) or not report.summary.strip() or len(report.summary) > 3000
             or not isinstance(report.next_step, str) or not report.next_step.strip() or len(report.next_step) > 1200
             or len(report.strengths) > 3 or len(report.improvements) > 3
-            or any(not isinstance(p.get('text'), str) or not p['text'].strip() or len(p['text']) > 800
+            or any(type(p.get('turn')) is not int or not 0 <= p['turn'] < len(history)
+                   or not isinstance(p.get('text'), str) or not p['text'].strip() or len(p['text']) > 800
                    for p in report.strengths + report.improvements)):
-        raise ValueError('Coaching overview is empty or oversized. Please retry.')
+        raise ValueError('Coaching overview is empty, oversized or references an unknown question. Please retry.')
+    if any(history[p['turn']].answer is None for p in report.strengths):
+        raise ValueError('Coaching cannot invent strengths for an unanswered turn.')
+
+
+def validate_section(report, history, required_turns):
+    validate_overview(report, history)
     cards = getattr(report, 'answer_cards', None)
-    if not isinstance(cards, (list, tuple)) or len(history) > MAX_SHORT_REPORT_TURNS:
+    if not isinstance(cards, (list, tuple)):
         raise ValueError('The research coaching report is incomplete. Your answers are saved; use recovery controls.')
     drafts = [{'turn': c.get('turn'), 'feedback': c.get('feedback'),
                'probe_id': (c.get('probe') or {}).get('id'), 'probe_feedback': c.get('probe_feedback')} for c in cards]
     if len(json.dumps({key:getattr(report,key) for key in ("summary","strengths","improvements","next_step","closing","answer_cards")}, ensure_ascii=False)) > MAX_REPORT_CHARS:
-        raise ValueError("Coaching exceeded the complete-report limit. Your answers are saved; use recovery controls.")
-    if build_cards(drafts, history) != list(cards):
+        raise ValueError('Coaching exceeded the section limit. Your answers are saved; use recovery controls.')
+    if build_cards(drafts, history, required_turns) != list(cards):
         raise ValueError('Coaching originals do not match the accepted transcript. Please retry.')
+
+
+def validate_complete(report, history, defense_type, *, batched=False):
+    """Validate required membership before any research completion/settlement."""
+    if defense_type == 'code' or not history:
+        return
+    if not batched:
+        if len(history) > MAX_SHORT_REPORT_TURNS:
+            raise ValueError('The research coaching report exceeds the single-request limit.')
+        validate_section(report, history, tuple(range(len(history))))
+        return
+    cards = report.answer_cards
+    if not isinstance(cards, (list, tuple)) or [c.get('turn') for c in cards] != list(range(len(history))) or len(history) > 100:
+        raise ValueError('Required coaching sections are incomplete.')
+    from dataclasses import replace
+    for start in range(0, len(history), COACHING_BATCH_SIZE):
+        stop = min(start + COACHING_BATCH_SIZE, len(history))
+        validate_section(replace(report, answer_cards=cards[start:stop]), history, tuple(range(start,stop)))
 
 
 def has_discussion(history):
     return any(item.answer is not None or item.timed_out for item in history)
 
 
-def factual_cards(history):
+def factual_cards(history, required_turns=None):
     feedback = {'strengths': [], 'improvements': ['No answer was recorded for this question.'],
         'stronger_answer': None, 'wording_basis': 'unanswered',
         'practice_task': 'Practice a direct answer, a reason and evidence from your paper.', 'wording_examples': []}
     return build_cards([{'turn': i, 'feedback': feedback, 'probe_id': item.probe.id if item.probe else None,
-                        'probe_feedback': None} for i, item in enumerate(history)], history)
+                        'probe_feedback': None} for i, item in enumerate(history) if required_turns is None or i in required_turns], history, required_turns)

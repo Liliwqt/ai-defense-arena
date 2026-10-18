@@ -9,9 +9,11 @@ interface TranscriptPanelProps {
   presentation?: RoomPresentation;
   roomState: RoomState | null;
   previewMode?: boolean;
+  connected?: boolean;
+  onSendEvent?: (payload:Record<string,unknown>) => boolean;
 }
 
-export function TranscriptPanel({ roomState, previewMode = false, presentation = deriveRoomPresentation(roomState) }: TranscriptPanelProps) {
+export function TranscriptPanel({ roomState, previewMode = false, connected = true, onSendEvent, presentation = deriveRoomPresentation(roomState) }: TranscriptPanelProps) {
   const turns = roomState?.turns ?? [];
   const answered = turns.filter((t) => t.answer).length;
   const timedOut = turns.filter((t) => t.timed_out).length;
@@ -102,6 +104,9 @@ export function TranscriptPanel({ roomState, previewMode = false, presentation =
             feedbackStatus={feedbackStatus}
             feedback={roomState?.feedback ?? null}
             closingPanelist={presentation.closingPanelist || null}
+            progress={roomState?.coaching_progress}
+            onRetry={roomState?.self_is_host && onSendEvent ? ()=>onSendEvent({type:'retry_coaching'}) : undefined}
+            retryDisabled={!connected || previewMode}
           />
           {roomState?.feedback?.answer_cards?.length ? <details className="full-transcript"><summary>Full defense transcript</summary>
             {turns.map((turn,index)=><TurnCard key={index} turn={turn} index={index} research />)}

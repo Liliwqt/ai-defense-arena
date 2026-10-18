@@ -5,7 +5,7 @@ room behavior, not live subject expertise or natural-language quality.
 """
 
 from copy import deepcopy
-from tests.research_coaching_fixtures import with_cards
+from tests.research_coaching_fixtures import with_cards, scope_options
 import unittest
 from unittest.mock import patch
 
@@ -106,7 +106,7 @@ class AdaptiveResearchIntegrationTests(unittest.TestCase):
                 strengths=[{"turn": 4, "text": "Alex identified the pilot decision."}],
                 improvements=[{"turn": 0, "text": "Practice the unanswered pilot issue."}],
                 next_step="Review outstanding topics and justify the stated approach.", closing=CLOSING)
-            return generate_coaching_report(files, history, key, model, client=Client(with_cards(output,history)), **kwargs)
+            return generate_coaching_report(files, history, key, model, client=Client(with_cards(output,history, **scope_options(kwargs))), **kwargs)
 
         with patch("backend.rooms.planning.generate_research_plan", side_effect=mapping) as mapper, \
                 patch("backend.rooms.questions.generate_research_move", side_effect=question) as generator, \
@@ -228,7 +228,7 @@ class AdaptiveResearchIntegrationTests(unittest.TestCase):
                 self.assertEqual(after["feedback"], final["feedback"])
             self.assertEqual(mapper.call_count, 3)
             self.assertEqual(generator.call_count, 14)  # 12 questions, final assessment and one automatic retry.
-            self.assertEqual(coaching.call_count, 1)
+            self.assertEqual(coaching.call_count, 5)
         self.assertEqual([value.snapshot() for value in mapping_inputs[1:]], [CORRECTION, CORRECTION])
         self.assertEqual(question_requests.count(2), 2)
         for context in scope_requests:

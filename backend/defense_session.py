@@ -361,7 +361,7 @@ def sync_project_session(state: MutableMapping, fingerprint: str | None) -> None
     """Discard a defense when the accepted uploaded project changes."""
     if state.get("defense_project_fingerprint") != fingerprint:
         state.pop("defense_session", None)
-        for key in ("research_plan", "research_plan_error", "research_budget_preview", "research_plan_approved", "research_confirmed_budget", "research_coaching", "research_profile_correction", "research_profile_dirty",
+        for key in ("research_plan", "research_plan_error", "research_budget_preview", "research_plan_approved", "research_confirmed_budget", "research_coaching", "research_coaching_job", "research_profile_correction", "research_profile_dirty",
                     "research_profile_editor_key", "research_profile_fields", "research_profile_approaches", "research_profile_setting"):
             state.pop(key, None)
         state["defense_project_fingerprint"] = fingerprint

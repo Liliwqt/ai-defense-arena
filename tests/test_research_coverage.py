@@ -4,7 +4,7 @@ from backend.timed_turn import VOTE_MS, ANSWER_MS
 from backend.rooms import submissions as submission_workflow
 from backend.rooms import questions as question_workflow
 from backend.rooms.coordinator import RoomCoordinator, RoomWorkflows
-from tests.research_coaching_fixtures import with_cards
+from tests.research_coaching_fixtures import with_cards, scope_options
 from backend.rooms.commands import CatchUpDeadline, GenerateQuestion, InterpretSubmission
 from tests.async_room import wait_until
 from tests.offline_accounts import authenticate
@@ -544,7 +544,7 @@ class CoverageProtocolTests(unittest.TestCase):
                         strengths=[CoachingPoint(turn=1,text='The team described a pilot comparison.')],
                         improvements=[CoachingPoint(turn=0,text='The opening question received no answer.')],next_step='Review remaining topics.',
                         closing='You explained the pilot comparison. Review the missed and unresolved topics in coaching.')
-                    return generate_coaching_report(files,history,'offline-key',client=Client(with_cards(draft, history)),**kwargs)
+                    return generate_coaching_report(files,history,'offline-key',client=Client(with_cards(draft, history, **scope_options(kwargs))),**kwargs)
                 with patch.object(planning_workflow,'generate_research_plan',return_value=p), \
                      patch.object(question_workflow, 'generate_research_move',side_effect=generate) as generator, \
                      patch.object(submission_workflow,'interpret_submission',side_effect=interpret), \

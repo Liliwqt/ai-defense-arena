@@ -41,6 +41,7 @@ def reserve_room_run(owner: "RoomCoordinator", account_id: str, confirmed: bool,
     if not live_mode() and run_id != room.run_id:
         release_run(room.run_id)
     if room.run_id != run_id:
+        room.coaching_progress=None
         room.speech.reset(run_id)
     room.run_id = run_id
     room.settled = False
@@ -119,6 +120,7 @@ async def handle_lifecycle(owner: "RoomCoordinator", actor: VerifiedActor, comma
                     room.settled = True
                     room.terminal_ms = owner._workflows.now()
                     room.feedback_status = "none"
+                    if room.coaching_progress:room.coaching_progress.invalidate("returned")
                     room.error = "The unavailable defense was ended. Check Account for any returned credits."
                     room.revision += 1
         elif isinstance(command, EndDefense):
@@ -131,7 +133,7 @@ async def handle_lifecycle(owner: "RoomCoordinator", actor: VerifiedActor, comma
                 room.defense.end()
                 release_run(room.run_id)
                 if live_mode() and room.run_id:
-                    LiveStore().finish_run(room.run_id,"ended")
+                    LiveStore().service_state(room.run_id,"coaching")
                 room.phase = "complete"
                 room.error = None
                 room.feedback_status = "generating"
@@ -155,6 +157,7 @@ async def handle_lifecycle(owner: "RoomCoordinator", actor: VerifiedActor, comma
             generation_id = room.generation_id
             room.feedback_status = "none"
             room.feedback = None
+            room.coaching_progress = None
             room.revision += 1
             generate_first = True
             if room.defense_type != "code":

@@ -5,7 +5,7 @@ from backend.rooms import planning as planning_workflow
 from backend.rooms import submissions as submission_workflow
 from backend.rooms import questions as question_workflow
 """Same-question panelist probes at the shared turn and generator boundaries."""
-from tests.research_coaching_fixtures import with_cards
+from tests.research_coaching_fixtures import with_cards, scope_options
 import unittest
 from backend.defense_session import DefenseSession
 from backend.timed_turn import TimedTurn
@@ -386,8 +386,8 @@ class ProbeProtocolTests(unittest.TestCase):
                 stack.enter_context(patch.object(submission_workflow,'interpret_submission',side_effect=decisions))
                 captured = []
                 def coach(files,history,*args,**kwargs):
-                    captured.extend(history)
-                    return with_cards(CoachingReport('Review retained answers.',[],[],'Practice.'),history)
+                    if kwargs.get("overview_only"):captured.extend(history)
+                    return with_cards(CoachingReport('Review retained answers.',[],[],'Practice.'),history, **scope_options(kwargs))
                 stack.enter_context(patch.object(coaching_workflow,'generate_coaching_report',side_effect=coach))
                 files = [('research_files',('paper.md',PAPER.encode(),'text/markdown'))]
                 if mode == 'mixed': files += [('files',('main.py',b'value=1','text/x-python'))]

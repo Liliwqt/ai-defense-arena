@@ -1,7 +1,7 @@
 """Offline contracts for a confirmed research lens throughout dialogue."""
 
 import json
-from tests.research_coaching_fixtures import with_cards
+from tests.research_coaching_fixtures import with_cards, scope_options
 import unittest
 from types import SimpleNamespace
 
@@ -107,7 +107,7 @@ class ResearchScopeRoomTests(unittest.TestCase):
             output = CoachingDraft(summary="The team discussed recruitment. Remaining topics need practice.",
                 strengths=[{"turn": 0, "text": "Explained who could join."}],
                 improvements=[{"turn": 0, "text": "Justify recruitment coverage."}], next_step="Practice the unresolved topics.")
-            return generate_coaching_report(files, history, key, model, client=ParsedClient(with_cards(output,history)), **kwargs)
+            return generate_coaching_report(files, history, key, model, client=ParsedClient(with_cards(output,history, **scope_options(kwargs))), **kwargs)
         with patch("backend.rooms.planning.generate_research_plan", return_value=self.plan) as mapper, \
                 patch("backend.rooms.questions.generate_research_move", side_effect=ask), \
                 patch("backend.rooms.submissions.interpret_submission", side_effect=interpret), \
@@ -148,7 +148,7 @@ class ResearchScopeRoomTests(unittest.TestCase):
             self.assertEqual(request["current_topic"], "topic-1")
             self.assertNotIn("private team planning detail", str(request))
             self.assertNotIn("owner_account_id", request)
-        self.assertEqual(scopes, [self.plan.profile.snapshot()]*3)
+        self.assertEqual(scopes, [self.plan.profile.snapshot()]*4)
 
 
 class ResearchApproachRequestTests(unittest.TestCase):
@@ -222,7 +222,7 @@ class ResearchScopeStreamlitTests(unittest.TestCase):
             return generate_coaching_report(files, history, key, model, client=ParsedClient(with_cards(CoachingDraft(
                 summary="The team explained a recruitment choice.", strengths=[{"turn":0,"text":"Identified possible volunteers."}],
                 improvements=[{"turn":0,"text":"Explain coverage limitations."}],next_step="Practice the unresolved topics.",
-                closing="That explains the recruitment choice. Review the remaining topics below."),history)), **kwargs)
+                closing="That explains the recruitment choice. Review the remaining topics below."),history, **scope_options(kwargs))), **kwargs)
         with patch.dict(os.environ, {"OPENAI_API_KEY":"offline-key"}), \
                 patch("backend.research_plan.generate_research_plan", return_value=session.plan) as mapper, \
                 patch("backend.defense_session.generate_research_move", side_effect=ask), \
@@ -248,6 +248,6 @@ class ResearchScopeStreamlitTests(unittest.TestCase):
             for scope in requests:
                 self.assertEqual(scope["plan"]["profile"], session.plan.profile.snapshot())
                 self.assertEqual(scope["current_topic"],"topic-1")
-            self.assertEqual(scopes,[session.plan.profile.snapshot()]*3)
+            self.assertEqual(scopes,[session.plan.profile.snapshot()]*4)
             self.assertIn("That explains the recruitment choice. Review the remaining topics below.",
                           [item.value for item in app.markdown])

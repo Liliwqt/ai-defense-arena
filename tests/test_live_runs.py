@@ -72,3 +72,27 @@ class LiveRunTests(LivePaymentTests):
             self.assertEqual(sum(workers.map(start,range(8))),1)
             self.assertEqual(list(workers.map(lambda _:self.paid(row).status_code,range(8))),[200]*8)
         self.assertEqual(store.overview(self.account_id)['live_credits'],0)
+
+    def test_completion_and_unavailable_return_race_preserves_one_authoritative_outcome(self):
+        from threading import Barrier
+        self.fund();store=LiveStore()
+        store.reserve_run(self.account_id,'coaching-race','service-one','ROOM');store.charge_run(self.account_id,'coaching-race')
+        store.service_state('coaching-race','unavailable','coaching')
+        barrier=Barrier(2)
+        def finish():
+            barrier.wait();return store.finish_run('coaching-race','completed')
+        def recover():
+            barrier.wait()
+            try:store.end_unavailable(self.account_id,'coaching-race');return True
+            except account_store.AccessError:return False
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            a,b=pool.submit(finish),pool.submit(recover)
+            outcome,returned=a.result(),b.result()
+        view=store.overview(self.account_id)
+        self.assertIsNone(view['active_run'])
+        self.assertEqual(view['live_runs'][0]['outcome'],outcome)
+        self.assertEqual(outcome,'ended_unavailable' if returned else 'completed')
+        self.assertEqual(view['live_credits'],10 if returned else 0)
+        self.assertEqual(store.finish_run('coaching-race','completed'),outcome)
+        if returned:store.end_unavailable(self.account_id,'coaching-race')
+        self.assertEqual(store.overview(self.account_id)['live_credits'],view['live_credits'])

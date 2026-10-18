@@ -91,7 +91,7 @@ class ResearchCoachingProtocolTests(unittest.TestCase):
     until=coverage.CoverageProtocolTests.until
     start_opening=opening.OpeningHistoryProtocolTests.start_opening
 
-    def test_incomplete_report_fails_before_ready_then_host_can_retry_complete_membership(self):
+    def test_incomplete_section_retains_overview_then_host_can_retry_complete_membership(self):
         from unittest.mock import patch
         from backend import game_server
         from backend.question_generator import CoachingReport
@@ -102,7 +102,7 @@ class ResearchCoachingProtocolTests(unittest.TestCase):
         def coach(files,history,*args,**kwargs):
             calls.append(history)
             report=CoachingReport('The team discussed scope.',[],[],'Practice the missing detail.')
-            return report if len(calls)==1 else with_cards(report,history)
+            return report if len(calls)==2 else with_cards(report,history,overview_only=kwargs.get('overview_only',False),section_turns=kwargs.get('section_turns'))
         def check(socket,state):
             socket.send_json({'type':'cast_vote','seat':0});self.until(socket,'voting')
             self.now=state['vote_deadline_ms']
@@ -112,14 +112,15 @@ class ResearchCoachingProtocolTests(unittest.TestCase):
             self.until(socket,'voting')
             socket.send_json({'type':'end_defense'})
             failed=self.until(socket,'complete',feedback_status='failed')
-            self.assertIsNone(failed['feedback'])
+            self.assertIsNotNone(failed['feedback'])
+            self.assertEqual(failed['feedback']['answer_cards'],[])
             self.assertIsNone(failed['closing_deadline_ms'])
             socket.send_json({'type':'retry_coaching'})
             ready=self.until(socket,'complete',feedback_status='ready')
             self.assertEqual(len(ready['feedback']['answer_cards']),2)
             self.assertEqual(ready['feedback']['answer_cards'][0]['original_answer'],'We limit the claim to the campus.')
             self.assertIsNone(ready['feedback']['answer_cards'][1]['original_answer'])
-            self.assertEqual(len(calls),2)
+            self.assertEqual(len(calls),3)
         with patch('backend.rooms.coaching.generate_coaching_report',side_effect=coach):
             self.start_opening(coverage.mocked_move,on_state=check)
 

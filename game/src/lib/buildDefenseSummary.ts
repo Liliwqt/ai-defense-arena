@@ -125,6 +125,12 @@ export function buildDefenseSummary(state: RoomState): string {
   }
 
   if (state.defense_type && state.defense_type !== "code") lines.push(`Coaching status: ${state.feedback_status}`, "");
+  if(state.coaching_progress){
+    const job=state.coaching_progress;
+    lines.push(`Coaching progress: ${job.cards_ready}/${job.cards_required} answers coached · completion ${job.completion_status}`);
+    for(const section of job.sections)lines.push(`  ${section.turns?`Questions ${section.turns.map(i=>i+1).join(', ')}`:'Overview'}: ${section.status}${section.error?` · ${section.error}`:''}`);
+    lines.push("");
+  }
   if (state.feedback) {
     if (state.feedback.closing) {
       const panelist = state.defense_type && state.defense_type !== "code" && state.closing_panelist === "Critical Judge"

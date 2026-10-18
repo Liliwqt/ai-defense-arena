@@ -156,6 +156,7 @@ function deriveTimer(state: Readonly<RoomState> | null): RoomTimer | null {
 }
 
 function roomStatus(state: Readonly<RoomState> | null): string {
+  if (state?.phase === "complete" && state.coaching_progress && state.coaching_progress.completion_status !== "ready") return `${state.coaching_progress.cards_ready} of ${state.coaching_progress.cards_required} answers coached`;
   if (state?.phase === "complete") return state.feedback_status === "generating" ? "Preparing coaching…" : state.feedback_status === "failed" ? "Coaching unavailable" : state.feedback_status === "ready" ? "Coaching ready" : "Complete";
   if (state?.phase === "retry") return state.opening_repeated ? "Opening choice" : "Retry needed";
   if (state?.phase === "reacting") return "Panelist speaking…";
@@ -200,6 +201,12 @@ function lifecycleGuidance(state: Readonly<RoomState> | null): string {
     return saved + (state.self_is_host ? "Retry the question below or in Controls." : "The host can retry the question; you do not need to resubmit.");
   }
   if (state.phase === "complete") {
+    if (state.coaching_progress && state.coaching_progress.overview_status === "ready" && state.coaching_progress.completion_status !== "ready") {
+      return ["cancelled","returned","abandoned"].includes(state.coaching_progress.completion_status)
+        ? "This run ended with incomplete coaching. Open Results for retained sections."
+        : state.feedback_status === "failed" ? "Ready coaching is retained. The host can review Results and Controls for recovery."
+        : "Open Results to review ready coaching while the remaining sections are prepared.";
+    }
     if (state.feedback_status === "generating") return "Preparing the team's coaching report… Your answers are saved.";
     if (state.feedback_status === "failed") return recoveryGuidance(state, "coaching report", state.coaching_attempts_left);
     return state.feedback_status === "ready" ? "Defense complete. Open Transcript to review answers, timeouts, and coaching." : "Defense complete. Open Transcript to review the saved turns.";
@@ -227,7 +234,7 @@ export function deriveRoomPresentation(state: Readonly<RoomState> | null) {
   const retryingSubmission = phase === "interpretation_retry";
   const voting = phase === "voting";
   const reacting = phase === "reacting";
-  const closing = phase === "complete" && state?.feedback_status === "ready"
+  const closing = phase === "complete" && (state?.feedback_status === "ready" || state?.coaching_progress?.overview_status === "ready")
     && !!state.feedback?.closing && !!state.closing_panelist
     && typeof state.closing_deadline_ms === "number"
     && state.closing_deadline_ms > (state.server_now_ms ?? 0);
@@ -285,7 +292,7 @@ export function deriveRoomPresentation(state: Readonly<RoomState> | null) {
   const voteInstruction = "Choose a speaker. You can change your vote until the clock reaches zero.";
   const answerPrompt = probing ? "Reply to panelist" : phase === "question" ? "Your turn · You were chosen to answer" : "Submit an answer directly";
   const teammateInstruction = chosenName ? `${chosenName} is ${probing ? "replying" : "answering"}. Use Team Chat to help them.` : "Waiting for a defender to reconnect. The answer clock keeps running.";
-  const guidance = closing ? "The final reviewer is speaking. Coaching will follow; the defense is complete."
+  const guidance = closing ? state?.coaching_progress && state.coaching_progress.completion_status !== "ready" ? "The final reviewer is speaking. Ready coaching will open while remaining sections continue." : "The final reviewer is speaking. Coaching will follow; the defense is complete."
     : voting ? voteInstruction
     : retryingSubmission ? submission.recoveryGuidance
     : reviewing ? submission.reviewGuidance

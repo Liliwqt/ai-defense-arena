@@ -294,6 +294,8 @@ class LiveStore:
             if row and row['outcome'] not in TERMINAL_OUTCOMES:
                 self._release(db,run_id)
                 db.execute('UPDATE live_runs SET outcome=?,error_kind=NULL,updated_at=? WHERE id=?',(outcome,int(time.time()),run_id))
+                return outcome
+            return row['outcome'] if row else None
 
     def service_state(self,run_id,outcome,error_kind=None):
         if outcome not in {'active','coaching','unavailable'} or error_kind not in {None,'question','coaching'}:

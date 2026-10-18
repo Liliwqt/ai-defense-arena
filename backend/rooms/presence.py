@@ -92,6 +92,7 @@ async def observe_absence(owner: "RoomCoordinator") -> bool:
         room.settled = True
         room.terminal_ms = now
         room.feedback_status = "none"
+        if room.coaching_progress:room.coaching_progress.invalidate("abandoned")
         room.error = "This defense was abandoned after everyone disconnected for ten minutes."
         room.revision += 1
         return True

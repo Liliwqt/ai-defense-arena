@@ -1,6 +1,7 @@
 """Room commands, captured work and fenced lifecycle coordination."""
 
 from __future__ import annotations
+from backend.coaching_progress import CoachingProgress
 
 import asyncio
 from dataclasses import dataclass
@@ -30,6 +31,7 @@ from backend.rooms.openings import choose_opening
 from backend.rooms.speech import run_speech, revoke_obsolete
 from backend.rooms.lifecycle import handle_lifecycle, reclaim_room
 from backend.rooms.model import Room, now_ms
+from backend.resource_limits import limit
 from backend.timed_turn import DeadlineExpired
 from backend.financial_policy import live_mode
 from backend.live_store import LiveStore
@@ -195,6 +197,7 @@ class RoomCoordinator:
         room.research_plan_generation_id += 1
         room.feedback_generation_id += 1
         room.speech.revoke()
+        if room.coaching_progress:room.coaching_progress.invalidate()
         room.discard_pending()
         room.question_retry_generation_id = None
         room.opening_candidate = None
@@ -373,6 +376,10 @@ class RoomCoordinator:
         if key in self._coaching_tasks:
             return self._coaching_tasks[key]
         request = capture_coaching(room)
+        if room.defense_type != "code":
+            if room.coaching_progress is None:
+                room.coaching_progress=CoachingProgress(request,limit('AI_COACHING_ATTEMPTS',3,10))
+            request=room.coaching_progress.request
         return self._retain_work_task(self._coaching_tasks, key,
                                       asyncio.create_task(run_coaching(self, work, request)))
 

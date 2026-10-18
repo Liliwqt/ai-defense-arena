@@ -367,7 +367,7 @@ export function App() {
         actions={<><button type="button" className="button-secondary" onClick={() => navigate("room")}>Return to defense</button><button type="button" className="button-secondary" onClick={() => navigate("controls")}>Live controls</button><button type="button" className="button-secondary" onClick={() => navigate("home")}>Home</button></>}>
         <LiveRoomStatus state={roomState} presentation={presentation} />
         {!hasRoom ? <p role="alert">This room is no longer available. Results cannot be restored from this browser.</p> :
-          <TranscriptPanel presentation={presentation} roomState={roomState} previewMode={previewMode} />}
+          <TranscriptPanel presentation={presentation} roomState={roomState} previewMode={previewMode} connected={connected} onSendEvent={sendEvent} />}
       </AppPage>}
       {["signin", "account", "payments-live", "payments-test", "manager"].includes(screen) && <div className="task-room-return">{returnAction}</div>}
       {screen === "payments-live" && <LivePaymentPage />}

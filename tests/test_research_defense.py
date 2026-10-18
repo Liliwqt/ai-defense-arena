@@ -1,4 +1,4 @@
-from tests.research_coaching_fixtures import with_cards
+from tests.research_coaching_fixtures import with_cards, scope_options
 from tests.research_profile_fixtures import research_profile
 from backend.rooms.commands import CatchUpDeadline
 from backend.rooms import coaching as coaching_workflow
@@ -371,7 +371,7 @@ class ResearchTwoClientTests(unittest.TestCase):
                 report = CoachingReport('Review complete.', [{'turn': 0, 'text': 'Specific plan.'}],
                                          [{'turn': 1, 'text': 'Clarify ethics.'}], 'Run a pilot.')
                 with patch.object(question_workflow, 'generate_research_move', side_effect=moves), \
-                     patch.object(coaching_workflow, 'generate_coaching_report', side_effect=lambda files,history,*args,**kwargs:with_cards(report,history)):
+                     patch.object(coaching_workflow, 'generate_coaching_report', side_effect=lambda files,history,*args,**kwargs:with_cards(report,history, **scope_options(kwargs))):
                     with self.client.websocket_connect(f"/ws/{host['room_code']}") as host_ws, \
                          self.client.websocket_connect(f"/ws/{host['room_code']}") as guest_ws:
                         host_ws.send_json({'type': 'hello', 'token': host['player_token']})
@@ -404,7 +404,7 @@ class ResearchTwoClientTests(unittest.TestCase):
                         for ws in (host_ws, guest_ws):
                             state = self.until(ws, 'complete', len(roles))
                             self.assertEqual(state['turns'][1]['timed_out'], followups)
-                            state = self.until(ws, 'complete', len(roles)) if state['feedback_status'] != 'ready' else state
+                            while state['feedback_status'] != 'ready':state = self.until(ws, 'complete', len(roles))
                             self.assertEqual(state['feedback']['summary'], 'Review complete.')
                         # Reconnected teammates receive the same defense type, transcript, and coaching.
                     with self.client.websocket_connect(f"/ws/{host['room_code']}") as reconnect:

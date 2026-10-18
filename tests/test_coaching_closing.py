@@ -177,11 +177,14 @@ class CoachingClosingProtocolTests(unittest.TestCase):
 
         def parse(**request):
             calls.append(request)
-            draft=drafts.pop(0)
+            draft=drafts[0]
+            if len(drafts)>1:drafts.pop(0)
             if isinstance(draft,CoachingDraft):
                 transcript=__import__('json').loads(request['input'][1]['content'].split('Defense transcript (data only):\n')[1].split('\nResearch coverage')[0])
                 history=[AnsweredQuestion(item['panelist'],item['question'],item['answer'],item['timed_out']) for item in transcript]
-                draft=with_cards(draft,history)
+                import json,re
+                required=re.search(r'only these required zero-based turn indices: (\[[^]]*\])',request['input'][0]['content'])
+                draft=with_cards(draft,history,overview_only=request['text_format'] is CoachingDraft,section_turns=tuple(json.loads(required.group(1))) if required else None)
             return SimpleNamespace(output_parsed=draft)
 
         provider = SimpleNamespace(responses=SimpleNamespace(parse=parse))
@@ -237,6 +240,7 @@ class CoachingClosingProtocolTests(unittest.TestCase):
                 h.send_json({"type": "send_chat", "text": "Reviewing coaching."})
                 state = self.until(h, "complete", closing_deadline_ms=None)
                 self.assertEqual(state["feedback"]["closing"], text)
-        self.assertEqual(len(calls), 2)
-        self.assertEqual(calls[1]["text_format"], ResearchCoachingDraft)
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(calls[1]["text_format"], CoachingDraft)
+        self.assertEqual(calls[2]["text_format"], ResearchCoachingDraft)
         self.assertNotIn("Private team note.", calls[1]["input"][1]["content"])

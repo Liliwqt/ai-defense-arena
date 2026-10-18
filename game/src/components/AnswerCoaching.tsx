@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { AnswerCoachingCard, AnswerFeedback, Turn } from '../types';
+import type { AnswerCoachingCard, AnswerFeedback, CoachingProgress, Turn } from '../types';
 import { ProbeExchange } from './ProbeExchange';
 
 function Evidence({provenance}: {provenance?: Turn['input_provenance']}) {
@@ -17,21 +17,25 @@ function Suggestions({feedback, title}: {feedback:AnswerFeedback;title:string}) 
     <h6>Practice task</h6><p>{feedback.practice_task}</p>
   </section>;
 }
-export function AnswerCoaching({cards}: {cards:AnswerCoachingCard[]}) {
-  const [selected,setSelected]=useState(cards[0]?.turn ?? 0);
-  const card=cards.find(card=>card.turn===selected) ?? cards[0];
-  if(!card)return null;
-  const index=cards.indexOf(card);
+export function AnswerCoaching({cards,progress}: {cards:AnswerCoachingCard[];progress?:CoachingProgress|null}) {
+  const turns=progress?Array.from({length:progress.cards_required},(_,i)=>i):cards.map(card=>card.turn);
+  const [selected,setSelected]=useState(turns[0] ?? 0);
+  const turn=turns.includes(selected)?selected:turns[0];
+  if(turn===undefined)return null;
+  const card=cards.find(card=>card.turn===turn);
+  const index=turns.indexOf(turn);
+  const pending=progress?.sections.find(section=>section.turns?.includes(turn));
   return <section className="answer-coaching" aria-label="Detailed answer coaching">
-    <h4>Practice each answer</h4><p>{cards.length} recorded question{cards.length===1?'':'s'} · complete coaching</p>
+    <h4>Practice each answer</h4><p>{turns.length} recorded question{turns.length===1?'':'s'} · {progress?.completion_status && progress.completion_status!=='ready'?(['cancelled','returned','abandoned'].includes(progress.completion_status)?'incomplete coaching':'coaching in progress'):'complete coaching'}</p>
     <div className="coaching-selector"><label htmlFor="coaching-question">Review a question</label>
-      <select id="coaching-question" value={card.turn} onChange={event=>setSelected(Number(event.target.value))}>
-        {cards.map(item=><option key={item.turn} value={item.turn}>Question {item.turn+1} · {item.panelist}</option>)}
+      <select id="coaching-question" value={turn} onChange={event=>setSelected(Number(event.target.value))}>
+        {turns.map(i=><option key={i} value={i}>Question {i+1} · {cards.find(card=>card.turn===i)?.panelist ?? progress?.sections.find(section=>section.turns?.includes(i))?.status ?? 'pending'}</option>)}
       </select>
-      <div className="coaching-navigation"><button type="button" disabled={index===0} onClick={()=>setSelected(cards[index-1].turn)}>Previous question</button><button type="button" disabled={index===cards.length-1} onClick={()=>setSelected(cards[index+1].turn)}>Next question</button></div>
+      <div className="coaching-navigation"><button type="button" disabled={index===0} onClick={()=>setSelected(turns[index-1])}>Previous question</button><button type="button" disabled={index===turns.length-1} onClick={()=>setSelected(turns[index+1])}>Next question</button></div>
     </div>
-    <section className="coaching-detail" aria-label="Question coaching" key={card.turn}>
-      <h4 aria-live="polite">Question {card.turn+1} · {card.question}</h4>
+    <section className="coaching-detail" aria-label="Question coaching" key={turn}>
+      <h4 aria-live="polite">Question {turn+1}{card?` · ${card.question}`:''}</h4>
+      {!card ? <p role="status">{pending?.status==='failed'?'Coaching for this question failed. Ready sections are retained.':pending?.status==='cancelled'?'Coaching for this question ended before completion.':'Coaching for this question is still being prepared.'}</p> : <>
       <details open><summary>Original answer and sources</summary>
         {card.original_answer!==null ? <><p><strong>{card.speaker_name ?? 'Defender'} · Original answer</strong></p><p className="original-answer">{card.original_answer}</p><Evidence provenance={card.input_provenance}/></> : <p>{card.timed_out?'Time expired without an answer.':'Ended before an answer was recorded.'}</p>}
         {card.citation && <blockquote><p>{card.citation.filename} · {card.citation.evidence_location || `Line ${card.citation.evidence_line}`}</p><p>{card.citation.evidence_text}</p></blockquote>}
@@ -41,7 +45,7 @@ export function AnswerCoaching({cards}: {cards:AnswerCoachingCard[]}) {
       <details open><summary>Improvements and practice</summary>
         <Suggestions feedback={card.feedback} title={card.original_answer===null?'Missed-answer practice':`${card.speaker_name ?? 'Defender'} · Answer coaching`}/>
         {card.probe_feedback && <Suggestions feedback={card.probe_feedback} title={`${card.probe?.speaker_name ?? 'Defender'} · Reply coaching`}/>}
-      </details>
+      </details></>}
     </section>
   </section>;
 }
