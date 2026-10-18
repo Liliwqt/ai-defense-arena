@@ -99,3 +99,20 @@ class VoiceDeliveryReportTests(unittest.TestCase):
                 self.assertIsNone(delivery['recording'])
                 self.assertIsNone(delivery['speaking_rate']);self.assertIsNone(delivery['pauses'])
                 self.assertEqual(delivery['measurement_reason'],'capture_evidence_unavailable')
+
+
+    def test_overview_request_receives_voice_measurement_and_delivery_limits(self):
+        from backend.question_generator import AnsweredQuestion,CoachingDraft,generate_coaching_report
+        from backend.project_files import ProjectFile
+        from tests.test_research_coverage import Client
+        history=[AnsweredQuestion('Methodology Reviewer','Why?','Uhm, we limit the claim.',input_provenance={
+            'method':'voice','audio_ms':12000,'delivery_evidence':{'version':1,'source':'server_pcm_samples',
+            'capture_ms':12000,'recognition_confidence':'not_provided','configured_language':'en'}})]
+        client=Client(CoachingDraft(summary='The team explained scope.',strengths=[],improvements=[],next_step='Practice the limits.'))
+        generate_coaching_report([ProjectFile('paper.md','A campus pilot.','research_text')],history,'offline-key',client=client,
+            defense_type='research',overview_only=True)
+        prompt=client.calls[0]['input'][0]['content']
+        for restriction in ('never invent pace, pause or filler totals','Do not treat transcription uncertainty as poor speaking',
+                            'psychological confidence','pronunciation','natural language particles'):
+            self.assertIn(restriction,prompt)
+        self.assertIn('server_pcm_samples',client.calls[0]['input'][1]['content'])

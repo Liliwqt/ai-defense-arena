@@ -9,7 +9,7 @@ from typing import Literal, Sequence
 from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI, OpenAIError
 from pydantic import BaseModel, StrictInt, StrictBool, create_model, ConfigDict, field_validator
 
-from backend.research_coaching import AnswerCardDraft, CARD_GUIDANCE, MAX_SHORT_REPORT_TURNS, build_cards, validate_complete, has_discussion, factual_cards, validate_overview, validate_section, COACHING_BATCH_SIZE
+from backend.research_coaching import AnswerCardDraft, CARD_GUIDANCE, MAX_SHORT_REPORT_TURNS, build_cards, validate_complete, has_discussion, factual_cards, validate_overview, validate_section, COACHING_BATCH_SIZE, DELIVERY_GUIDANCE
 from backend.project_files import MAX_TOTAL_BYTES, ProjectFile
 from backend.research_panel import RESEARCH_ROLE_GUIDANCE, research_panel_guidance, serialize_research_scope
 
@@ -1162,7 +1162,7 @@ def generate_coaching_report(
     if section_turns is not None:
         card_guidance = card_guidance.replace('every recorded turn', f'only these required zero-based turn indices: {list(section_turns)}')
     if overview_only:
-        card_guidance = 'Return the grounded team overview and optional closing only; answer cards are generated in separate admitted sections. '
+        card_guidance = 'Return the grounded team overview and optional closing only; answer cards are generated in separate admitted sections. ' + DELIVERY_GUIDANCE
 
     response = client.responses.parse(
         model=model,
