@@ -99,7 +99,7 @@ export function AnswerComposer({ active = true, playerToken, roomState, connecte
           {actionError && <p role="alert">{actionError}</p>}
         </div>
       ) : canWrite && voiceMode && roomState && !probing ? <VoiceAnswer state={roomState} token={playerToken}
-        active={active && connected && !previewMode && !waitingForAnswerAck} onSend={onSendEvent} direct={direct}
+        active={active && connected && !previewMode} onSend={onSendEvent} direct={direct}
         actionError={actionError} onTyping={() => {setDraft("");setVoiceMode(false);}} /> : canWrite ? (
         <form id="answer-form" onSubmit={submitAnswer}>
           {!probing && roomState?.defense_type !== "code" && roomState?.voice?.enabled && !isNativeShell() && <div className="voice-mode-choice">

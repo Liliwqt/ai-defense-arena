@@ -6,7 +6,9 @@ export async function startCapture(onFrame: (frame: ArrayBuffer) => void, onFail
   const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }, video: false });
   const stopTracks = () => stream.getTracks().forEach(track => track.stop());
   if (!current()) { stopTracks(); throw new Error('Voice capture was cancelled.'); }
-  const context = new AudioContext({ sampleRate: 24000 });
+  let context: AudioContext;
+  try { context = new AudioContext({ sampleRate: 24000 }); }
+  catch (error) { stopTracks(); throw error; }
   let node: AudioWorkletNode | null = null;
   let source: MediaStreamAudioSourceNode | null = null;
   let flushed: (() => void) | null = null;

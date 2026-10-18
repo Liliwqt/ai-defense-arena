@@ -47,7 +47,7 @@ beforeEach(() => {
 });
 afterEach(()=>{vi.unstubAllGlobals();vi.clearAllMocks();});
 it('captures explicitly, shows read-only words and finalizes once only after manual Send',async()=>{
-  render(<App/>);
+  const view=render(<App/>);
   expect(getUserMedia).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole('button',{name:'Use voice'}));
   expect(screen.getByText(/30 days/)).toBeVisible();
@@ -66,6 +66,9 @@ it('captures explicitly, shows read-only words and finalizes once only after man
   await act(async()=>speech.event({type:'ready',attempt_id:'attempt-1',text:'We plan a campus pilot.'}));
   expect(roomSocket.sendEvent).toHaveBeenCalledTimes(1);
   expect(roomSocket.sendEvent).toHaveBeenCalledWith({type:'submit_answer',turn:0,answer:'We plan a campus pilot.',voice_attempt:'attempt-1'});
+  roomSocket.waitingForAnswerAck=true;view.rerender(<App/>);
+  expect(speech.readyState).toBe(1);
+  expect(screen.getByRole('textbox',{name:'Spoken answer'})).toHaveValue('We plan a campus pilot.');
 });
 
 it('requires explicit draft replacement and permits a fresh typed answer after mic denial',async()=>{
@@ -111,4 +114,12 @@ it('navigation stops capture, ignores old callbacks and never resumes the microp
   expect(getUserMedia).toHaveBeenCalledTimes(1);
   expect(screen.getByRole('textbox',{name:'Spoken answer'})).toHaveValue('');
   expect(roomSocket.sendEvent).not.toHaveBeenCalled();
+});
+
+it('stops acquired tracks when audio context construction fails',async()=>{
+  vi.stubGlobal('AudioContext',class { constructor(){throw new Error('Audio context unavailable');} });
+  render(<App/>);await userEvent.click(screen.getByRole('button',{name:'Use voice'}));
+  await userEvent.click(screen.getByRole('button',{name:'Start mic'}));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Audio context unavailable');
+  expect(stopTrack).toHaveBeenCalled();expect(SpeechSocket.sockets).toHaveLength(0);
 });

@@ -95,6 +95,8 @@ class SpeechAttempt:
     id: str = field(default_factory=lambda: secrets.token_hex(24))
     transcript: Transcript = field(default_factory=Transcript)
     status: str = 'starting'
+    children: list[asyncio.Task] = field(default_factory=list, repr=False)
+    padding_samples: int = 0
     frames: int = 0
     last_published: float = 0
     samples: int = 0
@@ -119,6 +121,9 @@ class SpeechState:
         current, self.current = self.current, None
         if current:
             current.status = 'stopped'
+            for child in current.children:
+                if child is not asyncio.current_task():
+                    child.cancel()
             if current.task is not asyncio.current_task():
                 current.task.cancel()
 
@@ -151,7 +156,7 @@ def validate_submission(owner, actor, turn, text, attempt_id):
             or text != attempt.transcript.text(final_only=True) or not text):
         raise ValueError('This voice draft is not a current finalized answer. Nothing was accepted; use typing or record again.')
     return {'method': 'voice', 'provider': 'OpenAI', 'model': speech_provider.MODEL,
-            'audio_ms': attempt.samples * 1000 // RATE}
+            'audio_ms': attempt.samples * 1000 // RATE, 'padding_ms': attempt.padding_samples * 1000 // RATE}
 
 
 def ready_event(attempt):
@@ -197,6 +202,14 @@ async def run_speech(owner, actor, socket, hello):
                     raise ValueError('Voice authorization ended. Nothing was submitted.')
                 attempt.status = 'listening'
             await send({'type': 'started', 'attempt_id': attempt.id, **room.speech.snapshot()})
+            async def forward(events):
+                # No await between the last authorization check and beginning IO.
+                # Revocation directly cancels these children, including blocked writes.
+                for payload in events:
+                    if not authorized(owner, attempt):
+                        raise ValueError('Voice authorization ended. Nothing was submitted.')
+                    await asyncio.wait_for(upstream.send(payload), .5)
+
             async def client_events():
                 while True:
                     event = await socket.receive()
@@ -215,6 +228,7 @@ async def run_speech(owner, actor, socket, hello):
                             samples = len(frame) // 2
                             if attempt.samples + samples > (monotonic() - attempt.started + .5) * RATE:
                                 raise ValueError('Audio arrived faster than real time. Nothing was submitted.')
+                            events = []
                             remaining = allowance() - room.speech.used
                             frame = frame[:remaining * 2]
                             if frame:
@@ -222,16 +236,17 @@ async def run_speech(owner, actor, socket, hello):
                                 room.speech.used += len(frame) // 2
                                 attempt.samples += len(frame) // 2
                                 attempt.buffered += len(frame) // 2
-                                await asyncio.wait_for(upstream.send(speech_provider.audio_event(frame)), .5)
+                                events.append(speech_provider.audio_event(frame))
                             if attempt.buffered >= RATE * 2:
-                                await commit(upstream, attempt)
+                                events.append(commit_event(attempt))
                             capped = room.speech.used >= allowance()
                             if capped:
-                                await finish(upstream, attempt)
+                                events.extend(finish_events(room, attempt))
                             publish_usage = capped or monotonic() - attempt.last_published >= 1
                             if publish_usage:
                                 attempt.last_published = monotonic()
                                 room.revision += 1
+                        await forward(events)
                         await send({'type': 'allowance', 'capped': capped, **room.speech.snapshot()})
                         if publish_usage:
                             await owner._publish()
@@ -247,8 +262,11 @@ async def run_speech(owner, actor, socket, hello):
                         async with room.lock:
                             if not authorized(owner, attempt) or attempt.status not in {'listening', 'finalizing', 'ready'}:
                                 raise ValueError('This voice attempt has ended.')
-                            if attempt.status == 'listening':
-                                await finish(upstream, attempt)
+                            events = finish_events(room, attempt) if attempt.status == 'listening' else []
+                        await forward(events)
+                        async with room.lock:
+                            if not authorized(owner, attempt):
+                                raise ValueError('Voice authorization ended. Nothing was submitted.')
                             finalized = ready_event(attempt)
                         await send(finalized or {'type': 'finalizing'})
             async def provider_events():
@@ -273,6 +291,7 @@ async def run_speech(owner, actor, socket, hello):
                         if monotonic() - attempt.started > 125:
                             raise ValueError('Voice attempt time limit reached. Nothing was submitted; use typing.')
             tasks = [asyncio.create_task(job()) for job in (client_events, provider_events, watchdog)]
+            attempt.children = tasks
             try:
                 done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
                 for task in done:
@@ -307,18 +326,29 @@ async def run_speech(owner, actor, socket, hello):
             pass
 
 
-async def commit(upstream, attempt):
+def commit_event(attempt):
+    if not attempt.buffered:
+        raise ValueError('There is no audio to finalize.')
+    attempt.commits += 1
+    attempt.buffered = 0
+    return json.dumps({'type': 'input_audio_buffer.commit'})
+
+
+def finish_events(room, attempt):
+    events = []
+    if 0 < attempt.buffered < RATE // 10:
+        padding = RATE // 10 - attempt.buffered
+        if room.speech.used + padding > allowance():
+            raise ValueError('The voice cap left a segment too short to finalize. Nothing was submitted; use typing.')
+        room.speech.used += padding
+        attempt.samples += padding
+        attempt.padding_samples += padding
+        attempt.buffered += padding
+        events.append(speech_provider.audio_event(bytes(padding * 2)))
     if attempt.buffered:
-        if attempt.buffered < RATE // 10:
-            raise ValueError('Recording was too short to finalize. Nothing was submitted; record again or type.')
-        await asyncio.wait_for(upstream.send(json.dumps({'type': 'input_audio_buffer.commit'})), .5)
-        attempt.commits += 1
-        attempt.buffered = 0
-
-
-async def finish(upstream, attempt):
-    await commit(upstream, attempt)
+        events.append(commit_event(attempt))
     if attempt.commits == 0:
         raise ValueError('Record an answer before sending. Nothing was submitted.')
     attempt.status = 'finalizing'
     attempt.finalizing_at = monotonic()
+    return events

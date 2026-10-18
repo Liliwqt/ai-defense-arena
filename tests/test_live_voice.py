@@ -257,3 +257,48 @@ class LiveVoiceProtocolTests(unittest.TestCase):
                 self.assertIn('not a current finalized',event['message'])
                 self.assertEqual(len(provider.forwarded),1)
         self.answering(check)
+
+    def test_short_final_tail_is_padded_and_accounted_without_losing_the_answer(self):
+        clock=[100.0]
+        def check(socket,state,provider):
+            with self.client.websocket_connect(f"/ws/{state['room_code']}/speech") as speech:
+                speech.send_json(self.hello(state));started=speech.receive_json()
+                for _ in range(20):
+                    clock[0]+=.1;speech.send_bytes(bytes(4800));self.speech_until(speech,'allowance')
+                clock[0]+=.05;speech.send_bytes(bytes(2400));self.speech_until(speech,'allowance')
+                speech.send_json({'type':'finalize'})
+                ready=self.speech_until(speech,'ready')
+                socket.send_json({'type':'submit_direct_answer','turn':0,'answer':ready['text'],'voice_attempt':started['attempt_id']})
+                accepted=self.until(socket,allow_retry=True)
+                while accepted['turns'][0]['answer'] is None:accepted=self.until(socket,allow_retry=True)
+                provenance=accepted['turns'][0]['input_provenance']
+                self.assertEqual(provenance['audio_ms'],2100)
+                self.assertEqual(provenance['padding_ms'],50)
+                self.assertEqual(accepted['voice']['remaining_ms'],597900)
+        with patch('backend.rooms.speech.monotonic',side_effect=lambda:clock[0]):self.answering(check)
+
+    def test_slow_provider_write_does_not_block_chat_or_restart_revocation(self):
+        import threading,time
+        provider=FakeSpeechSocket();entered=threading.Event();cancelled=threading.Event()
+        original=provider.send
+        async def slow(raw):
+            if json.loads(raw)['type']=='input_audio_buffer.append':
+                entered.set()
+                try:await asyncio.sleep(5)
+                finally:cancelled.set()
+            else:await original(raw)
+        provider.send=slow
+        def check(socket,state,provider):
+            with self.client.websocket_connect(f"/ws/{state['room_code']}/speech") as speech:
+                speech.send_json(self.hello(state));speech.receive_json()
+                speech.send_bytes(bytes(4800));self.assertTrue(entered.wait(1))
+                start=time.monotonic()
+                socket.send_json({'type':'send_chat','text':'Provider must not block this.'})
+                fresh=self.until(socket,'question')
+                while not any(item['text']=='Provider must not block this.' for item in fresh['chat']):fresh=self.until(socket,'question')
+                self.assertLess(time.monotonic()-start,.4)
+                socket.send_json({'type':'restart'})
+                self.assertEqual(speech.receive_json()['type'],'stopped')
+                self.assertTrue(cancelled.wait(1))
+                self.assertEqual(provider.forwarded,[])
+        self.answering(check,provider)

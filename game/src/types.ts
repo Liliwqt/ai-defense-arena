@@ -50,7 +50,7 @@ export interface Turn {
   is_follow_up?: boolean;
   assigned_seat?: number | null;
   answered_by: string | null;
-  input_provenance?: {method: "voice"; provider: string; model: string; audio_ms: number} | null;
+  input_provenance?: {method: "voice"; provider: string; model: string; audio_ms: number; padding_ms?: number} | null;
   answered_by_seat?: number | null;
 }
 

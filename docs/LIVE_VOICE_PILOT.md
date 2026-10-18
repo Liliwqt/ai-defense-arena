@@ -28,6 +28,9 @@ are at most9600bytes, at most60frames/second with bounded startup buffering, and
 may not arrive faster than real audio duration. Actual forwarded sample counts
 are authoritative. Reserved writes with uncertain network failure count
 conservatively against the allowance; reconnect/discard never restore usage.
+A short final segment is padded to the provider minimum with bounded silence;
+that padding consumes allowance and is recorded separately from actual input.
+Provider writes run outside the room lock; revocation cancels blocked writes.
 Raw audio is not archived, written to disk or browser storage. Temporary frames,
 provider queues and transcript/segment identities are bounded. Text overflow is
 rejected, never truncated into another answer. Client controls cannot inject
