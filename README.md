@@ -33,9 +33,12 @@ Offline request/room checks establish context and synchronization, not live
 wording quality. See the [clarity review record](docs/PANELIST_CONVERSATION_CLARITY_REVIEW.md).
 
 The second local checkpoint adds an optional final closing from the last reviewer,
-generated with the coaching report in the same request. The run is already
+generated with the coaching report in the same request. For code-only defenses, the run is already
 complete and settled while the closing appears for 4–12 seconds, then Transcript
-opens with coaching. Reconnect resumes the remaining interval. Empty or unusable
+opens with coaching. Research/mixed defenses now show that closing once the
+overview is ready, then progressively expose answer coaching. Their financial
+completion waits for all required sections and the durable completion write.
+See [progressive coaching and recovery](docs/RESEARCH_COACHING.md). Reconnect resumes the remaining interval. Empty or unusable
 closing text skips that moment without losing valid coaching; an actual coaching
 failure retains its existing recovery. Closing remarks stay in Transcript and
 summary downloads; Streamlit shows them inline with its report. Preview the
