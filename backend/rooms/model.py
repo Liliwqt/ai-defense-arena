@@ -157,6 +157,7 @@ class Room(TimedTurn):
         feedback_dict = None
         if self.feedback is not None:
             feedback_dict = {
+                "answer_cards": self.feedback.answer_cards,
                 "summary": self.feedback.summary,
                 "strengths": self.feedback.strengths,
                 "improvements": self.feedback.improvements,

@@ -1,6 +1,7 @@
 """Offline contracts for a confirmed research lens throughout dialogue."""
 
 import json
+from tests.research_coaching_fixtures import with_cards
 import unittest
 from types import SimpleNamespace
 
@@ -106,7 +107,7 @@ class ResearchScopeRoomTests(unittest.TestCase):
             output = CoachingDraft(summary="The team discussed recruitment. Remaining topics need practice.",
                 strengths=[{"turn": 0, "text": "Explained who could join."}],
                 improvements=[{"turn": 0, "text": "Justify recruitment coverage."}], next_step="Practice the unresolved topics.")
-            return generate_coaching_report(files, history, key, model, client=ParsedClient(output), **kwargs)
+            return generate_coaching_report(files, history, key, model, client=ParsedClient(with_cards(output,history)), **kwargs)
         with patch("backend.rooms.planning.generate_research_plan", return_value=self.plan) as mapper, \
                 patch("backend.rooms.questions.generate_research_move", side_effect=ask), \
                 patch("backend.rooms.submissions.interpret_submission", side_effect=interpret), \
@@ -178,9 +179,9 @@ class ResearchApproachRequestTests(unittest.TestCase):
                     defense_type=mode, research_stage=stage)
                 session.submit_answer("We rely on the stated design and would report its limitations.")
                 session.end()
-                coaching_client = ParsedClient(CoachingDraft(summary="The team explained its approach.",
+                coaching_client = ParsedClient(with_cards(CoachingDraft(summary="The team explained its approach.",
                     strengths=[{"turn": 0, "text": "Explained a reason."}], improvements=[{"turn": 0, "text": "Clarify a limitation."}],
-                    next_step="Practice the outstanding topics."))
+                    next_step="Practice the outstanding topics."), session.answered_history()))
                 generate_coaching_report(files, session.answered_history(), "offline-key", client=coaching_client,
                     research_context=session.context(), defense_type=mode, research_stage=stage)
                 question_data = json.loads(question_client.calls[0]["input"][1]["content"].split("Server research context (data):\n",1)[1].split("\n\nAll accepted sources:",1)[0])
@@ -218,10 +219,10 @@ class ResearchScopeStreamlitTests(unittest.TestCase):
             return mocked_move(files, key, context=context, history=history, **kwargs)
         def coach(files, history, key, model, **kwargs):
             scopes.append(kwargs["research_context"]["plan"]["profile"])
-            return generate_coaching_report(files, history, key, model, client=ParsedClient(CoachingDraft(
+            return generate_coaching_report(files, history, key, model, client=ParsedClient(with_cards(CoachingDraft(
                 summary="The team explained a recruitment choice.", strengths=[{"turn":0,"text":"Identified possible volunteers."}],
                 improvements=[{"turn":0,"text":"Explain coverage limitations."}],next_step="Practice the unresolved topics.",
-                closing="That explains the recruitment choice. Review the remaining topics below.")), **kwargs)
+                closing="That explains the recruitment choice. Review the remaining topics below."),history)), **kwargs)
         with patch.dict(os.environ, {"OPENAI_API_KEY":"offline-key"}), \
                 patch("backend.research_plan.generate_research_plan", return_value=session.plan) as mapper, \
                 patch("backend.defense_session.generate_research_move", side_effect=ask), \

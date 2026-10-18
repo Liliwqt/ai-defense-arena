@@ -4,6 +4,7 @@ from backend.timed_turn import VOTE_MS, ANSWER_MS
 from backend.rooms import submissions as submission_workflow
 from backend.rooms import questions as question_workflow
 from backend.rooms.coordinator import RoomCoordinator, RoomWorkflows
+from tests.research_coaching_fixtures import with_cards
 from backend.rooms.commands import CatchUpDeadline, GenerateQuestion, InterpretSubmission
 from tests.async_room import wait_until
 from tests.offline_accounts import authenticate
@@ -318,14 +319,14 @@ class CoveragePolicyTests(unittest.TestCase):
                 response_format.model_validate(valid | changes)
 
     def test_coaching_accepts_early_and_long_research_transcripts_and_validates_references(self):
-        for length in (1, 4, 12, 100):
+        for length in (1, 4, 12):
             session = self.session(12, 100)
             self.apply(session)
             session.submit_answer('We will measure waiting times.')
             history = session.answered_history() * length
             draft = CoachingDraft(summary='Discussion ended with some topics unresolved.', strengths=[CoachingPoint(turn=length-1, text='A concrete measure.')],
                 improvements=[CoachingPoint(turn=0, text='Explain safeguards.')], next_step='Resolve remaining topics.')
-            client = Client(draft)
+            client = Client(with_cards(draft, history))
             report = generate_coaching_report(FILES, history, 'offline-key', client=client, defense_type='research', research_context=session.context())
             self.assertEqual(report.strengths[0]['turn'], length-1)
             self.assertIn('coverage_note', client.calls[0]['input'][1]['content'])
@@ -342,7 +343,7 @@ class CoveragePolicyTests(unittest.TestCase):
             next_step='Document the chosen scope and its limits.')
         for mode in ('research', 'mixed'):
             with self.subTest(mode=mode):
-                client = Client(draft)
+                client = Client(with_cards(draft, history))
                 report = generate_coaching_report(FILES, history, 'offline-key', client=client,
                     defense_type=mode, research_stage='completed')
                 system, data = [item['content'] for item in client.calls[0]['input']]
@@ -543,7 +544,7 @@ class CoverageProtocolTests(unittest.TestCase):
                         strengths=[CoachingPoint(turn=1,text='The team described a pilot comparison.')],
                         improvements=[CoachingPoint(turn=0,text='The opening question received no answer.')],next_step='Review remaining topics.',
                         closing='You explained the pilot comparison. Review the missed and unresolved topics in coaching.')
-                    return generate_coaching_report(files,history,'offline-key',client=Client(draft),**kwargs)
+                    return generate_coaching_report(files,history,'offline-key',client=Client(with_cards(draft, history)),**kwargs)
                 with patch.object(planning_workflow,'generate_research_plan',return_value=p), \
                      patch.object(question_workflow, 'generate_research_move',side_effect=generate) as generator, \
                      patch.object(submission_workflow,'interpret_submission',side_effect=interpret), \

@@ -9,6 +9,7 @@ from typing import Literal, Sequence
 from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI, OpenAIError
 from pydantic import BaseModel, StrictInt, StrictBool, create_model, ConfigDict, field_validator
 
+from backend.research_coaching import AnswerCardDraft, CARD_GUIDANCE, MAX_SHORT_REPORT_TURNS, build_cards, validate_complete, has_discussion, factual_cards
 from backend.project_files import MAX_TOTAL_BYTES, ProjectFile
 from backend.research_panel import RESEARCH_ROLE_GUIDANCE, research_panel_guidance, serialize_research_scope
 
@@ -102,6 +103,10 @@ class CoachingDraft(BaseModel):
     @classmethod
     def valid_closing(cls, value: object) -> str:
         return normalize_closing(value)
+
+
+class ResearchCoachingDraft(CoachingDraft):
+    answer_cards: list[AnswerCardDraft]
 
 
 @dataclass(frozen=True)
@@ -220,6 +225,9 @@ class AnsweredQuestion:
     topic_id: str | None = None
     is_follow_up: bool = False
     probe: PanelistProbe | None = None
+    input_provenance: dict | None = None
+    probe_input_provenance: dict | None = None
+    ended_early: bool = False
 
 
 @dataclass(frozen=True)
@@ -229,6 +237,7 @@ class CoachingReport:
     improvements: list[dict]
     next_step: str
     closing: str = ""
+    answer_cards: list[dict] | None = None
 
     def __post_init__(self):
         object.__setattr__(self, "closing", normalize_closing(self.closing))
@@ -555,6 +564,8 @@ def serialize_transcript(history: Sequence[AnsweredQuestion]) -> str:
          "citation": _citation_data(item.citation),
          "topic_id": item.topic_id, "is_follow_up": item.is_follow_up,
          "clarifications": [c.__dict__ for c in item.clarifications],
+         "input_provenance": item.input_provenance, "probe_input_provenance": item.probe_input_provenance,
+         "ended_early": item.ended_early,
          "probe": asdict(item.probe) if item.probe else None}
         for index, item in enumerate(history)
     ], ensure_ascii=False)
@@ -1111,11 +1122,18 @@ def generate_coaching_report(
     research_context: dict | None = None,
 ) -> CoachingReport:
     """Generate one shared coaching report after a completed adaptive defense."""
+    if defense_type != "code" and not has_discussion(history):
+        return CoachingReport("The host ended before any answer or timeout was recorded. No discussion coverage was confirmed.",
+            [], [], "Review the paper map and practice a direct answer when ready.", answer_cards=factual_cards(history))
+    closing_history = [item for item in history if not item.ended_early]
     minimum, maximum = (MIN_TURNS, MAX_TURNS) if defense_type == "code" else (1, 100)
     if not minimum <= len(history) <= maximum:
         raise QuestionGenerationError(
             f"Coaching requires {minimum} to {maximum} resolved turns; got {len(history)}."
         )
+
+    if defense_type != "code" and len(history) > MAX_SHORT_REPORT_TURNS:
+        raise QuestionGenerationError("Coaching exceeds the current complete-report limit. Your answers are saved; use recovery controls.")
 
     api_key = (api_key or "").strip()
     if not api_key:
@@ -1142,13 +1160,14 @@ def generate_coaching_report(
                 "role": "system",
                 "content": (
                     "You are a practice-defense coach reviewing a team's complete defense. "
+                    f"{CARD_GUIDANCE if defense_type != 'code' else ''} "
                     f"{PROBE_CONTEXT_GUIDANCE} "
                     f"{_research_guidance(defense_type, research_stage)} "
                     f"{research_panel_guidance(defense_type)}"
                     f"{_research_advice_guidance(defense_type, history, coaching=True)}"
                     f"{_language_guidance(history)} "
                     "For the optional closing only, use the final resolved question's reviewer voice: "
-                    f"{_role_guidance(history[-1].panelist, defense_type) if history[-1].panelist in PANELISTS else ''} "
+                    f"{_role_guidance(closing_history[-1].panelist, defense_type) if closing_history and closing_history[-1].panelist in PANELISTS else ''} "
                     f"{CONVERSATION_GUIDANCE} "
                     "Return closing as an optional brief statement about that final exchange, including any probe reply. "
                     "Use zero to two sentences and at most 300 characters; an empty string is welcome. "
@@ -1182,7 +1201,7 @@ def generate_coaching_report(
                 ),
             },
         ],
-        text_format=CoachingDraft,
+        text_format=CoachingDraft if defense_type == "code" else ResearchCoachingDraft,
     )
 
     draft = response.output_parsed
@@ -1214,19 +1233,30 @@ def generate_coaching_report(
         raise QuestionGenerationError("Coaching next step is empty. Please try again.")
 
     strengths = _validate_points(draft.strengths, "strength")
-    if any(history[point["turn"]].timed_out for point in strengths):
+    if any(history[point["turn"]].timed_out or history[point["turn"]].answer is None for point in strengths):
         raise QuestionGenerationError("Coaching strength cites an unanswered turn. Please try again.")
     if not any(item.answer is not None for item in history) and strengths:
         raise QuestionGenerationError("Coaching cannot claim a strength without an answer. Please try again.")
     improvements = _validate_points(draft.improvements, "improvement")
 
-    return CoachingReport(
+    try:
+        cards = build_cards(getattr(draft, "answer_cards", None), history) if defense_type != "code" else None
+    except ValueError as error:
+        raise QuestionGenerationError(str(error)) from error
+    report = CoachingReport(
+        answer_cards=cards,
         summary=summary,
         strengths=strengths,
         improvements=improvements,
         next_step=next_step,
         closing=getattr(draft, "closing", ""),
     )
+    try:
+        validate_complete(report, history, defense_type)
+    except ValueError as error:
+        raise QuestionGenerationError(str(error)) from error
+    return report
+
 
 
 _QUOTA_CODES = {

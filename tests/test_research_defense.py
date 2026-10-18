@@ -1,3 +1,4 @@
+from tests.research_coaching_fixtures import with_cards
 from tests.research_profile_fixtures import research_profile
 from backend.rooms.commands import CatchUpDeadline
 from backend.rooms import coaching as coaching_workflow
@@ -370,7 +371,7 @@ class ResearchTwoClientTests(unittest.TestCase):
                 report = CoachingReport('Review complete.', [{'turn': 0, 'text': 'Specific plan.'}],
                                          [{'turn': 1, 'text': 'Clarify ethics.'}], 'Run a pilot.')
                 with patch.object(question_workflow, 'generate_research_move', side_effect=moves), \
-                     patch.object(coaching_workflow, 'generate_coaching_report', return_value=report):
+                     patch.object(coaching_workflow, 'generate_coaching_report', side_effect=lambda files,history,*args,**kwargs:with_cards(report,history)):
                     with self.client.websocket_connect(f"/ws/{host['room_code']}") as host_ws, \
                          self.client.websocket_connect(f"/ws/{host['room_code']}") as guest_ws:
                         host_ws.send_json({'type': 'hello', 'token': host['player_token']})

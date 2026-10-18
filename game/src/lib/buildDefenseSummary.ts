@@ -1,4 +1,4 @@
-import type { RoomState, Turn } from "../types";
+import type { AnswerFeedback, RoomState, Turn } from "../types";
 
 /**
  * Build a plain-text export of one completed defense.
@@ -124,6 +124,7 @@ export function buildDefenseSummary(state: RoomState): string {
     state.turns.forEach((turn, index) => lines.push(...turnLines(turn, index, !!state.defense_type && state.defense_type !== "code")));
   }
 
+  if (state.defense_type && state.defense_type !== "code") lines.push(`Coaching status: ${state.feedback_status}`, "");
   if (state.feedback) {
     if (state.feedback.closing) {
       const panelist = state.defense_type && state.defense_type !== "code" && state.closing_panelist === "Critical Judge"
@@ -143,6 +144,13 @@ export function buildDefenseSummary(state: RoomState): string {
     if (state.feedback.improvements.length > 0) {
       lines.push("Areas to improve");
       for (const item of state.feedback.improvements) lines.push(`  - Q${item.turn + 1}: ${item.text}`);
+      lines.push("");
+    }
+    for (const card of state.feedback.answer_cards ?? []) {
+      lines.push(`Q${card.turn+1} · DETAILED COACHING`, card.question,
+        `Original (${card.speaker_name ?? "Defender"}): ${card.original_answer ?? "No answer recorded."}`);
+      appendFeedback(lines, card.feedback, "Answer coaching");
+      if(card.probe_feedback) appendFeedback(lines, card.probe_feedback, `Reply coaching · ${card.probe?.speaker_name ?? "Defender"}`);
       lines.push("");
     }
     if (state.feedback.next_step) {
@@ -165,4 +173,14 @@ export function defenseSummaryFileName(state: RoomState): string {
     ? "export"
     : date.toISOString().slice(0, 10);
   return `defense-${safeFileName(state.room_code || "room")}-${stamp}.txt`;
+}
+
+
+function appendFeedback(lines: string[], feedback: AnswerFeedback, title: string) {
+  lines.push(title);
+  for(const text of feedback.strengths)lines.push(`  Worked: ${text}`);
+  for(const text of feedback.improvements)lines.push(`  Improve: ${text}`);
+  if(feedback.stronger_answer)lines.push(`  ${feedback.wording_basis==="conditional"?"Conditional scaffold":"Suggested wording"}: ${feedback.stronger_answer}`);
+  if(feedback.wording_examples.length)lines.push(`  Captured wording: ${feedback.wording_examples.join("; ")}; no spoken filler total established.`);
+  lines.push(`  Practice task: ${feedback.practice_task}`);
 }

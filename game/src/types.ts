@@ -71,7 +71,32 @@ export interface CoachingPoint {
   text: string;
 }
 
+export interface AnswerFeedback {
+  strengths: string[];
+  improvements: string[];
+  stronger_answer: string | null;
+  wording_basis: "supported" | "conditional" | "unanswered";
+  practice_task: string;
+  wording_examples: string[];
+}
+
+export interface AnswerCoachingCard {
+  turn: number;
+  question: string;
+  panelist: string;
+  original_answer: string | null;
+  speaker_name: string | null;
+  timed_out: boolean;
+  ended_early?: boolean;
+  probe: PanelistProbe | null;
+  input_provenance?: Turn["input_provenance"];
+  citation?: {filename: string; evidence_line: number; evidence_text: string; evidence_location?: string} | null;
+  feedback: AnswerFeedback;
+  probe_feedback: AnswerFeedback | null;
+}
+
 export interface CoachingFeedback {
+  answer_cards?: AnswerCoachingCard[] | null;
   summary: string;
   strengths: CoachingPoint[];
   improvements: CoachingPoint[];

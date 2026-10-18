@@ -1,3 +1,4 @@
+import { AnswerCoaching } from "./AnswerCoaching";
 import type { CoachingFeedback, FeedbackStatus } from "../types";
 
 interface CoachingReportProps {
@@ -33,6 +34,7 @@ export function CoachingReport({ feedbackStatus, feedback, closingPanelist, fail
             <span>Q{item.turn + 1} · </span>{item.text}
           </p>)}
         </div>}
+        {feedback.answer_cards && feedback.answer_cards.length > 0 && <AnswerCoaching cards={feedback.answer_cards} />}
         {feedback.next_step && <div className="report-group">
           <h4>Next Step</h4>
           <p className="report-point">{feedback.next_step}</p>

@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+from tests.research_coaching_fixtures import with_cards
 import unittest
 from unittest.mock import patch
 
@@ -310,7 +311,7 @@ class LifecycleCoordinationTests(unittest.IsolatedAsyncioTestCase):
 
                 async def coach(request):
                     reports.append(request)
-                    return CoachingReport("Current closing report", [], [], "Review the remaining topics.")
+                    return with_cards(CoachingReport("Current closing report", [], [], "Review the remaining topics."),request.history)
 
                 async def deliver(socket, payload):
                     await socket.send_json(payload)

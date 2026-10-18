@@ -612,3 +612,21 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .arena-shell[data-speaker-desk="true"] #room-dock:has(.voice-answer) > .voice-remaining { display: none; }
 
 .arena-shell[data-speaker-desk="true"] #answer-form { display: flex; flex-direction: column; gap: 10px; }
+
+/* Research results keep one answer in focus while retaining the full transcript. */
+.answer-coaching { margin-top: 20px; }
+.answer-coaching h4 { margin: 12px 0; font-size: 1rem; }
+.coaching-selector { display: grid; gap: 8px; margin: 16px 0; }
+.coaching-selector select { width: 100%; min-width: 0; padding: 12px; font: inherit; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--base); }
+.coaching-navigation { display: flex; gap: 8px; flex-wrap: wrap; }
+.coaching-navigation button { padding: 10px 14px; }
+.coaching-detail { min-width: 0; overflow-wrap: anywhere; }
+.coaching-detail details, .full-transcript { margin: 12px 0; padding: 14px; border: 1px solid var(--line); border-radius: 10px; }
+.coaching-detail summary, .full-transcript > summary { cursor: pointer; font-weight: 750; }
+.coaching-detail p, .coaching-detail li { font-size: .9rem; line-height: 1.6; }
+.coaching-detail h5 { font-size: .95rem; margin: 18px 0 12px; }
+.coaching-detail h6 { font-size: .85rem; margin: 14px 0 6px; }
+.coaching-evidence { color: var(--muted); }
+.original-answer, .practice-wording { white-space: pre-wrap; padding: 12px; border-left: 3px solid var(--accent); background: var(--base); }
+.coaching-detail blockquote { margin: 12px 0; padding: 12px; border-left: 2px solid var(--line); }
+@media(max-width:600px) { .coaching-detail details { padding: 10px; } .coaching-navigation { display: grid; grid-template-columns: 1fr 1fr; } .coaching-navigation button { min-width: 0; } }

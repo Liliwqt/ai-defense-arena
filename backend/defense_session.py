@@ -100,16 +100,22 @@ class DefenseSession:
         return self.needs_question and self.turns[-1].panelist == self.panelist_order[-1]
 
     def answered_history(self) -> list[AnsweredQuestion]:
+        return self._history()
+
+    def coaching_history(self) -> list[AnsweredQuestion]:
+        return self._history(include_ended=True)
+
+    def _history(self, *, include_ended=False) -> list[AnsweredQuestion]:
         return [
             AnsweredQuestion(
                 turn.panelist, turn.question.question, turn.answer, turn.timed_out,
                 turn.question.lead_in, tuple(turn.clarifications),
                 turn.speaker_name, turn.question,
                 turn.topic_id, turn.is_follow_up,
-                turn.probe,
+                turn.probe, turn.input_provenance, turn.probe_input_provenance, turn.ended_early,
             )
             for turn in self.turns
-            if turn.resolved
+            if turn.resolved or include_ended and turn.ended_early
         ]
 
     def submit_answer(self, answer: str, *, speaker_name: str | None = None) -> None:

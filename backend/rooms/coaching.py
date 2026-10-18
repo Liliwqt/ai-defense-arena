@@ -13,6 +13,7 @@ from backend.financial_policy import live_mode
 from backend.live_store import LiveStore
 from backend.project_files import ProjectFile
 from backend.question_generator import DEFAULT_MODEL, AnsweredQuestion, CoachingReport, generate_coaching_report
+from backend.research_coaching import validate_complete, has_discussion, factual_cards
 from backend.resource_limits import limit
 from backend.timed_turn import reaction_reading_ms
 from backend.rooms.commands import CommandResult, VerifiedActor
@@ -41,7 +42,8 @@ class CoachingInput:
 def capture_coaching(room: "Room") -> CoachingInput:
     """Capture under the room lock so later room mutations cannot change input."""
     context = room.defense.context() if isinstance(room.defense, ResearchDefenseSession) else None
-    return CoachingInput(tuple(room.files), tuple(copy.deepcopy(room.defense.answered_history())),
+    history = room.defense.coaching_history() if room.defense_type != "code" else room.defense.answered_history()
+    return CoachingInput(tuple(room.files), tuple(copy.deepcopy(history)),
                          copy.deepcopy(context), room.defense_type, room.research_stage)
 
 
@@ -62,12 +64,14 @@ async def run_coaching(owner: "RoomCoordinator", work: CoachingWork, request: Co
         async with room.lock:
             if not owner._coaching_current(work):
                 return
-            if request.history:
+            if has_discussion(request.history):
                 room.ai_budget.admit('coaching', limit('AI_COACHING_ATTEMPTS', 3, 10), room.owner_account_id or room.code)
-        if not request.history:
-            report = CoachingReport("The host ended the defense before any answer or timeout was recorded. No discussion coverage was confirmed.", [], [], "Review the paper map and start a new defense when the team is ready.")
+        if not has_discussion(request.history):
+            report = CoachingReport("The host ended the defense before any answer or timeout was recorded. No discussion coverage was confirmed.", [], [], "Review the paper map and start a new defense when the team is ready.",
+                answer_cards=factual_cards(request.history) if request.defense_type != "code" else None)
         else:
             report = await owner._workflows.coaching_request(request)
+        validate_complete(report, request.history, request.defense_type)
         async with room.lock:
             if not owner._coaching_current(work):
                 return
@@ -78,8 +82,9 @@ async def run_coaching(owner: "RoomCoordinator", work: CoachingWork, request: Co
             room.feedback = report
             room.feedback_status = "ready"
             owner._clear_clock()
-            if report.closing and request.history:
-                room.closing_panelist = request.history[-1].panelist
+            closing_history = [item for item in request.history if not item.ended_early]
+            if report.closing and closing_history:
+                room.closing_panelist = closing_history[-1].panelist
                 room.closing_deadline_ms = room.terminal_ms + reaction_reading_ms(report.closing)
                 next_clock = (room.clock_id, room.closing_deadline_ms)
             room.error = None

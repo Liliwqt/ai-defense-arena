@@ -16,6 +16,7 @@ from backend.defense_session import (
     advance_defense,
     sync_project_session,
 )
+from backend.streamlit_coaching import render_research_coaching
 from backend.defense_progression import prepare_progression
 from backend.project_files import (
     ALLOWED_EXTENSIONS,
@@ -350,14 +351,18 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                     st.caption(f"Ending reason: {session.completion_reason}")
                     unresolved = [t.title for t in session.plan.topics if session.coverage[t.id]["status"] != "addressed"]
                     st.write("Unresolved topics: " + (", ".join(unresolved) if unresolved else "none"))
+                coaching_history = session.coaching_history() if isinstance(session, ResearchDefenseSession) else session.answered_history()
                 report = st.session_state.get("research_coaching")
+                if isinstance(session, ResearchDefenseSession) and not session.answered_history() and report is None:
+                    report = generate_coaching_report(files, coaching_history, None, defense_type=mode)
+                    st.session_state["research_coaching"] = report
                 if not session.answered_history():
                     st.info("The host ended before any answer or timeout was recorded. No discussion coverage was confirmed.")
                 elif report is None and st.button("Generate coaching", disabled=not bool(api_key)):
                     try:
                         with st.spinner("Preparing coaching..."):
                             context = {"research_context": session.context()} if isinstance(session, ResearchDefenseSession) else {}
-                            report = generate_coaching_report(files, session.answered_history(), api_key, model,
+                            report = generate_coaching_report(files, coaching_history, api_key, model,
                                 defense_type=mode, research_stage=research_stage, **context)
                     except (QuestionGenerationError, OpenAIError, ValidationError) as exc:
                         st.error(generation_error_message(exc, model, api_key))
@@ -374,6 +379,8 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                     st.write(report.summary)
                     for point in report.strengths + report.improvements:
                         st.write(f"Question {point['turn'] + 1}: {point['text']}")
+                    if mode != "code" and report.answer_cards is not None:
+                        render_research_coaching(report.answer_cards)
                     st.write(report.next_step)
             elif session.needs_question:
                 st.info("Your answer is saved. Retry generating the next question.")

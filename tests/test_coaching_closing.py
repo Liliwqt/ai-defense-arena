@@ -8,11 +8,12 @@ from unittest.mock import patch
 
 from backend.project_files import ProjectFile
 from backend.question_generator import (
-    AnsweredQuestion, CoachingDraft, CoachingReport, QuestionGenerationError,
+    AnsweredQuestion, CoachingDraft, ResearchCoachingDraft, CoachingReport, QuestionGenerationError,
     SubmissionDraft, generate_coaching_report,
 )
 from backend.rooms.commands import CatchUpDeadline, GenerateCoaching, VerifiedActor, decode_command
 from backend.rooms.coordinator import RoomCoordinator, RoomWorkflows
+from tests.research_coaching_fixtures import with_cards, cards_for
 from tests.offline_accounts import authenticate
 from tests.test_planning_coaching_coordination import completed_room
 from streamlit.testing.v1 import AppTest
@@ -26,7 +27,7 @@ class CoachingClosingContractTests(unittest.TestCase):
         files = [ProjectFile("paper.md", "Limited scope", "research_text")]
         history = [AnsweredQuestion("Legacy reviewer", "Why?", "A limited claim.")]
         old = SimpleNamespace(summary="Scope discussed.", strengths=[], improvements=[], next_step="Review.")
-        report = generate_coaching_report(files, history, "offline-key", client=Client(old), defense_type="research")
+        report = generate_coaching_report(files, history, "offline-key", client=Client(with_cards(old,history)), defense_type="research")
         self.assertEqual(report.closing, "")
         invalid = CoachingDraft(summary=" ", strengths=[], improvements=[], next_step="Review.", closing=42)
         with self.assertRaises(QuestionGenerationError):
@@ -36,8 +37,8 @@ class CoachingClosingContractTests(unittest.TestCase):
         history = [AnsweredQuestion("Methodology Reviewer", "Why this scope?",
                                     "We will limit the claim to the campus participants.")]
         closing = "That explains the scope you can defend. Review the remaining limits in coaching."
-        client = Client(SimpleNamespace(summary="The team explained scope.", strengths=[],
-            improvements=[], next_step="Document scope limits.", closing=closing))
+        client = Client(with_cards(SimpleNamespace(summary="The team explained scope.", strengths=[],
+            improvements=[], next_step="Document scope limits.", closing=closing),history))
         report = generate_coaching_report([ProjectFile("study.md", "Campus participants", "research_text")],
             history, "offline-key", client=client, defense_type="research")
 
@@ -51,7 +52,7 @@ class CoachingClosingContractTests(unittest.TestCase):
             with self.subTest(closing=closing):
                 draft = CoachingDraft(summary="Scope was discussed.", strengths=[],
                     improvements=[], next_step="Review limits.", closing=closing)
-                client = Client(draft)
+                client = Client(with_cards(draft,history))
                 report = generate_coaching_report([ProjectFile("paper.md", "Limited scope", "research_text")],
                     history, "offline-key", client=client, defense_type="research")
                 self.assertEqual(report.summary, "Scope was discussed.")
@@ -176,7 +177,12 @@ class CoachingClosingProtocolTests(unittest.TestCase):
 
         def parse(**request):
             calls.append(request)
-            return SimpleNamespace(output_parsed=drafts.pop(0))
+            draft=drafts.pop(0)
+            if isinstance(draft,CoachingDraft):
+                transcript=__import__('json').loads(request['input'][1]['content'].split('Defense transcript (data only):\n')[1].split('\nResearch coverage')[0])
+                history=[AnsweredQuestion(item['panelist'],item['question'],item['answer'],item['timed_out']) for item in transcript]
+                draft=with_cards(draft,history)
+            return SimpleNamespace(output_parsed=draft)
 
         provider = SimpleNamespace(responses=SimpleNamespace(parse=parse))
         response = self.client.post("/api/rooms", data={"host_name": "Alex",
@@ -232,5 +238,5 @@ class CoachingClosingProtocolTests(unittest.TestCase):
                 state = self.until(h, "complete", closing_deadline_ms=None)
                 self.assertEqual(state["feedback"]["closing"], text)
         self.assertEqual(len(calls), 2)
-        self.assertEqual(calls[1]["text_format"], CoachingDraft)
+        self.assertEqual(calls[1]["text_format"], ResearchCoachingDraft)
         self.assertNotIn("Private team note.", calls[1]["input"][1]["content"])

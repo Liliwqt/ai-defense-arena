@@ -103,9 +103,10 @@ export function TranscriptPanel({ roomState, previewMode = false, presentation =
             feedback={roomState?.feedback ?? null}
             closingPanelist={presentation.closingPanelist || null}
           />
-          {turns.map((turn, index) => (
-            <TurnCard key={index} turn={turn} index={index} research={!!roomState?.defense_type && roomState.defense_type !== "code"} />
-          ))}
+          {roomState?.feedback?.answer_cards?.length ? <details className="full-transcript"><summary>Full defense transcript</summary>
+            {turns.map((turn,index)=><TurnCard key={index} turn={turn} index={index} research />)}
+          </details> : <>{turns.map((turn,index)=><TurnCard key={index} turn={turn} index={index} research={!!roomState?.defense_type && roomState.defense_type !== "code"} />)}</>}
+
         </div>
       )}
     </div>
