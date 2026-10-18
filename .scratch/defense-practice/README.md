@@ -4,10 +4,10 @@ Status: ready-for-agent
 
 The user approved this ten-ticket breakdown as drafted on **2026-10-17**.
 All ten separate local tickets are published below, with **58 acceptance
-criteria covering all 108 specification stories**. Tickets 01–07 are implemented and
-code-reviewed locally; ticket 08 is implemented and ready for human review; ticket
-09 is implemented and locally verified pending review. User review, actual
-speech/device validation and ticket 10 remain pending.
+criteria covering all 108 specification stories**. Tickets 01–10 are implemented
+and code-reviewed/verified locally; ticket 10 completes the local handoff and is
+ready for human review. User review and actual speech/device/provider/hosted
+validation remain pending.
 
 Parent: [research-defense practice specification](spec.md), preserved unchanged.
 Design: selected prototype **B — Speaker desk** on prototype/research-practice,
@@ -27,7 +27,7 @@ for slice demos, direct story mapping and intermediate runnable boundaries.
 | [07 — Evidence-based voice delivery feedback](issues/07-voice-delivery-feedback.md) | [04](issues/04-voice-probes-and-recovery.md), [05](issues/05-per-answer-text-coaching.md) | ready-for-human | 6 |
 | [08 — Android microphone practice](issues/08-android-microphone.md) | [04](issues/04-voice-probes-and-recovery.md) | ready-for-human | 4 |
 | [09 — iOS microphone practice](issues/09-ios-microphone.md) | [04](issues/04-voice-probes-and-recovery.md) | ready-for-human | 4 |
-| [10 — Complete defenses and local review handoff](issues/10-integrated-practice-review.md) | [02](issues/02-repeated-opening-host-choice.md), [06](issues/06-progressive-coaching-recovery.md), [07](issues/07-voice-delivery-feedback.md), [08](issues/08-android-microphone.md), [09](issues/09-ios-microphone.md) | ready-for-agent | 5 |
+| [10 — Complete defenses and local review handoff](issues/10-integrated-practice-review.md) | [02](issues/02-repeated-opening-host-choice.md), [06](issues/06-progressive-coaching-recovery.md), [07](issues/07-voice-delivery-feedback.md), [08](issues/08-android-microphone.md), [09](issues/09-ios-microphone.md) | ready-for-human | 5 |
 
 ## Where to start
 
@@ -40,12 +40,14 @@ Tickets **08 (Android)** and **09 (iOS)** are implemented and locally verified w
 real-device and iOS-build evidence pending. Their 2026-10-19
 [native review](reviews/native-check-2026-10-19.md) found two lifecycle/recovery
 defects (iOS teardown blocked by its own navigation policy; Android Retry did not
-restore capture recovery); both are fixed in the working tree, with the iOS
-policy tests and all real-device/iOS-build evidence still pending.
-Recommended next: **10 — Complete defenses and local review handoff**, whose
-blockers 08 and 09 are implemented, once human review and the pending device
-evidence allow.
-A ready-for-agent status does not remove any listed blockers.
+restore capture recovery); both are fixed and committed as `b1727e7`, with the
+iOS policy tests and all real-device/iOS-build evidence still pending.
+Ticket **10 — Complete defenses and local review handoff** is implemented against
+baseline `b1727e7` and locally verified offline (mocked providers, real local
+PostgreSQL, real Chromium previews); see the [ticket 10 review](reviews/10.md).
+Its actual speech/provider/device/hosted evidence and user review remain pending,
+and criterion 4 stays deliberately open. A ready-for-human status does not remove
+any listed blockers.
 
 Independent features are not given artificial dependencies. Coordinate shared
 source edits rather than assuming these tickets authorize parallel agents or
@@ -90,9 +92,8 @@ provider configuration/cost/retention, hosted transport and installed Android/iO
 capture remain separate evidence. Missing toolchains/devices cannot be marked
 passed from source inspection.
 
-Next workflow: **Implement ticket 10 — complete defenses and local review
-handoff**, unless the user selects another unblocked ticket. Tickets 08 and 09
-await human review and their pending real-device/iOS-build evidence. Ticket 05
-was reviewed against actual starting commit 6581ffe; see its [local
-review](reviews/05.md). Publishing these local tickets does not commit source,
-start a mic, make paid calls, merge, push or deploy.
+Next workflow: user review of the completed local handoff (ticket 10, see its
+[local review](reviews/10.md) and screenshot gallery), plus the pending
+real-device/iOS-build and actual speech/provider/hosted evidence for tickets
+08–10. This update involves no source change, mic start, paid call, merge, push
+or deploy.
