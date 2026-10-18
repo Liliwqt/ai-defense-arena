@@ -4,6 +4,7 @@ import streamlit as st
 
 def render_feedback(feedback, title):
     st.subheader(title)
+    st.caption('AI practice suggestions · verify against your paper and intended meaning.')
     if feedback['strengths']:
         st.write('What worked')
         for text in feedback['strengths']:st.write(text)
@@ -30,6 +31,8 @@ def render_research_coaching(cards):
         st.caption(f"{card['speaker_name'] or 'Defender'} · Original answer")
         st.write(card['original_answer'] if card['original_answer'] is not None else 'No answer was recorded.')
         st.caption('Typed fallback · audio measurements unavailable.')
+        repetitions = (card.get('delivery') or {}).get('observations', {}).get('repetition_examples', [])
+        if repetitions:st.caption('Written-word observation · repeated wording: ' + ', '.join(repetitions))
         if card['citation']:
             st.caption(card['citation']['filename'])
             st.write(card['citation']['evidence_text'])

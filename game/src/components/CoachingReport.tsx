@@ -33,6 +33,7 @@ export function CoachingReport({ feedbackStatus, feedback, closingPanelist, prog
           <p>{feedback.closing}</p>
         </div>}
         <p className="report-summary">{feedback.summary}</p>
+        {feedback.answer_cards?.some(card=>card.delivery) && <p className="coaching-evidence">Delivery coaching separates captured words, recording evidence and AI suggestions. Unavailable measurements are not a speaking fault.</p>}
         {feedback.strengths.length > 0 && <div className="report-group">
           <h4>Strengths</h4>
           {feedback.strengths.map((item, index) => <p className="report-point" key={index}>

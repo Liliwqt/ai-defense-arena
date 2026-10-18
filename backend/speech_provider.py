@@ -38,6 +38,7 @@ async def open_transcription(owner_id: str):
                     audio = accepted.get('audio', {}).get('input', {})
                     if (accepted.get('type') != 'transcription'
                             or audio.get('transcription', {}).get('model') != MODEL
+                            or audio.get('transcription', {}).get('languages') != ['en']
                             or audio.get('format') != session['audio']['input']['format']
                             or audio.get('turn_detection') is not None):
                         raise ValueError('The speech service returned an unsupported configuration.')

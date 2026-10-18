@@ -274,6 +274,7 @@ class LiveVoiceProtocolTests(unittest.TestCase):
                 provenance=accepted['turns'][0]['input_provenance']
                 self.assertEqual(provenance['audio_ms'],2100)
                 self.assertEqual(provenance['padding_ms'],50)
+                self.assertEqual(provenance['delivery_evidence']['capture_ms'],2050)
                 self.assertEqual(accepted['voice']['remaining_ms'],597900)
         with patch('backend.rooms.speech.monotonic',side_effect=lambda:clock[0]):self.answering(check)
 

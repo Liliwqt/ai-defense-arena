@@ -10,6 +10,7 @@ from fastapi import HTTPException, WebSocketDisconnect
 from backend.defense_session import MAX_ANSWER_CHARS
 from backend.resource_limits import Capacity, RateLimit, limit
 from backend import speech_provider
+from backend.delivery_evidence import capture_evidence
 
 RATE = speech_provider.RATE
 def allowance():
@@ -214,7 +215,8 @@ def ready_event(room, attempt):
         room.speech.draft = FinalizedDraft(attempt.token, attempt.run_id, attempt.turn, attempt.view_id,
             attempt.probe_id, attempt.interpretation_id, attempt.id, text,
             {'method': 'voice', 'provider': 'OpenAI', 'model': speech_provider.MODEL,
-             'audio_ms': attempt.samples * 1000 // RATE, 'padding_ms': attempt.padding_samples * 1000 // RATE})
+             'audio_ms': attempt.samples * 1000 // RATE, 'padding_ms': attempt.padding_samples * 1000 // RATE,
+             'delivery_evidence': capture_evidence(attempt.samples,attempt.padding_samples,RATE)})
         room.revision += 1
         return {'type': 'ready', 'attempt_id': attempt.id, 'text': text}
     return None

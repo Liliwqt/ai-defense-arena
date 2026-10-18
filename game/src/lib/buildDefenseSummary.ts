@@ -1,3 +1,4 @@
+import {deliveryLines,recordingLine} from "./deliveryEvidence";
 import type { AnswerFeedback, RoomState, Turn } from "../types";
 
 /**
@@ -57,6 +58,7 @@ function turnLines(turn: Turn, index: number, research = false): string[] {
   } else if (turn.answer) {
     const who = turn.answered_by ? ` (${turn.answered_by})` : "";
     lines.push(`   Team answer${who}: ${turn.answer}`);
+    if(turn.input_provenance?.delivery_evidence)lines.push(`   ${recordingLine(turn.input_provenance.delivery_evidence)} Source: server PCM sample clock; recognition confidence not provided.`);
     if (turn.input_provenance?.method === "voice") lines.push(`   Input: voice transcript · ${turn.input_provenance.provider} · ${(turn.input_provenance.audio_ms / 1000).toFixed(1)}s audio forwarded; recognition may differ from speech.`);
   }
   if (turn.probe) {
@@ -67,6 +69,7 @@ function turnLines(turn: Turn, index: number, research = false): string[] {
       lines.push(`   ${panelist} explains: ${c.reply}`);
     }
     lines.push(`   Probe status: ${turn.probe.status}`);
+    if(turn.probe.reply!=null && turn.probe.input_provenance?.delivery_evidence)lines.push(`   Reply ${recordingLine(turn.probe.input_provenance.delivery_evidence)} Source: server PCM sample clock; recognition confidence not provided.`);
     if (turn.probe.reply != null && turn.probe.input_provenance?.method === "voice") lines.push(`   Reply input: voice transcript · ${turn.probe.input_provenance.provider} · ${(turn.probe.input_provenance.audio_ms / 1000).toFixed(1)}s audio forwarded; recognition may differ from speech.`);
     if (turn.probe.reply != null) lines.push(`   Probe reply (${turn.probe.speaker_name ?? "Defender"}): ${turn.probe.reply}`);
   }
@@ -155,7 +158,11 @@ export function buildDefenseSummary(state: RoomState): string {
     for (const card of state.feedback.answer_cards ?? []) {
       lines.push(`Q${card.turn+1} · DETAILED COACHING`, card.question,
         `Original (${card.speaker_name ?? "Defender"}): ${card.original_answer ?? "No answer recorded."}`);
+      if(card.original_answer!==null)lines.push(...deliveryLines(card.delivery,card.input_provenance));
       appendFeedback(lines, card.feedback, "Answer coaching");
+      if(card.probe?.reply!=null){
+        lines.push(`Reply delivery evidence · ${card.probe.speaker_name ?? 'Defender'}`,...deliveryLines(card.probe.delivery,card.probe.input_provenance));
+      }
       if(card.probe_feedback) appendFeedback(lines, card.probe_feedback, `Reply coaching · ${card.probe?.speaker_name ?? "Defender"}`);
       lines.push("");
     }
@@ -183,7 +190,7 @@ export function defenseSummaryFileName(state: RoomState): string {
 
 
 function appendFeedback(lines: string[], feedback: AnswerFeedback, title: string) {
-  lines.push(title);
+  lines.push(title, "AI practice suggestions · check the paper and intended meaning.");
   for(const text of feedback.strengths)lines.push(`  Worked: ${text}`);
   for(const text of feedback.improvements)lines.push(`  Improve: ${text}`);
   if(feedback.stronger_answer)lines.push(`  ${feedback.wording_basis==="conditional"?"Conditional scaffold":"Suggested wording"}: ${feedback.stronger_answer}`);

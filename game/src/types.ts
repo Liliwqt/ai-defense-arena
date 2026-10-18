@@ -1,3 +1,19 @@
+export interface CaptureEvidence {
+  version: 1;
+  source: "server_pcm_samples";
+  capture_ms: number;
+  recognition_confidence: "not_provided";
+  configured_language: "en";
+}
+export interface AnswerDelivery {
+  input_method: "voice" | "typed";
+  recording: CaptureEvidence | null;
+  observations: {filler_examples:string[]; repetition_examples:string[]};
+  speaking_rate: null;
+  pauses: null;
+  measurement_reason: "typed_input" | "capture_evidence_unavailable" | "recording_too_short" | "word_timing_and_confidence_unavailable";
+}
+
 /** Mirror of game_server.py Room.snapshot() return value. */
 
 export type Phase =
@@ -50,7 +66,7 @@ export interface Turn {
   is_follow_up?: boolean;
   assigned_seat?: number | null;
   answered_by: string | null;
-  input_provenance?: {method: "voice"; provider: string; model: string; audio_ms: number; padding_ms?: number} | null;
+  input_provenance?: {method: "voice"; provider: string; model: string; audio_ms: number; padding_ms?: number; delivery_evidence?:CaptureEvidence} | null;
   answered_by_seat?: number | null;
 }
 
@@ -64,6 +80,7 @@ export interface PanelistProbe {
   speaker_seat?: number | null;
   clarifications: ClarificationExchange[];
   input_provenance?: Turn["input_provenance"];
+  delivery?: AnswerDelivery | null;
 }
 
 export interface CoachingPoint {
@@ -90,6 +107,7 @@ export interface AnswerCoachingCard {
   ended_early?: boolean;
   probe: PanelistProbe | null;
   input_provenance?: Turn["input_provenance"];
+  delivery?: AnswerDelivery | null;
   citation?: {filename: string; evidence_line: number; evidence_text: string; evidence_location?: string} | null;
   feedback: AnswerFeedback;
   probe_feedback: AnswerFeedback | null;

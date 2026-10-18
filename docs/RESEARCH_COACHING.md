@@ -18,6 +18,10 @@ occur verbatim in the matching contribution. Typed input has no audio measures;
 recognized voice text and forwarded duration alone do not establish filler totals,
 speaking rate, pauses, accent, tone, pronunciation or psychological confidence.
 These instructions and structural checks do not prove live model coaching quality.
+[Voice delivery evidence](VOICE_DELIVERY_EVIDENCE.md) now separates accepted
+transcript examples, server sample-clock recording duration and AI suggestions
+for each original/reply speaker. The current English pilot lacks word timing
+and confidence, so rate and linguistic pauses remain explicitly unavailable.
 
 Results uses a question selector with focused, expandable original/improvement
 sections. The full transcript remains available; summary downloads retain
