@@ -572,3 +572,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .live-room-status [role="timer"] { font-size: 1.2rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .navigation-notice { margin: 0; padding: 8px 20px; background: var(--base); font-size: .8rem; }
 .task-room-return { padding: 12px 24px; background: var(--base); }
+
+/* Opening decisions share the persistent Controls area without horizontal clipping. */
+.guided-primary .opening-choice-actions { display: grid; grid-template-columns: minmax(0, 1fr); }

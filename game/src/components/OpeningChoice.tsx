@@ -27,7 +27,7 @@ export function OpeningChoice({ state, connected, previewMode, actionError, show
   }
   if (!state.self_is_host || !candidate) return <p role="status">Waiting for the host to choose an opening. No question timer has started.</p>;
   const actions = <>
-    <div className="submission-retry-actions">
+    <div className="submission-retry-actions opening-choice-actions">
       <button type="button" disabled={!connected || previewMode || pending || state.question_attempts_left === 0} onClick={() => choose("retry_opening")}>Retry opening</button>
       <button type="button" disabled={!connected || previewMode || pending} onClick={() => choose("accept_repeated_opening")}>Accept repeated question</button>
     </div>
