@@ -332,7 +332,8 @@ Open <http://127.0.0.1:8000/>. The launcher installs frontend packages when need
 | `OPENROUTER_API_KEY` | Server-side research text requests | Export in the launching terminal, or enter at the hidden prompt. The launcher does not save it. |
 | `FREE_ACCESS_VOUCHER` | Shareable free-run voucher, redeemed by signed-in hosts | Export a new random value, or let the launcher load/create the Git-ignored `.local/free-access-voucher`. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `AUTH_SESSION_SECRET`, `AUTH_PUBLIC_BASE_URL` | Google host sign-in | Export in the launching terminal; follow the account setup below. |
-| `OPENAI_MODEL` | Optional model override | Export before launching. The code defaults to `gpt-6-luna` with low reasoning effort. |
+| `OPENROUTER_PREPARATION_USD` / `OPENROUTER_RUN_USD` | Separate preparation/full-run provider ceilings | Candidate defaults `0.75` / `5.00`; actual capacity and cost gates remain pending. |
+| `OPENROUTER_MAPPING_MAX_OUTPUT_TOKENS` | Mapping reasoning plus visible output | Candidate default `65536`. |
 
 The launcher does not load `.env`. Export configuration in the launching terminal; keep secrets out of Git and `VITE_` variables. The former host passcode is no longer used by this local version. Only hosts sign in; teammates join with a room code and display name. The OpenRouter key and voucher configuration stay on the server. Funded runs use fixed server assignments; legacy model/reasoning overrides do not replace them. See [OpenRouter setup and remaining gates](docs/OPENROUTER_SETUP.md).
 
@@ -853,7 +854,7 @@ Configure `OPENROUTER_API_KEY` in the launching terminal, then run the typed res
 .venv/bin/python -m streamlit run backend/app.py
 ```
 
-The fallback supports all three defense types, the corresponding four-role sequence, validated citations, conversational lead-ins, and same-question clarifications. It keeps its separate appearance and browser-session state. Voting, answer deadlines, and team chat belong to the multiplayer room.
+The fallback supports typed Research paper and Research + code defenses with four reviewers, validated citations, conversational lead-ins and same-question clarifications. Code-only starts remain disabled; retained results stay readable. It keeps its separate appearance and browser-session state. Voting, answer deadlines, and team chat belong to the multiplayer room.
 
 ## Render configuration
 
