@@ -2,17 +2,16 @@
 
 Status: ready-for-agent
 
-**Ticket 04 implemented and verified locally:** source **4fd5cb3** adds funded
-Haiku/high progressive coaching. Independent Standards 0 / Spec 0; see
-[the final handoff](reviews/04.md). Ticket 03's retry-clock correction remains
-verified in [its final handoff](reviews/03-retry-fix.md).
+**Ticket 05 implemented and verified locally:** source **1fa64ed** migrates
+typed Streamlit research/mixed defenses to shared funded OpenRouter clients.
+Independent Standards 0 / Spec 0; see [the final handoff](reviews/05.md).
 
 The user approved this twelve-ticket breakdown as drafted on **2026-10-19**.
-All twelve separate local tickets are published. Tickets 01–04 are ready for
+All twelve separate local tickets are published. Tickets 01–05 are ready for
 human review ([01](reviews/01.md), [02](reviews/02-sse-fix.md),
-[03](reviews/03-retry-fix.md), [04](reviews/04.md)). Ticket 05 is the unstarted
-frontier, with 03 and 04's local implementation/review gates satisfied.
-Tickets 05–12 have not started.
+[03](reviews/03-retry-fix.md), [04](reviews/04.md), [05](reviews/05.md)).
+Ticket06 is the unstarted frontier for complete text cleanup and measured
+handoff. Tickets 06–12 have not started; the full text checkpoint is incomplete.
 The tickets contain **58 acceptance criteria**, with coverage of all
 **80 specification stories** recorded in the approved breakdown.
 
@@ -27,7 +26,7 @@ Design and coverage: [approved breakdown](ticket-breakdown-draft.md).
 | [02 — Funded defense runs with assigned reviewer questions](issues/02-funded-reviewer-questions.md) | [01](issues/01-bounded-paper-mapping.md) | ready-for-human | 5 |
 | [03 — Same-reviewer clarification, probes and answer recovery](issues/03-reviewer-interactions-recovery.md) | [02](issues/02-funded-reviewer-questions.md) | ready-for-human | 5 |
 | [04 — OpenRouter progressive coaching from protected funds](issues/04-protected-progressive-coaching.md) | [02](issues/02-funded-reviewer-questions.md) | ready-for-human | 5 |
-| [05 — Typed Streamlit research policy parity](issues/05-typed-streamlit-parity.md) | [03](issues/03-reviewer-interactions-recovery.md), [04](issues/04-protected-progressive-coaching.md) | ready-for-agent | 4 |
+| [05 — Typed Streamlit research policy parity](issues/05-typed-streamlit-parity.md) | [03](issues/03-reviewer-interactions-recovery.md), [04](issues/04-protected-progressive-coaching.md) | ready-for-human | 4 |
 | [06 — Complete text checkpoint and measured local handoff](issues/06-text-checkpoint-handoff.md) | [05](issues/05-typed-streamlit-parity.md) | ready-for-agent | 6 |
 | [07 — OpenRouter-only live-caption feasibility prototype](issues/07-speech-feasibility-prototype.md) | [06](issues/06-text-checkpoint-handoff.md) | ready-for-agent | 5 |
 | [08 — Authorized OpenRouter voice answers in Speaker desk](issues/08-authorized-web-voice-answers.md) | [07](issues/07-speech-feasibility-prototype.md) + passed prototype/review gate | ready-for-agent | 5 |
@@ -38,7 +37,7 @@ Design and coverage: [approved breakdown](ticket-breakdown-draft.md).
 
 ## Where to start
 
-Tickets 01–04 have passed their local implementation/review gates. Ticket 05
+Tickets 01–05 have passed their local implementation/review gates. Ticket 06
 is the unstarted frontier. After 09, tickets 10 and
 11 form an independent frontier. Coordinate shared edits. Dependencies do not
 authorize parallel agents or external-model sharing, and ready-for-agent does
@@ -82,6 +81,6 @@ Intermediate slices are not a finished migration or permission to deploy.
 
 ## Next step
 
-Implement ticket 05 (typed Streamlit policy parity). Actual-provider
+Implement ticket 06 (complete text checkpoint and measured handoff). Actual-provider
 compatibility/quality/cost, user review and publication
 remain separate gates. No push or deployment is authorized by this handoff.
