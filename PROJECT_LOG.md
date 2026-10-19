@@ -4,6 +4,8 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Current status
 
+- Main publication verified, 2026-10-19: user-authorized fast-forward and normal push advanced GitHub main fromd22cd91 to0c0bfeb; `git ls-remote --heads origin main` independently confirmed0c0bfeb35cb69f079748a884485958ff29940e3e. Includes all reviewed research-practice and OpenRouter ticket01 commits plus the default-main instruction. Local workspace is now onmain; all106pre-existing pending files retain their saved hashes. AGENTS.md makesmain the destination for future pushes. No Render settings/domain change or deployment action; [skip render] source publication does not establish hosted readiness. Provider/native/user-review evidence limits remain unchanged.
+
 - Main publication authorized, 2026-10-19: user requested merging/pushing feature work into main and instructed using main for every future push. AGENTS.md records this preference, superseding the earlier freeze. Refreshed origin/main isd22cd91 and is an ancestor of reviewed feature69e870a (31commits ahead); merge/push is in progress. Unrelated pending files are fingerprinted and excluded; no source behavior changes or deployment action are being added by this publication.
 
 - OpenRouter ticket01 ready for human review locally, 2026-10-19: source161ac1e/3a2ffff delivers bounded DeepSeek/high mapping, durable preparation spending and retained-map recovery, with code-only/oldvoice disabled. Independent final Standards0/Spec0 againsta185680 after fixing saved Streamlit report/transcript retention. Isolated621Python (external providers mocked),393React/build and synthetic desktop/portrait/landscape mapping/recovery/setup checks pass; earlier3real-localPostgreSQL allowance checks remain separate. Review: .scratch/openrouter-migration/reviews/01.md. Ticket02 is unblocked, not started. User visual/actual-provider/hosted/native evidence remains pending; no push/deploy/main change. Supersedes prior capacity and pending-review notes.
@@ -273,8 +275,6 @@ Use this file to track completed updates across agents and session windows. See 
 - Generated questions carry a validated conversational `lead_in`: distinct panelist voices briefly react to the latest answer, match a substantive answer's language, and stay separate from the grounded question and citation. The previous exchange remains visible while the next response is generated.
 
 ## Active work
-
-- root-main-publication — 2026-10-19: publish reviewed feature commits to main under the user's explicit merge/push/default-main instruction. Intended files AGENTS.md and PROJECT_LOG.md only, plus branch refs in an isolated checkout. Preserve all pending unrelated file contents; closes with dated remote-head verification and local-main handoff.
 
 
 
@@ -3479,3 +3479,10 @@ Append new entries to the **end** of this file in date order:
 - User explicitly requested merging/pushing feature/question-first-room into main, then using main for every push for now. Updated AGENTS.md with that exact default and removed the stale assertion that main must remain the old3Droom; current runtime remains flat. This instruction supersedes the earlier freeze for this merge and ongoing publication destination, without changing provider keys or claiming deployment.
 - Verification: `git fetch origin --prune` refreshed remote refs; origin/main=d22cd918bff1570903079a23070518fb92b0ee5a, remote feature=a1856803e9f909f6d5582042be0415d93a2a05ad, local reviewed feature=69e870a2b56e0df08cc7fc28be0f72f378c6eeb8. `git rev-list --left-right --count origin/main...HEAD` reports0/31, permitting a normal fast-forward with preserved history. Runtime evidence remains621Python with external providers mocked,393React/build and recorded local browser/PostgreSQL checks; no new runtime tests were needed for this documentation/ref-only publication.
 - Saved hashes of every pre-existing pending tracked/untracked file under ignored .local/main-publication-20261019; no file contents, keys or private uploads were logged. Only AGENTS.md/PROJECT_LOG.md are added to the reviewed commits for publication. root-main-publication is active until remote verification; no push/deployment success claimed yet.
+
+
+### 2026-10-19 — Feature merged and published to main
+
+- Completed the explicitly requested history-preserving merge: isolated main checkout fast-forwarded fromd22cd91 to0c0bfeb, incorporating the31reviewed feature commits plus the default-main policy/handoff commit. `git push origin main:main` succeeded; independent `git ls-remote --heads origin main` confirms0c0bfeb35cb69f079748a884485958ff29940e3e. Remote feature was not changed by this main-only push. Main's committed tree matches feature at publication; no force push, rewrite or extra runtime edit.
+- Verification: pre-publication path checks covered213committed changed paths, excluding local directories, environment files, databases, keys and app binaries. All106pending tracked/untracked file hashes match the saved baseline. Clean temporary main worktree removed; existing workspace switched tomain with pending edits preserved. Prior runtime gate remains621Python with providers mocked,393React/build, local browser and separately recorded PostgreSQL evidence; no redundant runtime rerun for identical source.
+- Closed only root-main-publication. AGENTS.md records the user's ongoing main push default, superseding the prior freeze. No Render service/domain/settings action or hosted/provider verification was performed; source commits retain [skip render]. OpenRouter ticket01 remains ready for human review and02notstarted. This log-only publication completion note is committed/pushed onmain next; final remote ref is verified after that push.
