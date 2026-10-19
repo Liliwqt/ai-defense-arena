@@ -3,9 +3,9 @@
 Status: ready-for-agent
 
 The user approved this twelve-ticket breakdown as drafted on **2026-10-19**.
-All twelve separate local tickets are published. Ticket 01 is in progress;
-verification/review/commit remain pending in its [interim handoff](reviews/01.md).
-Tickets 02–12 have not started.
+All twelve separate local tickets are published. Ticket 01 is implemented locally
+and ready for human review; see its [verified handoff](reviews/01.md).
+Ticket 02 is now unblocked. Tickets 02–12 have not started.
 The tickets contain **58 acceptance criteria**, with coverage of all
 **80 specification stories** recorded in the approved breakdown.
 
@@ -16,7 +16,7 @@ Design and coverage: [approved breakdown](ticket-breakdown-draft.md).
 
 | Ticket | Blocked by | Status | Criteria |
 | --- | --- | --- | --- |
-| [01 — Bounded OpenRouter paper mapping](issues/01-bounded-paper-mapping.md) | None | ready-for-agent | 5 |
+| [01 — Bounded OpenRouter paper mapping](issues/01-bounded-paper-mapping.md) | None | ready-for-human | 5 |
 | [02 — Funded defense runs with assigned reviewer questions](issues/02-funded-reviewer-questions.md) | [01](issues/01-bounded-paper-mapping.md) | ready-for-agent | 5 |
 | [03 — Same-reviewer clarification, probes and answer recovery](issues/03-reviewer-interactions-recovery.md) | [02](issues/02-funded-reviewer-questions.md) | ready-for-agent | 5 |
 | [04 — OpenRouter progressive coaching from protected funds](issues/04-protected-progressive-coaching.md) | [02](issues/02-funded-reviewer-questions.md) | ready-for-agent | 5 |
@@ -75,6 +75,7 @@ Intermediate slices are not a finished migration or permission to deploy.
 
 ## Next step
 
-Finish ticket 01's pending checks, review and local commit before progressing to
-02. The user has invoked Implement for 01, including its local commit; no push,
-deployment or main change has been requested.
+Ticket 01's implementation, local verification, independent code review and local
+commits are complete. Next implementation slice is 02. User visual approval and
+the later actual-provider readiness gates remain separate; no push, deployment
+or main change has been requested.
