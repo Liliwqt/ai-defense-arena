@@ -2,7 +2,7 @@
 
 This project is a small FastAPI/React multiplayer hackathon prototype with a Streamlit fallback. `README.md` explains how to run it. `PROJECT_LOG.md` is the shared handoff record for agents and separate session windows.
 
-`main` is frozen for a hackathon review window of roughly three weeks from 2026-10-01. Do not merge into it, redeploy it, or alter its behavior until the user says the review is over. Work on `feature/question-first-room`; `main` still serves the earlier 3D room, and that difference is expected for now.
+Use `main` as the default destination for every push until the user changes this preference (2026-10-19). The user authorized merging `feature/question-first-room` into `main`, superseding the earlier hackathon freeze. Keep unrelated uncommitted work separate when merging or publishing.
 
 Before working:
 
@@ -30,7 +30,7 @@ PostgreSQL runner belong in `tests/`, outside the runtime package.
 
 ## Legacy, not wired into the app
 
-The room is a flat React layout. `game/src/App.tsx` renders `FlatRoom.tsx` (`PanelistSeats` / `DefenderSeats`) with `QuestionCard.tsx` and `RoomDock.tsx`. The earlier 3D/Phaser room (`ThreeDefenseScene.tsx`, `PhaserScene.tsx`, `phaser/DefenseScene.ts`, `JudgePanelOverlay.tsx`, `judgeConfig.ts`) was removed on 2026-10-01 along with the `three` and `phaser` dependencies; it had not been imported by the app since the flat redesign, and neither library reached the production bundle. Do not reintroduce it, and do not describe the room as 3D. `main` still serves that older room, so the two branches genuinely differ; the flat room is the intended direction.
+The room is a flat React layout. `game/src/App.tsx` renders `FlatRoom.tsx` (`PanelistSeats` / `DefenderSeats`) with `QuestionCard.tsx` and `RoomDock.tsx`. The earlier 3D/Phaser room (`ThreeDefenseScene.tsx`, `PhaserScene.tsx`, `phaser/DefenseScene.ts`, `JudgePanelOverlay.tsx`, `judgeConfig.ts`) was removed on 2026-10-01 along with the `three` and `phaser` dependencies; it had not been imported by the app since the flat redesign, and neither library reached the production bundle. Do not reintroduce it, and do not describe the room as 3D.
 
 ## Verifying a change
 
