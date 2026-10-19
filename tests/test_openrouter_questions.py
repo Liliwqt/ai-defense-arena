@@ -524,9 +524,29 @@ class FundedQuestionRoundsTests(coverage.CoverageProtocolTests):
         self.assertEqual(snapshot['used'], 4_500_000)
 
     def test_transient_failure_after_an_answer_recovers_without_a_manual_retry(self):
+        self.check_post_answer_recovery(httpx.Response(503, text='{}'), retry=True)
+
+    def test_streamed_server_failure_retries_once_after_an_answer(self):
+        self.check_post_answer_recovery(self.provider_error_response(503), retry=True)
+
+    def test_http_rate_limit_preserves_the_answer_for_manual_recovery(self):
+        self.check_post_answer_recovery(httpx.Response(429, text='{}'), retry=False)
+
+    def test_streamed_rate_limit_preserves_the_answer_for_manual_recovery(self):
+        self.check_post_answer_recovery(self.provider_error_response(429), retry=False)
+
+    @staticmethod
+    def provider_error_response(status):
+        return httpx.Response(200, text='data: ' + json.dumps({
+            'error': {'code': status, 'message': 'private upstream details', 'metadata': {
+                'error_type': 'rate_limit_exceeded' if status == 429 else 'server_error'}},
+            'choices': [{'index': 0, 'delta': {}, 'finish_reason': 'error'}],
+        }) + '\n\n')
+
+    def check_post_answer_recovery(self, failure, *, retry):
         outputs = [planner_move(METHODOLOGY, 'topic-1'),
                    reviewer_question('How will the team justify the stated pilot design?'),
-                   httpx.Response(503, text='{}'),
+                   failure,
                    planner_move(ETHICS, 'topic-2', assessment=assessment('topic-1', 0)),
                    reviewer_question('How will the team report claim changes?', evidence_line=6,
                                      lead_in='You described the pilot decision.')]
@@ -559,21 +579,27 @@ class FundedQuestionRoundsTests(coverage.CoverageProtocolTests):
                     self.until(socket, 'question', 1)
                 h.send_json({'type': 'submit_answer', 'turn': 0, 'answer': 'Answer 1.'})
                 for socket in (h, g):
-                    state = self.until(socket, 'voting', 2)
-                    self.assertEqual(state['turns'][-1]['question'], 'How will the team report claim changes?')
-                    self.assertIsNone(state.get('error'))
+                    state = self.until(socket, 'voting' if retry else 'retry', 2 if retry else 1)
+                    self.assertEqual(state['turns'][0]['answer'], 'Answer 1.')
+                    if retry:
+                        self.assertEqual(state['turns'][-1]['question'], 'How will the team report claim changes?')
+                        self.assertIsNone(state.get('error'))
+                    else:
+                        self.assertIn('HTTP 429', state['error'])
+                        self.assertNotIn('private upstream details', state['error'])
                 room = game_server.rooms[code]
                 self.assertIsNone(room.question_retry_generation_id)
-        self.assertEqual([call['model'] for call in calls],
-                         ['z-ai/glm-5.3-flash', 'deepseek/deepseek-v4.1-flash-1017',
-                          'z-ai/glm-5.3-flash', 'z-ai/glm-5.3-flash', 'anthropic/claude-haiku-5.5'])
+        expected_models = ['z-ai/glm-5.3-flash', 'deepseek/deepseek-v4.1-flash-1017', 'z-ai/glm-5.3-flash']
+        if retry:
+            expected_models += ['z-ai/glm-5.3-flash', 'anthropic/claude-haiku-5.5']
+        self.assertEqual([call['model'] for call in calls], expected_models)
         account = self._offline_credentials[2]
         snapshot = ProviderAllowance(f'run:{room.run_id}', account['id']).snapshot()
         policy = RunQuestionPolicy(**ProviderAllowance(f'run:{room.run_id}', account['id']).policy())
         failed = policy.stage_bound(len(json.dumps(
             {'messages': calls[2]['messages'], 'schema': calls[2]['response_format']},
             ensure_ascii=False).encode()) + FRAMING_BYTES, calls[2]['max_tokens'])
-        self.assertEqual(snapshot['used'], 2_000_000 + failed)
+        self.assertEqual(snapshot['used'], (2_000_000 if retry else 1_000_000) + failed)
         self.assertEqual(snapshot['remaining'], snapshot['ceiling'] - snapshot['used'])
 
 

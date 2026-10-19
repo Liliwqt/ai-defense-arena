@@ -37,6 +37,26 @@ class ProviderStatusError(TransientProviderError):
         self.retryable = status_code >= 500
 
 
+def provider_stream_error(error):
+    """Classify a provider envelope without exposing its upstream message.
+
+    Headers may already be HTTP200 when a provider rejects the request. Unknown
+    errors require operator/manual recovery rather than spending on a retry as
+    though the model merely produced malformed JSON.
+    """
+    if isinstance(error, dict):
+        code = error.get('code')
+        metadata = error.get('metadata')
+        error_type = metadata.get('error_type') if isinstance(metadata, dict) else None
+        if error_type == 'rate_limit_exceeded':
+            code = 429
+        if type(code) is int and 400 <= code <= 599:
+            return ProviderStatusError(code, f'OpenRouter request failed (HTTP {code}). Check server configuration or retry later.')
+        if code == 'server_error' or error_type == 'server_error':
+            return ProviderStatusError(500, 'OpenRouter server error. Retry when the service is available.')
+    return QuestionGenerationError('OpenRouter reported a provider error. Check server configuration or retry later.')
+
+
 def strict_schema(schema):
     """Keep source validation local while requiring supported structured output."""
     if isinstance(schema, dict):
@@ -82,7 +102,7 @@ class StructuredStream:
             try:
                 event = json.loads(raw)
                 if 'error' in event:
-                    raise ValueError
+                    raise provider_stream_error(event['error'])
                 if event.get('usage') is not None:
                     self.on_usage(event['usage'])
                 for choice in event.get('choices', []):
