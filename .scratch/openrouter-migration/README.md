@@ -2,16 +2,17 @@
 
 Status: ready-for-agent
 
-**Ticket 03 correction verified:** source **c4d838d** closes the delayed-retry
-clock issue. All four independent probes and the full offline gates pass, with
-Standards 0 / Spec 0. See [the final handoff](reviews/03-retry-fix.md).
-Ticket 03 is ready for human review locally; ticket 04 remains unblocked.
+**Ticket 04 implemented and verified locally:** source **4fd5cb3** adds funded
+Haiku/high progressive coaching. Independent Standards 0 / Spec 0; see
+[the final handoff](reviews/04.md). Ticket 03's retry-clock correction remains
+verified in [its final handoff](reviews/03-retry-fix.md).
 
 The user approved this twelve-ticket breakdown as drafted on **2026-10-19**.
-All twelve separate local tickets are published. Tickets 01–03 are ready for
+All twelve separate local tickets are published. Tickets 01–04 are ready for
 human review ([01](reviews/01.md), [02](reviews/02-sse-fix.md),
-[03](reviews/03-retry-fix.md)). Ticket 04 can proceed under its separate dependency
-on 02; ticket 05 requires both 03 and 04. Tickets 04–12 have not started.
+[03](reviews/03-retry-fix.md), [04](reviews/04.md)). Ticket 05 is the unstarted
+frontier, with 03 and 04's local implementation/review gates satisfied.
+Tickets 05–12 have not started.
 The tickets contain **58 acceptance criteria**, with coverage of all
 **80 specification stories** recorded in the approved breakdown.
 
@@ -25,7 +26,7 @@ Design and coverage: [approved breakdown](ticket-breakdown-draft.md).
 | [01 — Bounded OpenRouter paper mapping](issues/01-bounded-paper-mapping.md) | None | ready-for-human | 5 |
 | [02 — Funded defense runs with assigned reviewer questions](issues/02-funded-reviewer-questions.md) | [01](issues/01-bounded-paper-mapping.md) | ready-for-human | 5 |
 | [03 — Same-reviewer clarification, probes and answer recovery](issues/03-reviewer-interactions-recovery.md) | [02](issues/02-funded-reviewer-questions.md) | ready-for-human | 5 |
-| [04 — OpenRouter progressive coaching from protected funds](issues/04-protected-progressive-coaching.md) | [02](issues/02-funded-reviewer-questions.md) | ready-for-agent | 5 |
+| [04 — OpenRouter progressive coaching from protected funds](issues/04-protected-progressive-coaching.md) | [02](issues/02-funded-reviewer-questions.md) | ready-for-human | 5 |
 | [05 — Typed Streamlit research policy parity](issues/05-typed-streamlit-parity.md) | [03](issues/03-reviewer-interactions-recovery.md), [04](issues/04-protected-progressive-coaching.md) | ready-for-agent | 4 |
 | [06 — Complete text checkpoint and measured local handoff](issues/06-text-checkpoint-handoff.md) | [05](issues/05-typed-streamlit-parity.md) | ready-for-agent | 6 |
 | [07 — OpenRouter-only live-caption feasibility prototype](issues/07-speech-feasibility-prototype.md) | [06](issues/06-text-checkpoint-handoff.md) | ready-for-agent | 5 |
@@ -37,8 +38,8 @@ Design and coverage: [approved breakdown](ticket-breakdown-draft.md).
 
 ## Where to start
 
-Tickets 01–03 have passed their local implementation/review gates. Ticket 04
-is the unstarted frontier; 05 requires both 03 and 04. After 09, tickets 10 and
+Tickets 01–04 have passed their local implementation/review gates. Ticket 05
+is the unstarted frontier. After 09, tickets 10 and
 11 form an independent frontier. Coordinate shared edits. Dependencies do not
 authorize parallel agents or external-model sharing, and ready-for-agent does
 not waive evidence gates.
@@ -81,6 +82,6 @@ Intermediate slices are not a finished migration or permission to deploy.
 
 ## Next step
 
-Implement ticket 04 (protected progressive coaching). Ticket 05 requires both
-03 and 04. Actual-provider compatibility/quality/cost, user review and publication
+Implement ticket 05 (typed Streamlit policy parity). Actual-provider
+compatibility/quality/cost, user review and publication
 remain separate gates. No push or deployment is authorized by this handoff.
