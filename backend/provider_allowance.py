@@ -6,6 +6,7 @@ unless the provider supplies valid cost evidence; process death is not a refund.
 
 from contextlib import contextmanager
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation, ROUND_CEILING
 import json
 import secrets
 import time
@@ -15,6 +16,18 @@ from backend.account_store import connect_store, database_path
 
 class AllowanceError(ValueError):
     pass
+
+
+def reported_nano(usage) -> int | None:
+    """Convert one provider cost receipt to nano-USD; absent/unsafe evidence is None."""
+    cost = usage.get('cost') if isinstance(usage, dict) else None
+    try:
+        value = Decimal(str(cost))
+        if value.is_finite() and 0 <= value <= 1_000_000:
+            return int((value * 1_000_000_000).to_integral_value(rounding=ROUND_CEILING))
+    except InvalidOperation:
+        pass
+    return None
 
 
 @contextmanager
@@ -58,27 +71,33 @@ class ProviderAllowance:
     def _owned(self, db):
         row = db.execute('SELECT * FROM provider_allowances WHERE id=?', (self.id,)).fetchone()
         if row is None or row['owner'] != self.owner:
-            raise AllowanceError('This preparation allowance is unavailable.')
+            raise AllowanceError('This provider allowance is unavailable. Contact the operator.')
         return row
 
     def snapshot(self) -> dict:
         with transaction() as db:
             row = self._owned(db)
             if row['blocked']:
-                raise AllowanceError('Preparation allowance needs operator review before another request.')
+                raise AllowanceError('This allowance needs operator review before another request.')
             used = db.execute('SELECT COALESCE(SUM(COALESCE(billed,reserved)),0) FROM provider_requests WHERE allowance_id=?', (self.id,)).fetchone()[0]
             return {'ceiling': row['ceiling'], 'used': used, 'remaining': max(0, row['ceiling'] - used)}
 
-    def reserve(self, cost: int) -> str:
+    def reserve(self, cost: int, limit: int | None = None) -> str:
+        """Admit one request; an optional protected limit is the most it may use."""
         if type(cost) is not int or cost <= 0:
             raise AllowanceError('Invalid preparation cost bound. Check server configuration.')
+        if limit is not None and (type(limit) is not int or limit <= 0):
+            raise AllowanceError('Invalid defense spending limit. Check server configuration.')
         with transaction() as db:
             row = self._owned(db)
             if row['blocked']:
-                raise AllowanceError('Preparation allowance needs operator review before another request.')
+                raise AllowanceError('This allowance needs operator review before another request.')
             used = db.execute('SELECT COALESCE(SUM(COALESCE(billed,reserved)),0) FROM provider_requests WHERE allowance_id=?', (self.id,)).fetchone()[0]
-            if used + cost > row['ceiling']:
-                raise AllowanceError('Preparation allowance cannot fund another mapping request. Your material is retained; contact the operator. Retrying will not reset the allowance.')
+            ceiling = row['ceiling'] if limit is None else min(row['ceiling'], limit)
+            if used + cost > ceiling:
+                if limit is None:
+                    raise AllowanceError('Preparation allowance cannot fund another mapping request. Your material is retained; contact the operator. Retrying will not reset the allowance.')
+                raise AllowanceError('The defense allowance cannot fund another question. Your discussion is retained; contact the operator. Retrying will not reset the allowance.')
             identity = secrets.token_hex(24)
             db.execute('INSERT INTO provider_requests VALUES (?,?,?,?,?)',
                        (identity, self.id, cost, None, int(time.time())))

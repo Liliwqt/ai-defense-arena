@@ -83,6 +83,7 @@ class AdaptiveResearchIntegrationTests(unittest.TestCase):
                 code_citation = mode == "mixed" and len(history) % 2 == 1
                 output["source_file"] = next(i for i, file in enumerate(files, 1)
                                              if file.kind.startswith("research") != code_citation)
+            kwargs.pop("client", None)
             return generate_research_move(files, key, history=history, context=context, client=Client(output), **kwargs)
 
         def interpret(files, key, *, submission, **kwargs):

@@ -1049,7 +1049,13 @@ def generate_research_move(
     """Assess the last resolved turn and propose a grounded move in one request.
 
     The session validates the entire proposal atomically before applying it.
+    A funded run client is duck-typed so the direct-provider path and existing
+    fakes at this seam keep their behavior.
     """
+    funded = getattr(client, 'research_move', None)
+    if callable(funded):
+        return funded(project_files, history=history, context=context,
+                      defense_type=defense_type, research_stage=research_stage)
     key = (api_key or "").strip()
     if not key or any(c.isspace() for c in key):
         raise QuestionGenerationError("Set a clean OPENAI_API_KEY and restart the app to generate a question.")

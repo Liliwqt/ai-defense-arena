@@ -380,6 +380,7 @@ class ProbeProtocolTests(unittest.TestCase):
                     output = proposal(context, history)
                     if output['action']=='ask':
                         output['source_file'] = next(i for i,f in enumerate(files,1) if f.kind.startswith('research'))
+                    kwargs.pop('client',None)
                     return generate_research_move(files,key,history=history,context=context,client=Client(output),**kwargs)
                 stack.enter_context(patch.object(question_workflow, 'generate_research_move',side_effect=generate))
                 decisions = [SubmissionDecision('probe',probe=ProbeRequest('Which group will you recruit?'))] + [SubmissionDecision('answer')] * 2 + [SubmissionDecision('probe',probe=ProbeRequest('What supports your conclusion?')), RuntimeError('offline failure'), SubmissionDecision('answer')]

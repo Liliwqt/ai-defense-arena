@@ -22,11 +22,22 @@ from backend.question_generator import (
     QuestionGenerationError,
     ProbeRequest,
     PanelistProbe,
+    TopicAssessmentDraft,
 )
 from backend.research_plan import ResearchPlan, validate_question_budget
 
 PANELIST_ORDER = (TECHNICAL_ARCHITECT, SECURITY_REVIEWER, PRODUCT_JUDGE, CRITICAL_JUDGE)
 MAX_ANSWER_CHARS = 4_000
+
+
+@dataclass(frozen=True)
+class PlannedMove:
+    """Detached planner proposal; the reviewer supplies the question later."""
+
+    panelist: str | None
+    topic_id: str | None
+    is_follow_up: bool
+    assessment: TopicAssessmentDraft | None
 
 
 @dataclass
@@ -275,13 +286,11 @@ class ResearchDefenseSession(DefenseSession):
                 "previous_topic": self.turns[-1].topic_id if self.turns else None,
                 "coverage_note": "Addressed describes discussion coverage, not proof that the research is correct."}
 
-    def apply_move(self, move: ResearchMove):
+    def _validated(self, *, panelist, question, topic_id, is_follow_up, assessment, require_question):
+        """Validate one research move against server-owned rules without mutation."""
         if not self.needs_question:
             raise ValueError("There is no pending research move.")
-        if not isinstance(move, ResearchMove):
-            raise QuestionGenerationError("The AI returned an invalid research move. Please retry.")
         coverage = {key: {**value, "turns": list(value["turns"])} for key, value in self.coverage.items()}
-        assessment = move.assessment
         if self.turns:
             previous = self.turns[-1]
             if (assessment is None or type(assessment.turn) is not int
@@ -300,20 +309,38 @@ class ResearchDefenseSession(DefenseSession):
         covered = all(value["status"] == "addressed" for value in coverage.values())
         exhausted = len(self.turns) >= self.question_budget
         should_finish = exhausted or (covered and all_spoken)
-        if move.panelist is None and move.question is None:
-            if not should_finish or move.topic_id is not None or move.is_follow_up:
+        if panelist is None and question is None:
+            if not should_finish or topic_id is not None or is_follow_up:
                 raise QuestionGenerationError("The AI ended the research defense too early. Please retry.")
         else:
-            option = {"panelist": move.panelist, "topic_id": move.topic_id, "is_follow_up": move.is_follow_up}
-            if should_finish or move.question is None or option not in self.question_options(coverage):
+            option = {"panelist": panelist, "topic_id": topic_id, "is_follow_up": is_follow_up}
+            if should_finish or (require_question and question is None) or option not in self.question_options(coverage):
                 raise QuestionGenerationError("The AI chose an invalid research topic or reviewer. Please retry.")
-            if any(t.question.question.strip().casefold() == move.question.question.strip().casefold() for t in self.turns):
+            if question is not None and any(t.question.question.strip().casefold() == question.question.strip().casefold() for t in self.turns):
                 raise QuestionGenerationError("The AI repeated an earlier question. Please retry.")
+        return coverage, should_finish
+
+    def validate_plan(self, planned: PlannedMove) -> None:
+        """Reject an ineligible planner choice before any reviewer request."""
+        if not isinstance(planned, PlannedMove):
+            raise QuestionGenerationError("The AI returned an invalid research plan. Please retry.")
+        self._validated(panelist=planned.panelist, question=None, topic_id=planned.topic_id,
+                        is_follow_up=planned.is_follow_up, assessment=planned.assessment,
+                        require_question=False)
+
+    def apply_move(self, move: ResearchMove):
+        if not self.needs_question:
+            raise ValueError("There is no pending research move.")
+        if not isinstance(move, ResearchMove):
+            raise QuestionGenerationError("The AI returned an invalid research move. Please retry.")
+        coverage, should_finish = self._validated(panelist=move.panelist, question=move.question,
+            topic_id=move.topic_id, is_follow_up=move.is_follow_up, assessment=move.assessment,
+            require_question=True)
         # Every validation above succeeds before any coverage or turn changes.
         self.coverage = coverage
         if should_finish:
             self.finished = True
-            self.completion_reason = "budget exhausted" if exhausted else "coverage addressed"
+            self.completion_reason = "budget exhausted" if len(self.turns) >= self.question_budget else "coverage addressed"
         else:
             self.turns.append(DefenseTurn(move.panelist, move.question,
                                           topic_id=move.topic_id, is_follow_up=move.is_follow_up))

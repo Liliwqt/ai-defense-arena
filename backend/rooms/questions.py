@@ -10,10 +10,12 @@ from openai import APIConnectionError, APIStatusError
 from pydantic import ValidationError
 from backend.account_store import charge_run, release_run
 from backend.defense_progression import PreparedProgression, prepare_progression, commit_progression
+from backend.defense_session import ResearchDefenseSession
 from backend.project_files import ProjectFile
 from backend.financial_policy import live_mode
 from backend.live_store import LiveStore
 from backend.opening_history import OpeningQuestion, RepeatedOpening, paper_key, recent_openings
+from backend.openrouter_questions import RunQuestionClient, run_scope
 from backend.resource_limits import limit
 from backend.question_generator import (
     DEFAULT_MODEL, InvalidQuestionResponse, QuestionGenerationError, generate_first_question,
@@ -39,8 +41,13 @@ QuestionRequest = Callable[[PreparedProgression, tuple[ProjectFile, ...]], Await
 
 
 async def request_question(request: PreparedProgression, files: tuple[ProjectFile, ...]) -> QuestionResult:
+    client = None
+    if request.provider_scope and request.provider_owner and isinstance(request.session, ResearchDefenseSession):
+        client = RunQuestionClient(request.provider_scope, request.provider_owner, request.session, files,
+                                   stopped=request.provider_stopped or (lambda: False))
     return await asyncio.to_thread(request.generate, list(files), os.getenv("OPENAI_API_KEY"),
-        os.getenv("OPENAI_MODEL") or DEFAULT_MODEL, first_question=generate_first_question,
+        os.getenv("OPENAI_MODEL") or DEFAULT_MODEL, client=client,
+        first_question=generate_first_question,
         next_move=generate_next_move, research_move=generate_research_move)
 
 
@@ -74,6 +81,10 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
             async with room.lock:
                 if not owner._question_current(work):
                     return
+                if room.run_id and room.owner_account_id and isinstance(request.session, ResearchDefenseSession):
+                    request = replace(request, provider_scope=run_scope(room.run_id),
+                                      provider_owner=room.owner_account_id,
+                                      provider_stopped=lambda: not owner._question_current(work))
                 room.ai_budget.admit(attempt_key, cap, room.owner_account_id or room.code)
             try:
                 result = await owner._workflows.question_request(request, files)

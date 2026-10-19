@@ -3,9 +3,11 @@
 Status: ready-for-agent
 
 The user approved this twelve-ticket breakdown as drafted on **2026-10-19**.
-All twelve separate local tickets are published. Ticket 01 is implemented locally
-and ready for human review; see its [verified handoff](reviews/01.md).
-Ticket 02 is now unblocked. Tickets 02–12 have not started.
+All twelve separate local tickets are published. Tickets 01 and 02 are
+implemented locally and ready for human review; see their verified handoffs
+([01](reviews/01.md), [02](reviews/02.md)).
+Ticket 02 is implemented and reviewed; tickets 03–04 are now unblocked.
+Tickets 03–12 have not started.
 The tickets contain **58 acceptance criteria**, with coverage of all
 **80 specification stories** recorded in the approved breakdown.
 
@@ -17,7 +19,7 @@ Design and coverage: [approved breakdown](ticket-breakdown-draft.md).
 | Ticket | Blocked by | Status | Criteria |
 | --- | --- | --- | --- |
 | [01 — Bounded OpenRouter paper mapping](issues/01-bounded-paper-mapping.md) | None | ready-for-human | 5 |
-| [02 — Funded defense runs with assigned reviewer questions](issues/02-funded-reviewer-questions.md) | [01](issues/01-bounded-paper-mapping.md) | ready-for-agent | 5 |
+| [02 — Funded defense runs with assigned reviewer questions](issues/02-funded-reviewer-questions.md) | [01](issues/01-bounded-paper-mapping.md) | ready-for-human | 5 |
 | [03 — Same-reviewer clarification, probes and answer recovery](issues/03-reviewer-interactions-recovery.md) | [02](issues/02-funded-reviewer-questions.md) | ready-for-agent | 5 |
 | [04 — OpenRouter progressive coaching from protected funds](issues/04-protected-progressive-coaching.md) | [02](issues/02-funded-reviewer-questions.md) | ready-for-agent | 5 |
 | [05 — Typed Streamlit research policy parity](issues/05-typed-streamlit-parity.md) | [03](issues/03-reviewer-interactions-recovery.md), [04](issues/04-protected-progressive-coaching.md) | ready-for-agent | 4 |
@@ -31,11 +33,12 @@ Design and coverage: [approved breakdown](ticket-breakdown-draft.md).
 
 ## Where to start
 
-Only **01 — Bounded OpenRouter paper mapping** is initially unblocked.
-After 02, tickets 03 and 04 form an independent frontier; after 09, tickets 10
-and 11 do likewise. Work the dependency frontier, coordinating any shared edits.
-These relationships do not authorize parallel agents or external-model sharing.
-A ready-for-agent label does not remove blockers or evidence gates.
+Only **01 — Bounded OpenRouter paper mapping** was initially unblocked. With 01
+and 02 implemented, tickets 03 and 04 form the current frontier. After 09,
+tickets 10 and 11 do likewise. Work the dependency frontier, coordinating any
+shared edits. These relationships do not authorize parallel agents or
+external-model sharing. A ready-for-agent label does not remove blockers or
+evidence gates.
 
 ## Two runnable local checkpoints
 
@@ -75,7 +78,8 @@ Intermediate slices are not a finished migration or permission to deploy.
 
 ## Next step
 
-Ticket 01's implementation, local verification, independent code review and local
-commits are complete. Next implementation slice is 02. User visual approval and
-the later actual-provider readiness gates remain separate; no push, deployment
-or main change has been requested.
+Tickets 01 and 02 are implemented, locally verified, independently reviewed and
+locally committed. Next implementation slice is 03 or 04 (same-reviewer
+clarification/probe recovery, protected progressive coaching). User visual
+approval and the later actual-provider readiness gates remain separate; no
+push, deployment or main change has been requested.

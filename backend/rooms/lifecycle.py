@@ -8,6 +8,7 @@ from backend.account_store import AccessError, require_run_access, reserve_run, 
 from backend.financial_policy import live_mode
 from backend.live_store import LiveStore
 from backend.defense_session import ResearchDefenseSession
+from backend.question_generator import QuestionGenerationError
 from backend.rooms.commands import (CommandResult, VerifiedActor, LifecycleCommand,
     StartDefense, RestartDefense, RetryQuestion, EndDefense, EndUnavailable)
 from backend.rooms.publication import DELIVERY_ERRORS
@@ -27,6 +28,15 @@ def reserve_room_run(owner: "RoomCoordinator", account_id: str, confirmed: bool,
         if not access["free_access"] and not confirmed:
             raise AccessError("Confirm the 10-credit cost before starting or restarting this run.")
     run_id = room.run_id if retry and room.run_id else secrets.token_hex(24)
+    if not retry and room.defense_type != "code":
+        budget = room.research_budget_preview
+        if type(budget) is not int:
+            raise AccessError("Confirm the current research profile and question budget before starting.")
+        from backend.openrouter_questions import establish_run_allowance, run_scope
+        try:
+            establish_run_allowance(run_scope(run_id), account_id, room.files, budget)
+        except QuestionGenerationError as failure:
+            raise AccessError(str(failure)) from None
     if live_mode():
         from backend.account_store import account_access
         if not account_access(account_id)['free_access']:

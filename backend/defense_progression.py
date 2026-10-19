@@ -6,7 +6,8 @@ session only after generation succeeds.
 """
 
 import copy
-from dataclasses import dataclass, fields
+from collections.abc import Callable
+from dataclasses import dataclass, field, fields
 
 from backend.defense_session import DefenseSession, ResearchDefenseSession
 from backend.question_generator import DEFAULT_MODEL, generate_first_question, generate_next_move, generate_research_move
@@ -36,6 +37,9 @@ class PreparedProgression:
     defense_type: str
     research_stage: str
     recent_openings: tuple[dict, ...] | None = None
+    provider_scope: str | None = None
+    provider_owner: str | None = None
+    provider_stopped: Callable[[], bool] | None = field(default=None, compare=False, repr=False)
 
     def generate(self, files, api_key, model=DEFAULT_MODEL, client=None, *,
                  first_question=generate_first_question, next_move=generate_next_move,

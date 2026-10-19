@@ -1,11 +1,14 @@
-# OpenRouter mapping checkpoint
+# OpenRouter mapping and question checkpoint
 
-Ticket 01 moves multiplayer paper mapping/remapping to OpenRouter. Questions,
-submission interpretation, coaching and Streamlit mapping still use the existing
-text configuration until their later migration tickets. This is an intermediate
-local checkpoint, not the completed provider migration. Code-only starts and the
-old live-speech pilot are disabled by release gates, even if old environment
-settings remain configured. Research and mixed typed defenses remain available.
+Ticket 01 moved multiplayer paper mapping/remapping to OpenRouter. Ticket 02
+additionally moves research/mixed key-question generation to the assigned
+four-reviewer bundle with a GLM low planner and a finite run allowance.
+Submission interpretation, coaching and Streamlit question generation still use
+the existing text configuration until their later migration tickets: that is
+transitional intermediate state, and it is never an automatic fallback from a
+failed OpenRouter request. Code-only starts and the old live-speech pilot are
+disabled by release gates, even if old environment settings remain configured.
+Research and mixed typed defenses remain available.
 
 ## Server configuration
 
@@ -20,6 +23,40 @@ automatic fallback from failed OpenRouter mapping to the old text provider.
 | Mapping reasoning | `high` | Explicit policy, independent of legacy effort settings. |
 | `OPENROUTER_MAPPING_MAX_OUTPUT_TOKENS` | `65536` | Total generated tokens including reasoning; configurable from 1024 to 131072. |
 | `OPENROUTER_PREPARATION_USD` | `0.75` | Separate preparation ceiling; positive decimal up to USD 10. |
+| `OPENROUTER_RUN_USD` | `5.00` | Per-run question ceiling; positive decimal up to USD 100. |
+
+## Funded defense questions
+
+Research and mixed Start/Restart establish one run scope (`run:<run_id>`) before
+any game-credit commitment. The scope snapshots the planner/reviewer bundle, the
+per-run ceiling and a protected coaching reserve computed from the confirmed
+question budget; an unfundable budget is rejected at Start with the question
+budget and its reserve named. Retry of the same run reuses that snapshot; a
+restart or a new run receives a new scope. Reconnect, refresh and operator
+configuration edits cannot reset or enlarge it.
+
+| Stage | Model | Reasoning | Output limit |
+| --- | --- | --- | --- |
+| Planner | `z-ai/glm-5.3-flash` | `effort: low` (mandatory reasoning is explicit) | 4096 |
+| Methodology Reviewer | `deepseek/deepseek-v4.1-flash-1017` | `effort: high` | 8192 |
+| Ethics Reviewer | `anthropic/claude-haiku-5.5` | `effort: medium` | 8192 |
+| Impact Reviewer | `qwen/qwen3.8-flash` | `max_tokens: 2048` (Qwen advertises `supports_max_tokens`, no named effort) | 8192 |
+| Critical Judge | `z-ai/glm-5.3-flash` | `effort: high` | 8192 |
+
+The planner chooses only from the server-provided eligible options; the server
+validates reviewer, topic, follow-up, assessment and completion before the
+assigned reviewer is called, so an invalid plan or a valid completion costs no
+reviewer request. Both stages reserve their conservative bound before dispatch,
+settle only a valid `usage.cost` receipt and keep unknown usage fully reserved.
+Cancellation between stages, a stale generation and duplicate work stop before
+the reviewer request; the room keeps normal duplicate-question regeneration and
+explicit repeat acceptance. Question attempts, reserved provider spend and the
+single opening/run charge are all accounted once per dispatched stage.
+
+When the protected question limit cannot fund another question, the discussion
+is retained and the failure explains that retry will not reset the allowance;
+the coaching reserve remains available to the later coaching ticket, never to
+questions. An unfundable configuration names `OPENROUTER_RUN_USD` instead.
 
 The first preparation request snapshots the settings and allowance for that room.
 Remapping, correction, reconnect, refresh, restart within the same room and
@@ -67,7 +104,11 @@ the correction remains available for retry and fresh confirmation.
 ## Verification boundaries
 
 HTTP/WebSocket and browser tests use synthetic papers and mocked provider HTTP.
-The opt-in PostgreSQL gate uses disposable loopback databases for concurrency and
+Funded planner/reviewer checks cover the exact bundle, per-stage reservation and
+settlement, unknown-usage retention, invalid-plan rejection before any reviewer
+request, valid-completion single-call behavior, cancellation between stages and
+unfundable-start rejection before credit commitment. The opt-in PostgreSQL gate
+uses disposable loopback databases for concurrency and
 reopen/settlement checks. Historical code/speech engine tests explicitly mock the
 old release gates; dedicated policy tests verify those paths remain unavailable
 under the actual release settings. There is no environment switch to bypass the
@@ -85,6 +126,7 @@ and review; native builds cannot substitute for installed-device capture tests.
 - [Provider parameter, fallback, data-policy and price controls](https://openrouter.ai/docs/guides/routing/provider-selection).
 - [Reasoning effort and billed output](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens).
 
-The mapping adapter uses the documented chat-completion structured/SSE transport
-and presents the existing normalized mapping stream to grounding/progress code.
-It does not assume Responses and chat streaming event names are interchangeable.
+The mapping and funded-question adapters share one documented chat-completion
+structured/SSE transport and present the existing normalized mapping stream and
+detached question results to grounding/progress code. They do not assume
+Responses and chat streaming event names are interchangeable.

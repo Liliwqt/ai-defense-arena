@@ -58,6 +58,10 @@ class PostgresPreparationAllowances(LocalDatabase, test_provider_allowance.Prepa
     pass
 
 
+class PostgresDefenseAllowances(LocalDatabase, test_provider_allowance.DefenseAllowanceLimitTests):
+    pass
+
+
 class PostgresServiceHandoff(LocalDatabase, test_service_handoff.ServiceHandoffTests):
     pass
 

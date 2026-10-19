@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from backend import game_server
 from backend.timed_turn import PendingSubmission
-from backend.defense_session import ResearchDefenseSession, advance_defense
+from backend.defense_session import PlannedMove, ResearchDefenseSession, advance_defense
 from backend.project_files import ProjectFile
 from backend.question_generator import (RESEARCH_PANELISTS, ResearchMove, ResearchMoveDraft, TopicAssessmentDraft,
     GroundedQuestion, GroundedCitation, QuestionGenerationError, generate_research_move,
@@ -214,6 +214,29 @@ class CoveragePolicyTests(unittest.TestCase):
                 self.apply(session)
                 self.assertEqual(len(session.turns), count + 1)
                 self.assertTrue(session.turns[count - 1].resolved)
+
+    def test_plan_validation_is_detached_from_question_approval(self):
+        session = self.session(4, 8)
+        session.validate_plan(PlannedMove(RESEARCH_PANELISTS[0], 'topic-1', False, None))
+        self.assertEqual(session.turns, [])
+        for planned, message in (
+            (PlannedMove(RESEARCH_PANELISTS[2], 'topic-1', False, None), 'invalid research topic or reviewer'),
+            (PlannedMove(RESEARCH_PANELISTS[0], 'topic-4', False, None), 'invalid research topic or reviewer'),
+            (PlannedMove(RESEARCH_PANELISTS[0], 'topic-1', True, None), 'invalid research topic or reviewer'),
+            (PlannedMove(None, None, False, None), 'too early'),
+            (PlannedMove(RESEARCH_PANELISTS[0], 'topic-1', False, TopicAssessmentDraft(
+                topic_id='topic-1', turn=0, status='discussed', reason='An opening has no answer.')), 'cannot assess'),
+        ):
+            with self.subTest(planned=planned), self.assertRaisesRegex(QuestionGenerationError, message):
+                session.validate_plan(planned)
+            self.assertEqual(session.turns, [])
+        self.apply(session)
+        session.submit_answer('We described the pilot decision.')
+        planned = PlannedMove(RESEARCH_PANELISTS[1], 'topic-2', False, TopicAssessmentDraft(
+            topic_id='topic-1', turn=0, status='discussed', reason='The defender explained the topic.'))
+        session.validate_plan(planned)
+        self.assertEqual(len(session.turns), 1)
+        self.assertEqual(session.coverage['topic-1']['status'], 'discussed')
 
     def test_timeout_budget_and_clarification_do_not_invent_answers(self):
         from backend.question_generator import ClarificationExchange
