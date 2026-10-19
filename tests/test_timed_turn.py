@@ -110,6 +110,27 @@ class TimedTurnTests(unittest.TestCase):
         self.assertEqual((turn.clock_id, turn.answer_deadline_ms, turn.pause_started_ms,
                           turn.pause_deadline_ms), clock)
 
+    def test_delayed_retries_preserve_consumed_time_and_only_pause_for_processing(self):
+        session = DefenseSession.start(GroundedQuestion('Why?', 'queue.py', 1, 'queue = []'))
+        turn = TimedTurn()
+        online = {'alex': 0}
+        turn.begin_vote(0)
+        turn.expire(15000, online, session)
+        turn.submit('alex', 'Alex', 0, 0, 'Explain?', session, 16000)
+        turn.interpretation_failed(turn.interpretation_id, turn.pending_submission, 'Unavailable', 17000)
+        self.assertEqual(turn.answer_deadline_ms, 136000)  # One second spent processing.
+
+        turn.retry_interpretation(is_host=True, seat=0, now=77000)  # Sixty seconds answering.
+        turn.interpretation_failed(turn.interpretation_id, turn.pending_submission, 'Unavailable', 79000)
+        self.assertEqual(turn.answer_deadline_ms, 138000)  # Two more seconds processing.
+
+        turn.retry_interpretation(is_host=True, seat=0, now=109000)  # Thirty more seconds answering.
+        turn.interpret(session, SubmissionDecision('clarify', 'Explain the queue.'),
+                       turn.interpretation_id, turn.pending_submission, online, 111000)
+        self.assertEqual(turn.answer_deadline_ms, 140000)  # Five processing seconds in total.
+        self.assertIsNone(turn.pause_deadline_ms)
+        self.assertEqual(turn.expire(140000, online, session), 'timed_out')
+
     def test_expiry_is_idempotent_and_disconnect_never_resets_deadline(self):
         session = DefenseSession.start(GroundedQuestion("Why?", "queue.py", 1, "queue = []"))
         turn = TimedTurn()
@@ -147,7 +168,8 @@ class TimedTurnTests(unittest.TestCase):
             turn.accept_saved_answer(session, "other", 1)
         turn.retry_interpretation(is_host=True, seat=1, now=16002)
         self.assertIsNotNone(turn.pause_deadline_ms)
-        self.assertTrue(turn.interpretation_failed(turn.interpretation_id, pending, "Still unavailable.", 16003))
+        self.assertTrue(turn.interpretation_failed(turn.interpretation_id, turn.pending_submission,
+                                                   "Still unavailable.", 16003))
         self.assertIsNone(turn.pause_deadline_ms)
         turn.accept_saved_answer(session, "alex", 0)
         self.assertEqual(session.turns[0].answer, "We use a queue.")

@@ -427,12 +427,14 @@ class FundedInteractionProtocolTests(coverage.CoverageProtocolTests):
                 for socket in (h, g):
                     failed = self.until(socket, phase='interpretation_retry')
                     self.assertEqual(failed['answer_deadline_ms'], first_deadline)
+                self.now += 10_000
                 h.send_json({'type': 'retry_interpretation'})
                 self.assertTrue(entered.wait(10))
                 for socket in (h, g):
                     reviewing = self.until(socket, phase='interpreting')
                     self.assertIs(reviewing['clock_paused'], True)
                     self.assertIsNotNone(reviewing['pause_deadline_ms'])
+                    self.assertEqual(reviewing['remaining_answer_ms'], ANSWER_MS - 10_000)
                 self.now += 5_000
                 release.set()
                 for socket in (h, g):
@@ -466,6 +468,63 @@ class FundedInteractionProtocolTests(coverage.CoverageProtocolTests):
                     self.assertIsNone(failed['pause_deadline_ms'])
                     self.assertEqual(failed['answer_deadline_ms'], probe_deadline)
                     self.assertEqual(failed['turns'][0]['probe']['status'], 'pending')
+
+    def test_delayed_budget_retry_keeps_consumed_answer_time(self):
+        self.check_delayed_retry(budget=True)
+
+    def test_delayed_clarification_retry_keeps_consumed_answer_time(self):
+        self.check_delayed_retry()
+
+    def test_delayed_probe_clarification_retry_keeps_consumed_reply_time(self):
+        self.check_delayed_retry(probe_reply=True)
+
+    def check_delayed_retry(self, *, budget=False, probe_reply=False):
+        outputs = [planner_move(METHODOLOGY, 'topic-1'),
+                   reviewer_question('How will the team justify the stated pilot design?')]
+        if probe_reply:
+            outputs.append(probe())
+        outputs += [httpx.Response(503, text='{}'), clarification()]
+        host, guest = self.create_room()
+        code = host['room_code']
+        with patch.object(planning_workflow, 'generate_research_plan', return_value=self.plan):
+            with self.client.websocket_connect(f'/ws/{code}') as h, \
+                 self.client.websocket_connect(f'/ws/{code}') as g:
+                calls = self.funded(*outputs)
+                state = self.open_question(((h, host['player_token']), (g, guest['player_token'])))
+                if probe_reply:
+                    h.send_json({'type': 'submit_answer', 'turn': 0, 'answer': ANSWER})
+                    for socket in (h, g):
+                        state = self.until(socket, phase='probe')
+                deadline = state['answer_deadline_ms']
+                room = game_server.rooms[code]
+                if budget:
+                    allowance = ProviderAllowance(run_scope(room.run_id), self._offline_credentials[2]['id'])
+                    policy = RunQuestionPolicy(**allowance.policy())
+                    allowance.reserve(policy.question_limit_nano - allowance.snapshot()['used'] - 1000,
+                                      limit=policy.question_limit_nano)
+                command = {'type': 'submit_probe_reply' if probe_reply else 'submit_answer',
+                           'turn': 0, 'answer': ANSWER}
+                if probe_reply:
+                    command['probe_id'] = state['turns'][0]['probe']['id']
+                h.send_json(command)
+                for socket in (h, g):
+                    self.until(socket, phase='interpretation_retry')
+                self.now += 10_000 if probe_reply else 100_000
+                remaining = deadline - self.now
+                h.send_json({'type': 'retry_interpretation'})
+                phase = 'interpretation_retry' if budget else 'probe' if probe_reply else 'question'
+                for socket in (h, g):
+                    state = self.until(socket, phase=phase)
+                    self.assertEqual(state['answer_deadline_ms'], deadline)
+                    self.assertFalse(state['clock_paused'])
+                    if budget:
+                        self.assertEqual(state['remaining_answer_ms'], remaining)
+                        self.assertEqual(state['my_pending_submission'], ANSWER if socket is h else None)
+                    elif probe_reply:
+                        self.assertEqual(state['turns'][0]['probe']['status'], 'pending')
+                        self.assertEqual(state['probe_deadline_ms'], deadline)
+                    self.assertEqual(len(state['turns']), 1)
+                self.assertEqual(len(calls), 2 if budget else 5 if probe_reply else 4)
 
     def test_duplicate_submission_is_rejected_and_reconnect_sees_the_pending_answer(self):
         entered, release = threading.Event(), threading.Event()

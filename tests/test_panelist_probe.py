@@ -64,7 +64,7 @@ class ProbeTurnTests(unittest.TestCase):
         self.room.interpretation_failed(ident, pending, 'AI unavailable', 3000)
         self.room.retry_interpretation(is_host=False, seat=0, now=3000)
         self.room.interpret(self.session, SubmissionDecision('clarify', 'Which list will you draw names from?'),
-                            self.room.interpretation_id, pending, {'ana': 0}, 4000)
+                            self.room.interpretation_id, self.room.pending_submission, {'ana': 0}, 4000)
         self.assertEqual(self.room.phase, 'probe')
         self.assertEqual(self.room.answer_deadline_ms, 33000)
         self.assertEqual(probe.clarifications[0].request, 'Simplify?')

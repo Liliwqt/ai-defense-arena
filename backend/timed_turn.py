@@ -1,6 +1,6 @@
 """Synchronous timed-turn rules; room adapters own locks, tasks and publication."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import secrets
 
 from backend.defense_session import DefenseSession, MAX_ANSWER_CHARS
@@ -326,6 +326,11 @@ class TimedTurn:
             raise ValueError("Only the host or chosen defender can retry.")
         if self.interpretation_attempts >= limit('AI_INTERPRETATION_ATTEMPTS', 6, 20):
             raise ValueError('Interpretation allowance used. Use the saved submission as an answer.')
+        # Recovery time has been running since the previous attempt failed.
+        # Capture this attempt's remaining time without changing the saved text
+        # or provenance; the original snapshot would refund time before Retry.
+        self.pending_submission = replace(self.pending_submission,
+            remaining_ms=max(0, self.answer_deadline_ms - now))
         self.interpretation_attempts += 1
         self.phase = "interpreting"
         self.error = None
