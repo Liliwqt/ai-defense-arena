@@ -12,7 +12,7 @@ from backend.project_files import ProjectFile
 from backend.defense_session import ResearchDefenseSession
 from backend.question_generator import (
     AnsweredQuestion, NextMoveDraft, QuestionDraft, SubmissionDraft,
-    generate_next_move, generate_research_move,
+    generate_first_question, interpret_submission, generate_next_move, generate_research_move,
 )
 from backend.timed_turn import VOTE_MS
 from tests.test_question_generator import FakeClient
@@ -93,7 +93,15 @@ class ConversationClarityRoomTests(unittest.TestCase):
         code = host["room_code"]
         guest = self.client.post(f"/api/rooms/{code}/join", json={"name": "Sam"}).json()
 
-        with patch("backend.question_generator.OpenAI", return_value=provider):
+        def injected(function):
+            def invoke(*args, **kwargs):
+                kwargs['client'] = provider
+                return function(*args, **kwargs)
+            return invoke
+
+        with patch('backend.rooms.questions.generate_first_question', side_effect=injected(generate_first_question)), \
+             patch('backend.rooms.questions.generate_next_move', side_effect=injected(generate_next_move)), \
+             patch('backend.rooms.submissions.interpret_submission', side_effect=injected(interpret_submission)):
             with self.client.websocket_connect(f"/ws/{code}") as h, self.client.websocket_connect(f"/ws/{code}") as g:
                 h.send_json({"type": "hello", "token": host["player_token"]})
                 self.until(h, "lobby")

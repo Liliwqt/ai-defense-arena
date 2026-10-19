@@ -72,7 +72,7 @@ class FundedCoachingClientTests(IsolatedAllowanceTests):
         funded = RunQuestionClient(scope, owner, None, self.files).coaching()
         history = [AnsweredQuestion('Methodology Reviewer', 'Why this pilot?', 'A bounded comparison.')]
         with patch('httpx.Client', side_effect=client), \
-             patch('backend.question_generator.OpenAI', side_effect=AssertionError('No direct fallback')):
+             patch('openai.OpenAI', side_effect=AssertionError('No direct fallback')):
             report = generate_coaching_report(self.files, history, None, client=funded,
                                               defense_type='research', overview_only=True)
         self.assertEqual(report.summary, OVERVIEW['summary'])
@@ -146,7 +146,7 @@ class FundedCoachingProgressTests(unittest.IsolatedAsyncioTestCase):
             return response
         mock = patch('httpx.Client', side_effect=lambda **kw: HTTPClient(transport=httpx.MockTransport(provider)))
         mock.start(); self.addCleanup(mock.stop)
-        direct = patch('backend.question_generator.OpenAI', side_effect=AssertionError('No direct fallback'))
+        direct = patch('openai.OpenAI', side_effect=AssertionError('No direct fallback'))
         direct.start(); self.addCleanup(direct.stop)
         async def deliver(socket, payload):
             pass

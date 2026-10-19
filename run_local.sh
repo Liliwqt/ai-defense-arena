@@ -11,13 +11,13 @@ if [[ ! -d game/node_modules ]]; then
 fi
 (cd game && npm run build)
 
-if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-  read -r -s -p 'OpenAI API key (input hidden): ' OPENAI_API_KEY
+if [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
+  read -r -s -p 'OpenRouter API key (input hidden): ' OPENROUTER_API_KEY
   printf '\n'
-  export OPENAI_API_KEY
+  export OPENROUTER_API_KEY
 fi
-if [[ -z "$OPENAI_API_KEY" ]]; then
-  printf 'An OpenAI API key is required.\n' >&2
+if [[ -z "$OPENROUTER_API_KEY" ]]; then
+  printf 'An OpenRouter API key is required.\n' >&2
   exit 1
 fi
 if [[ -z "${FREE_ACCESS_VOUCHER:-}" ]]; then

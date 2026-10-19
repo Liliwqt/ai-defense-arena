@@ -32,6 +32,7 @@ from tests import test_service_handoff
 from tests import test_opening_history
 from tests import test_provider_allowance
 from tests import test_openrouter_coaching
+from tests import test_openrouter_checkpoint
 
 
 class LocalDatabase:
@@ -53,6 +54,10 @@ class LocalDatabase:
         env.start()
         self.addCleanup(env.stop)
         super().setUp()
+
+
+class PostgresTextCheckpoint(LocalDatabase, test_openrouter_checkpoint.OpenRouterTextCheckpointTests):
+    pass
 
 
 class PostgresPreparationAllowances(LocalDatabase, test_provider_allowance.PreparationAllowanceTests):

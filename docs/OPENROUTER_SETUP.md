@@ -1,132 +1,94 @@
-# OpenRouter mapping and question checkpoint
+# OpenRouter text setup
 
-Ticket 01 moved multiplayer paper mapping/remapping to OpenRouter. Ticket 02
-additionally moves research/mixed key-question generation to the assigned
-four-reviewer bundle with a GLM low planner and a finite run allowance.
-Submission interpretation, coaching and Streamlit question generation still use
-the existing text configuration until their later migration tickets: that is
-transitional intermediate state, and it is never an automatic fallback from a
-failed OpenRouter request. Code-only starts and the old live-speech pilot are
-disabled by release gates, even if old environment settings remain configured.
-Research and mixed typed defenses remain available.
+Research/mixed mapping, planner/reviewer questions, clarification/probes and
+progressive coaching now use shared funded OpenRouter clients in both web and
+typed Streamlit. No implicit direct OpenAI text client remains. A missing funded
+client fails closed; an old OpenAI key cannot enable a fallback. Code-only starts
+and the old speech pilot remain disabled. Retained results are readable.
 
-## Server configuration
+The text checkpoint is implemented locally; actual account/model tests and
+measured capacity gates remain pending. This is not deployment approval.
 
-Set `OPENROUTER_API_KEY` privately in the server environment before mapping.
-Never put it in a client/Vite setting, commit it, or paste it into a support log.
-Keep the existing text configuration for the unmigrated operations. There is no
-automatic fallback from failed OpenRouter mapping to the old text provider.
+## Configure the server
 
-| Setting | Initial value | Meaning |
+Set `OPENROUTER_API_KEY` privately in the launching environment. The tracked
+`./run_local.sh` prompts privately if it is absent; it does not load or save an
+`.env` file. Google host sign-in, vouchers and payment/database configuration
+keep their existing setup. Keep exactly one worker and one instance.
+
+| Setting | Candidate default | Meaning |
 | --- | --- | --- |
-| Mapping model | `deepseek/deepseek-v4.1-flash-1017` | Exact selected model; not a browser/model override. |
-| Mapping reasoning | `high` | Explicit policy, independent of legacy effort settings. |
-| `OPENROUTER_MAPPING_MAX_OUTPUT_TOKENS` | `65536` | Total generated tokens including reasoning; configurable from 1024 to 131072. |
-| `OPENROUTER_PREPARATION_USD` | `0.75` | Separate preparation ceiling; positive decimal up to USD 10. |
-| `OPENROUTER_RUN_USD` | `5.00` | Per-run question ceiling; positive decimal up to USD 100. |
+| `OPENROUTER_PREPARATION_USD` | `0.75` | Separate per-preparation ceiling, positive decimal up to USD10. |
+| `OPENROUTER_MAPPING_MAX_OUTPUT_TOKENS` | `65536` | Mapping reasoning plus visible output, configurable1024–131072. |
+| `OPENROUTER_RUN_USD` | `5.00` | Full per-run ceiling including coaching, positive decimal up to USD100. |
 
-## Funded defense questions
+These are finite local admission settings, not measured bills, universal input
+capacity or provider-side billing guarantees. They remain candidates until the
+checkpoint's live/context/output/affordability checks pass. `OPENAI_MODEL` and
+legacy effort variables do not override funded-run assignments.
 
-Research and mixed Start/Restart establish one run scope (`run:<run_id>`) before
-any game-credit commitment. The scope snapshots the planner/reviewer bundle, the
-per-run ceiling and a protected coaching reserve computed from the confirmed
-question budget; an unfundable budget is rejected at Start with the question
-budget and its reserve named. Retry of the same run reuses that snapshot; a
-restart or a new run receives a new scope. Reconnect, refresh and operator
-configuration edits cannot reset or enlarge it.
-
-| Stage | Model | Reasoning | Output limit |
+| Task | Model | Reasoning | Total output bound |
 | --- | --- | --- | --- |
-| Planner | `z-ai/glm-5.3-flash` | `effort: low` (mandatory reasoning is explicit) | 4096 |
-| Methodology Reviewer | `deepseek/deepseek-v4.1-flash-1017` | `effort: high` | 8192 |
-| Ethics Reviewer | `anthropic/claude-haiku-5.5` | `effort: medium` | 8192 |
-| Impact Reviewer | `qwen/qwen3.8-flash` | `max_tokens: 2048` (Qwen advertises `supports_max_tokens`, no named effort) | 8192 |
-| Critical Judge | `z-ai/glm-5.3-flash` | `effort: high` | 8192 |
+| Mapping | `deepseek/deepseek-v4.1-flash-1017` | high |65536|
+| Planner | `z-ai/glm-5.3-flash` | low |4096|
+| Methodology | `deepseek/deepseek-v4.1-flash-1017` | high |8192|
+| Ethics | `anthropic/claude-haiku-5.5` | medium |8192|
+| Impact | `qwen/qwen3.8-flash` | reasoning max_tokens2048 |8192|
+| Critical | `z-ai/glm-5.3-flash` | high |8192|
+| Overview/answer coaching | `anthropic/claude-haiku-5.5` | high |8192|
 
-The planner chooses only from the server-provided eligible options; the server
-validates reviewer, topic, follow-up, assessment and completion before the
-assigned reviewer is called, so an invalid plan or a valid completion costs no
-reviewer request. Both stages reserve their conservative bound before dispatch,
-settle only a valid `usage.cost` receipt and keep unknown usage fully reserved.
-Cancellation between stages, a stale generation and duplicate work stop before
-the reviewer request; the room keeps normal duplicate-question regeneration and
-explicit repeat acceptance. Question attempts, reserved provider spend and the
-single opening/run charge are all accounted once per dispatched stage.
+Same-reviewer clarification/probes use the assigned reviewer model, low reasoning
+for Methodology/Ethics/Critical and reasoning max_tokens1024 for Impact, within a
+2048 total-output bound. Qwen's catalog advertises token-budget reasoning, not a
+named effort. Actual selected-route support still requires account tests.
 
-When the protected question limit cannot fund another question, the discussion
-is retained and the failure explains that retry will not reset the allowance;
-the coaching reserve remains available to the later coaching ticket, never to
-questions. An unfundable configuration names `OPENROUTER_RUN_USD` instead.
+## Allowances and recovery
 
-The first preparation request snapshots the settings and allowance for that room.
-Remapping, correction, reconnect, refresh, restart within the same room and
-operator edits cannot reset that allowance or alter its snapshot. New rooms
-receive new preparation scopes. Missing credentials do not dispatch a request.
-Mapping stays explicit; visiting a page does not begin paid work.
+Explicit preparation captures one policy and allowance. Revisiting, remapping,
+correcting a profile, reconnecting or changing operator settings cannot reset
+it. New rooms get new preparation scopes; Streamlit uses its opaque browser
+identity/material scope, described in [its setup](STREAMLIT_OPENROUTER.md).
 
-These finite defaults are initial local settings, not measured live bills or
-proof of sufficient output for every possible paper. Synthetic checks exercise
-the accepted input limits, bounded generated maps, exhaustion and recovery.
-Account access, actual schema/reasoning compatibility, response completeness,
-quality, latency and real usage must be measured in the text checkpoint before
-rollout. An output-limit failure retains accepted material and never silently
-truncates a paper or approves an incomplete map.
+Start snapshots one run policy and checks its confirmed question budget and
+coaching reserve before any defense-credit commitment. Planner choices validate
+before a reviewer request. Only a validated opening commits history/access;
+retries reuse the same run policy. An explicit new run establishes another scope.
 
-## Reservations and recovery
+Questions/interactions cannot spend the protected coaching remainder. Coaching
+uses the full ceiling; ready sections survive failures, retries process failed
+membership only, and completion writes regenerate no cards. All required sections
+and durable completion precede successful financial settlement. Existing eligible
+credit returns remain separate from provider costs. Additional retries may stop
+safely when the allowance is exhausted; they are not promised unlimited funding.
 
-The database stores provider allowances and request reservations separately from
-account credits, receipts and defense run charges. Amounts use integer nano-USD.
-It stores scope/model-policy/cost metadata, not paper text, answers, audio or keys.
-The existing SQLite/PostgreSQL transaction boundary serializes admission.
+Each request reserves its exact serialized-input/output bound before dispatch.
+Known usage settles once. Missing, conflicting, cancelled or stale usage is never
+assumed free; conflicting/over-bound cost blocks further spending for operator
+review. Provider accounting stores scope/policy/cost metadata, not source text,
+answers, audio or credentials. Real SQLite/PostgreSQL transactions own admission.
 
-Before dispatch, mapping reserves a conservative input/output bound. Input uses
-serialized UTF-8 bytes plus framing headroom as a token upper bound and
-rejects a request beyond the selected context instead of truncating it. The
-request filters for supported parameters, disables provider fallbacks, denies
-data-collection routes and caps routing at USD 0.30 per million input tokens,
-USD 1.20 per million output tokens and zero extra request fee. Reasoning is part
-of generated output, not a second output charge.
-
-Each valid provider `usage.cost` receipt settles idempotently; a later receipt
-cannot silently overwrite conflicting evidence. Missing/invalid usage,
-connection failure, cancellation or process restart cannot make a dispatched
-request free: its full bound remains reserved conservatively. Conflicting cost
-evidence or a cost above the reservation blocks new requests for operator review.
-This is a local spending control, not a provider billing guarantee. Top-up
-balances, defense prices, vouchers and credit-return eligibility are unchanged.
-
-When preparation cannot fund another request, the app retains uploads and
-explains that retry will not reset the allowance. A valid prior map remains
-readable during an unchanged-scope remap failure, with approval revoked and
-confirmation/Start blocked. A changed profile invalidates the old map's scope;
-the correction remains available for retry and fresh confirmation.
+Requests require supported parameters, strict structured output, no provider
+fallback, data_collection deny, zero request fee and maximum routing prices of
+USD0.30/M input and USD1.20/M output. Reasoning is included in billed output.
+The public catalog checked2026-10-20 lists a higher Haiku tier at100000 prompt
+tokens (USD0.50/M input, USD2.50/M output), above these caps. Large-input route
+availability is therefore a pending gate, not a reason to silently raise caps,
+switch models, truncate sources or lower research scope.
 
 ## Verification boundaries
 
-HTTP/WebSocket and browser tests use synthetic papers and mocked provider HTTP.
-Funded planner/reviewer checks cover the exact bundle, per-stage reservation and
-settlement, unknown-usage retention, invalid-plan rejection before any reviewer
-request, valid-completion single-call behavior, cancellation between stages and
-unfundable-start rejection before credit commitment. The opt-in PostgreSQL gate
-uses disposable loopback databases for concurrency and
-reopen/settlement checks. Historical code/speech engine tests explicitly mock the
-old release gates; dedicated policy tests verify those paths remain unavailable
-under the actual release settings. There is no environment switch to bypass the
-current code-only/speech gates.
+Provider-mocked contract/HTTP/WebSocket/AppTest/browser checks establish routing,
+source grounding, synchronization, bounded spending and recovery. Real local
+PostgreSQL checks separately establish transactional behavior. Neither proves
+model quality, actual token usage, reasoning/output sufficiency or route access.
+Numeric limits must be measured against synthetic large papers and long reports
+before rollout. Failed compatibility/affordability gates require a reported
+operator decision; the selected models, research scope and credit prices stay
+unchanged until one is made. Speech stays off pending its separate prototype.
 
-No actual OpenRouter inference or microphone request is part of the offline
-suite. Actual provider/model quality, account capability and billing remain
-separate evidence. Voice integration requires its later OpenRouter-only prototype
-and review; native builds cannot substitute for installed-device capture tests.
+Primary sources checked2026-10-20:
 
-## Primary references checked 2026-10-19
-
-- [Model capability catalog](https://openrouter.ai/api/v1/models).
-- [Structured output and streaming](https://openrouter.ai/docs/guides/features/structured-outputs).
+- [Model capability and price catalog](https://openrouter.ai/api/v1/models).
 - [Provider parameter, fallback, data-policy and price controls](https://openrouter.ai/docs/guides/routing/provider-selection).
-- [Reasoning effort and billed output](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens).
-
-The mapping and funded-question adapters share one documented chat-completion
-structured/SSE transport and present the existing normalized mapping stream and
-detached question results to grounding/progress code. They do not assume
-Responses and chat streaming event names are interchangeable.
+- [Reasoning tokens and billed output](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens).
+- [Structured output](https://openrouter.ai/docs/guides/features/structured-outputs).

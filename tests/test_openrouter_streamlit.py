@@ -80,7 +80,7 @@ class OpenRouterFallbackTests(IsolatedAllowanceTests):
             return stream_response(draft())
 
         with patch.dict('os.environ', {'OPENAI_API_KEY': '', 'OPENAI_MODEL': 'unused'}), \
-             patch('backend.research_plan.OpenAI', side_effect=AssertionError('No direct provider')), \
+             patch('openai.OpenAI', side_effect=AssertionError('No direct provider')), \
              patch('httpx.Client', side_effect=lambda **kw: HTTPClient(transport=httpx.MockTransport(provider))):
             app = AppTest.from_file(APP).run()
             app.file_uploader[0].set_value([('study.md', PAPER.encode(), 'text/markdown')]).run()
@@ -110,8 +110,8 @@ class OpenRouterFallbackTests(IsolatedAllowanceTests):
         calls = router.calls
 
         with patch.dict('os.environ', {'OPENAI_API_KEY': '', 'OPENAI_MODEL': 'unrelated'}), \
-             patch('backend.question_generator.OpenAI', side_effect=AssertionError('No direct provider')), \
-             patch('backend.research_plan.OpenAI', side_effect=AssertionError('No direct provider')), \
+             patch('openai.OpenAI', side_effect=AssertionError('No direct provider')), \
+             patch('openai.OpenAI', side_effect=AssertionError('No direct provider')), \
              patch('httpx.Client', side_effect=lambda **kw: HTTPClient(transport=httpx.MockTransport(router))):
             app = AppTest.from_file(APP).run()
             router.app = app
@@ -144,8 +144,8 @@ class OpenRouterFallbackTests(IsolatedAllowanceTests):
 
     def connect(self, router):
         self.enterContext(patch.dict('os.environ', {'OPENAI_API_KEY': '', 'OPENAI_MODEL': 'unused'}))
-        self.enterContext(patch('backend.question_generator.OpenAI', side_effect=AssertionError('No direct provider')))
-        self.enterContext(patch('backend.research_plan.OpenAI', side_effect=AssertionError('No direct provider')))
+        self.enterContext(patch('openai.OpenAI', side_effect=AssertionError('No direct provider')))
+        self.enterContext(patch('openai.OpenAI', side_effect=AssertionError('No direct provider')))
         self.enterContext(patch('httpx.Client', side_effect=lambda **kw: HTTPClient(transport=httpx.MockTransport(router))))
         app = AppTest.from_file(APP).run()
         router.app = app

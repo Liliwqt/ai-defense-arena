@@ -13,8 +13,9 @@ from backend.question_generator import GroundedQuestion, PanelMove, SubmissionDe
 
 class DefenseAppTests(unittest.TestCase):
     def setUp(self):
-        from tests.offline_accounts import historical_release
+        from tests.offline_accounts import historical_release, fallback
         historical_release(self)
+        fallback(self)
 
     def test_four_answer_screen_retry_and_project_reset(self):
         readme = Path("sample_project/README.md").read_bytes()

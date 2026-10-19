@@ -8,7 +8,6 @@ from collections.abc import Callable
 from backend.research_plan_stream import CompletedTopicDecoder
 from backend.research_panel import research_panel_guidance, serialize_research_scope
 
-from openai import OpenAI
 from pydantic import BaseModel, StrictInt, ValidationError, ConfigDict
 
 from backend.project_files import ProjectFile
@@ -178,18 +177,13 @@ def generate_research_plan(
     """One structured request, with excerpts resolved entirely from accepted text."""
     if defense_type not in {"research", "mixed"} or research_stage not in {"proposal", "completed", "infer"}:
         raise ValueError("Research planning requires a research defense and valid study stage.")
-    key = (api_key or "").strip()
-    if not key:
-        raise QuestionGenerationError("Set OPENAI_API_KEY and restart the app to prepare a research defense.")
-    if any(character.isspace() for character in key):
-        raise QuestionGenerationError("OPENAI_API_KEY contains whitespace. Set a clean key and restart the app.")
     source, lookup, _ = build_project_source(project_files)
     research_ids = {file_id for file_id, (file, _) in lookup.items() if file.kind.startswith("research")}
     if not research_ids:
         raise QuestionGenerationError("Upload an accepted research document before preparing a defense.")
     eligible = set(lookup) if defense_type == "mixed" else research_ids
     if client is None:
-        client = OpenAI(api_key=key, timeout=90.0, max_retries=0)
+        raise QuestionGenerationError("A funded OpenRouter client is required. Start or retry through the app.")
     request = dict(
         model=model, reasoning=getattr(client, 'mapping_reasoning', None) or {"effort": "low"}, store=False,
         input=[

@@ -59,7 +59,7 @@ class QuestionGeneratorTests(unittest.TestCase):
         self.assertEqual(result.filename, "src/queue.py")
         self.assertEqual(result.evidence_line, 2)
         self.assertEqual(result.evidence_text, "DATABASE = 'queue.db'")
-        self.assertEqual(client.request["model"], "gpt-6-luna")
+        self.assertEqual(client.request["model"], "server-assigned")
         self.assertEqual(client.request["reasoning"], {"effort": "low"})
         self.assertIs(client.request["store"], False)
         prompt = client.request["input"][1]["content"]
@@ -121,23 +121,18 @@ class QuestionGeneratorTests(unittest.TestCase):
         with self.assertRaisesRegex(QuestionGenerationError, "600 KB"):
             build_project_source(files)
 
-    def test_missing_key_does_not_call_api(self):
+    def test_injected_client_needs_no_legacy_key(self):
         client = FakeClient(QuestionDraft(lead_in="", question="Why SQLite?", source_file=2, evidence_line=2))
-        with self.assertRaisesRegex(QuestionGenerationError, "OPENAI_API_KEY"):
-            generate_first_question(self.files, None, client=client)
-        self.assertIsNone(client.request)
+        result = generate_first_question(self.files, None, client=client)
+        self.assertEqual(result.question, "Why SQLite?")
 
-    def test_surrounding_whitespace_is_removed_from_key(self):
-        client = FakeClient(QuestionDraft(lead_in="", question="Why SQLite?", source_file=2, evidence_line=2))
-        with patch('backend.question_generator.OpenAI', return_value=client) as constructor:
-            generate_first_question(self.files, "  test-key\n")
-        self.assertEqual(constructor.call_args.kwargs["api_key"], "test-key")
+    def test_old_key_without_funded_client_cannot_dispatch(self):
+        with self.assertRaisesRegex(QuestionGenerationError, "funded OpenRouter client"):
+            generate_first_question(self.files, "old-key")
 
-    def test_embedded_whitespace_in_key_is_rejected(self):
+    def test_injected_client_ignores_retired_key_configuration(self):
         client = FakeClient(QuestionDraft(lead_in="", question="Why SQLite?", source_file=2, evidence_line=2))
-        with self.assertRaisesRegex(QuestionGenerationError, "contains whitespace"):
-            generate_first_question(self.files, "test\nkey", client=client)
-        self.assertIsNone(client.request)
+        self.assertEqual(generate_first_question(self.files, "retired\nkey", client=client).question, "Why SQLite?")
 
     def test_api_error_remains_retryable(self):
         client = FakeClient(error=OpenAIError("Service unavailable"))
@@ -343,17 +338,13 @@ class CoachingReportTests(unittest.TestCase):
             generate_coaching_report(self.files, short_history, "test-key", client=client)
         self.assertIsNone(client.request)
 
-    def test_missing_api_key_does_not_call_api(self):
-        with patch("backend.question_generator.OpenAI") as factory:
-            with self.assertRaisesRegex(QuestionGenerationError, "OPENAI_API_KEY"):
-                generate_coaching_report(self.files, self.history, None)
-            factory.assert_not_called()
+    def test_missing_funded_client_does_not_dispatch(self):
+        with self.assertRaisesRegex(QuestionGenerationError, "funded OpenRouter client"):
+            generate_coaching_report(self.files, self.history, None)
 
-    def test_whitespace_key_is_rejected(self):
-        with patch("backend.question_generator.OpenAI") as factory:
-            with self.assertRaisesRegex(QuestionGenerationError, "contains whitespace"):
-                generate_coaching_report(self.files, self.history, "test\nkey")
-            factory.assert_not_called()
+    def test_retired_key_cannot_construct_a_direct_coach(self):
+        with self.assertRaisesRegex(QuestionGenerationError, "funded OpenRouter client"):
+            generate_coaching_report(self.files, self.history, "retired-key")
 
     def test_all_four_turn_references_are_valid(self):
         draft = self._draft(
@@ -395,14 +386,14 @@ class ErrorMessageTests(unittest.TestCase):
     def test_invalid_key_has_clear_message(self):
         error = self.make_status_error(401)
         message = describe_openai_error(error, "gpt-6-luna", "secret-key")
-        self.assertIn("OPENAI_API_KEY", message)
+        self.assertIn("OPENROUTER_API_KEY", message)
         self.assertIn("401", message)
 
     def test_unavailable_model_names_override(self):
         error = self.make_status_error(404)
         message = describe_openai_error(error, "gpt-6-luna")
         self.assertIn("gpt-6-luna", message)
-        self.assertIn("OPENAI_MODEL", message)
+        self.assertIn("assigned server model policy", message)
 
     def test_quota_error_is_distinct_from_rate_limit(self):
         quota = self.make_status_error(429, code="credit_balance_exhausted")

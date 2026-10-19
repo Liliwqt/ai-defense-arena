@@ -2,7 +2,6 @@
 
 import asyncio
 from dataclasses import dataclass, replace
-import os
 from typing import TYPE_CHECKING
 from collections.abc import Awaitable, Callable
 from fastapi import HTTPException
@@ -46,8 +45,8 @@ async def request_question(request: PreparedProgression, files: tuple[ProjectFil
     if request.provider_scope and request.provider_owner and isinstance(request.session, ResearchDefenseSession):
         client = RunQuestionClient(request.provider_scope, request.provider_owner, request.session, files,
                                    stopped=request.provider_stopped or (lambda: False))
-    return await asyncio.to_thread(request.generate, list(files), os.getenv("OPENAI_API_KEY"),
-        os.getenv("OPENAI_MODEL") or DEFAULT_MODEL, client=client,
+    return await asyncio.to_thread(request.generate, list(files), None,
+        DEFAULT_MODEL, client=client,
         first_question=generate_first_question,
         next_move=generate_next_move, research_move=generate_research_move)
 

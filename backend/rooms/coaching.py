@@ -3,7 +3,6 @@
 import asyncio
 import copy
 from dataclasses import dataclass, replace
-import os
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
@@ -54,7 +53,7 @@ async def request_coaching(request: CoachingInput) -> CoachingReport:
         client = RunQuestionClient(request.provider_scope, request.provider_owner, None,
                                    request.files, stopped=request.provider_stopped or (lambda: False)).coaching()
     return await asyncio.to_thread(generate_coaching_report, list(request.files), list(request.history),
-        os.getenv("OPENAI_API_KEY"), os.getenv("OPENAI_MODEL") or DEFAULT_MODEL,
+        None, DEFAULT_MODEL,
         defense_type=request.defense_type, research_stage=request.research_stage,
         **({"client": client} if client is not None else {}),
         **({"overview_only": True} if request.overview_only else {}),

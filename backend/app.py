@@ -263,13 +263,13 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
             provider_for(st.session_state, project_fingerprint)
 
         st.subheader("2. Practice defense")
-        api_key = (os.getenv("OPENAI_API_KEY" if mode == "code" else "OPENROUTER_API_KEY") or "").strip()
-        model = (os.getenv("OPENAI_MODEL") or DEFAULT_MODEL) if mode == "code" else MAPPING_MODEL
+        api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
+        model = DEFAULT_MODEL
         if not api_key:
-            st.warning("Set OPENROUTER_API_KEY in the shell, then restart the app to begin a research defense." if mode != "code" else "Set OPENAI_API_KEY in the shell, then restart the app to begin a defense.")
+            st.warning("Set OPENROUTER_API_KEY in the shell, then restart the app to begin a research defense.")
         if mode != "code":
             research_scope_preview(files, api_key, model, mode, research_stage)
-        st.caption("Research uses OpenRouter with fixed reviewer settings and bounded provider spending. Accepted text and earlier answers are sent to the assigned model." if mode != "code" else f"Model: {model}. Accepted text and earlier answers are sent to OpenAI.")
+        st.caption("Research uses OpenRouter with fixed reviewer settings and bounded provider spending. Accepted text and earlier answers are sent to the assigned model.")
 
         session = st.session_state.get("defense_session")
         button_label = "Start new defense" if session else "Start defense"

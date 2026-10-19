@@ -58,7 +58,7 @@ class StreamedMapTests(unittest.TestCase):
         client = StreamingClient()
         plan = self.generate(client, events)
         self.assertEqual(len(client.calls), 1)
-        self.assertEqual(client.calls[0]["model"], "gpt-6-luna")
+        self.assertEqual(client.calls[0]["model"], "server-assigned")
         self.assertEqual([len(event.topics) for event in events], [0, 1, 2, 3, 4, 4])
         self.assertEqual(events[-1].stage, "validating")
         self.assertEqual(events[-1].topics, plan.topics)

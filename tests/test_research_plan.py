@@ -67,7 +67,7 @@ class ResearchPlanGenerationTests(unittest.TestCase):
         plan = generate_research_plan(self.files, "offline-key", research_stage="proposal", client=client)
         self.assertEqual(len(client.calls), 1)
         request = client.calls[0]
-        self.assertEqual(request["model"], "gpt-6-luna")
+        self.assertEqual(request["model"], "server-assigned")
         self.assertFalse(request["store"])
         self.assertEqual(request["reasoning"], {"effort": "low"})
         prompt = request["input"][0]["content"]
@@ -157,8 +157,8 @@ class ResearchPlanGenerationTests(unittest.TestCase):
         with self.assertRaisesRegex(QuestionGenerationError, "duplicate topics"):
             generate_research_plan(self.files, "offline-key", client=FakeClient(output))
 
-    def test_missing_credentials_paper_and_combined_limits_fail_without_call(self):
-        for files, key in ((self.files, None), (self.files, "bad key"), ([ProjectFile("app.py", "x")], "offline-key"),
+    def test_missing_paper_and_combined_limits_fail_without_call(self):
+        for files, key in (([ProjectFile("app.py", "x")], "offline-key"),
                            ([ProjectFile("study.md", "a" * 600001, "research_text")], "offline-key")):
             client = FakeClient(draft())
             with self.assertRaises(QuestionGenerationError):

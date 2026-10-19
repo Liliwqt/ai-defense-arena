@@ -3,7 +3,6 @@
 import asyncio
 import copy
 from dataclasses import dataclass, replace
-import os
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
@@ -85,10 +84,10 @@ async def request_interpretation(request: InterpretationInput) -> SubmissionDeci
                                    stopped=request.provider_stopped or (lambda: False)
                                    ).interaction(request.panelist)
     return await asyncio.to_thread(
-        interpret_submission, list(request.files), os.getenv("OPENAI_API_KEY"),
+        interpret_submission, list(request.files), None,
         panelist=request.panelist, question=request.question, submission=request.pending.text,
         clarifications=request.clarifications, history=request.history,
-        model=os.getenv("OPENAI_MODEL") or DEFAULT_MODEL, client=client,
+        model=DEFAULT_MODEL, client=client,
         defense_type=request.defense_type, research_stage=request.research_stage,
         **({"research_context": request.research_context} if request.research_context else {}),
         **({"probe": request.probe, "original_answer": request.original_answer,

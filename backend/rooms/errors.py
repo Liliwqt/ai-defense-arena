@@ -12,7 +12,7 @@ def safe_generation_error(error: Exception) -> str:
     if isinstance(error, QuestionGenerationError):
         return str(error)
     if isinstance(error, OpenAIError):
-        return describe_openai_error(error, os.getenv("OPENAI_MODEL") or DEFAULT_MODEL, os.getenv("OPENAI_API_KEY"))
+        return describe_openai_error(error, DEFAULT_MODEL, os.getenv("OPENROUTER_API_KEY"))
     if isinstance(error, ValidationError):
         return "The AI returned an unexpected response. Please try again."
     return "The AI request failed. Please try again."

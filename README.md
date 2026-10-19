@@ -1,6 +1,6 @@
 # AI Defense Arena
 
-Practice a code-project or research-paper defense with four AI panelists and up to four teammates. Questions cite exact uploaded source or extracted document text. Teammates vote for a speaker, answer under a timer, request clarification, and receive a shared coaching report.
+Practice a research-paper or mixed research/code defense with four AI panelists and up to four teammates. Code-only starts are temporarily unavailable. Questions cite exact uploaded source or extracted document text. Teammates vote for a speaker, answer under a timer, request clarification, and receive a shared coaching report.
 
 The multiplayer app uses a flat, question-centered React interface served by FastAPI. Four panelist cards sit above the question, four defender cards below it, and a persistent bottom dock holds voting, answers, and team chat. A separate Streamlit app provides a single-browser fallback.
 
@@ -154,7 +154,7 @@ website-only layout changes require no native app rebuild.
 
 ## Current branch and verification
 
-This README describes `feature/question-first-room`: the flat room, research documents, same-question clarifications, summary downloads, answer-aware conversations, and Google host accounts with voucher or sandbox-credit access. Research and mixed defenses require a source-grounded paper map and a host-confirmed **4–100-question maximum**. Code-only defenses remain four to eight questions. The compact mobile header and existing architecture are served at [defense-simulator.onrender.com](https://defense-simulator.onrender.com), with shared timed-turn, purchase and progression modules and checkout UI compatible with account-owned receipts. Hosted health and asset hashes match the tested release; Google and test-payment configuration is enabled. A fresh signed-in defense and provider simulator purchase remain separate unverified checks. Account/upload-progress changes and availability fixes are now included in the feature-branch source. The latest publication has not been redeployed or hosted-verified. `main` stays frozen during the review window that began on October 1, 2026, and its earlier service remains unchanged.
+Current local source is on `main` with research/mixed defenses routed through funded OpenRouter clients. Code-only and voice remain disabled. Actual model compatibility, measured capacity/cost and user review remain gates before rollout. Keep the existing service/domain; source cleanup does not deploy or change its settings. See [OpenRouter setup](docs/OPENROUTER_SETUP.md) and `PROJECT_LOG.md` for current verification/publication status. Older release evidence below is historical, not a claim that the migration is hosted.
 
 The previous account/PostgreSQL checkpoint passed **194 Python tests with AI, Google, and PayMongo mocked, 153 React tests, and a production build**, plus a **52-test gate against real local PostgreSQL** with external providers mocked. Two-browser mocked defenses completed all four combinations of code/research and voucher/test-credit access, including votes, clarification, answers, reconnect, transcript and coaching. Mocked signed webhooks awarded 100 credits once, an opening failure released its reservation, and the subsequent code/research runs charged ten credits each. The cleanup gate passes **204 Python tests, 62 real-local-PostgreSQL tests with external providers mocked, 157 React tests and a production build**. A synthetic browser checkout processed duplicate signed notifications into exactly one 100-credit award and displayed run reservation/charge/release records; it is not a live provider purchase. An actual account-linked hosted PayMongo simulator purchase, fresh hosted defense charge, and deliberate restart persistence check remain pending. Local account captures use synthetic fixtures, and user visual review is separate.
 
@@ -325,16 +325,16 @@ python3 -m venv .venv
 ./run_local.sh
 ```
 
-Open <http://127.0.0.1:8000/>. The launcher installs frontend packages when needed, builds React, privately prompts for a missing OpenAI key, creates a private local voucher if needed, and starts FastAPI. Configure Google sign-in before hosting a room; an unconfigured server shows setup instructions and allows guest joining and visual previews. Restart it after changing Python code or prompt instructions.
+Open <http://127.0.0.1:8000/>. The launcher installs frontend packages when needed, builds React, privately prompts for a missing OpenRouter key, creates a private local voucher if needed, and starts FastAPI. Configure Google sign-in before hosting a room; an unconfigured server shows setup instructions and allows guest joining and visual previews. Restart it after changing Python code or prompt instructions.
 
 | Setting | Purpose | Local configuration |
 | --- | --- | --- |
-| `OPENAI_API_KEY` | Server-side AI requests | Export in the launching terminal, or enter at the hidden prompt. The launcher does not save it. |
+| `OPENROUTER_API_KEY` | Server-side research text requests | Export in the launching terminal, or enter at the hidden prompt. The launcher does not save it. |
 | `FREE_ACCESS_VOUCHER` | Shareable free-run voucher, redeemed by signed-in hosts | Export a new random value, or let the launcher load/create the Git-ignored `.local/free-access-voucher`. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `AUTH_SESSION_SECRET`, `AUTH_PUBLIC_BASE_URL` | Google host sign-in | Export in the launching terminal; follow the account setup below. |
 | `OPENAI_MODEL` | Optional model override | Export before launching. The code defaults to `gpt-6-luna` with low reasoning effort. |
 
-The launcher does not load `.env`. Export configuration in the launching terminal; keep secrets out of Git and `VITE_` variables. The former host passcode is no longer used by this local version. Only hosts sign in; teammates join with a room code and display name. The OpenAI key and voucher configuration stay on the server.
+The launcher does not load `.env`. Export configuration in the launching terminal; keep secrets out of Git and `VITE_` variables. The former host passcode is no longer used by this local version. Only hosts sign in; teammates join with a room code and display name. The OpenRouter key and voucher configuration stay on the server. Funded runs use fixed server assignments; legacy model/reasoning overrides do not replace them. See [OpenRouter setup and remaining gates](docs/OPENROUTER_SETUP.md).
 
 ### Owner dashboard
 
@@ -456,7 +456,7 @@ The session ends when every topic is addressed and all reviewers have participat
 
 Streamlit mirrors preparation, confirmation, adaptive questions, coverage, early ending and research coaching. It remains a single-browser app without multiplayer voting or chat. Changing documents, defense type or research stage clears the map, confirmation and session.
 
-Open the synthetic visual review at `/?preview=1&plan=1`. For a real AI map, start the updated local server with your own `OPENAI_API_KEY`; mock previews and offline tests do not demonstrate live map quality.
+Open the synthetic visual review at `/?preview=1&plan=1`. For a real AI map, start the updated local server with your own `OPENROUTER_API_KEY`; mock previews and offline tests do not demonstrate live map quality.
 
 ### Conversation and clarification
 
@@ -847,7 +847,7 @@ See [the retirement review](docs/QR_TOPUP_RETIRE_REVIEW.md). No push or deployme
 
 ## Streamlit fallback
 
-Configure `OPENAI_API_KEY` in the launching terminal, optionally set `OPENAI_MODEL`, then run:
+Configure `OPENROUTER_API_KEY` in the launching terminal, then run the typed research fallback. It shares funded model/spending policies; see [Streamlit setup](docs/STREAMLIT_OPENROUTER.md):
 
 ```bash
 .venv/bin/python -m streamlit run backend/app.py
@@ -867,7 +867,7 @@ Start: uvicorn backend.game_server:app --host 0.0.0.0 --port $PORT --workers 1 -
 Health: /health
 ```
 
-The currently published research release uses `OPENAI_API_KEY` and `GAME_HOST_PASSCODE`, plus optional `OPENAI_MODEL`, in its own service environment. The hosted account/access update replaces that passcode with Google authentication and voucher/test-credit eligibility. New payment cleanup remains local pending publication. The user selected Neon PostgreSQL with Render Free. Keep the current services unchanged during local cleanup; verify payment callbacks and persistent balances separately. A feature service's configuration is independent of frozen `main`.
+The local research/mixed source uses `OPENROUTER_API_KEY`, Google host authentication and existing voucher/credit eligibility. The tracked Render template names the new key; editing that file does not update or redeploy an existing service. Keep its current domain/service, configure the key privately, and verify actual model routes, limits, payment callbacks and persistent balances before rollout. Publication/deployment status belongs in `PROJECT_LOG.md`.
 
 The service hosts UI, API, and WebSocket on one origin. HTTPS pages use `wss://` automatically. Teammates on other devices need a hosted URL; `127.0.0.1` refers to their own device. Restarts and redeploys require fresh rooms.
 
@@ -884,7 +884,7 @@ AI, Google, and PayMongo calls are mocked in the Python suite. Tests confirm beh
 - **Host session expired:** sign in with the room creator's Google account. Guests and timers continue; the saved room token alone cannot grant host controls.
 - **Insufficient test credits:** redeem the server's voucher or obtain the sandbox credit pack. Uploading and joining are free; research preparation requires eligibility but does not deduct credits.
 - **Missing frontend build:** run `npm ci && npm run build` in `game/` before starting FastAPI directly.
-- **AI failure:** check the displayed safe error category and retry. A rejected key, unavailable model, rate/credit limit, or connection failure may require different fixes. `OPENAI_MODEL` overrides the default.
+- **AI failure:** check the displayed safe error category and retry. A rejected key, unavailable model, rate/credit limit, or connection failure may require different fixes. Review the fixed OpenRouter model policy and account access; no direct-provider fallback or browser model override is available.
 - **Citation rejected:** the model supplied an invalid file or line. Validation blocks it; the host can retry with the prior answer retained.
 - **Room missing:** a process restart erased it. Create a fresh room and share its new code.
 

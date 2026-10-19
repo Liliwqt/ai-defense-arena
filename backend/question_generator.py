@@ -6,7 +6,7 @@ from pathlib import PurePosixPath
 import re
 from typing import Literal, Sequence
 
-from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI, OpenAIError
+from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAIError
 from pydantic import BaseModel, StrictInt, StrictBool, create_model, ConfigDict, field_validator
 
 from backend.research_coaching import AnswerCardDraft, CARD_GUIDANCE, MAX_SHORT_REPORT_TURNS, build_cards, validate_complete, has_discussion, factual_cards, validate_overview, validate_section, COACHING_BATCH_SIZE, DELIVERY_GUIDANCE
@@ -14,7 +14,7 @@ from backend.project_files import MAX_TOTAL_BYTES, ProjectFile
 from backend.research_panel import RESEARCH_ROLE_GUIDANCE, research_panel_guidance, serialize_research_scope
 
 
-DEFAULT_MODEL = "gpt-6-luna"
+DEFAULT_MODEL = "server-assigned"
 MAX_PROJECT_BYTES = MAX_TOTAL_BYTES
 MAX_LEAD_IN_CHARS = 300
 MAX_CLARIFICATION_CHARS = 800
@@ -300,14 +300,11 @@ def interpret_submission(
     research_context: dict | None = None,
 ) -> SubmissionDecision:
     """Classify one defender message and, if requested, explain the same question."""
-    key = (api_key or "").strip()
-    if client is None and (not key or any(character.isspace() for character in key)):
-        raise QuestionGenerationError("Set a valid OPENAI_API_KEY and restart the app.")
     if panelist not in PANELISTS or not submission.strip():
         raise ValueError("A current panelist and submitted text are required.")
     source, lookup, _eligible = build_project_source(project_files)
     if client is None:
-        client = OpenAI(api_key=key, timeout=90.0, max_retries=0)
+        raise QuestionGenerationError("A funded OpenRouter client is required. Start or retry through the app.")
     language_history = list(history)
     if probe:
         language_history.append(AnsweredQuestion(panelist, question.question, original_answer,
@@ -883,18 +880,10 @@ def generate_panel_question(
     if follow_up and prior_turn is None:
         raise ValueError("A follow-up requires this panelist's earlier turn.")
 
-    api_key = (api_key or "").strip()
-    if not api_key:
-        raise QuestionGenerationError("Set OPENAI_API_KEY and restart the app to generate a question.")
-    if any(character.isspace() for character in api_key):
-        raise QuestionGenerationError(
-            "OPENAI_API_KEY contains whitespace. Set a clean key and restart the app."
-        )
-
     source, lookup, code_ids = build_project_source(project_files)
     eligible_ids = _eligible_ids(panelist, lookup, code_ids, defense_type)
     if client is None:
-        client = OpenAI(api_key=api_key, timeout=90.0, max_retries=0)
+        raise QuestionGenerationError("A funded OpenRouter client is required. Start or retry through the app.")
 
     role_guidance = _role_guidance(panelist, defense_type)
     research_guidance = _research_guidance(defense_type, research_stage)
@@ -970,14 +959,9 @@ def generate_next_move(
     allowed = tuple(allowed_panelists)
     if not allowed or any(role not in PANELISTS for role in allowed):
         raise ValueError("No valid next panelist is available.")
-    key = (api_key or "").strip()
-    if not key:
-        raise QuestionGenerationError("Set OPENAI_API_KEY and restart the app to generate a question.")
-    if any(character.isspace() for character in key):
-        raise QuestionGenerationError("OPENAI_API_KEY contains whitespace. Set a clean key and restart the app.")
     source, lookup, code_ids = build_project_source(project_files)
     if client is None:
-        client = OpenAI(api_key=key, timeout=90.0, max_retries=0)
+        raise QuestionGenerationError("A funded OpenRouter client is required. Start or retry through the app.")
     previous = history[-1]
     language_guidance = _language_guidance(history)
     role_guidance = " ".join(_role_guidance(role, defense_type) for role in allowed)
@@ -1056,12 +1040,9 @@ def generate_research_move(
     if callable(funded):
         return funded(project_files, history=history, context=context,
                       defense_type=defense_type, research_stage=research_stage)
-    key = (api_key or "").strip()
-    if not key or any(c.isspace() for c in key):
-        raise QuestionGenerationError("Set a clean OPENAI_API_KEY and restart the app to generate a question.")
     source, lookup, _ = build_project_source(project_files)
     if client is None:
-        client = OpenAI(api_key=key, timeout=90.0, max_retries=0)
+        raise QuestionGenerationError("A funded OpenRouter client is required. Start or retry through the app.")
     response = client.responses.parse(
         model=model, reasoning={"effort": "low"}, store=False,
         input=[{"role": "system", "content": (
@@ -1148,20 +1129,10 @@ def generate_coaching_report(
     if defense_type != "code" and not overview_only and section_turns is None and len(history) > MAX_SHORT_REPORT_TURNS:
         raise QuestionGenerationError("Coaching exceeds the current complete-report limit. Your answers are saved; use recovery controls.")
 
-    api_key = (api_key or "").strip()
-    if client is None and not api_key:
-        raise QuestionGenerationError(
-            "Set OPENAI_API_KEY and restart the app to generate a coaching report."
-        )
-    if client is None and any(character.isspace() for character in api_key):
-        raise QuestionGenerationError(
-            "OPENAI_API_KEY contains whitespace. Set a clean key and restart the app."
-        )
-
     source, _lookup, _eligible = build_project_source(project_files)
 
     if client is None:
-        client = OpenAI(api_key=api_key, timeout=90.0, max_retries=0)
+        raise QuestionGenerationError("A funded OpenRouter client is required. Start or retry through the app.")
 
     transcript_data = serialize_transcript(history)
     card_guidance = CARD_GUIDANCE if defense_type != 'code' and not overview_only else ''
@@ -1299,41 +1270,41 @@ def describe_openai_error(
 ) -> str:
     """Turn an SDK error into a useful message without exposing the API key."""
     if isinstance(error, APITimeoutError):
-        return "The OpenAI request timed out. Try again."
+        return "The OpenRouter request timed out. Try again."
     if isinstance(error, APIConnectionError):
-        return "Could not reach OpenAI. Check your internet connection and retry."
+        return "Could not reach OpenRouter. Check your internet connection and retry."
 
     if isinstance(error, APIStatusError):
         status = error.status_code
         code = error.code
         if status == 401:
-            return "OpenAI rejected the API key (HTTP 401). Check OPENAI_API_KEY and restart the app."
+            return "OpenRouter rejected the API key (HTTP 401). Check OPENROUTER_API_KEY and restart the app."
         if status == 403:
             return (
-                "OpenAI denied this request (HTTP 403). Check your API project's "
+                "OpenRouter denied this request (HTTP 403). Check your API project's "
                 "permissions and model access."
             )
         if status == 404:
             return (
                 f"Model {model} is unavailable to this API project (HTTP 404). "
-                "Set OPENAI_MODEL to a model your project can access, then restart the app."
+                "Review the assigned server model policy and account access."
             )
         if status == 429:
             if code in _QUOTA_CODES or error.type == "insufficient_quota":
                 reason = code or error.type
                 return (
-                    f"OpenAI quota or credit limit reached (HTTP 429, {reason}). "
+                    f"OpenRouter quota or credit limit reached (HTTP 429, {reason}). "
                     "Check your API billing and usage limits."
                 )
-            return "OpenAI rate limit reached (HTTP 429). Wait briefly, then retry."
+            return "OpenRouter rate limit reached (HTTP 429). Wait briefly, then retry."
         if status in (400, 422):
             detail = _safe_error_detail(error, api_key)
-            return f"OpenAI rejected the request (HTTP {status}): {detail}"
+            return f"OpenRouter rejected the request (HTTP {status}): {detail}"
         if status >= 500:
-            return f"OpenAI service error (HTTP {status}). Try again shortly."
-        return f"OpenAI request failed (HTTP {status}). Check your API project settings."
+            return f"OpenRouter service error (HTTP {status}). Try again shortly."
+        return f"OpenRouter request failed (HTTP {status}). Check your API project settings."
 
-    return f"OpenAI request failed ({type(error).__name__}): {_safe_error_detail(error, api_key)}"
+    return f"OpenRouter request failed ({type(error).__name__}): {_safe_error_detail(error, api_key)}"
 
 
 def _safe_error_detail(error: OpenAIError, api_key: str | None) -> str:
