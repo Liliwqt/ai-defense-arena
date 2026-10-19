@@ -287,7 +287,8 @@ class RoomCoordinator:
         key = (work.run_id, work.interpretation_id)
         if key in self._interpretation_tasks:
             return self._interpretation_tasks[key]
-        request = capture_interpretation(room, work.pending)
+        request = capture_interpretation(room, work.pending,
+                                         provider_stopped=lambda: not self._interpretation_current(work))
         return self._retain_work_task(self._interpretation_tasks, key,
                                       asyncio.create_task(run_interpretation(self, work, request)))
 

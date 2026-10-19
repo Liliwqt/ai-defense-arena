@@ -12,6 +12,7 @@ from decimal import Decimal, InvalidOperation, ROUND_CEILING
 import json
 import os
 from time import monotonic
+from types import SimpleNamespace
 
 import httpx
 from pydantic import BaseModel, StrictBool
@@ -48,6 +49,16 @@ REVIEWER_MODELS = {
     IMPACT_REVIEWER: 'qwen/qwen3.8-flash',
     CRITICAL_JUDGE: 'z-ai/glm-5.3-flash',
 }
+# Same-reviewer exchanges use the supported low effort where the catalog names
+# one. Qwen names no effort, so it gets a smaller explicit reasoning-token
+# budget than its question budget instead of an invented selector.
+INTERACTION_REASONING = {
+    METHODOLOGY_REVIEWER: {'effort': 'low'},
+    ETHICS_REVIEWER: {'effort': 'low'},
+    IMPACT_REVIEWER: {'max_tokens': 1024},
+    CRITICAL_JUDGE: {'effort': 'low'},
+}
+INTERACTION_OUTPUT_TOKENS = 2048
 # The smallest verified context across the bundle (Qwen); larger contexts would
 # let a request exceed a reviewer's own ceiling.
 CONTEXT_TOKENS = 1_000_000
@@ -68,6 +79,8 @@ class RunQuestionPolicy:
     reviewer_reasoning: dict = None
     planner_output_tokens: int = 4096
     reviewer_output_tokens: int = 8192
+    interaction_reasoning: dict = None
+    interaction_output_tokens: int = INTERACTION_OUTPUT_TOKENS
     input_nano_per_token: int = 300
     output_nano_per_token: int = 1200
 
@@ -79,6 +92,9 @@ class RunQuestionPolicy:
         if self.reviewer_reasoning is None:
             object.__setattr__(self, 'reviewer_reasoning', {
                 role: dict(value) for role, value in REVIEWER_REASONING.items()})
+        if self.interaction_reasoning is None:
+            object.__setattr__(self, 'interaction_reasoning', {
+                role: dict(value) for role, value in INTERACTION_REASONING.items()})
 
     @classmethod
     def configured(cls):
@@ -184,10 +200,36 @@ REVIEWER_GUIDANCE = (
 )
 
 
+class ReviewerInteractionClient:
+    """Responses-shaped facade for the shared interpretation seam.
+
+    The direct generator keeps ownership of the interpretation prompt and
+    validation; this facade only fixes the speaking reviewer's run-assigned
+    model, interaction reasoning and output bound.
+    """
+
+    def __init__(self, funded: "RunQuestionClient", panelist: str):
+        self.funded = funded
+        self.panelist = panelist
+        self.responses = self
+
+    def parse(self, *, model=None, reasoning=None, store=None, input, text_format, **unused):
+        policy = self.funded._load_policy()
+        assigned = policy.reviewer_models.get(self.panelist)
+        interaction_reasoning = policy.interaction_reasoning.get(self.panelist)
+        if assigned is None or interaction_reasoning is None:
+            raise QuestionGenerationError('The defense provider policy is unavailable. Contact the operator.')
+        messages = [{'role': item.get('role'), 'content': item.get('content')} for item in input]
+        output = self.funded._ask(
+            model=assigned, messages=messages, schema=text_format,
+            reasoning=interaction_reasoning, max_tokens=policy.interaction_output_tokens)
+        return SimpleNamespace(output_parsed=output)
+
+
 class RunQuestionClient:
     """Two-stage funded client; the room still owns validation and publication."""
 
-    def __init__(self, scope: str, owner: str, session: ResearchDefenseSession, files, *, api_key=None,
+    def __init__(self, scope: str, owner: str, session: ResearchDefenseSession | None, files, *, api_key=None,
                  stopped=lambda: False):
         self.scope, self.owner = scope, owner
         self.session = session
@@ -258,6 +300,10 @@ class RunQuestionClient:
             for _ in stream:
                 pass
             return stream.get_final_response().output_parsed
+
+    def interaction(self, panelist: str) -> ReviewerInteractionClient:
+        """A funded client bound to the current speaking reviewer."""
+        return ReviewerInteractionClient(self, panelist)
 
     def _planner_messages(self, source, history, context, defense_type, research_stage):
         messages = [

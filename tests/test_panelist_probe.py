@@ -300,6 +300,7 @@ class ProbeProtocolTests(unittest.TestCase):
         provider=FakeClient(SubmissionDraft(action='clarify',clarification='Which list will you draw from?'))
         calls=[]
         def decide(files,key,**kwargs):
+            kwargs.pop('client',None)
             if not calls:
                 calls.append(kwargs)
                 return SubmissionDecision('probe',probe=ProbeRequest('From which list?'))

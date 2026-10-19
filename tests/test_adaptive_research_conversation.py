@@ -100,6 +100,7 @@ class ResearchScopeRoomTests(unittest.TestCase):
             scopes.append(context["plan"]["profile"])
             return mocked_move(files, key, history=history, context=context, **kwargs)
         def interpret(files, key, **kwargs):
+            kwargs.pop("client", None)
             requests.append(kwargs.get("research_context"))
             return interpret_submission(files, key, client=ParsedClient(outputs.pop(0)), **kwargs)
         def coach(files, history, key, model, **kwargs):
@@ -212,6 +213,7 @@ class ResearchScopeStreamlitTests(unittest.TestCase):
             SimpleNamespace(action="probe", clarification=None, probe=SimpleNamespace(request="Which groups would you recruit?", references=[])),
             SimpleNamespace(action="answer", clarification=None, probe=None)]
         def interpret(files, key, **kwargs):
+            kwargs.pop("client", None)
             requests.append(kwargs.get("research_context"))
             return interpret_submission(files, key, client=ParsedClient(outputs.pop(0)), **kwargs)
         def ask(files, key, *, context, history, **kwargs):

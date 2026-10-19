@@ -301,7 +301,7 @@ def interpret_submission(
 ) -> SubmissionDecision:
     """Classify one defender message and, if requested, explain the same question."""
     key = (api_key or "").strip()
-    if not key or any(character.isspace() for character in key):
+    if client is None and (not key or any(character.isspace() for character in key)):
         raise QuestionGenerationError("Set a valid OPENAI_API_KEY and restart the app.")
     if panelist not in PANELISTS or not submission.strip():
         raise ValueError("A current panelist and submitted text are required.")

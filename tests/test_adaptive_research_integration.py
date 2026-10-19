@@ -87,6 +87,7 @@ class AdaptiveResearchIntegrationTests(unittest.TestCase):
             return generate_research_move(files, key, history=history, context=context, client=Client(output), **kwargs)
 
         def interpret(files, key, *, submission, **kwargs):
+            kwargs.pop("client", None)
             scope_requests.append(deepcopy(kwargs["research_context"]))
             if submission == "Explain in Bisaya":
                 output = SubmissionDraft(action="clarify", clarification="Unsang pilot decision ang inyong gi-basehan, ug ngano?", probe=None)

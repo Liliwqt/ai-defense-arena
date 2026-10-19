@@ -9,7 +9,7 @@ from unittest.mock import patch
 from backend.project_files import ProjectFile
 from backend.question_generator import (
     AnsweredQuestion, CoachingDraft, ResearchCoachingDraft, CoachingReport, QuestionGenerationError,
-    SubmissionDraft, generate_coaching_report,
+    SubmissionDecision, generate_coaching_report,
 )
 from backend.rooms.commands import CatchUpDeadline, GenerateCoaching, VerifiedActor, decode_command
 from backend.rooms.coordinator import RoomCoordinator, RoomWorkflows
@@ -201,8 +201,7 @@ class CoachingClosingProtocolTests(unittest.TestCase):
     def test_host_ending_and_guest_reconnect_retain_the_last_resolved_reviewers_closing(self):
         plan = coverage.plan()
         text = "Nasabtan nako ang inyong scope. Tan-awa ang nahabiling topics sa coaching."
-        drafts = [SubmissionDraft(action="answer", clarification=None),
-            CoachingDraft(summary="The host ended with topics still outstanding.", strengths=[],
+        drafts = [CoachingDraft(summary="The host ended with topics still outstanding.", strengths=[],
                 improvements=[], next_step="Review the unasked topics.", closing=text)]
         calls = []
 
@@ -228,6 +227,7 @@ class CoachingClosingProtocolTests(unittest.TestCase):
         guest = self.client.post(f"/api/rooms/{code}/join", json={"name": "Sam"}).json()
         with patch("backend.rooms.planning.generate_research_plan", return_value=plan), \
              patch("backend.rooms.questions.generate_research_move", side_effect=coverage.mocked_move), \
+             patch("backend.rooms.submissions.interpret_submission", return_value=SubmissionDecision("answer")), \
              patch("backend.question_generator.OpenAI", return_value=provider):
             with self.client.websocket_connect(f"/ws/{code}") as h, self.client.websocket_connect(f"/ws/{code}") as g:
                 h.send_json({"type": "hello", "token": host["player_token"]})
@@ -271,7 +271,7 @@ class CoachingClosingProtocolTests(unittest.TestCase):
                 h.send_json({"type": "send_chat", "text": "Reviewing coaching."})
                 state = self.until(h, "complete", closing_deadline_ms=None)
                 self.assertEqual(state["feedback"]["closing"], text)
-        self.assertEqual(len(calls), 3)
-        self.assertEqual(calls[1]["text_format"], CoachingDraft)
-        self.assertEqual(calls[2]["text_format"], ResearchCoachingDraft)
-        self.assertNotIn("Private team note.", calls[1]["input"][1]["content"])
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0]["text_format"], CoachingDraft)
+        self.assertEqual(calls[1]["text_format"], ResearchCoachingDraft)
+        self.assertNotIn("Private team note.", calls[0]["input"][1]["content"])

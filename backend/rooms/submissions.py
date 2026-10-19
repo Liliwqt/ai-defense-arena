@@ -13,6 +13,7 @@ from backend.question_generator import (
     DEFAULT_MODEL, GroundedQuestion, AnsweredQuestion, ClarificationExchange,
     PanelistProbe, SubmissionDecision, interpret_submission,
 )
+from backend.openrouter_questions import RunQuestionClient, run_scope
 from backend.resource_limits import limit
 from backend.timed_turn import PendingSubmission, DeadlineExpired
 from backend.defense_session import ResearchDefenseSession
@@ -49,30 +50,45 @@ class InterpretationInput:
     original_answer: str | None
     original_speaker_name: str | None
     research_context: dict | None = None
+    provider_scope: str | None = None
+    provider_owner: str | None = None
+    provider_stopped: Callable[[], bool] | None = None
 
 
-def capture_interpretation(room: "Room", pending: PendingSubmission) -> InterpretationInput:
+def capture_interpretation(room: "Room", pending: PendingSubmission, *,
+                           provider_stopped: Callable[[], bool] | None = None) -> InterpretationInput:
     """Capture under the room lock; mutable probe/history data is detached."""
     turn = room.defense.turns[pending.turn]
     context = room.defense.context() if isinstance(room.defense, ResearchDefenseSession) else None
     if context is not None:
         context = copy.deepcopy(context)
         context["current_topic"] = turn.topic_id
+    funded = bool(room.run_id and room.owner_account_id
+                  and isinstance(room.defense, ResearchDefenseSession))
     return InterpretationInput(pending, tuple(room.files), turn.panelist, turn.question,
         tuple(turn.clarifications), tuple(copy.deepcopy(room.defense.answered_history())),
         room.defense_type, room.research_stage, copy.deepcopy(turn.probe) if pending.probe_id else None,
-        turn.answer, turn.speaker_name, context)
+        turn.answer, turn.speaker_name, context,
+        provider_scope=run_scope(room.run_id) if funded else None,
+        provider_owner=room.owner_account_id if funded else None,
+        provider_stopped=provider_stopped if funded else None)
 
 
 InterpretationRequest = Callable[[InterpretationInput], Awaitable[SubmissionDecision]]
 
 
 async def request_interpretation(request: InterpretationInput) -> SubmissionDecision:
+    client = None
+    if request.provider_scope and request.provider_owner:
+        client = RunQuestionClient(request.provider_scope, request.provider_owner, None,
+                                   request.files,
+                                   stopped=request.provider_stopped or (lambda: False)
+                                   ).interaction(request.panelist)
     return await asyncio.to_thread(
         interpret_submission, list(request.files), os.getenv("OPENAI_API_KEY"),
         panelist=request.panelist, question=request.question, submission=request.pending.text,
         clarifications=request.clarifications, history=request.history,
-        model=os.getenv("OPENAI_MODEL") or DEFAULT_MODEL,
+        model=os.getenv("OPENAI_MODEL") or DEFAULT_MODEL, client=client,
         defense_type=request.defense_type, research_stage=request.research_stage,
         **({"research_context": request.research_context} if request.research_context else {}),
         **({"probe": request.probe, "original_answer": request.original_answer,
