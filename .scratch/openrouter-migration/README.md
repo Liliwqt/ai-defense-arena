@@ -2,18 +2,14 @@
 
 Status: ready-for-agent
 
-**Ticket02 recheck fixes implemented locally:** all three confirmed P2
-preservation regressions are corrected with mocked evidence and the recheck's
-own probes now pass ([findings and reproductions](reviews/02-recheck.md)).
-The corrected diff awaits the user's follow-up recheck. Tickets03–04 wait for
-that corrected02gate; the earlier zero-remaining review remains superseded for
-the affected criteria.
+**Ticket 02 correction verified:** the remaining streamed-error recovery finding
+is fixed in **1efb1a1**. Full offline gates and both final review axes pass; see
+[the final fix handoff](reviews/02-sse-fix.md). Ticket 02 is ready for human review
+locally, and tickets 03–04 are unblocked.
 
 The user approved this twelve-ticket breakdown as drafted on **2026-10-19**.
-All twelve separate local tickets are published. Ticket01 is ready for human
-review ([handoff](reviews/01.md)); ticket02 is implemented, corrected after the
-[independent recheck](reviews/02-recheck.md) and ready for human review.
-Tickets03–04 remain blocked until the corrected ticket02 diff is rechecked.
+All twelve separate local tickets are published. Tickets 01 and 02 are ready for
+human review ([01 handoff](reviews/01.md), [02 final handoff](reviews/02-sse-fix.md)).
 Tickets 03–12 have not started.
 The tickets contain **58 acceptance criteria**, with coverage of all
 **80 specification stories** recorded in the approved breakdown.
@@ -41,8 +37,8 @@ Design and coverage: [approved breakdown](ticket-breakdown-draft.md).
 ## Where to start
 
 Only **01 — Bounded OpenRouter paper mapping** was initially unblocked. Ticket02
-has implemented its recheck corrections; a follow-up recheck of the corrected
-diff precedes03and04. After09, tickets10and11 form an independent frontier.
+has passed its original probes and the streamed-error correction gate. Tickets
+03 and 04 are now unblocked. After 09, tickets 10 and 11 form an independent frontier.
 Coordinate any
 shared edits. These relationships do not authorize parallel agents or
 external-model sharing. A ready-for-agent label does not remove blockers or
@@ -86,8 +82,8 @@ Intermediate slices are not a finished migration or permission to deploy.
 
 ## Next step
 
-Independently recheck ticket02's corrected diff for the three preservation
-findings before starting03or04 (same-reviewer clarification/probe recovery and
-protected progressive coaching). User visual approval and later
-actual-provider readiness gates remain separate.
-This review did not authorize a push or deployment.
+Implement ticket 03 (same-reviewer clarification/probe recovery) or ticket 04
+(protected progressive coaching). Coordinate shared edits. Ticket 02's original
+findings and streamed-error correction are verified closed. User visual approval
+and later actual-provider readiness gates remain separate. This handoff does not
+authorize a push or deployment.

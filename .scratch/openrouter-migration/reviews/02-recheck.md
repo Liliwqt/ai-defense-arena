@@ -1,5 +1,16 @@
 # Ticket 02 — independent implementation recheck
 
+**Superseding verified correction (2026-10-19):** all original findings and the
+remaining SSE retry issue are now closed in **1efb1a1**. Full Python 656,
+React 393/build and independent Standards 0 / Spec 0 pass. See
+[the final fix handoff](02-sse-fix.md). Evidence and earlier verdicts below are
+historical; actual-provider/user review remains separate.
+
+**Latest follow-up:** all three original findings below are independently
+confirmed fixed in2d15a16/c6ca8ac. One narrower SSE rate-limit classification
+gap remains; see [follow-up evidence](02-follow-up.md). Original findings and
+reproductions are retained here as history.
+
 Date: 2026-10-19. User requested checking the other agent's implementation.
 Fixed diff: `git diff bd10cc3...bbc7a11`.
 Commits: `39a7bf6` implementation, `bbc7a11` handoff. Reviewed committed source;
