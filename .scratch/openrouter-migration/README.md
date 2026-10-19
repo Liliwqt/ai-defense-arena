@@ -2,16 +2,18 @@
 
 Status: ready-for-agent
 
-**Ticket 05 implemented and verified locally:** source **1fa64ed** migrates
-typed Streamlit research/mixed defenses to shared funded OpenRouter clients.
-Independent Standards 0 / Spec 0; see [the final handoff](reviews/05.md).
+**Ticket06 offline slice verified locally:** source **46a72d3**, documentation
+correction **b16b2b6**, Standards0 / Spec0 remaining for offline work. See
+[the review and pending gates](reviews/06.md).
 
 The user approved this twelve-ticket breakdown as drafted on **2026-10-19**.
-All twelve separate local tickets are published. Tickets 01–05 are ready for
+All twelve separate local tickets are published. Tickets01–05 are ready for
 human review ([01](reviews/01.md), [02](reviews/02-sse-fix.md),
 [03](reviews/03-retry-fix.md), [04](reviews/04.md), [05](reviews/05.md)).
-Ticket06 is the unstarted frontier for complete text cleanup and measured
-handoff. Tickets 06–12 have not started; the full text checkpoint is incomplete.
+Ticket06 is **needs-info**: the user selected not configured/finish offline first.
+Its cleanup, full mocked suites, real PostgreSQL and responsive previews pass;
+actual model/account/usage checks and finalized numeric limits remain open.
+**Checkpoint1 is incomplete;07–12remain blocked by their dependencies.**
 The tickets contain **58 acceptance criteria**, with coverage of all
 **80 specification stories** recorded in the approved breakdown.
 
@@ -27,7 +29,7 @@ Design and coverage: [approved breakdown](ticket-breakdown-draft.md).
 | [03 — Same-reviewer clarification, probes and answer recovery](issues/03-reviewer-interactions-recovery.md) | [02](issues/02-funded-reviewer-questions.md) | ready-for-human | 5 |
 | [04 — OpenRouter progressive coaching from protected funds](issues/04-protected-progressive-coaching.md) | [02](issues/02-funded-reviewer-questions.md) | ready-for-human | 5 |
 | [05 — Typed Streamlit research policy parity](issues/05-typed-streamlit-parity.md) | [03](issues/03-reviewer-interactions-recovery.md), [04](issues/04-protected-progressive-coaching.md) | ready-for-human | 4 |
-| [06 — Complete text checkpoint and measured local handoff](issues/06-text-checkpoint-handoff.md) | [05](issues/05-typed-streamlit-parity.md) | ready-for-agent | 6 |
+| [06 — Complete text checkpoint and measured local handoff](issues/06-text-checkpoint-handoff.md) | [05](issues/05-typed-streamlit-parity.md) | needs-info | 6 |
 | [07 — OpenRouter-only live-caption feasibility prototype](issues/07-speech-feasibility-prototype.md) | [06](issues/06-text-checkpoint-handoff.md) | ready-for-agent | 5 |
 | [08 — Authorized OpenRouter voice answers in Speaker desk](issues/08-authorized-web-voice-answers.md) | [07](issues/07-speech-feasibility-prototype.md) + passed prototype/review gate | ready-for-agent | 5 |
 | [09 — Voice probe replies, lifecycle and truthful coaching evidence](issues/09-voice-probes-lifecycle-evidence.md) | [08](issues/08-authorized-web-voice-answers.md) | ready-for-agent | 5 |
@@ -37,9 +39,10 @@ Design and coverage: [approved breakdown](ticket-breakdown-draft.md).
 
 ## Where to start
 
-Tickets 01–05 have passed their local implementation/review gates. Ticket 06
-is the unstarted frontier. After 09, tickets 10 and
-11 form an independent frontier. Coordinate shared edits. Dependencies do not
+Tickets01–05 have passed local implementation/review gates. Ticket06's offline
+slice is verified; its actual-provider and numeric-limit gates need a configured
+local OpenRouter account/route and measurements. Do not advance07until06is
+complete. After09,10and11form an independent frontier. Dependencies do not
 authorize parallel agents or external-model sharing, and ready-for-agent does
 not waive evidence gates.
 
@@ -81,6 +84,8 @@ Intermediate slices are not a finished migration or permission to deploy.
 
 ## Next step
 
-Implement ticket 06 (complete text checkpoint and measured handoff). Actual-provider
-compatibility/quality/cost, user review and publication
-remain separate gates. No push or deployment is authorized by this handoff.
+Finish ticket06's actual account/model/schema/reasoning/quality/latency/usage
+measurements and finalize numeric limits after local OpenRouter configuration is
+available. The user explicitly deferred those checks. Review the
+[local screenshot gallery](http://127.0.0.1:8877/) and [pending gates](reviews/06.md).
+No push/deployment or speech enablement is authorized by this handoff.
