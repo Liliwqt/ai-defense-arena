@@ -24,9 +24,10 @@ from backend.provider_allowance import (
 from backend.question_generator import (
     CRITICAL_JUDGE, ETHICS_REVIEWER, IMPACT_REVIEWER, METHODOLOGY_REVIEWER,
     RESEARCH_PANELISTS, AnsweredQuestion, InvalidQuestionResponse, QuestionGenerationError,
-    QuestionDraft, ResearchMove, TopicAssessmentDraft, _eligible_ids, _ground_question,
+    QuestionDraft, ResearchMove, TopicAssessmentDraft, _ground_question,
     _language_guidance, _research_advice_guidance, _research_guidance, _role_guidance,
     build_project_source, serialize_transcript,
+    CONVERSATION_GUIDANCE, SCENARIO_GUIDANCE,
 )
 from backend.research_panel import research_panel_guidance
 
@@ -277,8 +278,11 @@ class RunQuestionClient:
         messages = [
             {'role': 'system', 'content': f"{REVIEWER_GUIDANCE} "
                 f"{_role_guidance(planned.panelist, defense_type)} "
+                f"{CONVERSATION_GUIDANCE} "
+                f"{'In mixed mode any reviewer may cite paper or implementation. ' if defense_type == 'mixed' else ''}"
                 f"{_research_guidance(defense_type, research_stage)} {research_panel_guidance(defense_type)}"
                 f"{_research_advice_guidance(defense_type, history)}"
+                f"{SCENARIO_GUIDANCE} "
                 f"{_language_guidance(history)} "},
             {'role': 'user', 'content': (
                 f"Server selection (data):\n{json.dumps(selection, ensure_ascii=False)}\n\n"
@@ -294,7 +298,7 @@ class RunQuestionClient:
         policy = self._load_policy()
         if not isinstance(self.session, ResearchDefenseSession):
             raise QuestionGenerationError('The funded question route requires a research defense.')
-        source, lookup, code_ids = build_project_source(self.files)
+        source, lookup, _ = build_project_source(self.files)
         draft = self._ask(model=policy.planner_model,
                           messages=self._planner_messages(source, history, context, defense_type, research_stage),
                           schema=PlanDraft, reasoning=policy.planner_reasoning,
@@ -314,7 +318,10 @@ class RunQuestionClient:
                            schema=QuestionDraft,
                            reasoning=policy.reviewer_reasoning[draft.panelist],
                            max_tokens=policy.reviewer_output_tokens)
-        eligible = _eligible_ids(draft.panelist, lookup, code_ids, defense_type)
+        # Mirror the legacy research generator: mixed mode lets every reviewer
+        # cite paper or implementation; research mode stays paper-only.
+        eligible = set(lookup) if defense_type == 'mixed' else {
+            file_id for file_id, (file, _) in lookup.items() if file.kind.startswith('research')}
         question = _ground_question(review, lookup, eligible)
         if not history and question.lead_in:
             raise InvalidQuestionResponse('The opening question must have no reaction. Please retry.')

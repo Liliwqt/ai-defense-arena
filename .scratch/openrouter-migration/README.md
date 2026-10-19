@@ -2,11 +2,18 @@
 
 Status: ready-for-agent
 
+**Ticket02 recheck fixes implemented locally:** all three confirmed P2
+preservation regressions are corrected with mocked evidence and the recheck's
+own probes now pass ([findings and reproductions](reviews/02-recheck.md)).
+The corrected diff awaits the user's follow-up recheck. Tickets03–04 wait for
+that corrected02gate; the earlier zero-remaining review remains superseded for
+the affected criteria.
+
 The user approved this twelve-ticket breakdown as drafted on **2026-10-19**.
-All twelve separate local tickets are published. Tickets 01 and 02 are
-implemented locally and ready for human review; see their verified handoffs
-([01](reviews/01.md), [02](reviews/02.md)).
-Ticket 02 is implemented and reviewed; tickets 03–04 are now unblocked.
+All twelve separate local tickets are published. Ticket01 is ready for human
+review ([handoff](reviews/01.md)); ticket02 is implemented, corrected after the
+[independent recheck](reviews/02-recheck.md) and ready for human review.
+Tickets03–04 remain blocked until the corrected ticket02 diff is rechecked.
 Tickets 03–12 have not started.
 The tickets contain **58 acceptance criteria**, with coverage of all
 **80 specification stories** recorded in the approved breakdown.
@@ -33,9 +40,10 @@ Design and coverage: [approved breakdown](ticket-breakdown-draft.md).
 
 ## Where to start
 
-Only **01 — Bounded OpenRouter paper mapping** was initially unblocked. With 01
-and 02 implemented, tickets 03 and 04 form the current frontier. After 09,
-tickets 10 and 11 do likewise. Work the dependency frontier, coordinating any
+Only **01 — Bounded OpenRouter paper mapping** was initially unblocked. Ticket02
+has implemented its recheck corrections; a follow-up recheck of the corrected
+diff precedes03and04. After09, tickets10and11 form an independent frontier.
+Coordinate any
 shared edits. These relationships do not authorize parallel agents or
 external-model sharing. A ready-for-agent label does not remove blockers or
 evidence gates.
@@ -78,8 +86,8 @@ Intermediate slices are not a finished migration or permission to deploy.
 
 ## Next step
 
-Tickets 01 and 02 are implemented, locally verified, independently reviewed and
-locally committed. Next implementation slice is 03 or 04 (same-reviewer
-clarification/probe recovery, protected progressive coaching). User visual
-approval and the later actual-provider readiness gates remain separate; no
-push, deployment or main change has been requested.
+Independently recheck ticket02's corrected diff for the three preservation
+findings before starting03or04 (same-reviewer clarification/probe recovery and
+protected progressive coaching). User visual approval and later
+actual-provider readiness gates remain separate.
+This review did not authorize a push or deployment.

@@ -12,10 +12,29 @@ from types import SimpleNamespace
 import httpx
 from pydantic import ValidationError
 
-from backend.question_generator import QuestionGenerationError
+from backend.question_generator import InvalidQuestionResponse, QuestionGenerationError
 
 ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
 MAX_RESPONSE_CHARS = 2_000_000
+
+
+class TransientProviderError(QuestionGenerationError):
+    """A temporary provider failure that one bounded fresh request may recover."""
+
+    retryable = True
+
+
+class ProviderConnectionError(TransientProviderError):
+    """The provider could not be reached; a fresh request may recover."""
+
+
+class ProviderStatusError(TransientProviderError):
+    """The provider rejected one request; only server failures are retryable."""
+
+    def __init__(self, status_code: int, message: str):
+        super().__init__(message)
+        self.status_code = status_code
+        self.retryable = status_code >= 500
 
 
 def strict_schema(schema):
@@ -82,15 +101,15 @@ class StructuredStream:
                         yield SimpleNamespace(type='response.output_text.delta', output_index=0,
                                               content_index=0, delta=content)
             except (ValueError, TypeError, AttributeError):
-                raise QuestionGenerationError('OpenRouter returned an invalid or incomplete structured response. Retry.') from None
+                raise InvalidQuestionResponse('OpenRouter returned an invalid or incomplete structured response. Retry.') from None
 
     def get_final_response(self):
         if not self.finished:
-            raise QuestionGenerationError('OpenRouter ended before completing the structured response. Retry.')
+            raise InvalidQuestionResponse('OpenRouter ended before completing the structured response. Retry.')
         try:
             return SimpleNamespace(output_parsed=self.schema.model_validate_json(self.text))
         except ValidationError:
-            raise QuestionGenerationError('OpenRouter returned an invalid structured response. Retry.') from None
+            raise InvalidQuestionResponse('OpenRouter returned an invalid structured response. Retry.') from None
 
 
 @contextmanager
@@ -99,7 +118,7 @@ def stream(client, *, api_key, body, schema, current, on_usage):
     try:
         with client.stream('POST', ENDPOINT, json=body, headers={'Authorization': 'Bearer ' + api_key}) as response:
             if response.status_code != 200:
-                raise QuestionGenerationError(f'OpenRouter request failed (HTTP {response.status_code}). Check server configuration or retry later.')
+                raise ProviderStatusError(response.status_code, f'OpenRouter request failed (HTTP {response.status_code}). Check server configuration or retry later.')
             yield StructuredStream(response, schema, current, on_usage)
     except httpx.HTTPError:
-        raise QuestionGenerationError('OpenRouter connection failed. Retry when the service is available.') from None
+        raise ProviderConnectionError('OpenRouter connection failed. Retry when the service is available.') from None

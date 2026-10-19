@@ -16,6 +16,7 @@ from backend.financial_policy import live_mode
 from backend.live_store import LiveStore
 from backend.opening_history import OpeningQuestion, RepeatedOpening, paper_key, recent_openings
 from backend.openrouter_questions import RunQuestionClient, run_scope
+from backend.openrouter_stream import TransientProviderError
 from backend.resource_limits import limit
 from backend.question_generator import (
     DEFAULT_MODEL, InvalidQuestionResponse, QuestionGenerationError, generate_first_question,
@@ -124,8 +125,12 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
                         next_clock = (room.clock_id, room.reaction_deadline_ms or room.vote_deadline_ms)
                     room.error = None
                     room.revision += 1
-            except (RepeatedOpening, InvalidQuestionResponse, ValidationError, APIConnectionError, APIStatusError) as error:
-                recoverable = not isinstance(error, APIStatusError) or error.status_code >= 500
+            except (RepeatedOpening, InvalidQuestionResponse, ValidationError, APIConnectionError, APIStatusError,
+                    TransientProviderError) as error:
+                if isinstance(error, TransientProviderError):
+                    recoverable = error.retryable
+                else:
+                    recoverable = not isinstance(error, APIStatusError) or error.status_code >= 500
                 async with room.lock:
                     if not owner._question_current(work):
                         return
