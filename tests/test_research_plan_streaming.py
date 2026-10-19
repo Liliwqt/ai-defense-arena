@@ -162,7 +162,8 @@ class MappingTransportTests(unittest.TestCase):
         client = PausedStream()
         real_generate = generate_research_plan
         def generate(*args, **kwargs):
-            return real_generate(*args, **kwargs, client=client)
+            kwargs['client'] = client
+            return real_generate(*args, **kwargs)
 
         with patch('backend.rooms.planning.generate_research_plan', side_effect=generate), \
              self.client.websocket_connect(f"/ws/{host['room_code']}") as h, \
@@ -202,7 +203,8 @@ class MappingTransportTests(unittest.TestCase):
         output["topics"][1]["references"][0]["evidence_line"] = 999
         clients = iter([StreamingClient(output), StreamingClient()])
         def generate(*args, **kwargs):
-            return real_generate(*args, **kwargs, client=next(clients))
+            kwargs['client'] = next(clients)
+            return real_generate(*args, **kwargs)
         with patch('backend.rooms.planning.generate_research_plan', side_effect=generate), \
              self.client.websocket_connect(f"/ws/{host['room_code']}") as h:
             self.hello(h, host["player_token"])

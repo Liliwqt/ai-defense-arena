@@ -57,6 +57,7 @@ class AdaptiveResearchIntegrationTests(unittest.TestCase):
             # This fixture supplies one completed provider response; streaming
             # progress is exercised separately by the existing mapping tests.
             kwargs.pop("on_progress", None)
+            kwargs.pop("client", None)
             if len(mapping_inputs) == 2:
                 raise QuestionGenerationError("Synthetic map failure")
             paper_id = next(i for i, file in enumerate(files, 1) if file.kind.startswith("research"))

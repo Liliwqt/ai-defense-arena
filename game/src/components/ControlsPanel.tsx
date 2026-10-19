@@ -150,7 +150,7 @@ export function ControlsPanel({
     : liveAccess && account.ai_service_available === false ? "The defense service is temporarily unavailable. Your credits are retained."
     : liveAccess && account.paid_starts_enabled === false && !account.free_access ? "Paid starts are paused. Voucher access remains available."
     : !account.free_access && (availableCredits ?? 0) < 10 ? `Use a free-access voucher or obtain 10 ${creditLabel} in Account.` : "";
-  const runReason = previewMode ? "Visual preview · preparation controls are read-only." : !connected ? "Reconnect before starting the defense." : accessReason || (starting ? "Starting the defense… Waiting for the server." : "");
+  const runReason = previewMode ? "Visual preview · preparation controls are read-only." : roomState?.defense_type === "code" ? "Code-only defense is temporarily unavailable. Choose Research paper or Research + code." : !connected ? "Reconnect before starting the defense." : accessReason || (starting ? "Starting the defense… Waiting for the server." : "");
   const startLabel = account?.free_access ? "Start defense · free access" : `Start defense · 10 ${creditLabel}`;
   useEffect(() => {
     startPending.current = false;
@@ -165,6 +165,7 @@ export function ControlsPanel({
 
   async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (defenseType === "code") { showMessage("Code-only defense is temporarily unavailable. Choose Research paper or Research + code."); return; }
     if (createPending.current || !account?.authenticated) return;
     createPending.current = true;
     showMessage("");
@@ -228,6 +229,7 @@ export function ControlsPanel({
     if (onSendEvent({ type: "retry_coaching" })) onActionComplete();
   }
   function handleRestart() {
+    if (roomState?.defense_type === "code") return;
     if (!account?.free_access && !confirmRestart) { setConfirmRestart(true); return; }
     if (onSendEvent({ type: "restart", confirm_cost: true })) { setConfirmRestart(false); onActionComplete(); }
   }
@@ -248,7 +250,7 @@ export function ControlsPanel({
   const secondaryBtn = "button-secondary";
   const createLabel = createBusy ? "Creating…" : "Create defense room";
   const joinLabel = joinBusy ? "Joining…" : "Join team";
-  const createDisabled = createBusy || !account?.authenticated;
+  const createDisabled = createBusy || !account?.authenticated || defenseType === "code";
 
   const waitText = previewMode ? "Preview mode does not send answers." : !connected && roomState
     ? "Reconnecting… Controls become available when connected." : presentation.guidance;
@@ -305,9 +307,10 @@ export function ControlsPanel({
                 <select name="defense_type" value={defenseType} onChange={(event) => setDefenseType(event.target.value as typeof defenseType)} className={inputClass}>
                   <option value="research">Research paper</option>
                   <option value="mixed">Research + code</option>
-                  <option value="code">Code project · Experimental</option>
+                  <option value="code" disabled>Code project · temporarily unavailable</option>
                 </select>
               </label>
+              {defenseType === "code" && <p role="status">Code-only defense is temporarily unavailable. Choose Research paper or Research + code.</p>}
               {defenseType !== "code" && <label className="setup-label">
                 Research stage
                 <select name="research_stage" value={researchStage} onChange={event => setResearchStage(event.target.value)} className={inputClass}>
@@ -465,7 +468,7 @@ export function ControlsPanel({
               {phase !== "lobby" && (
                 <button
                   type="button"
-                  disabled={!connected || !canRun}
+                  disabled={!connected || !canRun || roomState?.defense_type === "code"}
                   onClick={handleRestart}
                   className={secondaryBtn}
                 >

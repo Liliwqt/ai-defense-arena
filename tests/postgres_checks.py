@@ -30,6 +30,7 @@ from tests import test_live_refunds
 from tests import test_management
 from tests import test_service_handoff
 from tests import test_opening_history
+from tests import test_provider_allowance
 
 
 class LocalDatabase:
@@ -51,6 +52,10 @@ class LocalDatabase:
         env.start()
         self.addCleanup(env.stop)
         super().setUp()
+
+
+class PostgresPreparationAllowances(LocalDatabase, test_provider_allowance.PreparationAllowanceTests):
+    pass
 
 
 class PostgresServiceHandoff(LocalDatabase, test_service_handoff.ServiceHandoffTests):

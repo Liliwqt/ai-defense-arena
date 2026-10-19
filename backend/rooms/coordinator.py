@@ -264,7 +264,9 @@ class RoomCoordinator:
         if key in self._plan_tasks:
             return self._plan_tasks[key]
         request = PlanInput(tuple(room.files), room.defense_type, room.research_stage,
-                            profile_correction=room.research_profile_correction)
+                            profile_correction=room.research_profile_correction,
+                            preparation_id=room.preparation_id,
+                            owner_account_id=room.owner_account_id)
         return self._retain_work_task(self._plan_tasks, key,
                                       asyncio.create_task(run_plan(self, work, request)))
 

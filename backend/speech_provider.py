@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import asyncio
+from backend import defense_availability
 from websockets.asyncio import client
 
 MODEL = 'gpt-live-transcribe'
@@ -13,7 +14,7 @@ RATE = 24_000
 
 
 def configured() -> bool:
-    return (os.getenv('VOICE_PILOT_ENABLED') == '1' and bool(os.getenv('OPENAI_SPEECH_API_KEY'))
+    return (defense_availability.VOICE_AVAILABLE and os.getenv('VOICE_PILOT_ENABLED') == '1' and bool(os.getenv('OPENAI_SPEECH_API_KEY'))
             and os.getenv('OPENAI_SPEECH_MODEL', MODEL) == MODEL)
 
 

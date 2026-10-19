@@ -60,7 +60,7 @@ describe("Room creation loading", () => {
     const requests = mockRoomRequests();
     const onUseRoom = vi.fn();
     render(<ControlsPanel {...defaultProps} roomState={null} connected={false} onUseRoom={onUseRoom} />);
-    fireEvent.change(screen.getByLabelText("Defense type"), { target: { value: "code" } });
+    fireEvent.change(screen.getByLabelText("Defense type"), { target: { value: "mixed" } });
     fireEvent.change(screen.getByRole("textbox", { name: "Your name" }), { target: { value: "My team name" } });
     const form = document.querySelector("#create-form")!;
     fireEvent.submit(form);

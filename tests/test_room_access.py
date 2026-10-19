@@ -22,6 +22,8 @@ from backend.question_generator import GroundedQuestion, QuestionGenerationError
 
 class RoomAccessTests(unittest.TestCase):
     def setUp(self):
+        from tests.offline_accounts import historical_release
+        historical_release(self)
         folder = tempfile.TemporaryDirectory(); self.addCleanup(folder.cleanup)
         self.db = Path(folder.name) / 'accounts.sqlite3'
         self.origin = 'http://127.0.0.1:8000'

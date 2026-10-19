@@ -79,6 +79,7 @@ class Room(TimedTurn):
     coordinator: "RoomCoordinator | None" = field(default=None, init=False, repr=False, compare=False)
     documents: RoomDocuments | None = field(default=None, repr=False, compare=False)
     defense_view_id: str = field(default_factory=lambda: secrets.token_hex(12))
+    preparation_id: str = field(default_factory=lambda: secrets.token_hex(24))
 
     @property
     def has_confirmed_research_profile(self) -> bool:

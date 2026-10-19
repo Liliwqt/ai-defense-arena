@@ -71,18 +71,29 @@ beforeEach(() => { sessionStorage.clear(); window.history.replaceState(null, "",
 afterEach(() => { window.history.replaceState(null, "", "/"); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
 describe("guided setup and preparation", () => {
-  it("defaults fresh setup to research and keeps an explicit experimental code choice", async () => {
+  it("explains a restored code-only choice and rejects form submission without changing its mode", () => {
+    const requests = mockRoomRequests();
+    setAccount(hostAccount()); setSocket(null);
+    renderAt("/#/setup");
+    fireEvent.change(screen.getByLabelText("Defense type"), { target: { value: "code" } });
+    expect(screen.getByLabelText("Defense type")).toHaveValue("code");
+    expect(screen.getByRole("status")).toHaveTextContent("temporarily unavailable");
+    expect(screen.getByRole("button", { name: "Create defense room" })).toBeDisabled();
+    fireEvent.submit(document.querySelector("#create-form")!);
+    expect(requests).toHaveLength(0);
+  });
+  it("defaults fresh setup to research and disables code-only while retaining mixed research", async () => {
     setAccount(hostAccount());
     setSocket(null);
     const view = renderAt("/#/setup");
     const mode = screen.getByRole("combobox", { name: "Defense type" });
     expect(mode).toHaveValue("research");
     expect(screen.getByRole("complementary", { name: "Answer practice guide" })).toHaveTextContent("Answer directly");
-    await userEvent.selectOptions(mode, "code");
-    expect(mode).toHaveDisplayValue("Code project · Experimental");
+    expect(screen.getByRole("option", { name: /Code project.*temporarily unavailable/i })).toBeDisabled();
+    await userEvent.selectOptions(mode, "mixed");
     view.unmount();
     renderAt("/#/setup");
-    expect(screen.getByRole("combobox", { name: "Defense type" })).toHaveValue("code");
+    expect(screen.getByRole("combobox", { name: "Defense type" })).toHaveValue("mixed");
   });
   it("opens a full-screen create setup from Home for a signed-in host without creating a room", async () => {
     setSocket(null);
@@ -150,7 +161,7 @@ describe("guided setup and preparation", () => {
     renderAt("/#/setup");
     expect(screen.getByRole("heading", { name: "What are you preparing?" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Your work" })).toBeVisible();
-    await userEvent.selectOptions(screen.getByLabelText("Defense type"), "code");
+    await userEvent.selectOptions(screen.getByLabelText("Defense type"), "mixed");
     await userEvent.upload(screen.getByLabelText("Project source files or ZIP"), new File(["print(1)"], "app.py", { type: "text/plain" }));
     const next = within(screen.getByRole("complementary", { name: "Room and next step" })).getByRole("button", { name: "Create defense room" });
     // jsdom's native file-required validation does not see userEvent's FileList.
@@ -190,7 +201,7 @@ describe("guided setup and preparation", () => {
     setSocket(null);
     setAccount(hostAccount());
     renderAt("/#/setup");
-    await userEvent.selectOptions(screen.getByLabelText("Defense type"), "code");
+    await userEvent.selectOptions(screen.getByLabelText("Defense type"), "mixed");
     const upload = screen.getByLabelText("Project source files or ZIP") as HTMLInputElement;
     await userEvent.upload(upload, new File(["print(1)"], "old.py", { type: "text/plain" }));
     fireEvent.submit(document.querySelector("#create-form")!);
@@ -222,7 +233,7 @@ describe("guided setup and preparation", () => {
     await userEvent.click(screen.getByRole("button", { name: "Create another room" }));
     expect(window.location.hash).toBe("#/setup?new=1");
     const file = new File(["print(1)"], "sample.py", { type: "text/plain" });
-    await userEvent.selectOptions(screen.getByLabelText("Defense type"), "code");
+    await userEvent.selectOptions(screen.getByLabelText("Defense type"), "mixed");
     await userEvent.upload(screen.getByLabelText("Project source files or ZIP"), file);
     await userEvent.click(screen.getByRole("button", { name: "Back" }));
     await userEvent.click(screen.getByRole("button", { name: "Back to setup" }));
@@ -253,12 +264,13 @@ describe("guided setup and preparation", () => {
     expect(screen.queryByRole("button", { name: /start defense/i })).toBeNull();
   });
 
-  it("shows a ready-to-start preparation for a code-only room without research mapping", () => {
+  it("retains a code-only room but disables starting another code defense", () => {
     setSocket(roomState({ defense_type: "code", accepted_files: [{ name: "app.py", kind: "code", detail: "" }] }));
     setAccount(hostAccount({ free_access: true }));
     renderAt("/#/prepare");
 
-    expect(screen.getByRole("button", { name: /start defense/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /start defense/i })).toBeDisabled();
+    expect(screen.getByText(/Code-only defense is temporarily unavailable/)).toBeVisible();
     expect(screen.queryByText(/research coverage plan/i)).toBeNull();
     expect(screen.queryByRole("button", { name: /map paper/i })).toBeNull();
   });

@@ -8,6 +8,17 @@ from backend import account_store
 from backend import accounts
 
 
+def historical_release(test):
+    """Exercise retained code/speech engine contracts, not current availability.
+
+    Release-policy tests explicitly restore the production gates. These mocks
+    are test-only; no environment setting can enable the retired upstream.
+    """
+    gate = patch.multiple('backend.defense_availability', CODE_ONLY_AVAILABLE=True, VOICE_AVAILABLE=True)
+    gate.start()
+    test.addCleanup(gate.stop)
+
+
 def authenticate(test, client=None, *, unit_server=None):
     if hasattr(test, "_offline_credentials"):
         token, csrf, account = test._offline_credentials
@@ -16,6 +27,7 @@ def authenticate(test, client=None, *, unit_server=None):
             client.headers.update({"Origin":"http://127.0.0.1:8000", "X-CSRF-Token":csrf})
         return account
     folder = tempfile.TemporaryDirectory()
+    historical_release(test)
     test.addCleanup(folder.cleanup)
     env = patch.dict(os.environ, {
         'GOOGLE_CLIENT_ID': 'offline-client', 'GOOGLE_CLIENT_SECRET': 'offline-secret',
@@ -25,6 +37,7 @@ def authenticate(test, client=None, *, unit_server=None):
         'FREE_ACCESS_VOUCHER': 'offline-shareable-voucher',
         # General flow fixtures skip burst timing; admission tests exercise the real default.
         'AI_OWNER_PER_MINUTE': '1000',
+        'OPENROUTER_API_KEY': 'offline-router-key',
     })
     env.start(); test.addCleanup(env.stop)
     token, csrf = account_store.create_google_session('offline-host', 'host@example.test', 'Host')

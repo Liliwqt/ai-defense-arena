@@ -8,6 +8,7 @@ from typing import get_args
 import streamlit as st
 from openai import OpenAIError
 from pydantic import ValidationError
+from backend import defense_availability
 
 from backend.defense_session import (
     MAX_ANSWER_CHARS,
@@ -192,8 +193,29 @@ st.caption("Upload a code project, a research paper, or both for a practice defe
 st.subheader("1. Add defense materials")
 defense_type = st.selectbox("Defense type", ["Code project", "Research paper", "Research + code"],
     index=1, key="practice_defense_type",
-    format_func=lambda choice: "Code project · Experimental" if choice == "Code project" else choice)
+    format_func=lambda choice: "Code project · temporarily unavailable" if choice == "Code project" and not defense_availability.CODE_ONLY_AVAILABLE else choice)
 mode = {"Code project": "code", "Research paper": "research", "Research + code": "mixed"}[defense_type]
+if mode == 'code' and not defense_availability.CODE_ONLY_AVAILABLE:
+    st.warning(defense_availability.CODE_UNAVAILABLE)
+    retained = st.session_state.get('defense_session')
+    if retained:
+        st.subheader('Retained defense results')
+        for number, turn in enumerate(retained.turns, 1):
+            st.markdown(f'**{turn.panelist} · Question {number}**')
+            st.write(turn.question.question)
+            st.code(turn.question.evidence_text, language='text')
+            if turn.answer is not None:
+                st.write(turn.answer)
+        report = st.session_state.get('research_coaching')
+        if report:
+            if report.closing:
+                st.caption(f'{retained.turns[-1].panelist} · Closing remarks')
+                st.markdown(report.closing)
+            st.write(report.summary)
+            for item in (*report.strengths, *report.improvements):
+                st.write(item.text)
+            st.write(report.next_step)
+    st.stop()
 if mode != "code":
     st.markdown("**Practice a clear explanation**")
     st.markdown("Answer directly → explain why → support with evidence → acknowledge a relevant limitation.")

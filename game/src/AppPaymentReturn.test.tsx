@@ -4,6 +4,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { useRoomSocket } from "./hooks/useRoomSocket";
 import type { RoomState } from "./types";
+import { researchPlanPreview } from "./researchPlanPreview";
 
 vi.mock("./hooks/useRoomSocket", () => ({ useRoomSocket: vi.fn() }));
 afterEach(() => { vi.unstubAllGlobals(); sessionStorage.clear(); });
@@ -13,7 +14,9 @@ it("refreshes the shell wallet on same-origin payment return before offering a p
   let credits = 0;
   const state: RoomState = { room_code: "WALLET1", defense_view_id: "wallet-view", phase: "lobby", self_seat: 0,
     self_is_host: true, players: [], turns: [], active_panelist: null, feedback_status: "none", feedback: null,
-    error: null, revision: 1, files: ["app.py"], defense_type: "code" };
+    error: null, revision: 1, files: ["study.pdf"], defense_type: "research",
+    research_planning_status: "ready", research_plan: researchPlanPreview,
+    research_plan_approved: true, research_budget_preview: 14 };
   const sendEvent = vi.fn(() => true);
   vi.mocked(useRoomSocket).mockReturnValue({ roomState: state, roomCode: "WALLET1", playerToken: "fixture", connected: true,
     knownHost: true, waitingForAnswerAck: false, actionError: null, actionErrorReason: null, sendEvent, useRoom: vi.fn(), leaveRoom: vi.fn() });

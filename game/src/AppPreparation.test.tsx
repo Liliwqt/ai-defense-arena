@@ -293,14 +293,14 @@ describe("Guided research preparation", () => {
     expect(actions.getByText(message)).toBeVisible();
   });
 
-  it("does not let a previous room's dirty profile block code-only readiness", async () => {
+  it("does not let a previous room's dirty profile block another research room", async () => {
     const socket = setSocket(research({ research_plan_approved: true })); host();
     const view = renderAt("/#/prepare");
     await userEvent.click(screen.getByText("Correct profile"));
     await userEvent.type(screen.getByLabelText("Research fields (one per line)"), " changed");
     expect(screen.getByRole("button", { name: /Start defense/ })).toBeDisabled();
-    socket.roomCode = "CODE2";
-    socket.roomState = roomState({ room_code: "CODE2", defense_type: "code" });
+    socket.roomCode = "RESEARCH2";
+    socket.roomState = research({ room_code: "RESEARCH2", research_plan_approved: true });
     view.rerender(<App />);
     const actions = within(screen.getByRole("complementary", { name: "Room and next step" }));
     expect(actions.getByRole("heading", { name: "Start your defense" })).toBeVisible();

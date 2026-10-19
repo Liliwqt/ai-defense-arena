@@ -16,6 +16,8 @@ from backend import payments
 
 class LivePaymentTests(unittest.TestCase):
     def setUp(self):
+        from tests.offline_accounts import historical_release
+        historical_release(self)
         folder=tempfile.TemporaryDirectory(); self.addCleanup(folder.cleanup)
         env=patch.dict(os.environ, {'DATABASE_URL':os.environ.get('DATABASE_URL','') if getattr(self,'pg_url',None) else '', 'PAYMENTS_MODE':'live','LIVE_PAYMENTS_ENABLED':'1',
             'LIVE_PAID_STARTS_ENABLED':'1','PAYMONGO_LIVE_SECRET_KEY':'sk_live_offline',

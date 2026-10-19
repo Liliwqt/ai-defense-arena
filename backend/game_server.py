@@ -341,6 +341,9 @@ async def create_room(
     name = _player_name(host_name)
     if defense_type not in {"code", "research", "mixed"} or research_stage not in {"infer", "proposal", "completed"}:
         raise HTTPException(422, "Choose a valid defense type and research stage.")
+    from backend import defense_availability
+    if defense_type == 'code' and not defense_availability.CODE_ONLY_AVAILABLE:
+        raise HTTPException(503, defense_availability.CODE_UNAVAILABLE)
     source_uploads = files or []
     paper_uploads = research_files or []
     if defense_type == "code" and (not source_uploads or paper_uploads):

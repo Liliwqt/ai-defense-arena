@@ -191,7 +191,7 @@ def generate_research_plan(
     if client is None:
         client = OpenAI(api_key=key, timeout=90.0, max_retries=0)
     request = dict(
-        model=model, reasoning={"effort": "low"}, store=False,
+        model=model, reasoning=getattr(client, 'mapping_reasoning', None) or {"effort": "low"}, store=False,
         input=[
             {"role": "system", "content": (
                 "Prepare an ordered discussion map for a practice research defense, not questions or answers. "

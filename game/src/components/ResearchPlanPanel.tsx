@@ -199,23 +199,24 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
     {mapReason && <p className="control-help">{mapReason}</p>}
     </>}
     {plan && <>
+      {status === "failed" && <p role="status">Previous map retained for reference. Complete mapping again before confirming or starting.</p>}
       {state.self_is_host && state.phase === "lobby" ? <form ref={reviewFormRef} onSubmit={approve} className="plan-budget-form">
         <h3>Confirm and prepare to start</h3>
         <label className="setup-label">Question budget
           <input className="setup-input" type="number" min={4} max={100} step={1} value={budget}
-            disabled={!editable || profileDirty} onChange={event => { setBudget(event.target.value); setError(""); }} />
+            disabled={!editable || profileDirty || status !== "ready"} onChange={event => { setBudget(event.target.value); setError(""); }} />
         </label>
         <p className="control-help">4–100 questions. The defense stops at this maximum or when all topics are addressed after every reviewer has spoken.</p>
         {Number(budget) > 0 && Number(budget) < plan.topics.length && <p className="plan-warning" role="status">This limit is smaller than the topic count. Some topics may remain unexplored.</p>}
         {plan.profile && <>
-          <label className="profile-confirmation"><input type="checkbox" checked={reviewedProfile} disabled={!editable}
+          <label className="profile-confirmation"><input type="checkbox" checked={reviewedProfile} disabled={!editable || status !== "ready"}
             onChange={event => setReviewedText(event.target.checked ? "yes" : "no")} />I reviewed the research profile</label>
           {plan.profile.needs_uncertainty_acknowledgment && <label className="profile-confirmation">
-            <input type="checkbox" checked={acknowledgedUncertainty} disabled={!editable}
+            <input type="checkbox" checked={acknowledgedUncertainty} disabled={!editable || status !== "ready"}
               onChange={event => setUncertaintyText(event.target.checked ? "yes" : "no")} />I understand the profile has unclear information
           </label>}
         </>}
-        <button type="submit" className="button-primary" disabled={!editable || profileDirty || !validBudget || alreadyConfirmed || !plan.profile || !reviewedProfile ||
+        <button type="submit" className="button-primary" disabled={!editable || status !== "ready" || profileDirty || !validBudget || alreadyConfirmed || !plan.profile || !reviewedProfile ||
           (plan.profile.needs_uncertainty_acknowledgment && !acknowledgedUncertainty)}>Confirm profile and budget</button>
         {confirmationReason && <p className="control-help">{confirmationReason}</p>}
         {state.research_plan_approved && !dirty && !profileDirty && pendingBudget === null && <p role="status">Maximum confirmed: {state.research_budget_preview} questions.</p>}

@@ -465,8 +465,10 @@ class AccountCreditTests(unittest.TestCase):
         self.assertEqual(self.client.post("/api/auth/mobile/complete", json=body).status_code, 200)
         account = self.client.get("/api/auth/me").json()
         headers = {"Origin":self.origin,"X-CSRF-Token":account["csrf_token"]}
-        self.assertEqual(self.client.post("/api/rooms", data={"host_name":"Alex"}, files={"files":("queue.py",b"queue = []")}).status_code, 403)
-        created = self.client.post("/api/rooms", data={"host_name":"Alex"}, files={"files":("queue.py",b"queue = []")}, headers=headers)
+        data = {"host_name":"Alex", "defense_type":"research"}
+        files = {"research_files":("study.md",b"# Methods\nInterview campus volunteers.","text/markdown")}
+        self.assertEqual(self.client.post("/api/rooms", data=data, files=files).status_code, 403)
+        created = self.client.post("/api/rooms", data=data, files=files, headers=headers)
         self.assertEqual(created.status_code, 201, created.text)
         room = created.json()
         self.addCleanup(lambda: game_server.rooms.pop(room["room_code"], None))

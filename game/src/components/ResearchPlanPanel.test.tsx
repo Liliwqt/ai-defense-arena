@@ -15,6 +15,15 @@ const state: RoomState = {
 function props() { return { roomState: state, connected: true, previewMode: false, onSendEvent: vi.fn(() => true) }; }
 
 describe("ResearchPlanPanel", () => {
+  it("keeps the last map readable after a failed remap but prevents confirmation", () => {
+    const p = props();
+    render(<ResearchPlanPanel {...p} roomState={{ ...state, research_planning_status: "failed", research_plan_error: "Preparation allowance used." }} />);
+    expect(screen.getByText(/Previous map retained for reference/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Confirm profile and budget" })).toBeDisabled();
+    expect(screen.getByLabelText("I reviewed the research profile")).toBeDisabled();
+    expect(screen.getByRole("list", { name: "Proposed research topics" })).toBeVisible();
+    expect(p.onSendEvent).not.toHaveBeenCalled();
+  });
   it("blocks Start and old confirmation while a host profile correction is unsaved", () => {
     const p = props();
     const controls = { account: { authenticated: true, google_enabled: true, free_access: true }, ...p,
