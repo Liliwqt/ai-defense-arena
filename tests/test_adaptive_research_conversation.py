@@ -207,6 +207,10 @@ from streamlit.testing.v1 import AppTest
 
 
 class ResearchScopeStreamlitTests(unittest.TestCase):
+    def setUp(self):
+        from tests.offline_accounts import fallback
+        fallback(self)
+
     def test_fallback_carries_the_fixed_profile_into_clarification_probe_reply_and_coaching(self):
         files, session = prepared_session(("qualitative", "computational/design"), ("Education", "Software engineering"))
         requests, scopes = [], []

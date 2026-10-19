@@ -55,3 +55,16 @@ def authenticate(test, client=None, *, unit_server=None):
         mock = patch.object(unit_server, '_host_account', side_effect=verified)
         mock.start(); test.addCleanup(mock.stop)
     return account
+
+
+def fallback(test):
+    """Private fallback provider scope with a real disposable local ledger."""
+    folder = tempfile.TemporaryDirectory()
+    test.addCleanup(folder.cleanup)
+    env = patch.dict(os.environ, {
+        'DATABASE_URL': '',
+        'PAYMONGO_TEST_DB_PATH': str(Path(folder.name) / 'fallback.sqlite3'),
+        'OPENROUTER_API_KEY': 'offline-router-key',
+    })
+    env.start()
+    test.addCleanup(env.stop)

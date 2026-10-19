@@ -335,6 +335,10 @@ class ResearchPlanRaceTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ResearchPlanStreamlitTests(unittest.TestCase):
+    def setUp(self):
+        from tests.offline_accounts import fallback
+        fallback(self)
+
     def test_prepare_retry_approve_and_material_change_reset_without_question(self):
         plan = fixture_plan()
         with patch.dict(os.environ, {"OPENAI_API_KEY": "offline-key"}), \

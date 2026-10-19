@@ -247,6 +247,10 @@ class ProgressiveRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ProgressiveFallbackTests(unittest.TestCase):
+    def setUp(self):
+        from tests.offline_accounts import fallback
+        fallback(self)
+
     def test_typed_fallback_preserves_ready_sections_and_retries_failed_membership_only(self):
         import os
         from pathlib import Path

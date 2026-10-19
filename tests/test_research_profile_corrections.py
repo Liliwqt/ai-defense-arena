@@ -241,6 +241,10 @@ class ProfileCorrectionRoomTests(unittest.TestCase):
 
 
 class ProfileCorrectionStreamlitTests(unittest.TestCase):
+    def setUp(self):
+        from tests.offline_accounts import fallback
+        fallback(self)
+
     def test_unsaved_changes_block_start_and_remap_retry_keeps_descriptions(self):
         requests = []
         def mapping(files, key, model, **kwargs):

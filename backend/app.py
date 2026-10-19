@@ -7,8 +7,9 @@ from typing import get_args
 
 import streamlit as st
 from openai import OpenAIError
-from pydantic import ValidationError
 from backend import defense_availability
+from backend.openrouter_mapping import MODEL as MAPPING_MODEL
+from backend.streamlit_provider import provider_for
 
 from backend.defense_session import (
     MAX_ANSWER_CHARS,
@@ -45,14 +46,16 @@ def generation_error_message(error: Exception, model: str, api_key: str) -> str:
         return str(error)
     if isinstance(error, OpenAIError):
         return describe_openai_error(error, model, api_key)
-    return "The AI returned an unexpected response. Please try again."
+    return "The request could not be completed. Retry when the service or storage recovers."
 
 
 def generate_next_question(session, files, api_key, model):
     try:
         with st.spinner("Reviewing your answer and preparing the next question..."):
-            advance_defense(session, files, api_key, model=model)
-    except (QuestionGenerationError, OpenAIError, ValidationError) as error:
+            client = (st.session_state["research_provider"].client(session, files)
+                      if isinstance(session, ResearchDefenseSession) else None)
+            advance_defense(session, files, api_key, model=model, client=client)
+    except Exception as error:
         st.session_state["defense_error"] = generation_error_message(error, model, api_key)
     else:
         st.session_state.pop("defense_error", None)
@@ -71,9 +74,10 @@ def prepare_research_scope(files, api_key, model, mode, research_stage):
     st.session_state["research_profile_dirty"] = False
     try:
         with st.spinner("Mapping the uploaded research..."):
-            plan = generate_research_plan(files, api_key, model, defense_type=mode, research_stage=research_stage,
+            client = st.session_state["research_provider"].mapping()
+            plan = generate_research_plan(files, client.api_key, MAPPING_MODEL, client=client, defense_type=mode, research_stage=research_stage,
                     profile_correction=st.session_state.get("research_profile_correction"))
-    except (QuestionGenerationError, OpenAIError, ValidationError) as exc:
+    except Exception as exc:
         st.session_state["research_plan_error"] = generation_error_message(exc, model, api_key)
     else:
         st.session_state["research_plan"] = plan
@@ -255,18 +259,17 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
         if st.session_state.get("defense_project_fingerprint") != project_fingerprint:
             st.session_state.pop("defense_error", None)
         sync_project_session(st.session_state, project_fingerprint)
+        if mode != "code":
+            provider_for(st.session_state, project_fingerprint)
 
         st.subheader("2. Practice defense")
-        api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
-        model = os.getenv("OPENAI_MODEL") or DEFAULT_MODEL
+        api_key = (os.getenv("OPENAI_API_KEY" if mode == "code" else "OPENROUTER_API_KEY") or "").strip()
+        model = (os.getenv("OPENAI_MODEL") or DEFAULT_MODEL) if mode == "code" else MAPPING_MODEL
         if not api_key:
-            st.warning("Set OPENAI_API_KEY in the shell, then restart the app to begin a defense.")
+            st.warning("Set OPENROUTER_API_KEY in the shell, then restart the app to begin a research defense." if mode != "code" else "Set OPENAI_API_KEY in the shell, then restart the app to begin a defense.")
         if mode != "code":
             research_scope_preview(files, api_key, model, mode, research_stage)
-        st.caption(
-            f"Model: {model}. Each question sends all accepted project text "
-            f"(up to {MAX_TOTAL_BYTES // 1_000} KB) and earlier answers to OpenAI."
-        )
+        st.caption("Research uses OpenRouter with fixed reviewer settings and bounded provider spending. Accepted text and earlier answers are sent to the assigned model." if mode != "code" else f"Model: {model}. Accepted text and earlier answers are sent to OpenAI.")
 
         session = st.session_state.get("defense_session")
         button_label = "Start new defense" if session else "Start defense"
@@ -284,12 +287,13 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                     else:
                         new_session = ResearchDefenseSession.create(st.session_state["research_plan"],
                             st.session_state["research_confirmed_budget"], mode, research_stage)
+                        client = st.session_state["research_provider"].client(new_session, files)
                         st.session_state["defense_run_id"] = st.session_state.get("defense_run_id", 0) + 1
                         st.session_state.pop("research_coaching", None)
                         st.session_state.pop("research_coaching_job", None)
                         st.session_state["defense_session"] = new_session
-                        advance_defense(new_session, files, api_key, model=model)
-            except (QuestionGenerationError, OpenAIError, ValidationError) as error:
+                        advance_defense(new_session, files, api_key, model=model, client=client)
+            except Exception as error:
                 st.session_state["defense_error"] = generation_error_message(error, model, api_key)
             else:
                 session = new_session
@@ -343,7 +347,7 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                     try:
                         with st.spinner("Preparing coaching..."):
                             report = generate_coaching_report(files, coaching_history, api_key, model, defense_type=mode, research_stage=research_stage)
-                    except (QuestionGenerationError, OpenAIError, ValidationError) as exc:
+                    except Exception as exc:
                         st.error(generation_error_message(exc, model, api_key))
                     else:
                         st.session_state["research_coaching"] = report
@@ -387,6 +391,8 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                             with st.spinner("Panelist is reading your submission..."):
                                 decision = interpret_submission(
                                     files, api_key, panelist=session.turns[-1].panelist,
+                                    **({"client": st.session_state["research_provider"].client(session, files).interaction(session.turns[-1].panelist)}
+                                       if isinstance(session, ResearchDefenseSession) else {}),
                                     question=session.turns[-1].question, submission=answer.strip(),
                                     clarifications=tuple(session.turns[-1].clarifications),
                                     history=session.answered_history(),
@@ -395,7 +401,7 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                                        if isinstance(session, ResearchDefenseSession) else {}),
                                     **({"probe": probe, "original_answer": session.turns[-1].answer} if probe else {}),
                                 )
-                        except (QuestionGenerationError, OpenAIError, ValidationError) as error:
+                        except Exception as error:
                             if probe:
                                 st.session_state[recovery_key] = generation_error_message(error, model, api_key)
                             st.error(generation_error_message(error, model, api_key))

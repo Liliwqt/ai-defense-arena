@@ -432,6 +432,10 @@ class ProbeProtocolTests(unittest.TestCase):
 
 
 class ProbeStreamlitTests(unittest.TestCase):
+    def setUp(self):
+        from tests.offline_accounts import fallback
+        fallback(self)
+
     def test_streamlit_keeps_same_question_until_probe_reply_without_fake_timer(self):
         import os
         from unittest.mock import patch

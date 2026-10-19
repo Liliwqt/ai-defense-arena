@@ -54,7 +54,7 @@ def render_research_coaching(cards):
 
 
 def progressive_research_report(files, history, context, mode, stage, api_key, model):
-    """Single-browser, bounded sections; never calls live funding/compensation."""
+    """Single-browser bounded sections, using shared provider funding, not credits."""
     import copy
     from backend.coaching_progress import CoachingInput, CoachingProgress
     from backend.research_coaching import has_discussion
@@ -62,7 +62,17 @@ def progressive_research_report(files, history, context, mode, stage, api_key, m
     if job is None:
         if has_discussion(history) and not st.button('Generate coaching', disabled=not bool(api_key)):
             return None
-        job = CoachingProgress(CoachingInput(tuple(files), tuple(copy.deepcopy(history)), copy.deepcopy(context), mode, stage))
+        from backend.streamlit_provider import provider_for
+        try:
+            practice = provider_for(st.session_state, st.session_state['defense_project_fingerprint'])
+            practice.client(st.session_state['defense_session'], files)
+            job = CoachingProgress(CoachingInput(tuple(files), tuple(copy.deepcopy(history)), copy.deepcopy(context), mode, stage,
+                provider_scope=practice.run_scope, provider_owner=practice.owner))
+        except Exception as error:
+            from backend.question_generator import QuestionGenerationError
+            st.error(str(error) if isinstance(error, QuestionGenerationError) else
+                'The coaching allowance is unavailable. Ready answers are retained; retry when storage recovers.')
+            return None
         st.session_state['research_coaching_job'] = job
     st.caption(f"{job.snapshot()['cards_ready']} of {len(job.request.history)} answers coached")
     failed = [section for section in job.sections if section.status == 'failed']
@@ -81,6 +91,7 @@ def advance_research_report(api_key, model):
     """Run after rendering ready work so the next slow request cannot hide it."""
     from backend.question_generator import generate_coaching_report, QuestionGenerationError, describe_openai_error
     from backend.research_coaching import validate_complete
+    from backend.openrouter_questions import RunQuestionClient
     from openai import OpenAIError
     job = st.session_state.get('research_coaching_job')
     if job is None or job.cancelled:return
@@ -90,7 +101,11 @@ def advance_research_report(api_key, model):
         request = job.request
         try:
             with st.spinner('Preparing the next coaching section…'):
-                report = generate_coaching_report(list(request.files), list(request.history), api_key, model,
+                if not request.provider_scope or not request.provider_owner:
+                    raise QuestionGenerationError('This retained report has no funded provider scope. Keep its ready cards or start a new practice.')
+                client = RunQuestionClient(request.provider_scope, request.provider_owner, None, request.files,
+                    stopped=lambda: job.cancelled or st.session_state.get('research_coaching_job') is not job).coaching()
+                report = generate_coaching_report(list(request.files), list(request.history), api_key, model, client=client,
                     defense_type=request.defense_type, research_stage=request.research_stage,
                     research_context=request.research_context, overview_only=section.turns is None, section_turns=section.turns)
                 job.accept(section, report)

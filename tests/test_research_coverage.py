@@ -651,10 +651,15 @@ class CoverageProtocolTests(unittest.TestCase):
                     self.assertEqual(generator.call_count,14) # opening, 12 assessments, one retry
 
 class CoverageStreamlitTests(unittest.TestCase):
+    def setUp(self):
+        from tests.offline_accounts import fallback
+        fallback(self)
+
     def test_twelve_turn_session_coaching_and_early_end(self):
         from streamlit.testing.v1 import AppTest
         advice = 'One option is to narrow the claim if recruitment access is limited.'
         def advice_move(files, key, *, history, context, **kwargs):
+            kwargs.pop("client", None)
             output = proposal(context, history)
             if history and output['action'] == 'ask':
                 output['lead_in'] = advice
@@ -732,6 +737,10 @@ class CoverageAdditionalTests(unittest.IsolatedAsyncioTestCase):
 
 
 class CoverageStreamlitRetryTests(unittest.TestCase):
+    def setUp(self):
+        from tests.offline_accounts import fallback
+        fallback(self)
+
     def test_opening_failure_can_retry_without_losing_run_identity(self):
         from streamlit.testing.v1 import AppTest
         calls=0

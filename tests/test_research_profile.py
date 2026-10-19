@@ -152,6 +152,10 @@ class ResearchProfileRoomTests(unittest.TestCase):
 
 
 class ResearchProfileStreamlitTests(unittest.TestCase):
+    def setUp(self):
+        from tests.offline_accounts import fallback
+        fallback(self)
+
     def test_fallback_requires_profile_review_before_confirmation(self):
         with patch.dict(os.environ, {"OPENAI_API_KEY": "offline-key"}), \
                 patch("backend.research_plan.generate_research_plan", return_value=fixtures.fixture_plan()) as ai:
