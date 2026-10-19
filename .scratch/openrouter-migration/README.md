@@ -2,18 +2,16 @@
 
 Status: ready-for-agent
 
-**Ticket 03 timer correction verified:** the independent recheck's P2 finding is
-fixed — failed provider/budget work resumes the remaining answer/probe clock
-instead of retaining the unused AI pause, and both independent probes pass. See
-[the recheck correction](reviews/03-recheck.md#correction-2026-10-20) and the
-[handoff](reviews/03.md). Ticket 03 is ready for human review again; ticket 04
-remains independently unblocked.
+**Ticket 03 correction verified:** source **c4d838d** closes the delayed-retry
+clock issue. All four independent probes and the full offline gates pass, with
+Standards 0 / Spec 0. See [the final handoff](reviews/03-retry-fix.md).
+Ticket 03 is ready for human review locally; ticket 04 remains unblocked.
 
 The user approved this twelve-ticket breakdown as drafted on **2026-10-19**.
-All twelve separate local tickets are published. Tickets 01–03 remain ready for
-human review ([01 handoff](reviews/01.md), [02 final handoff](reviews/02-sse-fix.md),
-[03 handoff](reviews/03.md)). Ticket 04 can proceed under its existing dependency
-on 02; ticket 05 requires both corrected 03 and 04. Tickets 04–12 have not started.
+All twelve separate local tickets are published. Tickets 01–03 are ready for
+human review ([01](reviews/01.md), [02](reviews/02-sse-fix.md),
+[03](reviews/03-retry-fix.md)). Ticket 04 can proceed under its separate dependency
+on 02; ticket 05 requires both 03 and 04. Tickets 04–12 have not started.
 The tickets contain **58 acceptance criteria**, with coverage of all
 **80 specification stories** recorded in the approved breakdown.
 
@@ -39,15 +37,11 @@ Design and coverage: [approved breakdown](ticket-breakdown-draft.md).
 
 ## Where to start
 
-Only **01 — Bounded OpenRouter paper mapping** was initially unblocked. Tickets
-01–03 have passed their local gates, with 03's timer correction reverified.
-Ticket **04 — OpenRouter progressive coaching** is independently unblocked.
-Ticket 05 starts after both corrected 03 and 04. After 09, tickets 10
-and 11 form an independent frontier.
-Coordinate any
-shared edits. These relationships do not authorize parallel agents or
-external-model sharing. A ready-for-agent label does not remove blockers or
-evidence gates.
+Tickets 01–03 have passed their local implementation/review gates. Ticket 04
+is the unstarted frontier; 05 requires both 03 and 04. After 09, tickets 10 and
+11 form an independent frontier. Coordinate shared edits. Dependencies do not
+authorize parallel agents or external-model sharing, and ready-for-agent does
+not waive evidence gates.
 
 ## Two runnable local checkpoints
 
@@ -87,8 +81,6 @@ Intermediate slices are not a finished migration or permission to deploy.
 
 ## Next step
 
-Implement ticket 04 (protected progressive coaching) or review corrected
-ticket 03. Ticket 04's protected progressive coaching proceeds under its
-separate 02 dependency; coordinate overlapping files. Ticket 05 still needs both
-corrected 03 and 04. Actual-provider, user review and publication remain
-separate gates. No push or deployment is authorized by this correction.
+Implement ticket 04 (protected progressive coaching). Ticket 05 requires both
+03 and 04. Actual-provider compatibility/quality/cost, user review and publication
+remain separate gates. No push or deployment is authorized by this handoff.

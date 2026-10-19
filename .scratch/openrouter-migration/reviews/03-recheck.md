@@ -1,5 +1,16 @@
 # Ticket 03 — independent implementation recheck
 
+**Superseding verified fix (2026-10-20):** source **c4d838d** closes the delayed-
+retry time restoration issue. All four independent probes, Python 673,
+React 393/build and Standards 0 / Spec 0 pass. See [the final fix handoff](03-retry-fix.md).
+Earlier findings/verdicts below are historical. Actual-provider/user review
+remains separate; no push/deployment.
+
+**Latest independent follow-up (2026-10-20):** the original four-minute pause is
+fixed and its two probes pass, but delayed retries refund already-consumed
+answer time. One P2 remains; see [the timer follow-up](03-timer-followup.md).
+Earlier complete/ready-for-human verdicts are superseded for timer recovery.
+
 Date: **2026-10-20**. User requested checking the other agent's implementation.
 Fixed diff: `git diff 889a8e2...84b5542`.
 Commits: **b5e6244** (implementation), **84b5542** (handoff).
