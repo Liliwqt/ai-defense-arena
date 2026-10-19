@@ -149,7 +149,9 @@ class CoachingClosingRoomTests(unittest.IsolatedAsyncioTestCase):
 class CoachingClosingStreamlitTests(unittest.TestCase):
     def test_code_fallback_displays_saved_closing_inline_without_a_new_request(self):
         text = "That explains your final decision. Review the limits below."
-        report = CoachingReport("Discussion complete.", [], [], "Practice.", closing=text)
+        report = CoachingReport("Discussion complete.",
+            [{"turn": 0, "text": "You explained the constraint."}],
+            [{"turn": 0, "text": "Support the claim with a measurement."}], "Practice.", closing=text)
         with patch("backend.question_generator.generate_coaching_report") as coach:
             app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "backend/app.py")).run()
             app.session_state["defense_session"] = completed_room({"id": "unused"}).defense
@@ -158,7 +160,38 @@ class CoachingClosingStreamlitTests(unittest.TestCase):
             self.assertFalse(app.exception)
             self.assertIn(text, [item.value for item in app.markdown])
             self.assertIn("Critical Judge · Closing remarks", [item.value for item in app.caption])
+            self.assertIn("Question 1: You explained the constraint.", [item.value for item in app.markdown])
+            self.assertIn("Question 1: Support the claim with a measurement.", [item.value for item in app.markdown])
             coach.assert_not_called()
+
+    def test_unavailable_code_preserves_saved_exchanges_citations_and_missed_turns(self):
+        from backend.defense_session import DefenseSession, DefenseTurn
+        from backend.question_generator import GroundedQuestion, ClarificationExchange, PanelistProbe
+        question = GroundedQuestion("Why use this queue?", "queue.py", 2, "queue = []",
+            evidence_location="Line 2", lead_in="That explains the requested operation.")
+        saved = DefenseSession([
+            DefenseTurn("Technical Architect", question, answer="It preserves arrival order.",
+                clarifications=[ClarificationExchange("What order?", "The order in which requests arrive.")],
+                probe=PanelistProbe("saved-probe", "How do you handle two arrivals?", status="answered",
+                    reply="We serialize enqueue operations.",
+                    clarifications=[ClarificationExchange("Which arrivals?", "Requests received together.")])),
+            DefenseTurn("Security Reviewer", question, timed_out=True),
+            DefenseTurn("Product Judge", question, ended_early=True),
+        ], finished=True)
+        with patch("backend.question_generator.generate_coaching_report") as coach:
+            app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "backend/app.py")).run()
+            app.session_state["defense_session"] = saved
+            app.selectbox[0].select("Code project").run()
+        self.assertFalse(app.exception)
+        text = "\n".join(item.value for collection in (app.markdown, app.caption, app.info) for item in collection)
+        for expected in ("Evidence: queue.py, Line 2", question.lead_in,
+                "You asked: What order?", "The order in which requests arrive.",
+                "How do you handle two arrivals?", "Defender asks: Which arrivals?",
+                "Requests received together.", "Probe reply: We serialize enqueue operations.",
+                "Timed out · no answer recorded.", "Ended early by host · no answer recorded."):
+            self.assertIn(expected, text)
+        self.assertFalse(app.button)
+        coach.assert_not_called()
 
 
 class CoachingClosingProtocolTests(unittest.TestCase):

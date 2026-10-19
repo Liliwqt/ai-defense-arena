@@ -17,7 +17,8 @@ from backend.defense_session import (
     advance_defense,
     sync_project_session,
 )
-from backend.streamlit_coaching import render_research_coaching, progressive_research_report, advance_research_report
+from backend.streamlit_coaching import progressive_research_report, advance_research_report
+from backend.streamlit_transcript import render_defense_transcript, render_coaching_summary
 from backend.defense_progression import prepare_progression
 from backend.project_files import (
     ALLOWED_EXTENSIONS,
@@ -200,21 +201,10 @@ if mode == 'code' and not defense_availability.CODE_ONLY_AVAILABLE:
     retained = st.session_state.get('defense_session')
     if retained:
         st.subheader('Retained defense results')
-        for number, turn in enumerate(retained.turns, 1):
-            st.markdown(f'**{turn.panelist} · Question {number}**')
-            st.write(turn.question.question)
-            st.code(turn.question.evidence_text, language='text')
-            if turn.answer is not None:
-                st.write(turn.answer)
+        render_defense_transcript(retained, retained.defense_type)
         report = st.session_state.get('research_coaching')
         if report:
-            if report.closing:
-                st.caption(f'{retained.turns[-1].panelist} · Closing remarks')
-                st.markdown(report.closing)
-            st.write(report.summary)
-            for item in (*report.strengths, *report.improvements):
-                st.write(item.text)
-            st.write(report.next_step)
+            render_coaching_summary(report, retained, retained.defense_type)
     st.stop()
 if mode != "code":
     st.markdown("**Practice a clear explanation**")
@@ -334,41 +324,7 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                     st.rerun()
             else:
                 st.caption(f"Progress: {answered_count} answered · four panelists · up to eight questions")
-            for number, turn in enumerate(session.turns, start=1):
-                panelist_name = "Critical Reviewer" if mode != "code" and turn.panelist == "Critical Judge" else turn.panelist
-                turn_label = " (follow-up)" if number > 1 and session.turns[number - 2].panelist == turn.panelist else ""
-                st.markdown(
-                    f"**{panelist_name} · Question {number}{turn_label}**"
-                )
-                if turn.question.lead_in:
-                    st.caption(turn.question.lead_in)
-                st.write(turn.question.question)
-                st.caption(
-                    f"Evidence: {turn.question.filename}, {turn.question.evidence_location or f'Line {turn.question.evidence_line}'}"
-                )
-                st.code(turn.question.evidence_text, language="text")
-                for exchange in turn.clarifications:
-                    st.info(f"You asked: {exchange.request}\n\n{panelist_name}: {exchange.reply}")
-                if turn.ended_early:
-                    st.info("Ended early by host · no answer recorded.")
-                elif turn.timed_out:
-                    st.info("Timed out · no answer recorded.")
-                if turn.answer is not None:
-                    st.markdown("**Your answer**")
-                    st.write(turn.answer)
-                if turn.probe:
-                    st.markdown("**Panelist asks for a detail**")
-                    st.write(turn.probe.request)
-                    for reference in turn.probe.references:
-                        st.caption(f"{reference.filename} · {reference.evidence_location}")
-                        st.code(reference.evidence_text)
-                    for exchange in turn.probe.clarifications:
-                        st.write(f"Defender asks: {exchange.request}")
-                        st.write(f"{turn.panelist} explains: {exchange.reply}")
-                    if turn.probe.reply is not None:
-                        st.write(f"Probe reply: {turn.probe.reply}")
-                    elif turn.probe.status != "pending":
-                        st.caption(f"Probe {turn.probe.status}; original answer retained.")
+            render_defense_transcript(session, mode)
 
             if session.completed:
                 st.success(f"Defense complete. Review your {answered_count} answers above.")
@@ -393,18 +349,7 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                         st.session_state["research_coaching"] = report
                         st.rerun()
                 if report:
-                    if report.closing:
-                        last_reviewer = session.answered_history()[-1].panelist
-                        if mode != "code" and last_reviewer == "Critical Judge":
-                            last_reviewer = "Critical Reviewer"
-                        st.caption(f"{last_reviewer} · Closing remarks")
-                        st.write(report.closing)
-                    st.write(report.summary)
-                    for point in report.strengths + report.improvements:
-                        st.write(f"Question {point['turn'] + 1}: {point['text']}")
-                    if mode != "code" and report.answer_cards is not None:
-                        render_research_coaching(report.answer_cards)
-                    st.write(report.next_step)
+                    render_coaching_summary(report, session, mode)
                 if isinstance(session, ResearchDefenseSession):
                     advance_research_report(api_key, model)
             elif session.needs_question:
