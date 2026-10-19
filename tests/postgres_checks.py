@@ -33,6 +33,7 @@ from tests import test_opening_history
 from tests import test_provider_allowance
 from tests import test_openrouter_coaching
 from tests import test_openrouter_checkpoint
+from tests import test_free_practice
 
 
 class LocalDatabase:
@@ -54,6 +55,20 @@ class LocalDatabase:
         env.start()
         self.addCleanup(env.stop)
         super().setUp()
+
+
+class PostgresFreePolicy(LocalDatabase, test_free_practice.FreePolicyTests):
+    def setUp(self):
+        super().setUp()
+        # The standalone free-policy fixture isolates SQLite by default.
+        # Explicitly restore this runner's disposable PostgreSQL database.
+        env = patch.dict(os.environ, {'DATABASE_URL': self.pg_url})
+        env.start()
+        self.addCleanup(env.stop)
+
+
+class PostgresFreeRoom(LocalDatabase, test_free_practice.FreeRoomTests):
+    pass
 
 
 class PostgresTextCheckpoint(LocalDatabase, test_openrouter_checkpoint.OpenRouterTextCheckpointTests):

@@ -28,7 +28,8 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
   const [waitingForMap, setWaitingForMap] = useState(false);
   const addressed = Object.values(state.coverage ?? {}).filter(topic => topic.status === "addressed").length;
   const status = state.research_planning_status ?? "none";
-  const initialBudget = String(state.research_budget_preview ?? plan?.suggested_budget ?? "");
+  const questionLimit = state.question_limit ?? (state.practice_tier === "free" ? 8 : 100);
+  const initialBudget = String(state.research_budget_preview ?? (plan ? Math.min(plan.suggested_budget, questionLimit) : ""));
   const [budget, setBudget] = useTabDraft("budget", initialBudget, { room: true, marker: plan?.id });
   const dirty = budget !== initialBudget;
   const [profileDirty, setProfileDirty] = useState(false);
@@ -93,8 +94,8 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
     event.preventDefault();
     if (!editable || approvalPending.current || status !== "ready") return;
     const value = Number(budget);
-    if (!Number.isInteger(value) || value < 4 || value > 100) {
-      setError("Choose a whole-number question budget from 4 to 100."); return;
+    if (!Number.isInteger(value) || value < 4 || value > questionLimit) {
+      setError(`Choose a whole-number question budget from 4 to ${questionLimit}.`); return;
     }
     if (profileDirty || !plan?.profile || !reviewedProfile || (plan.profile.needs_uncertainty_acknowledgment && !acknowledgedUncertainty)) {
       setError("Review the research profile and acknowledge any unclear information before confirming."); return;
@@ -120,10 +121,10 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
     {status === "failed" ? "Retry research map" : plan ? "Prepare map again" : "Map paper"}
   </button>;
 
-  const validBudget = Number.isInteger(Number(budget)) && Number(budget) >= 4 && Number(budget) <= 100;
+  const validBudget = Number.isInteger(Number(budget)) && Number(budget) >= 4 && Number(budget) <= questionLimit;
   const confirmationReason = profileDirty ? "Apply your profile changes and remap before confirming or starting."
     : pendingBudget !== null ? "Waiting for the server to confirm this profile and budget…"
-    : !validBudget ? "Choose a whole-number question budget from 4 to 100."
+    : !validBudget ? `Choose a whole-number question budget from 4 to ${questionLimit}.`
     : !reviewedProfile ? "Review and explicitly confirm the research profile before starting."
     : plan?.profile?.needs_uncertainty_acknowledgment && !acknowledgedUncertainty ? "Acknowledge the unclear profile information before confirming."
     : dirty || !state.research_plan_approved ? "Confirm the current profile and question budget before starting." : "";
@@ -203,10 +204,10 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
       {state.self_is_host && state.phase === "lobby" ? <form ref={reviewFormRef} onSubmit={approve} className="plan-budget-form">
         <h3>Confirm and prepare to start</h3>
         <label className="setup-label">Question budget
-          <input className="setup-input" type="number" min={4} max={100} step={1} value={budget}
+          <input className="setup-input" type="number" min={4} max={questionLimit} step={1} value={budget}
             disabled={!editable || profileDirty || status !== "ready"} onChange={event => { setBudget(event.target.value); setError(""); }} />
         </label>
-        <p className="control-help">4–100 questions. The defense stops at this maximum or when all topics are addressed after every reviewer has spoken.</p>
+        <p className="control-help">4–{questionLimit} questions. The defense stops at this maximum or when all topics are addressed after every reviewer has spoken.</p>
         {Number(budget) > 0 && Number(budget) < plan.topics.length && <p className="plan-warning" role="status">This limit is smaller than the topic count. Some topics may remain unexplored.</p>}
         {plan.profile && <>
           <label className="profile-confirmation"><input type="checkbox" checked={reviewedProfile} disabled={!editable || status !== "ready"}

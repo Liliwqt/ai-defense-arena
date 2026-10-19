@@ -9,6 +9,9 @@ and the old speech pilot remain disabled. Retained results are readable.
 The text checkpoint is implemented locally; actual account/model tests and
 measured capacity gates remain pending. This is not deployment approval.
 
+For the selectable zero-credit model tier, see [Free practice](FREE_PRACTICE.md).
+The assignments and USD limits below describe Standard practice.
+
 ## Configure the server
 
 Set `OPENROUTER_API_KEY` privately in the launching environment. The tracked

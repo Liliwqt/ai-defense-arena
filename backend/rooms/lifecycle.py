@@ -19,7 +19,8 @@ if TYPE_CHECKING:
 
 def reserve_room_run(owner: "RoomCoordinator", account_id: str, confirmed: bool, retry: bool = False) -> None:
     room = owner._room
-    if not retry:
+    free_tier = room.practice_tier == "free"
+    if not retry and not free_tier:
         if live_mode():
             from backend.account_store import account_access
             access=account_access(account_id)
@@ -34,20 +35,20 @@ def reserve_room_run(owner: "RoomCoordinator", account_id: str, confirmed: bool,
             raise AccessError("Confirm the current research profile and question budget before starting.")
         from backend.openrouter_questions import establish_run_allowance, run_scope
         try:
-            establish_run_allowance(run_scope(run_id), account_id, room.files, budget)
+            establish_run_allowance(run_scope(run_id), account_id, room.files, budget, tier=room.practice_tier)
         except QuestionGenerationError as failure:
             raise AccessError(str(failure)) from None
     if live_mode():
         from backend.account_store import account_access
-        if not account_access(account_id)['free_access']:
+        if not free_tier and not account_access(account_id)['free_access']:
             from backend.payments_live import settings
             try:settings()
             except HTTPException:
                 raise AccessError('Paid defenses are temporarily unavailable. Your credits are retained.') from None
         LiveStore().reserve_run(account_id,run_id,owner._workflows.service_id,room.code,
-                                replace_id=room.run_id if run_id!=room.run_id else None)
+                                replace_id=room.run_id if run_id!=room.run_id else None, free_tier=free_tier)
     else:
-        reserve_run(account_id, run_id)
+        reserve_run(account_id, run_id, free_tier=free_tier)
     if not live_mode() and run_id != room.run_id:
         release_run(room.run_id)
     if room.run_id != run_id:

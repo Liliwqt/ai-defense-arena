@@ -266,7 +266,7 @@ class RoomCoordinator:
         request = PlanInput(tuple(room.files), room.defense_type, room.research_stage,
                             profile_correction=room.research_profile_correction,
                             preparation_id=room.preparation_id,
-                            owner_account_id=room.owner_account_id)
+                            owner_account_id=room.owner_account_id, practice_tier=room.practice_tier)
         return self._retain_work_task(self._plan_tasks, key,
                                       asyncio.create_task(run_plan(self, work, request)))
 

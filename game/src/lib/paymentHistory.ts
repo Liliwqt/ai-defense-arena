@@ -28,7 +28,7 @@ export function purchaseLabel(order: TestPurchase): string {
 }
 
 export function runLabel(run: DefenseRunReceipt): string {
-  if (run.mode === "voucher") return "Voucher run · no credits used";
+  if (run.mode === "voucher") return "Free-access run · no credits used";
   if (run.status === "released") return "Reservation released · no credits charged";
   return `${run.status === "reserved" ? "Reserved" : "Charged"} · ${run.cost} test credits`;
 }

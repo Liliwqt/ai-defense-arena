@@ -68,6 +68,6 @@ describe("Account access",()=>{
   expect(screen.getByText("Reserved · 10 test credits")).toBeTruthy();
   expect(screen.getByText("Charged · 10 test credits")).toBeTruthy();
   expect(screen.getByText("Reservation released · no credits charged")).toBeTruthy();
-  expect(screen.getByText("Voucher run · no credits used")).toBeTruthy();
+  expect(screen.getByText("Free-access run · no credits used")).toBeTruthy();
  });
 });

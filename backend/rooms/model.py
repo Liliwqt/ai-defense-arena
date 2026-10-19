@@ -8,6 +8,7 @@ from typing import Any, TYPE_CHECKING
 
 from fastapi import WebSocket
 
+from backend.practice_tiers import FREE_QUESTION_LIMIT
 from backend.defense_session import DefenseSession, ResearchDefenseSession, PANELIST_ORDER
 from backend.project_files import ProjectFile
 from backend.question_generator import CoachingReport
@@ -80,6 +81,7 @@ class Room(TimedTurn):
     documents: RoomDocuments | None = field(default=None, repr=False, compare=False)
     defense_view_id: str = field(default_factory=lambda: secrets.token_hex(12))
     preparation_id: str = field(default_factory=lambda: secrets.token_hex(24))
+    practice_tier: str = "standard"
 
     @property
     def has_confirmed_research_profile(self) -> bool:
@@ -204,6 +206,8 @@ class Room(TimedTurn):
             "accepted_files": [{"name": file.name, "kind": file.kind, "detail": file.detail} for file in self.files],
             "defense_type": self.defense_type,
             "research_stage": self.research_stage,
+            "practice_tier": self.practice_tier,
+            "question_limit": FREE_QUESTION_LIMIT if self.practice_tier == "free" else 100,
             "research_planning_status": self.research_planning_status,
             "research_plan_progress": self.research_plan_progress.snapshot() if self.research_plan_progress else None,
             "research_plan": self.research_plan.snapshot() if self.research_plan else None,

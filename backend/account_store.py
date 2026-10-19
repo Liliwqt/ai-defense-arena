@@ -219,7 +219,7 @@ def redeem_voucher(account_id: str, value: str) -> None:
         raise AccessError(error)
 
 
-def reserve_run(account_id: str, run_id: str) -> dict:
+def reserve_run(account_id: str, run_id: str, *, free_tier: bool = False) -> dict:
     with connect_store(database_path()) as db:
         db.execute("BEGIN IMMEDIATE")
         previous = db.execute("SELECT * FROM defense_runs WHERE id=?", (run_id,)).fetchone()
@@ -228,10 +228,11 @@ def reserve_run(account_id: str, run_id: str) -> dict:
         if previous and previous["status"] != "released":
             return dict(previous)
         access = _access(db, account_id)
-        if not access["free_access"] and access["test_credits"] < RUN_COST:
+        if not free_tier and not access["free_access"] and access["test_credits"] < RUN_COST:
             raise AccessError("Not enough available test credits. This run needs 10, or a free-access voucher.")
-        mode, cost = ("voucher", 0) if access["free_access"] else ("credits", RUN_COST)
-        # A voucher authorizes this whole run even if it is later rotated.
+        mode, cost = ("voucher", 0) if free_tier or access["free_access"] else ("credits", RUN_COST)
+        # Legacy voucher mode means zero-cost access. The immutable provider policy
+        # distinguishes free-model practice from an actual voucher grant.
         status = "charged" if cost == 0 else "reserved"
         db.execute("""INSERT INTO defense_runs (id,account_id,mode,cost,status,created_at,charged_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
             mode=excluded.mode, cost=excluded.cost, status=excluded.status, charged_at=excluded.charged_at""",

@@ -10,6 +10,7 @@ from time import monotonic
 import httpx
 
 from backend.question_generator import QuestionGenerationError
+from backend.practice_tiers import FREE, FREE_MODEL, validate_tier
 from backend.provider_allowance import ProviderAllowance, AllowanceError, reported_nano
 from backend.openrouter_stream import ENDPOINT, payload, strict_schema, stream as open_stream
 
@@ -23,8 +24,17 @@ class MappingPolicy:
     input_nano_per_token: int = 300
     output_nano_per_token: int = 1200
 
+    tier: str = 'standard'
+    model: str = MODEL
+    reasoning_tokens: int | None = None
+    request_limit: int | None = None
+
     @classmethod
-    def configured(cls):
+    def configured(cls, tier='standard'):
+        validate_tier(tier)
+        if tier == FREE:
+            return cls(max_output_tokens=16384, tier=FREE, model=FREE_MODEL,
+                       reasoning_tokens=4096, request_limit=3)
         try:
             output = int(os.getenv('OPENROUTER_MAPPING_MAX_OUTPUT_TOKENS', '65536'))
             ceiling = Decimal(os.getenv('OPENROUTER_PREPARATION_USD', '0.75'))
@@ -38,7 +48,7 @@ class MappingPolicy:
 class MappingClient:
     mapping_reasoning = {'effort': 'high'}
 
-    def __init__(self, scope: str, owner: str, api_key=None, *, stopped=lambda: False):
+    def __init__(self, scope: str, owner: str, api_key=None, *, stopped=lambda: False, tier='standard'):
         key = (api_key if api_key is not None else os.getenv('OPENROUTER_API_KEY', '')).strip()
         if not key or any(char.isspace() for char in key):
             raise QuestionGenerationError('Set a clean OPENROUTER_API_KEY on the server to map the paper.')
@@ -47,9 +57,11 @@ class MappingClient:
         try:
             stored = self.allowance.policy()
             if stored is None:
-                configured = MappingPolicy.configured()
+                configured = MappingPolicy.configured(tier)
                 stored = self.allowance.establish(configured.allowance_nano, asdict(configured))
             self.policy = MappingPolicy(**stored)
+            if self.policy.tier != tier:
+                raise QuestionGenerationError("The preparation tier is fixed. Create a new room to change it.")
         except AllowanceError as error:
             raise QuestionGenerationError(str(error)) from None
         self.stopped = stopped
@@ -71,12 +83,13 @@ class MappingClient:
 
         current()
         schema = strict_schema(text_format.model_json_schema())
-        body = payload(MODEL, input, text_format, reasoning={'effort': 'high', 'exclude': True},
-                       max_tokens=self.policy.max_output_tokens)
+        reasoning = {'effort': 'high'} if self.policy.reasoning_tokens is None else {'max_tokens': self.policy.reasoning_tokens}
+        body = payload(self.policy.model, input, text_format, reasoning={**reasoning, 'exclude': True},
+                       max_tokens=self.policy.max_output_tokens, free=self.policy.tier == FREE)
         # Byte fallback is a conservative token bound; include schema/message
         # serialization and a fixed allowance for provider framing, never truncate.
         input_bound = len(json.dumps({'messages': input, 'schema': schema}, ensure_ascii=False).encode()) + 8192
-        if input_bound + self.policy.max_output_tokens > 1_048_576:
+        if input_bound + self.policy.max_output_tokens > (1_000_000 if self.policy.tier == FREE else 1_048_576):
             raise QuestionGenerationError('The accepted material exceeds the bounded OpenRouter mapping context. Reduce the material; it was not truncated.')
         bound = input_bound * self.policy.input_nano_per_token + self.policy.max_output_tokens * self.policy.output_nano_per_token
         try:

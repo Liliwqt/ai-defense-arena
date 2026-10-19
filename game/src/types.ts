@@ -196,6 +196,8 @@ export interface RoomState {
   accepted_files?: { name: string; kind: string; detail: string }[];
   defense_type?: "code" | "research" | "mixed";
   research_stage?: "infer" | "proposal" | "completed";
+  practice_tier?: "free" | "standard";
+  question_limit?: number;
   research_planning_status?: "none" | "planning" | "ready" | "failed";
   research_plan_progress?: { stage: "preparing" | "mapping" | "validating"; topics: ResearchPlan["topics"] } | null;
   research_plan?: ResearchPlan | null;

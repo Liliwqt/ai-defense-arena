@@ -69,15 +69,18 @@ def strict_schema(schema):
     return schema
 
 
-def payload(model, messages, schema, *, reasoning, max_tokens):
+def payload(model, messages, schema, *, reasoning, max_tokens, free=False):
     """One guarded request body; routes without the exact contract are excluded."""
+    if free and not model.endswith(':free'):
+        raise QuestionGenerationError('Free practice requires a free model. No paid request was sent.')
+    prices = {'prompt': 0, 'completion': 0, 'request': 0} if free else {'prompt': .30, 'completion': 1.20, 'request': 0}
     return {'model': model, 'messages': messages, 'reasoning': reasoning,
         'max_tokens': max_tokens, 'stream': True,
         'stream_options': {'include_usage': True},
         'response_format': {'type': 'json_schema', 'json_schema': {
             'name': schema.__name__, 'strict': True, 'schema': strict_schema(schema.model_json_schema())}},
         'provider': {'allow_fallbacks': False, 'require_parameters': True,
-            'data_collection': 'deny', 'max_price': {'prompt': .30, 'completion': 1.20, 'request': 0}}}
+            'data_collection': 'deny', 'max_price': prices}}
 
 
 class StructuredStream:

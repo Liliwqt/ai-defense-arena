@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from backend.account_store import AccessError, require_run_access
 from backend.project_files import ProjectFile
+from backend.practice_tiers import FREE_QUESTION_LIMIT, validate_tier_budget
 from backend.question_generator import QuestionGenerationError
 from backend.research_plan import ResearchPlan, ResearchPlanProgress, generate_research_plan, validate_question_budget, ResearchProfileDescription, validate_profile_description
 from backend.resource_limits import limit
@@ -35,6 +36,7 @@ class PlanInput:
     profile_correction: ResearchProfileDescription | None = None
     preparation_id: str = ""
     owner_account_id: str = ""
+    practice_tier: str = "standard"
 
 
 PlanRequest = Callable[[PlanInput], Awaitable[ResearchPlan]]
@@ -65,7 +67,7 @@ async def request_plan(request: PlanInput) -> ResearchPlan:
 
     try:
         def generate():
-            client = MappingClient(request.preparation_id, request.owner_account_id, stopped=stopped.is_set)
+            client = MappingClient(request.preparation_id, request.owner_account_id, stopped=stopped.is_set, tier=request.practice_tier)
             return generate_research_plan(list(request.files), client.api_key, MAPPING_MODEL,
                 client=client, defense_type=request.defense_type, research_stage=request.research_stage,
                 on_progress=report if request.on_progress else None, profile_correction=request.profile_correction)
@@ -109,7 +111,7 @@ async def run_plan(owner: "RoomCoordinator", work: PlanWork, request: PlanInput)
         room.research_planning_status = "ready"
         room.research_plan_progress = None
         room.research_plan_error = None
-        room.research_budget_preview = plan.suggested_budget
+        room.research_budget_preview = min(plan.suggested_budget, FREE_QUESTION_LIMIT) if room.practice_tier == "free" else plan.suggested_budget
         room.research_plan_approved = False
         room.revision += 1
     await owner._publish()
@@ -125,7 +127,8 @@ async def handle_plan_command(owner: "RoomCoordinator", actor: VerifiedActor, co
             if not player.is_host:
                 return CommandResult(False, "Only the host can control the defense.")
             if isinstance(command, PrepareResearchPlan):
-                require_run_access(actor.account_id)
+                if room.practice_tier != "free":
+                    require_run_access(actor.account_id)
                 if room.defense_type == "code":
                     return CommandResult(False, "Paper mapping is available for research and mixed defenses only.")
                 if room.phase != "lobby" or room.defense is not None:
@@ -165,7 +168,7 @@ async def handle_plan_command(owner: "RoomCoordinator", actor: VerifiedActor, co
                     return CommandResult(False, "Review and explicitly confirm the research profile before starting.")
                 if profile.needs_uncertainty_acknowledgment and not command.acknowledge_uncertainty:
                     return CommandResult(False, "Acknowledge the unclear research profile before confirming.")
-                room.research_budget_preview = validate_question_budget(command.question_budget)
+                room.research_budget_preview = validate_tier_budget(room.practice_tier, validate_question_budget(command.question_budget))
                 room.activity_ms = owner._workflows.now()
                 room.research_plan_approved = True
         except (ValueError, AccessError) as error:

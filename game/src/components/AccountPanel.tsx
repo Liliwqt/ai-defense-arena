@@ -51,8 +51,9 @@ export function AccountPanel({ account, refresh, error, previewMode = false }: {
     </> : <>
       <div className="account-profile"><h2>{account.user?.name}</h2><p>{account.user?.email}</p></div>
       {account.manager_enabled && <a className="button-secondary account-login" href="/?manager=1">Owner dashboard</a>}
+      <p><strong>Free practice is available without credits or a voucher.</strong> Choose it in Upload/setup for up to 8 questions. The balances below apply to Standard practice.</p>
       {account.payment_mode === "live" ? <>
-        <div className="account-access-card"><strong>{account.free_access ? "Free access active" : "10 credits per defense"}</strong>
+        <div className="account-access-card"><strong>{account.free_access ? "Free access active" : "Standard · 10 credits per defense"}</strong>
         <p>{account.live_credits ?? 0} available credits · {account.live_reserved_credits ?? 0} reserved</p>
         {!!account.live_held_credits && <p>{account.live_held_credits} credits held for refund review</p>}
         <p>{account.free_access ? "Your voucher covers this run. Purchased credits stay available." : "Credits are charged when the first question appears. Questions, clarifications and coaching are included."}</p>
@@ -64,7 +65,7 @@ export function AccountPanel({ account, refresh, error, previewMode = false }: {
           {account.orders?.map(order=><p key={order.id}>{purchaseLabel(order)} <small>{order.id}</small></p>)}
           {account.runs?.map(run=><p key={run.id}>{runLabel(run)} <small>{run.id}</small></p>)}</details>
       </> : <><div className="account-access-card">
-        <strong>{account.free_access ? "Free access active" : "10 test credits per defense run"}</strong>
+        <strong>{account.free_access ? "Free access active" : "Standard · 10 test credits per defense run"}</strong>
         <p><b>{account.test_credits ?? 0}</b> available test credits · <b>{account.reserved_credits ?? 0}</b> reserved</p>
         <p><b>{account.spent_credits ?? 0}</b> test credits charged across your runs.</p>
         <p>{account.free_access ? "Your voucher covers defense runs without spending credits." : "Credits are reserved at Start and charged when the first question appears. An opening failure releases the reservation."}</p>

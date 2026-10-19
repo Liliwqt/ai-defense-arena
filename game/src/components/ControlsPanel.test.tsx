@@ -55,6 +55,27 @@ function mockRoomRequests() {
 }
 
 describe("Room creation loading", () => {
+  it("offers free practice and sends the chosen fixed tier when creating a room", () => {
+    const requests = mockRoomRequests();
+    render(<ControlsPanel {...defaultProps} roomState={null} connected={false} />);
+    expect(screen.getByLabelText("Practice tier")).toHaveValue("free");
+    expect(screen.getByText(/No automatic paid upgrade/)).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Practice tier"), { target: { value: "standard" } });
+    fireEvent.submit(document.querySelector("#create-form")!);
+    expect((requests[0].send.mock.calls[0][0] as FormData).get("practice_tier")).toBe("standard");
+  });
+
+  it("allows a free room to map and start without credits, vouchers or paid-start permission", () => {
+    const onSendEvent = vi.fn(() => true);
+    render(<ControlsPanel {...defaultProps}
+      account={{ authenticated: true, google_enabled: true, free_access: false, payment_mode: "live", live_credits: 0, paid_starts_enabled: false }}
+      roomState={{ ...baseState, practice_tier: "free", defense_type: "research" }} onSendEvent={onSendEvent} />);
+    expect(screen.getByRole("button", { name: "Map paper" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Map paper" }));
+    expect(onSendEvent).toHaveBeenCalledWith({ type: "prepare_research_plan" });
+    expect(screen.queryByText(/obtain 10/)).not.toBeInTheDocument();
+  });
+
   it("shows measured upload progress, waits for server validation and blocks duplicate submissions", async () => {
     vi.useFakeTimers();
     const requests = mockRoomRequests();

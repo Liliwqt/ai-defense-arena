@@ -15,6 +15,15 @@ const state: RoomState = {
 function props() { return { roomState: state, connected: true, previewMode: false, onSendEvent: vi.fn(() => true) }; }
 
 describe("ResearchPlanPanel", () => {
+  it("caps a free room's suggested budget at eight and rejects larger edits", () => {
+    render(<ResearchPlanPanel {...props()} roomState={{ ...state, practice_tier: "free", question_limit: 8, research_budget_preview: undefined }} />);
+    const input = screen.getByRole("spinbutton", { name: "Question budget" });
+    expect(input).toHaveAttribute("max", "8");
+    expect(Number((input as HTMLInputElement).value)).toBeLessThanOrEqual(8);
+    fireEvent.change(input, { target: { value: "9" } });
+    expect(screen.getByRole("button", { name: "Confirm profile and budget" })).toBeDisabled();
+  });
+
   it("keeps the last map readable after a failed remap but prevents confirmation", () => {
     const p = props();
     render(<ResearchPlanPanel {...p} roomState={{ ...state, research_planning_status: "failed", research_plan_error: "Preparation allowance used." }} />);

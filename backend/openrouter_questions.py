@@ -33,6 +33,7 @@ from backend.question_generator import (
     CONVERSATION_GUIDANCE, SCENARIO_GUIDANCE,
 )
 from backend.research_panel import research_panel_guidance
+from backend.practice_tiers import FREE, FREE_MODEL, validate_tier, validate_tier_budget
 
 PLANNER_MODEL = 'z-ai/glm-5.3-flash'
 PLANNER_REASONING = {'effort': 'low'}
@@ -90,6 +91,10 @@ class RunQuestionPolicy:
     input_nano_per_token: int = 300
     output_nano_per_token: int = 1200
 
+    tier: str = 'standard'
+    request_limit: int | None = None
+    coaching_request_reserve: int = 0
+
     def __post_init__(self):
         if self.planner_reasoning is None:
             object.__setattr__(self, 'planner_reasoning', dict(PLANNER_REASONING))
@@ -105,7 +110,15 @@ class RunQuestionPolicy:
             object.__setattr__(self, 'coaching_reasoning', {'effort': 'high'})
 
     @classmethod
-    def configured(cls):
+    def configured(cls, tier='standard'):
+        validate_tier(tier)
+        if tier == FREE:
+            return cls(tier=FREE, planner_model=FREE_MODEL, planner_reasoning={'max_tokens': 512},
+                reviewer_models={role: FREE_MODEL for role in RESEARCH_PANELISTS},
+                reviewer_reasoning={role: {'max_tokens': 2048} for role in RESEARCH_PANELISTS},
+                interaction_reasoning={role: {'max_tokens': 512} for role in RESEARCH_PANELISTS},
+                coaching_model=FREE_MODEL, coaching_reasoning={'max_tokens': 2048},
+                request_limit=80, coaching_request_reserve=12)
         try:
             ceiling = Decimal(os.getenv('OPENROUTER_RUN_USD', '5.00'))
             if not ceiling.is_finite() or not Decimal('0') < ceiling <= 100:
@@ -149,9 +162,10 @@ def run_scope(run_id: str) -> str:
     return f'run:{run_id}'
 
 
-def establish_run_allowance(scope: str, owner: str, files, budget: int) -> RunQuestionPolicy:
+def establish_run_allowance(scope: str, owner: str, files, budget: int, *, tier='standard') -> RunQuestionPolicy:
     """Size and persist one run snapshot; reject unfundable starts before dispatch."""
-    configured = RunQuestionPolicy.configured().snapshotted(files, budget)
+    validate_tier_budget(tier, budget)
+    configured = RunQuestionPolicy.configured(tier).snapshotted(files, budget)
     problem = configured.viability_problem(files, budget)
     if problem:
         raise QuestionGenerationError(problem)
@@ -160,7 +174,10 @@ def establish_run_allowance(scope: str, owner: str, files, budget: int) -> RunQu
     except AllowanceError as error:
         raise QuestionGenerationError(str(error)) from None
     try:
-        return RunQuestionPolicy(**stored)
+        policy = RunQuestionPolicy(**stored)
+        if policy.tier != tier:
+            raise QuestionGenerationError("The run tier is fixed. Start a new run to change it.")
+        return policy
     except TypeError:
         raise QuestionGenerationError('The defense provider policy is unavailable. Contact the operator.') from None
 
@@ -288,16 +305,16 @@ class RunQuestionClient:
         if not self.api_key or any(char.isspace() for char in self.api_key):
             raise QuestionGenerationError('Set a clean OPENROUTER_API_KEY on the server to generate defense questions.')
         policy = self._load_policy()
-        body = payload(model, messages, schema, reasoning=reasoning, max_tokens=max_tokens)
+        body = payload(model, messages, schema, reasoning=reasoning, max_tokens=max_tokens, free=policy.tier == FREE)
         input_bound = len(json.dumps({'messages': messages, 'schema': body['response_format']}, ensure_ascii=False).encode()) + FRAMING_BYTES
         if input_bound + max_tokens > CONTEXT_TOKENS:
             raise QuestionGenerationError('The accepted material exceeds the bounded OpenRouter question context. Reduce the material; it was not truncated.')
         bound = policy.stage_bound(input_bound, max_tokens)
         allowance = ProviderAllowance(self.scope, self.owner)
         try:
-            identity = allowance.reserve(bound, limit=policy.ceiling_nano if coaching else policy.question_limit_nano)
+            identity = allowance.reserve(bound, limit=policy.ceiling_nano if coaching else policy.question_limit_nano, coaching=coaching)
         except AllowanceError as error:
-            if coaching and isinstance(error, AllowanceExhausted):
+            if coaching and policy.tier != FREE and isinstance(error, AllowanceExhausted):
                 raise QuestionGenerationError('The run allowance cannot fund another coaching section. Ready results are retained; contact the operator. Retrying will not reset the allowance.') from None
             raise QuestionGenerationError(str(error)) from None
         deadline = monotonic() + 90

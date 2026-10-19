@@ -337,6 +337,30 @@ Open <http://127.0.0.1:8000/>. The launcher installs frontend packages when need
 
 The launcher does not load `.env`. Export configuration in the launching terminal; keep secrets out of Git and `VITE_` variables. The former host passcode is no longer used by this local version. Only hosts sign in; teammates join with a room code and display name. The OpenRouter key and voucher configuration stay on the server. Funded runs use fixed server assignments; legacy model/reasoning overrides do not replace them. See [OpenRouter setup and remaining gates](docs/OPENROUTER_SETUP.md).
 
+### Quick local AI testing without Google sign-in
+
+Run this separate, opt-in launcher from the repository root:
+
+```bash
+./run_local_test.sh --port 8001
+```
+
+Open <http://127.0.0.1:8001/>. It builds the current interface and privately
+prompts for `OPENROUTER_API_KEY` if missing. Your browser automatically receives a
+**Local tester** identity with free defense access. Create a room, upload your
+paper, prepare its map, confirm the question budget and start. No Google login,
+voucher entry or credit purchase is needed. Teammates still join using a room
+code and display name. Select **Free practice** to test the free model tier;
+**Standard** can incur real provider costs. No AI request starts just by opening the page.
+
+This runner binds only to `127.0.0.1`, rejects remote hosts, cross-origin and
+forwarded requests, and cannot run on Render. It disables payment/OAuth endpoints
+and uses disposable account and document storage instead of your configured
+database. Test accounts and uploaded originals disappear when you stop it; active
+rooms remain in memory. Open the exact URL above rather than `localhost`, and do
+not put this testing runner behind a tunnel. The normal production entry point
+does not import or enable it; `./run_local.sh` keeps Google authentication.
+
 ### Owner dashboard
 
 Open **Account → Owner dashboard**, or `/?manager=1`, to manage top-up

@@ -181,7 +181,7 @@ class LiveStore:
         with self.transaction() as db:
             db.execute("UPDATE live_topups SET status=? WHERE id=? AND status IN ('creating','pending','creation_failed')",(status,topup_id))
 
-    def reserve_run(self,account_id,run_id,service_id,room_code,*,replace_id=None):
+    def reserve_run(self,account_id,run_id,service_id,room_code,*,replace_id=None,free_tier=False):
         from backend.account_store import _access
         import os
         now=int(time.time())
@@ -201,7 +201,7 @@ class LiveStore:
                 old=db.execute('SELECT * FROM live_runs WHERE id=?',(replace_id,)).fetchone()
                 if not old or old['account_id']!=account_id or old['room_code']!=room_code or old['service_id']!=service_id:
                     raise AccessError('The previous defense could not be replaced safely.')
-            free=_access(db,account_id)['free_access']
+            free=free_tier or _access(db,account_id)['free_access']
             if not free and os.environ.get('LIVE_PAID_STARTS_ENABLED')!='1':
                 raise AccessError('Paid defenses are temporarily unavailable. Voucher access remains available.')
             lots=db.execute('SELECT * FROM live_lots WHERE account_id=? AND available>0 ORDER BY created_at,topup_id',(account_id,)).fetchall()
@@ -216,7 +216,7 @@ class LiveStore:
                 db.execute("UPDATE live_runs SET outcome='ended',error_kind=NULL,updated_at=? WHERE id=? AND outcome IN ('opening','opening_failed','active','coaching','unavailable')",(now,replace_id))
                 lots=db.execute('SELECT * FROM live_lots WHERE account_id=? AND available>0 ORDER BY created_at,topup_id',(account_id,)).fetchall()
                 grants=db.execute('SELECT * FROM live_grants WHERE account_id=? AND available>0 ORDER BY created_at,id',(account_id,)).fetchall()
-            mode,cost,status=('voucher',0,'charged') if free else ('credits',10,'reserved')
+            mode,cost,status=('free' if free_tier else 'voucher',0,'charged') if free else ('credits',10,'reserved')
             if previous:
                 db.execute('DELETE FROM live_allocations WHERE run_id=?',(run_id,))
                 db.execute('DELETE FROM live_grant_allocations WHERE run_id=?',(run_id,))

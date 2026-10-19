@@ -335,10 +335,16 @@ async def create_room(
     research_files: list[UploadFile] | None = File(None),
     defense_type: str = Form("code"),
     research_stage: str = Form("infer"),
+    practice_tier: str = Form("standard"),
 ) -> dict[str, str]:
     account = require_account(request)
     check_csrf(request, account)
     name = _player_name(host_name)
+    from backend.practice_tiers import validate_tier
+    try:
+        validate_tier(practice_tier)
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from None
     if defense_type not in {"code", "research", "mixed"} or research_stage not in {"infer", "proposal", "completed"}:
         raise HTTPException(422, "Choose a valid defense type and research stage.")
     from backend import defense_availability
@@ -410,7 +416,7 @@ async def create_room(
                 code = _room_code()
             token = _new_token()
             room = Room(code, project_files, {token: Player(token, name, 0, True)}, defense_type, research_stage,
-                        owner_account_id=account["id"], created_ms=_now_ms(), activity_ms=_now_ms(), documents=documents)
+                        practice_tier=practice_tier, owner_account_id=account["id"], created_ms=_now_ms(), activity_ms=_now_ms(), documents=documents)
             _coordinator(room)
             rooms[code] = room
         published = True

@@ -174,8 +174,9 @@ def research_scope_preview(files, api_key, model, mode, research_stage):
             for ref in topic.references:
                 st.caption(f"{ref.filename} · {ref.evidence_location} · {'extracted text' if ref.evidence_kind.startswith('research') else 'source code'}")
                 st.code(ref.evidence_text, language="text")
-    budget = st.number_input("Question budget", min_value=4, max_value=100, step=1,
-                             value=plan.suggested_budget, key="research_budget_preview", disabled=active or dirty)
+    question_limit = 8 if st.session_state["research_provider"].practice_tier == "free" else 100
+    budget = st.number_input("Question budget", min_value=4, max_value=question_limit, step=1,
+                             value=min(plan.suggested_budget, question_limit), key="research_budget_preview", disabled=active or dirty)
     if budget < len(plan.topics):
         st.warning("This limit is smaller than the topic count. Some topics may remain unexplored.")
     if st.session_state.get("research_confirmed_budget") != budget:
@@ -218,6 +219,11 @@ research_stage = "infer"
 if mode != "code":
     research_stage = st.selectbox("Research stage", ["Let AI infer", "Proposal", "Completed study"])
     research_stage = {"Let AI infer": "infer", "Proposal": "proposal", "Completed study": "completed"}[research_stage]
+
+practice_tier_label = st.selectbox("Practice tier", ["Standard", "Free practice"], key="practice_tier_choice")
+practice_tier = "free" if practice_tier_label == "Free practice" else "standard"
+if practice_tier == "free":
+    st.caption("Free AI models · up to 8 questions · shared daily limits · no automatic paid upgrade.")
 uploads = st.file_uploader(
     "Project source files or ZIP",
     type=sorted(extension.lstrip(".") for extension in ALLOWED_EXTENSIONS) + ["zip"],
@@ -249,7 +255,7 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                 if len(file.content) > 2_000:
                     st.caption("Preview shows the first 2,000 characters; the full file is included.")
 
-        fingerprint = hashlib.sha256(f"{mode}:{research_stage}".encode("utf-8"))
+        fingerprint = hashlib.sha256(f"{mode}:{research_stage}:{practice_tier}".encode("utf-8"))
         for file in files:
             fingerprint.update(file.name.encode("utf-8"))
             fingerprint.update(b"\0")
@@ -260,7 +266,7 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
             st.session_state.pop("defense_error", None)
         sync_project_session(st.session_state, project_fingerprint)
         if mode != "code":
-            provider_for(st.session_state, project_fingerprint)
+            provider_for(st.session_state, project_fingerprint, tier=practice_tier)
 
         st.subheader("2. Practice defense")
         api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()

@@ -108,6 +108,7 @@ export function ControlsPanel({
   const [starting, setStarting] = useState(false);
   const [researchActionContainer, setResearchActionContainer] = useState<HTMLDivElement | null>(null);
   const [defenseType, setDefenseType] = useTabDraft("defense-type", "research", { valid: value => ["code", "research", "mixed"].includes(value) });
+  const [practiceTier, setPracticeTier] = useTabDraft("practice-tier", "free", { valid: value => ["free", "standard"].includes(value) });
   const [researchStage, setResearchStage] = useTabDraft("research-stage", "infer", { valid: value => ["infer", "proposal", "completed"].includes(value) });
   const [joinCode, setJoinCode] = useTabDraft("join-code", "");
   const [joinName, setJoinName] = useTabDraft("join-name", "");
@@ -128,8 +129,9 @@ export function ControlsPanel({
   const liveAccess = account?.payment_mode === "live";
   const creditLabel = liveAccess ? "credits" : "test credits";
   const availableCredits = liveAccess ? account?.live_credits : account?.test_credits;
+  const freeTier = roomState?.practice_tier === "free";
   const canRun = !!account?.authenticated && (!liveAccess || account.ai_service_available !== false)
-    && (!!account.free_access || ((!liveAccess || account.paid_starts_enabled !== false) && (availableCredits ?? 0) >= 10));
+    && (freeTier || !!account.free_access || ((!liveAccess || account.paid_starts_enabled !== false) && (availableCredits ?? 0) >= 10));
 
   const inRoom = roomState !== null || !!connected || !!activeRoomCode;
   const phase = roomState?.phase ?? "none";
@@ -148,10 +150,10 @@ export function ControlsPanel({
   useEffect(() => { setScopeDirty(false); }, [roomCode, researchMode]);
   const accessReason = !account?.authenticated ? "Sign in with the room owner’s Google account."
     : liveAccess && account.ai_service_available === false ? "The defense service is temporarily unavailable. Your credits are retained."
-    : liveAccess && account.paid_starts_enabled === false && !account.free_access ? "Paid starts are paused. Voucher access remains available."
-    : !account.free_access && (availableCredits ?? 0) < 10 ? `Use a free-access voucher or obtain 10 ${creditLabel} in Account.` : "";
+    : liveAccess && account.paid_starts_enabled === false && !account.free_access && !freeTier ? "Paid starts are paused. Voucher access remains available."
+    : !freeTier && !account.free_access && (availableCredits ?? 0) < 10 ? `Use a free-access voucher or obtain 10 ${creditLabel} in Account.` : "";
   const runReason = previewMode ? "Visual preview · preparation controls are read-only." : roomState?.defense_type === "code" ? "Code-only defense is temporarily unavailable. Choose Research paper or Research + code." : !connected ? "Reconnect before starting the defense." : accessReason || (starting ? "Starting the defense… Waiting for the server." : "");
-  const startLabel = account?.free_access ? "Start defense · free access" : `Start defense · 10 ${creditLabel}`;
+  const startLabel = freeTier ? "Start defense · free practice" : account?.free_access ? "Start defense · free access" : `Start defense · 10 ${creditLabel}`;
   useEffect(() => {
     startPending.current = false;
     setStarting(false);
@@ -230,7 +232,7 @@ export function ControlsPanel({
   }
   function handleRestart() {
     if (roomState?.defense_type === "code") return;
-    if (!account?.free_access && !confirmRestart) { setConfirmRestart(true); return; }
+    if (!freeTier && !account?.free_access && !confirmRestart) { setConfirmRestart(true); return; }
     if (onSendEvent({ type: "restart", confirm_cost: true })) { setConfirmRestart(false); onActionComplete(); }
   }
 
@@ -302,6 +304,14 @@ export function ControlsPanel({
                 Your name
                 <input name="host_name" maxLength={24} autoComplete="name" required placeholder="Your name" value={hostName} onChange={e => { setNameEdited(true); setHostName(e.target.value); }} className={inputClass} />
               </label>
+              <label className="setup-label">
+                Practice tier
+                <select name="practice_tier" value={practiceTier} onChange={event => setPracticeTier(event.target.value)} className={inputClass} aria-describedby="practice-tier-help">
+                  <option value="free">Free practice · 0 credits</option>
+                  <option value="standard">Standard · 10 credits or voucher</option>
+                </select>
+              </label>
+              <p id="practice-tier-help" className="control-help">{practiceTier === "free" ? "Up to 8 questions with free AI models and detailed coaching. Shared daily limits apply; availability can vary. No automatic paid upgrade." : "Assigned reviewer models with the existing question budget and credit/voucher rules."} Your tier stays fixed in this room.</p>
               <label className="setup-label">
                 Defense type
                 <select name="defense_type" value={defenseType} onChange={(event) => setDefenseType(event.target.value as typeof defenseType)} className={inputClass}>
@@ -426,7 +436,7 @@ export function ControlsPanel({
           {roomState?.defense_type && roomState.defense_type !== "code" && <ResearchPlanPanel key={roomState.room_code}
             roomState={roomState} connected={connected} previewMode={previewMode} onSendEvent={onSendEvent} onScopeDraftChange={setScopeDirty}
             startControl={roomState.opening_repeated ? undefined : { label: startLabel, reason: runReason, onStart: handleStart, onAccount: onOpenAccount,
-              accessLabel: previewMode ? "Visual preview · no credits used" : account?.free_access ? "Free access active" : `${availableCredits ?? 0} available · ${liveAccess ? account?.live_reserved_credits ?? 0 : account?.reserved_credits ?? 0} reserved ${creditLabel} · 10 per defense` }}
+              accessLabel: previewMode ? "Visual preview · no credits used" : freeTier ? "Free practice · 0 credits · up to 8 questions · shared usage limits" : account?.free_access ? "Free access active" : `${availableCredits ?? 0} available · ${liveAccess ? account?.live_reserved_credits ?? 0 : account?.reserved_credits ?? 0} reserved ${creditLabel} · 10 per defense` }}
             actionError={actionError} actionContainer={!roomState.opening_repeated && surface === "page" && showRoomControls ? researchActionContainer : null}
             accessReason={accessReason} />}
 
@@ -434,7 +444,7 @@ export function ControlsPanel({
 
           {/* Host-only controls */}
           {isHost && liveAccess && account?.ai_service_available === false && <p role="status">The defense service is temporarily unavailable. Your credits are retained.</p>}
-          {isHost && liveAccess && account?.ai_service_available !== false && account?.paid_starts_enabled === false && !account.free_access && <p role="status">Paid starts are temporarily paused. Voucher access remains available.</p>}
+          {isHost && liveAccess && account?.ai_service_available !== false && account?.paid_starts_enabled === false && !account.free_access && !freeTier && <p role="status">Paid starts are temporarily paused. Voucher access remains available.</p>}
           {!previewMode && isHost && (
             <div className="grid gap-[9px]">
               {surface !== "page" && codeStart}
@@ -464,7 +474,7 @@ export function ControlsPanel({
                   {roomState?.coaching_progress ? (roomState.coaching_progress.completion_status === "failed" ? "Retry saving completion" : "Retry failed coaching sections") : "Retry coaching report"}
                 </button>
               )}
-              {liveAccess && (phase === "retry" || (phase === "complete" && feedbackStatus === "failed")) && <button type="button" className={secondaryBtn} disabled={!connected} onClick={() => { if(onSendEvent({type:"end_unavailable"})) onActionComplete(); }}>End unavailable defense{account?.free_access ? "" : " · return credits"}</button>}
+              {liveAccess && (phase === "retry" || (phase === "complete" && feedbackStatus === "failed")) && <button type="button" className={secondaryBtn} disabled={!connected} onClick={() => { if(onSendEvent({type:"end_unavailable"})) onActionComplete(); }}>End unavailable defense{freeTier || account?.free_access ? "" : " · return credits"}</button>}
               {phase !== "lobby" && (
                 <button
                   type="button"
