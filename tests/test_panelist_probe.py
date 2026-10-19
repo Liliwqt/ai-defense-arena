@@ -61,8 +61,8 @@ class ProbeTurnTests(unittest.TestCase):
         probe = self.publish_probe()
         self.room.submit_probe_reply('ana', 'Ana', 0, 0, probe.id, 'Simplify?', self.session, 3000)
         pending, ident = self.room.pending_submission, self.room.interpretation_id
-        self.room.interpretation_failed(ident, pending, 'AI unavailable')
-        self.room.retry_interpretation(is_host=False, seat=0)
+        self.room.interpretation_failed(ident, pending, 'AI unavailable', 3000)
+        self.room.retry_interpretation(is_host=False, seat=0, now=3000)
         self.room.interpret(self.session, SubmissionDecision('clarify', 'Which list will you draw names from?'),
                             self.room.interpretation_id, pending, {'ana': 0}, 4000)
         self.assertEqual(self.room.phase, 'probe')
@@ -104,7 +104,7 @@ class ProbeTurnTests(unittest.TestCase):
         probe = self.publish_probe()
         self.room.submit_probe_reply('ana','Ana',0,0,probe.id,'Need help.',self.session,3000)
         pending, ident = self.room.pending_submission, self.room.interpretation_id
-        self.room.interpretation_failed(ident,pending,'AI unavailable')
+        self.room.interpretation_failed(ident,pending,'AI unavailable',3000)
         self.room.finish_probe(0,0,probe.id,self.session,4000)
         self.assertEqual(probe.status,'ended_early')
         self.assertEqual(self.session.turns[0].answer,'Randomly.')

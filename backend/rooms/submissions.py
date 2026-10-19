@@ -119,22 +119,23 @@ async def run_interpretation(owner: "RoomCoordinator", work: InterpretationWork,
     async with room.lock:
         if not owner._interpretation_current(work):
             return
+        now = owner._workflows.now()
         if error is not None:
-            room.interpretation_failed(work.interpretation_id, work.pending, error)
+            room.interpretation_failed(work.interpretation_id, work.pending, error, now)
             outcome = "failed"
         else:
             try:
                 outcome = room.interpret(room.defense, decision, work.interpretation_id,
-                                         work.pending, room.online_players(), owner._workflows.now())
+                                         work.pending, room.online_players(), now)
             except ValueError as failure:
-                if not room.interpretation_failed(work.interpretation_id, work.pending, str(failure)):
+                if not room.interpretation_failed(work.interpretation_id, work.pending, str(failure), now):
                     return
                 outcome = "failed"
         if outcome is None:
             return
         if outcome in {"answered", "probed"}:
             attach_provenance(room, work.pending.turn, work.pending.probe_id, work.pending.input_provenance)
-        if outcome in {"clarified", "probed"}:
+        if outcome in {"clarified", "probed", "failed"}:
             next_clock = (room.clock_id, room.answer_deadline_ms)
         elif outcome == "answered":
             generation_id, feedback_id = owner._resolve_turn_locked()
@@ -190,7 +191,7 @@ async def handle_submission(owner: "RoomCoordinator", actor: VerifiedActor,
                 if room.interpretation_attempts >= cap:
                     raise ValueError('Interpretation allowance used. Use the saved submission as an answer.')
                 room.ai_budget.admit(attempt_key, cap, room.owner_account_id or room.code)
-                room.retry_interpretation(is_host=player.is_host, seat=player.seat)
+                room.retry_interpretation(is_host=player.is_host, seat=player.seat, now=now)
                 interpretation_id = room.interpretation_id
             elif isinstance(command, UsePendingAnswer):
                 provenance = room.pending_submission.input_provenance if room.pending_submission else None

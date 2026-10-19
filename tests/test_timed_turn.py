@@ -82,16 +82,33 @@ class TimedTurnTests(unittest.TestCase):
         self.assertEqual(session.turns[0].answer, 'We store arrivals.')
         self.assertEqual(turn.phase, 'generating')
 
-    def test_total_pause_is_bounded_even_while_waiting_for_retry(self):
+    def test_failure_resumes_the_answer_clock_instead_of_holding_the_pause(self):
         session = DefenseSession.start(GroundedQuestion('Why?', 'queue.py', 1, 'queue = []'))
         turn = TimedTurn()
         turn.begin_vote(0)
         turn.expire(15000, {'alex':0}, session)
         turn.submit('alex', 'Alex', 0, 0, 'Explain?', session, 16000)
-        turn.interpretation_failed(turn.interpretation_id, turn.pending_submission, 'Offline failure')
+        self.assertTrue(turn.interpretation_failed(turn.interpretation_id, turn.pending_submission,
+                                                   'Offline failure', 16001))
+        self.assertIsNone(turn.pause_started_ms)
+        self.assertIsNone(turn.pause_deadline_ms)
+        self.assertEqual(turn.answer_deadline_ms, 135001)
         self.assertEqual(turn.expire(375000, {'alex':0}, session), 'timed_out')
         self.assertTrue(session.turns[0].timed_out)
         self.assertIsNone(turn.pending_submission)
+
+    def test_stale_failure_cannot_resume_a_timed_out_clock(self):
+        session = DefenseSession.start(GroundedQuestion('Why?', 'queue.py', 1, 'queue = []'))
+        turn = TimedTurn()
+        turn.begin_vote(0)
+        turn.expire(15000, {'alex':0}, session)
+        turn.submit('alex', 'Alex', 0, 0, 'Explain?', session, 16000)
+        pending, old_id = turn.pending_submission, turn.interpretation_id
+        self.assertEqual(turn.expire(375001, {'alex':0}, session), 'timed_out')
+        clock = (turn.clock_id, turn.answer_deadline_ms, turn.pause_started_ms, turn.pause_deadline_ms)
+        self.assertFalse(turn.interpretation_failed(old_id, pending, 'Late failure', 375002))
+        self.assertEqual((turn.clock_id, turn.answer_deadline_ms, turn.pause_started_ms,
+                          turn.pause_deadline_ms), clock)
 
     def test_expiry_is_idempotent_and_disconnect_never_resets_deadline(self):
         session = DefenseSession.start(GroundedQuestion("Why?", "queue.py", 1, "queue = []"))
@@ -124,12 +141,14 @@ class TimedTurnTests(unittest.TestCase):
         turn.submit("alex", "Alex", 0, 0, "We use a queue.", session, 16000)
         pending = turn.pending_submission
         old_id = turn.interpretation_id
-        self.assertTrue(turn.interpretation_failed(old_id, pending, "AI unavailable."))
+        self.assertTrue(turn.interpretation_failed(old_id, pending, "AI unavailable.", 16001))
         self.assertEqual(turn.phase, "interpretation_retry")
         with self.assertRaisesRegex(ValueError, "Only the chosen defender"):
             turn.accept_saved_answer(session, "other", 1)
-        turn.retry_interpretation(is_host=True, seat=1)
-        self.assertTrue(turn.interpretation_failed(turn.interpretation_id, pending, "Still unavailable."))
+        turn.retry_interpretation(is_host=True, seat=1, now=16002)
+        self.assertIsNotNone(turn.pause_deadline_ms)
+        self.assertTrue(turn.interpretation_failed(turn.interpretation_id, pending, "Still unavailable.", 16003))
+        self.assertIsNone(turn.pause_deadline_ms)
         turn.accept_saved_answer(session, "alex", 0)
         self.assertEqual(session.turns[0].answer, "We use a queue.")
         self.assertEqual(session.turns[0].speaker_name, "Alex")

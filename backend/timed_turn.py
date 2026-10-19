@@ -203,18 +203,33 @@ class TimedTurn:
         self.pending_submission = PendingSubmission(turn, token, name, seat, answer.strip(), 0)
         self.accept_pending(session)
 
+    def _arm_pause(self, now: int) -> None:
+        self.pause_started_ms = now
+        pause_remaining = max(0, limit('AI_PAUSE_SECONDS', 240, 600) * 1000 - self.pause_used_ms)
+        self.pause_deadline_ms = now + pause_remaining if pause_remaining else None
+        self.answer_deadline_ms = now + max(0, self.answer_deadline_ms - now) + pause_remaining
+        self.clock_id += 1
+
+    def _settle_pause(self, now: int, pending: PendingSubmission) -> None:
+        if self.pause_started_ms is None:
+            return
+        elapsed = max(0, now - self.pause_started_ms)
+        paused = min(elapsed, max(0, limit('AI_PAUSE_SECONDS', 240, 600) * 1000 - self.pause_used_ms))
+        self.pause_used_ms += paused
+        self.pause_started_ms = None
+        self.pause_deadline_ms = None
+        self.answer_deadline_ms = now + max(0, pending.remaining_ms - (elapsed - paused))
+        if pending.probe_id:
+            self.probe_deadline_ms = self.answer_deadline_ms
+        self.clock_id += 1
+
     def submit(self, token: str, name: str, seat: int, turn: object, answer: object,
                session: DefenseSession | None, now: int, *, probe_id=None) -> None:
         self.validate_submit(seat, turn, answer, session, now, probe_id=probe_id)
         self.interpretation_attempts += 1
-        self.pause_started_ms = now
-        pause_remaining = max(0, limit('AI_PAUSE_SECONDS', 240, 600) * 1000 - self.pause_used_ms)
-        self.pause_deadline_ms = now + pause_remaining if pause_remaining else None
         remaining = max(0, self.answer_deadline_ms - now)
-        self.pending_submission = PendingSubmission(turn, token, name, seat, answer.strip(),
-                                                    max(0, self.answer_deadline_ms - now), probe_id)
-        self.clock_id += 1
-        self.answer_deadline_ms = now + remaining + pause_remaining
+        self.pending_submission = PendingSubmission(turn, token, name, seat, answer.strip(), remaining, probe_id)
+        self._arm_pause(now)
         self.phase = "interpreting"
         self.error = None
         self.interpretation_id += 1
@@ -266,17 +281,9 @@ class TimedTurn:
                 self.error = None
             except ValueError as error:
                 self.error = str(error)
-            elapsed = max(0, now - (self.pause_started_ms if self.pause_started_ms is not None else now))
-            paused = min(elapsed, max(0, limit('AI_PAUSE_SECONDS', 240, 600)*1000 - self.pause_used_ms))
-            self.pause_used_ms += paused
-            self.pause_started_ms = None
-            self.pause_deadline_ms = None
             self.pending_submission = None
             self.phase = "probe" if pending.probe_id else "question"
-            self.answer_deadline_ms = now + max(0, pending.remaining_ms - (elapsed - paused))
-            if pending.probe_id:
-                self.probe_deadline_ms = self.answer_deadline_ms
-            self.clock_id += 1
+            self._settle_pause(now, pending)
             self.reassign(online, session)
             return "clarified"
         self.accept_pending(session)
@@ -303,14 +310,16 @@ class TimedTurn:
         self.pause_started_ms = None
         self.pause_deadline_ms = None
 
-    def interpretation_failed(self, expected_id: int, pending: PendingSubmission, error: str) -> bool:
+    def interpretation_failed(self, expected_id: int, pending: PendingSubmission, error: str,
+                              now: int) -> bool:
         if self.interpretation_id != expected_id or self.pending_submission is not pending:
             return False
+        self._settle_pause(now, pending)
         self.phase = "interpretation_retry"
         self.error = error
         return True
 
-    def retry_interpretation(self, *, is_host: bool, seat: int) -> None:
+    def retry_interpretation(self, *, is_host: bool, seat: int, now: int) -> None:
         if self.phase != "interpretation_retry" or self.pending_submission is None:
             raise ValueError("There is no failed submission to retry.")
         if not (is_host or self.selected_seat == seat):
@@ -321,6 +330,7 @@ class TimedTurn:
         self.phase = "interpreting"
         self.error = None
         self.interpretation_id += 1
+        self._arm_pause(now)
 
     def accept_saved_answer(self, session: DefenseSession | None, token: str, seat: int) -> None:
         pending = self.pending_submission

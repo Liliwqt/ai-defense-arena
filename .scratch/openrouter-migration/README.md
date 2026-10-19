@@ -2,16 +2,18 @@
 
 Status: ready-for-agent
 
-**Ticket 03 implemented and verified:** same-reviewer funded interactions,
-recovery and allowance accounting are implemented with a two-axis review; see
-[the local handoff](reviews/03.md). Ticket 03 is ready for human review locally,
-and ticket 04 remains the frontier.
+**Ticket 03 timer correction verified:** the independent recheck's P2 finding is
+fixed — failed provider/budget work resumes the remaining answer/probe clock
+instead of retaining the unused AI pause, and both independent probes pass. See
+[the recheck correction](reviews/03-recheck.md#correction-2026-10-20) and the
+[handoff](reviews/03.md). Ticket 03 is ready for human review again; ticket 04
+remains independently unblocked.
 
 The user approved this twelve-ticket breakdown as drafted on **2026-10-19**.
-All twelve separate local tickets are published. Tickets 01–03 are ready for
+All twelve separate local tickets are published. Tickets 01–03 remain ready for
 human review ([01 handoff](reviews/01.md), [02 final handoff](reviews/02-sse-fix.md),
-[03 handoff](reviews/03.md)). Ticket 04 is the current frontier; 05–12 have not
-started.
+[03 handoff](reviews/03.md)). Ticket 04 can proceed under its existing dependency
+on 02; ticket 05 requires both corrected 03 and 04. Tickets 04–12 have not started.
 The tickets contain **58 acceptance criteria**, with coverage of all
 **80 specification stories** recorded in the approved breakdown.
 
@@ -38,8 +40,9 @@ Design and coverage: [approved breakdown](ticket-breakdown-draft.md).
 ## Where to start
 
 Only **01 — Bounded OpenRouter paper mapping** was initially unblocked. Tickets
-01–03 have passed their local gates; ticket **04 — OpenRouter progressive
-coaching** is the current frontier, and 05 starts after 04. After 09, tickets 10
+01–03 have passed their local gates, with 03's timer correction reverified.
+Ticket **04 — OpenRouter progressive coaching** is independently unblocked.
+Ticket 05 starts after both corrected 03 and 04. After 09, tickets 10
 and 11 form an independent frontier.
 Coordinate any
 shared edits. These relationships do not authorize parallel agents or
@@ -84,8 +87,8 @@ Intermediate slices are not a finished migration or permission to deploy.
 
 ## Next step
 
-Implement ticket 03 (same-reviewer clarification/probe recovery) or ticket 04
-(protected progressive coaching). Coordinate shared edits. Ticket 02's original
-findings and streamed-error correction are verified closed. User visual approval
-and later actual-provider readiness gates remain separate. This handoff does not
-authorize a push or deployment.
+Implement ticket 04 (protected progressive coaching) or review corrected
+ticket 03. Ticket 04's protected progressive coaching proceeds under its
+separate 02 dependency; coordinate overlapping files. Ticket 05 still needs both
+corrected 03 and 04. Actual-provider, user review and publication remain
+separate gates. No push or deployment is authorized by this correction.
