@@ -228,7 +228,7 @@ class CoachingClosingProtocolTests(unittest.TestCase):
         with patch("backend.rooms.planning.generate_research_plan", return_value=plan), \
              patch("backend.rooms.questions.generate_research_move", side_effect=coverage.mocked_move), \
              patch("backend.rooms.submissions.interpret_submission", return_value=SubmissionDecision("answer")), \
-             patch("backend.question_generator.OpenAI", return_value=provider):
+             patch("backend.openrouter_questions.RunQuestionClient.coaching", return_value=provider):
             with self.client.websocket_connect(f"/ws/{code}") as h, self.client.websocket_connect(f"/ws/{code}") as g:
                 h.send_json({"type": "hello", "token": host["player_token"]})
                 self.until(h, "lobby")

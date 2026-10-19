@@ -101,6 +101,7 @@ class AdaptiveResearchIntegrationTests(unittest.TestCase):
             return interpret_submission(files, key, submission=submission, client=Client(output), **kwargs)
 
         def coach(files, history, key, model, **kwargs):
+            kwargs.pop("client", None)
             scope_requests.append(deepcopy(kwargs["research_context"]))
             self.assertEqual(len(history), 12)
             self.assertTrue(history[0].timed_out)

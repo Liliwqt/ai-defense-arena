@@ -14,6 +14,7 @@ from backend.live_store import LiveStore
 from backend.project_files import ProjectFile
 from backend.question_generator import DEFAULT_MODEL, AnsweredQuestion, CoachingReport, generate_coaching_report
 from backend.research_coaching import validate_complete, has_discussion, factual_cards
+from backend.openrouter_questions import RunQuestionClient, run_scope
 from backend.coaching_progress import CoachingInput
 from backend.resource_limits import limit
 from backend.timed_turn import reaction_reading_ms
@@ -37,17 +38,25 @@ def capture_coaching(room: "Room") -> CoachingInput:
     """Capture under the room lock so later room mutations cannot change input."""
     context = room.defense.context() if isinstance(room.defense, ResearchDefenseSession) else None
     history = room.defense.coaching_history() if room.defense_type != "code" else room.defense.answered_history()
+    funded = bool(context is not None and room.run_id and room.owner_account_id)
     return CoachingInput(tuple(room.files), tuple(copy.deepcopy(history)),
-                         copy.deepcopy(context), room.defense_type, room.research_stage)
+                         copy.deepcopy(context), room.defense_type, room.research_stage,
+                         provider_scope=run_scope(room.run_id) if funded else None,
+                         provider_owner=room.owner_account_id if funded else None)
 
 
 CoachingRequest = Callable[[CoachingInput], Awaitable[CoachingReport]]
 
 
 async def request_coaching(request: CoachingInput) -> CoachingReport:
+    client = None
+    if request.provider_scope and request.provider_owner:
+        client = RunQuestionClient(request.provider_scope, request.provider_owner, None,
+                                   request.files, stopped=request.provider_stopped or (lambda: False)).coaching()
     return await asyncio.to_thread(generate_coaching_report, list(request.files), list(request.history),
         os.getenv("OPENAI_API_KEY"), os.getenv("OPENAI_MODEL") or DEFAULT_MODEL,
         defense_type=request.defense_type, research_stage=request.research_stage,
+        **({"client": client} if client is not None else {}),
         **({"overview_only": True} if request.overview_only else {}),
         **({"section_turns": request.section_turns} if request.section_turns is not None else {}),
         **({"research_context": request.research_context} if request.research_context else {}))
@@ -150,7 +159,8 @@ async def run_progressive_coaching(owner, work):
                 if not current():return
                 if has_discussion(request.history):
                     room.ai_budget.admit(f'coaching:{job.id}:{section.id}',job.attempt_limit,room.owner_account_id or room.code)
-            section_request=replace(request,overview_only=section.turns is None,section_turns=section.turns)
+            section_request=replace(request,overview_only=section.turns is None,section_turns=section.turns,
+                provider_stopped=(lambda: not current()) if request.provider_scope else None)
             if not has_discussion(request.history):
                 report=CoachingReport('The host ended before any answer or timeout was recorded. No discussion coverage was confirmed.',[],[],
                     'Review the paper map and practice a direct answer when ready.',

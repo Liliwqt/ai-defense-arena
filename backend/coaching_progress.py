@@ -1,5 +1,6 @@
 """Frozen research report membership and bounded section progress, without IO."""
 from dataclasses import dataclass, field, replace
+from collections.abc import Callable
 import secrets
 from backend.research_coaching import COACHING_BATCH_SIZE
 from backend.project_files import ProjectFile
@@ -17,6 +18,9 @@ class CoachingInput:
     research_stage: str
     overview_only: bool = False
     section_turns: tuple[int, ...] | None = None
+    provider_scope: str | None = None
+    provider_owner: str | None = None
+    provider_stopped: Callable[[], bool] | None = None
 
 
 @dataclass

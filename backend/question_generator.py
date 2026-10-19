@@ -1149,11 +1149,11 @@ def generate_coaching_report(
         raise QuestionGenerationError("Coaching exceeds the current complete-report limit. Your answers are saved; use recovery controls.")
 
     api_key = (api_key or "").strip()
-    if not api_key:
+    if client is None and not api_key:
         raise QuestionGenerationError(
             "Set OPENAI_API_KEY and restart the app to generate a coaching report."
         )
-    if any(character.isspace() for character in api_key):
+    if client is None and any(character.isspace() for character in api_key):
         raise QuestionGenerationError(
             "OPENAI_API_KEY contains whitespace. Set a clean key and restart the app."
         )

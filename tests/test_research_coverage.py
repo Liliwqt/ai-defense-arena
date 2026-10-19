@@ -560,6 +560,7 @@ class CoverageProtocolTests(unittest.TestCase):
                         return SubmissionDecision('probe', probe=ProbeRequest('Which recruitment criterion do you mean?'))
                     return SubmissionDecision('clarify','Explain the same pilot decision, in simple terms.') if submission=='Simpler please' else SubmissionDecision('answer')
                 def coach(files,history,key,model,**kwargs):
+                    kwargs.pop("client", None)
                     self.assertEqual(history[0].answer, None)
                     self.assertEqual(history[2].lead_in, 'One option is to narrow the pilot claim if recruitment access is limited.')
                     self.assertEqual(history[2].answer, 'We will compare queue times with a documented pilot method.')

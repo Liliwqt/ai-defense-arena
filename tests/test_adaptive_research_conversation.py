@@ -104,6 +104,7 @@ class ResearchScopeRoomTests(unittest.TestCase):
             requests.append(kwargs.get("research_context"))
             return interpret_submission(files, key, client=ParsedClient(outputs.pop(0)), **kwargs)
         def coach(files, history, key, model, **kwargs):
+            kwargs.pop("client", None)
             scopes.append(kwargs["research_context"]["plan"]["profile"])
             output = CoachingDraft(summary="The team discussed recruitment. Remaining topics need practice.",
                 strengths=[{"turn": 0, "text": "Explained who could join."}],
@@ -220,6 +221,7 @@ class ResearchScopeStreamlitTests(unittest.TestCase):
             scopes.append(context["plan"]["profile"])
             return mocked_move(files, key, context=context, history=history, **kwargs)
         def coach(files, history, key, model, **kwargs):
+            kwargs.pop("client", None)
             scopes.append(kwargs["research_context"]["plan"]["profile"])
             return generate_coaching_report(files, history, key, model, client=ParsedClient(with_cards(CoachingDraft(
                 summary="The team explained a recruitment choice.", strengths=[{"turn":0,"text":"Identified possible volunteers."}],

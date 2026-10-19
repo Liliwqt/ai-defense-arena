@@ -31,6 +31,7 @@ from tests import test_management
 from tests import test_service_handoff
 from tests import test_opening_history
 from tests import test_provider_allowance
+from tests import test_openrouter_coaching
 
 
 class LocalDatabase:
@@ -59,6 +60,14 @@ class PostgresPreparationAllowances(LocalDatabase, test_provider_allowance.Prepa
 
 
 class PostgresDefenseAllowances(LocalDatabase, test_provider_allowance.DefenseAllowanceLimitTests):
+    pass
+
+
+class PostgresProtectedCoachingAllowances(LocalDatabase, test_provider_allowance.ProtectedCoachingAllowanceTests):
+    pass
+
+
+class PostgresFundedCoaching(LocalDatabase, test_openrouter_coaching.FundedCoachingProgressTests):
     pass
 
 

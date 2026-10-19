@@ -87,3 +87,33 @@ class DefenseAllowanceLimitTests(unittest.TestCase):
                 self.assertIsNone(reported_nano(usage))
         self.assertEqual(reported_nano({'cost': 0.0005}), 500_000)
         self.assertEqual(reported_nano({'cost': '0.0000000001'}), 1)
+
+
+class ProtectedCoachingAllowanceTests(unittest.TestCase):
+    def setUp(self):
+        account = authenticate(self)
+        self.allowance = ProviderAllowance('run:protected-coaching', account['id'])
+        self.allowance.establish(1000, {'coaching_reserve_nano': 400})
+
+    def test_concurrent_coaching_reservations_and_settlement_preserve_the_ceiling(self):
+        # Questions have used their whole600 limit;400 remains protected.
+        self.allowance.reserve(600, limit=600)
+        def coach(_):
+            try:
+                return self.allowance.reserve(300, limit=1000)
+            except AllowanceError:
+                return None
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            requests = [item for item in pool.map(coach, range(8)) if item]
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(self.allowance.snapshot()['remaining'], 100)
+        with self.assertRaises(AllowanceError):
+            self.allowance.reserve(1, limit=600)
+        self.allowance.settle(requests[0], 100)
+        self.allowance.settle(requests[0], 100)
+        self.allowance.reserve(300, limit=1000)
+        reopened = ProviderAllowance(self.allowance.id, self.allowance.owner)
+        self.assertEqual(reopened.establish(10000, {}), {'coaching_reserve_nano': 400})
+        self.assertEqual(reopened.snapshot(), {'ceiling': 1000, 'used': 1000, 'remaining': 0})
+        with self.assertRaises(AllowanceError):
+            reopened.reserve(1, limit=1000)

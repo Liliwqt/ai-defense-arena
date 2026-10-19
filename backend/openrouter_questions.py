@@ -1,9 +1,11 @@
-"""Funded two-stage defense questions over the shared OpenRouter transport.
+"""Funded defense tasks over the shared OpenRouter transport.
 
 A small GLM planner selects one server-eligible move; the assigned reviewer
 model then writes the grounded question. Both stages are reserved against the
 run allowance before dispatch, only the combined result reaches the room, and
 an invalid plan is rejected before any reviewer request is made.
+Same-reviewer interactions share the non-coaching limit; fixed-policy coaching
+can access the protected remainder through the same reservation/usage ledger.
 """
 
 from contextlib import contextmanager
@@ -20,7 +22,7 @@ from pydantic import BaseModel, StrictBool
 from backend.defense_session import PlannedMove, ResearchDefenseSession
 from backend.openrouter_stream import payload, stream as open_stream
 from backend.provider_allowance import (
-    AllowanceError, ProviderAllowance, reported_nano,
+    AllowanceError, AllowanceExhausted, ProviderAllowance, reported_nano,
 )
 from backend.question_generator import (
     CRITICAL_JUDGE, ETHICS_REVIEWER, IMPACT_REVIEWER, METHODOLOGY_REVIEWER,
@@ -59,6 +61,7 @@ INTERACTION_REASONING = {
     CRITICAL_JUDGE: {'effort': 'low'},
 }
 INTERACTION_OUTPUT_TOKENS = 2048
+COACHING_MODEL = 'anthropic/claude-haiku-5.5'
 # The smallest verified context across the bundle (Qwen); larger contexts would
 # let a request exceed a reviewer's own ceiling.
 CONTEXT_TOKENS = 1_000_000
@@ -81,6 +84,9 @@ class RunQuestionPolicy:
     reviewer_output_tokens: int = 8192
     interaction_reasoning: dict = None
     interaction_output_tokens: int = INTERACTION_OUTPUT_TOKENS
+    coaching_model: str = COACHING_MODEL
+    coaching_reasoning: dict = None
+    coaching_output_tokens: int = 8192
     input_nano_per_token: int = 300
     output_nano_per_token: int = 1200
 
@@ -95,6 +101,8 @@ class RunQuestionPolicy:
         if self.interaction_reasoning is None:
             object.__setattr__(self, 'interaction_reasoning', {
                 role: dict(value) for role, value in INTERACTION_REASONING.items()})
+        if self.coaching_reasoning is None:
+            object.__setattr__(self, 'coaching_reasoning', {'effort': 'high'})
 
     @classmethod
     def configured(cls):
@@ -127,7 +135,7 @@ class RunQuestionPolicy:
 
     def coaching_bound(self, files, budget: int) -> int:
         calls = budget + COACHING_CALLS_OVERHEAD
-        return calls * self.stage_bound(self.input_bytes(files, budget), self.reviewer_output_tokens)
+        return calls * self.stage_bound(self.input_bytes(files, budget), self.coaching_output_tokens)
 
     def viability_problem(self, files, budget: int) -> str | None:
         if self.coaching_reserve_nano + self.question_bound(files, budget) > self.ceiling_nano:
@@ -226,6 +234,23 @@ class ReviewerInteractionClient:
         return SimpleNamespace(output_parsed=output)
 
 
+class RunCoachingClient:
+    """Responses-shaped coaching seam with fixed run policy and protected funds."""
+
+    def __init__(self, funded: "RunQuestionClient"):
+        self.funded = funded
+        self.responses = self
+
+    def parse(self, *, input, text_format, **unused):
+        policy = self.funded._load_policy()
+        output = self.funded._ask(
+            model=policy.coaching_model,
+            messages=[{'role': item.get('role'), 'content': item.get('content')} for item in input],
+            schema=text_format, reasoning=policy.coaching_reasoning,
+            max_tokens=policy.coaching_output_tokens, coaching=True)
+        return SimpleNamespace(output_parsed=output)
+
+
 class RunQuestionClient:
     """Two-stage funded client; the room still owns validation and publication."""
 
@@ -258,7 +283,7 @@ class RunQuestionClient:
         return self.policy
 
     @contextmanager
-    def _dispatch(self, *, model, messages, schema, reasoning, max_tokens):
+    def _dispatch(self, *, model, messages, schema, reasoning, max_tokens, coaching=False):
         self._check()
         if not self.api_key or any(char.isspace() for char in self.api_key):
             raise QuestionGenerationError('Set a clean OPENROUTER_API_KEY on the server to generate defense questions.')
@@ -270,8 +295,10 @@ class RunQuestionClient:
         bound = policy.stage_bound(input_bound, max_tokens)
         allowance = ProviderAllowance(self.scope, self.owner)
         try:
-            identity = allowance.reserve(bound, limit=policy.question_limit_nano)
+            identity = allowance.reserve(bound, limit=policy.ceiling_nano if coaching else policy.question_limit_nano)
         except AllowanceError as error:
+            if coaching and isinstance(error, AllowanceExhausted):
+                raise QuestionGenerationError('The run allowance cannot fund another coaching section. Ready results are retained; contact the operator. Retrying will not reset the allowance.') from None
             raise QuestionGenerationError(str(error)) from None
         deadline = monotonic() + 90
 
@@ -294,9 +321,9 @@ class RunQuestionClient:
                     on_usage=settle) as stream:
                 yield stream
 
-    def _ask(self, *, model, messages, schema, reasoning, max_tokens):
+    def _ask(self, *, model, messages, schema, reasoning, max_tokens, coaching=False):
         with self._dispatch(model=model, messages=messages, schema=schema, reasoning=reasoning,
-                            max_tokens=max_tokens) as stream:
+                            max_tokens=max_tokens, coaching=coaching) as stream:
             for _ in stream:
                 pass
             return stream.get_final_response().output_parsed
@@ -304,6 +331,10 @@ class RunQuestionClient:
     def interaction(self, panelist: str) -> ReviewerInteractionClient:
         """A funded client bound to the current speaking reviewer."""
         return ReviewerInteractionClient(self, panelist)
+
+    def coaching(self) -> RunCoachingClient:
+        """A funded coach admitted against the full run ceiling."""
+        return RunCoachingClient(self)
 
     def _planner_messages(self, source, history, context, defense_type, research_stage):
         messages = [

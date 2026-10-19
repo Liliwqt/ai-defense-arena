@@ -18,6 +18,10 @@ class AllowanceError(ValueError):
     pass
 
 
+class AllowanceExhausted(AllowanceError):
+    """The next bounded request cannot fit in the remaining allowance."""
+
+
 def reported_nano(usage) -> int | None:
     """Convert one provider cost receipt to nano-USD; absent/unsafe evidence is None."""
     cost = usage.get('cost') if isinstance(usage, dict) else None
@@ -96,8 +100,8 @@ class ProviderAllowance:
             ceiling = row['ceiling'] if limit is None else min(row['ceiling'], limit)
             if used + cost > ceiling:
                 if limit is None:
-                    raise AllowanceError('Preparation allowance cannot fund another mapping request. Your material is retained; contact the operator. Retrying will not reset the allowance.')
-                raise AllowanceError('The defense allowance cannot fund another question. Your discussion is retained; contact the operator. Retrying will not reset the allowance.')
+                    raise AllowanceExhausted('Preparation allowance cannot fund another mapping request. Your material is retained; contact the operator. Retrying will not reset the allowance.')
+                raise AllowanceExhausted('The defense allowance cannot fund another question. Your discussion is retained; contact the operator. Retrying will not reset the allowance.')
             identity = secrets.token_hex(24)
             db.execute('INSERT INTO provider_requests VALUES (?,?,?,?,?)',
                        (identity, self.id, cost, None, int(time.time())))

@@ -344,16 +344,16 @@ class CoachingReportTests(unittest.TestCase):
         self.assertIsNone(client.request)
 
     def test_missing_api_key_does_not_call_api(self):
-        client = FakeClient(self._draft())
-        with self.assertRaisesRegex(QuestionGenerationError, "OPENAI_API_KEY"):
-            generate_coaching_report(self.files, self.history, None, client=client)
-        self.assertIsNone(client.request)
+        with patch("backend.question_generator.OpenAI") as factory:
+            with self.assertRaisesRegex(QuestionGenerationError, "OPENAI_API_KEY"):
+                generate_coaching_report(self.files, self.history, None)
+            factory.assert_not_called()
 
     def test_whitespace_key_is_rejected(self):
-        client = FakeClient(self._draft())
-        with self.assertRaisesRegex(QuestionGenerationError, "contains whitespace"):
-            generate_coaching_report(self.files, self.history, "test\nkey", client=client)
-        self.assertIsNone(client.request)
+        with patch("backend.question_generator.OpenAI") as factory:
+            with self.assertRaisesRegex(QuestionGenerationError, "contains whitespace"):
+                generate_coaching_report(self.files, self.history, "test\nkey")
+            factory.assert_not_called()
 
     def test_all_four_turn_references_are_valid(self):
         draft = self._draft(
