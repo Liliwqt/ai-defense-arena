@@ -10,6 +10,19 @@ from backend.question_generator import InvalidQuestionResponse, QuestionGenerati
 
 
 class ProviderErrorTests(unittest.TestCase):
+    def test_rate_limit_guidance_distinguishes_daily_minute_and_unknown_limits(self):
+        for provider_message, expected in (
+            ('Rate limit exceeded: free-models-per-day. private upstream details', 'daily free-model'),
+            ('Rate limit exceeded: free-models-per-min. private upstream details', 'per-minute'),
+            ('private upstream details', 'rate or capacity limit'),
+        ):
+            for http_status in (429, 200):
+                with self.subTest(message=provider_message, http_status=http_status):
+                    error = self.failure({'code': 429, 'message': provider_message}, http_status=http_status)
+                    self.assertIn(expected, str(error))
+                    self.assertNotIn('Check server configuration', str(error))
+                    self.assertFalse(error.retryable)
+
     def test_http_privacy_rejection_has_safe_actionable_diagnostic(self):
         response = httpx.Response(404, json={'error': {'message':
             'No endpoints found matching your data policy. private upstream details'}})
@@ -55,7 +68,7 @@ class ProviderErrorTests(unittest.TestCase):
                 self.assertNotIn('private upstream details', str(raised.exception))
 
     def failure(self, error, *, http_status=200):
-        response = httpx.Response(http_status, text='data: ' + json.dumps({
+        response = httpx.Response(http_status, json={'error': error}) if http_status != 200 else httpx.Response(200, text='data: ' + json.dumps({
             'error': error, 'choices': [{'index': 0, 'delta': {}, 'finish_reason': 'error'}],
         }) + '\n\n')
         with httpx.Client(transport=httpx.MockTransport(lambda request: response)) as client:

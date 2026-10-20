@@ -40,6 +40,148 @@ class OpenRouterMappingContractTests(unittest.TestCase):
         env.start()
         self.addCleanup(env.stop)
 
+    def test_new_mapping_reduces_reasoning_while_retaining_grounded_material_and_policy(self):
+        from backend.openrouter_mapping import MappingClient, MODEL
+        calls = []
+        def provider(request):
+            calls.append(json.loads(request.content))
+            return stream_response(maps.draft())
+        def client(*args, **kwargs):
+            return HTTPClient(transport=httpx.MockTransport(provider))
+        mapping = MappingClient('fast-preparation', 'owner')
+        files = [maps.ProjectFile('study.md', maps.PAPER, 'research_text')]
+        with patch('httpx.Client', side_effect=client):
+            plan = maps.generate_research_plan(files, mapping.api_key, MODEL, client=mapping)
+        self.assertEqual(calls[0]['reasoning'], {'effort': 'low', 'exclude': True})
+        self.assertEqual(calls[0]['model'], 'z-ai/glm-5.3-flash')
+        self.assertIn(maps.PAPER.splitlines()[3], calls[0]['messages'][1]['content'])
+        self.assertEqual(plan.topics[0].references[0].evidence_text, maps.PAPER.splitlines()[3])
+        with patch.dict(os.environ, {'OPENROUTER_MAPPING_REASONING_EFFORT': 'high',
+                                     'OPENROUTER_MAPPING_MODEL': 'deepseek/deepseek-v4.1-flash-1017'}):
+            reopened = MappingClient('fast-preparation', 'owner')
+        with patch('httpx.Client', side_effect=client):
+            maps.generate_research_plan(files, reopened.api_key, MODEL, client=reopened)
+        self.assertEqual(calls[1]['reasoning'], calls[0]['reasoning'])
+        self.assertEqual(calls[1]['model'], 'z-ai/glm-5.3-flash')
+
+    def test_retained_legacy_mapping_keeps_high_reasoning_and_explicit_high_is_supported(self):
+        from dataclasses import asdict
+        from backend.openrouter_mapping import MappingClient, MappingPolicy, MODEL
+        from backend.provider_allowance import ProviderAllowance
+        legacy = asdict(MappingPolicy())
+        legacy.pop('reasoning_effort')
+        ProviderAllowance('old-preparation', 'owner').establish(legacy['allowance_nano'], legacy)
+        calls = []
+        def provider(request):
+            calls.append(json.loads(request.content))
+            return stream_response(maps.draft())
+        def client(*args, **kwargs):
+            return HTTPClient(transport=httpx.MockTransport(provider))
+        mapping = MappingClient('old-preparation', 'owner')
+        with patch('httpx.Client', side_effect=client):
+            maps.generate_research_plan([maps.ProjectFile('study.md', maps.PAPER, 'research_text')],
+                mapping.api_key, MODEL, client=mapping)
+        self.assertEqual(calls[0]['reasoning'], {'effort': 'high', 'exclude': True})
+        self.assertEqual(calls[0]['model'], 'deepseek/deepseek-v4.1-flash-1017')
+        legacy.pop('model')
+        ProviderAllowance('old-preparation-without-model', 'owner').establish(legacy['allowance_nano'], legacy)
+        self.assertEqual(MappingClient('old-preparation-without-model', 'owner').policy.model,
+                         'deepseek/deepseek-v4.1-flash-1017')
+        with patch.dict(os.environ, {'OPENROUTER_MAPPING_REASONING_EFFORT': 'high'}):
+            self.assertEqual(MappingClient('new-high-preparation', 'owner').mapping_reasoning, {'effort': 'high'})
+        for invalid in ('medium', 'none', '', '2000'):
+            with self.subTest(invalid=invalid), patch.dict(os.environ, {'OPENROUTER_MAPPING_REASONING_EFFORT': invalid}):
+                with self.assertRaisesRegex(maps.QuestionGenerationError, 'OPENROUTER_MAPPING_REASONING_EFFORT'):
+                    MappingClient('invalid-preparation', 'owner')
+        self.assertIsNone(ProviderAllowance('invalid-preparation', 'owner').policy())
+
+    def test_explicit_model_rollback_changes_only_new_preparations(self):
+        from backend.openrouter_mapping import MappingClient, MODEL
+        from backend.provider_allowance import ProviderAllowance
+        calls = []
+        def provider(request):
+            calls.append(json.loads(request.content))
+            return stream_response(maps.draft())
+        def client(*args, **kwargs):
+            return HTTPClient(transport=httpx.MockTransport(provider))
+        with patch.dict(os.environ, {'OPENROUTER_MAPPING_MODEL': 'deepseek/deepseek-v4.1-flash-1017'}):
+            mapping = MappingClient('rollback-preparation', 'owner')
+        with patch('httpx.Client', side_effect=client):
+            maps.generate_research_plan([maps.ProjectFile('study.md', maps.PAPER, 'research_text')],
+                mapping.api_key, MODEL, client=mapping)
+        self.assertEqual(calls[0]['model'], 'deepseek/deepseek-v4.1-flash-1017')
+        for invalid in ('openrouter/auto', 'z-ai/glm-5.3-flash:free', ''):
+            with self.subTest(invalid=invalid), patch.dict(os.environ, {'OPENROUTER_MAPPING_MODEL': invalid}), \
+                 patch('httpx.Client') as upstream:
+                with self.assertRaisesRegex(maps.QuestionGenerationError, 'OPENROUTER_MAPPING_MODEL'):
+                    MappingClient('unsupported-preparation', 'owner')
+                upstream.assert_not_called()
+        self.assertIsNone(ProviderAllowance('unsupported-preparation', 'owner').policy())
+
+    def test_mapping_can_finish_after_the_previous_ninety_second_cutoff(self):
+        from backend.openrouter_mapping import MappingClient, MODEL
+        elapsed = [0]
+        response = stream_response(maps.draft())
+        class SlowStream(httpx.SyncByteStream):
+            def __iter__(self):
+                elapsed[0] = 100
+                yield response.content
+        def client(*args, **kwargs):
+            return HTTPClient(transport=httpx.MockTransport(
+                lambda request: httpx.Response(200, stream=SlowStream())))
+        mapping = MappingClient('slow-preparation', 'owner')
+        with patch('backend.openrouter_mapping.monotonic', side_effect=lambda: elapsed[0]), \
+             patch('httpx.Client', side_effect=client):
+            plan = maps.generate_research_plan(
+                [maps.ProjectFile('study.md', maps.PAPER, 'research_text')],
+                mapping.api_key, MODEL, client=mapping)
+        self.assertEqual(len(plan.topics), 4)
+
+    def test_mapping_deadline_remains_bounded_and_preserves_unsettled_cost(self):
+        from backend.openrouter_mapping import MappingClient, MODEL
+        elapsed = [0]
+        calls = []
+        class SlowStream(httpx.SyncByteStream):
+            def __iter__(self):
+                elapsed[0] = 300
+                yield b'data: [DONE]\n\n'
+        def provider(request):
+            calls.append(request)
+            return httpx.Response(200, stream=SlowStream())
+        def client(*args, **kwargs):
+            return HTTPClient(transport=httpx.MockTransport(provider))
+        mapping = MappingClient('expired-preparation', 'owner')
+        with patch('backend.openrouter_mapping.monotonic', side_effect=lambda: elapsed[0]), \
+             patch('httpx.Client', side_effect=client):
+            with self.assertRaisesRegex(maps.QuestionGenerationError, '300-second time limit'):
+                maps.generate_research_plan(
+                    [maps.ProjectFile('study.md', maps.PAPER, 'research_text')],
+                    mapping.api_key, MODEL, client=mapping)
+        self.assertEqual(len(calls), 1)
+        self.assertGreater(mapping.allowance.snapshot()['used'], 0)
+
+    def test_cancelled_mapping_does_not_dispatch(self):
+        from backend.openrouter_mapping import MappingClient, MODEL
+        mapping = MappingClient('cancelled-preparation', 'owner', stopped=lambda: True)
+        with patch('httpx.Client') as client:
+            with self.assertRaisesRegex(maps.QuestionGenerationError, '^OpenRouter mapping was cancelled\\.$'):
+                maps.generate_research_plan(
+                    [maps.ProjectFile('study.md', maps.PAPER, 'research_text')],
+                    mapping.api_key, MODEL, client=mapping)
+        client.assert_not_called()
+
+    def test_operator_timeout_is_bounded_and_independent_of_saved_model_policy(self):
+        from backend.openrouter_mapping import MappingClient, mapping_timeout_seconds
+        first = MappingClient('retained-preparation', 'owner')
+        for value in ('30', '180', '600'):
+            with self.subTest(value=value), patch.dict(os.environ, {'OPENROUTER_MAPPING_TIMEOUT_SECONDS': value}):
+                self.assertEqual(mapping_timeout_seconds(), int(value))
+                self.assertEqual(MappingClient('retained-preparation', 'owner').policy, first.policy)
+        for value in ('29', '601', 'nan', ''):
+            with self.subTest(value=value), patch.dict(os.environ, {'OPENROUTER_MAPPING_TIMEOUT_SECONDS': value}):
+                with self.assertRaisesRegex(maps.QuestionGenerationError, 'OPENROUTER_MAPPING_TIMEOUT_SECONDS'):
+                    mapping_timeout_seconds()
+
     def test_conflicting_stream_cost_receipts_freeze_further_dispatch(self):
         from backend.openrouter_mapping import MappingClient, MODEL
         calls = []
@@ -297,8 +439,8 @@ class OpenRouterMappingProtocolTests(unittest.TestCase):
             self.assertEqual(str(request.url), 'https://openrouter.ai/api/v1/chat/completions')
             self.assertEqual(request.headers['authorization'], 'Bearer offline-router-key')
             body = json.loads(request.content)
-            self.assertEqual(body['model'], 'deepseek/deepseek-v4.1-flash-1017')
-            self.assertEqual(body['reasoning']['effort'], 'high')
+            self.assertEqual(body['model'], 'z-ai/glm-5.3-flash')
+            self.assertEqual(body['reasoning']['effort'], 'low')
             self.assertFalse(body['provider']['allow_fallbacks'])
             self.assertTrue(body['provider']['require_parameters'])
             self.assertGreater(body['max_tokens'], 0)

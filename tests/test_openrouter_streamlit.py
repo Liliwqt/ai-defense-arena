@@ -89,8 +89,8 @@ class OpenRouterFallbackTests(IsolatedAllowanceTests):
             button(app, 'Prepare defense').click().run()
             self.assertFalse(app.exception)
             self.assertEqual(app.session_state['research_plan'].profile.fields, ('Education',))
-            self.assertEqual(calls[0]['model'], 'deepseek/deepseek-v4.1-flash-1017')
-            self.assertEqual(calls[0]['reasoning'], {'effort': 'high', 'exclude': True})
+            self.assertEqual(calls[0]['model'], 'z-ai/glm-5.3-flash')
+            self.assertEqual(calls[0]['reasoning'], {'effort': 'low', 'exclude': True})
             app.run()
             self.assertEqual(len(calls), 1)
             with patch.dict('os.environ', {'OPENROUTER_PREPARATION_USD': '0.000001'}):

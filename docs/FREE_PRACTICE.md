@@ -86,6 +86,26 @@ free runs retain the existing one-active-run-per-host and service ownership rule
 The application keeps request metadata in the existing account database, not
 uploaded text or credentials. Use PostgreSQL for durable hosted limits.
 
+### OpenRouter HTTP 429 during mapping
+
+HTTP 429 indicates an upstream request or capacity limit, not by itself an invalid
+API key. Wait at least a minute before a manual retry. If the error persists,
+the operator should inspect the failed request in OpenRouter Activity: a
+`free-models-per-day` rejection requires waiting for the daily reset or changing
+the account's allowance; `free-models-per-min` requires reducing the request rate;
+an upstream provider limit may require waiting for that provider's capacity.
+The app recognizes those explicit daily/minute messages and otherwise reports
+an unknown rate/capacity limit without exposing provider text. It does not
+automatically retry 429 responses or change the saved model/provider.
+
+OpenRouter currently documents 20 free-model requests/minute and 50/day for
+accounts with less than $10 purchased, or 1,000/day after at least $10 purchased.
+These limits are shared across the OpenRouter account, including other apps.
+A defense uses multiple requests; request counts are not question counts.
+Switching API keys or creating another room does not reset upstream limits.
+Purchasing credits can raise the daily allowance; it does not guarantee provider
+capacity. The app's separate configured quotas still apply.
+
 ## Verification boundary
 
 Local tests use mocked provider HTTP, disposable SQLite/PostgreSQL and controlled

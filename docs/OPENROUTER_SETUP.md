@@ -23,6 +23,9 @@ keep their existing setup. Keep exactly one worker and one instance.
 | --- | --- | --- |
 | `OPENROUTER_PREPARATION_USD` | `0.75` | Separate per-preparation ceiling, positive decimal up to USD10. |
 | `OPENROUTER_MAPPING_MAX_OUTPUT_TOKENS` | `65536` | Mapping reasoning plus visible output, configurable1024–131072. |
+| `OPENROUTER_MAPPING_TIMEOUT_SECONDS` | `300` | Total mapping deadline, configurable 30–600 seconds. Applies to each new attempt, including retained preparations; model/reasoning/allowance snapshots stay fixed. |
+| `OPENROUTER_MAPPING_REASONING_EFFORT` | `low` | Mapping-only effort for new preparations: `low` or `high`. Saved preparations retain their effort; retained policies predating this setting stay high. |
+| `OPENROUTER_MAPPING_MODEL` | `z-ai/glm-5.3-flash` | Mapping-only model for new Standard preparations. Explicit rollback: `deepseek/deepseek-v4.1-flash-1017`. Saved preparations keep their model. |
 | `OPENROUTER_RUN_USD` | `5.00` | Full per-run ceiling including coaching, positive decimal up to USD100. |
 
 These are finite local admission settings, not measured bills, universal input
@@ -30,9 +33,19 @@ capacity or provider-side billing guarantees. They remain candidates until the
 checkpoint's live/context/output/affordability checks pass. `OPENAI_MODEL` and
 legacy effort variables do not override funded-run assignments.
 
+Mapping previously stopped after 90 seconds even when structured output was
+still arriving. High-reasoning maps can take longer. The default now permits
+five minutes, with a separate 30-second network inactivity timeout and bounded
+connection/write waits. Streaming topic progress remains provisional until the
+complete map validates. This extends the waiting window; it does not establish
+faster generation or successful completion on a particular paper. A failed or
+cancelled attempt retains uploads and does not reset its spending reservation.
+Cancellation and elapsed-deadline errors now have distinct messages. Changing
+this transport setting does not change models, reasoning, output caps or prices.
+
 | Task | Model | Reasoning | Total output bound |
 | --- | --- | --- | --- |
-| Mapping | `deepseek/deepseek-v4.1-flash-1017` | high |65536|
+| Mapping | `z-ai/glm-5.3-flash` | low for new preparations |65536|
 | Planner | `z-ai/glm-5.3-flash` | low |4096|
 | Methodology | `deepseek/deepseek-v4.1-flash-1017` | high |8192|
 | Ethics | `anthropic/claude-haiku-5.5` | medium |8192|
@@ -44,6 +57,21 @@ Same-reviewer clarification/probes use the assigned reviewer model, low reasonin
 for Methodology/Ethics/Critical and reasoning max_tokens1024 for Impact, within a
 2048 total-output bound. Qwen's catalog advertises token-budget reasoning, not a
 named effort. Actual selected-route support still requires account tests.
+
+Mapping now requests low reasoning for new Standard preparations to reduce
+unnecessary thinking time. The user selected GLM 5.3 Flash for the mapping trial;
+the server explicitly selects it for new preparations. The complete paper, map schema, coverage instructions,
+streaming progress, citation checks and output capacity are unchanged. This is
+an effort request, not an exact reasoning-token cap or a measured speed guarantee.
+Reviewer/coaching settings and Free practice's existing token-budget request
+are unchanged. Create a new room (or a new Streamlit preparation session) to use
+the new setting; retrying an existing preparation keeps its saved effort.
+Legacy preparations keep DeepSeek, including older saved policies without an
+explicit model field. Set OPENROUTER_MAPPING_MODEL to the DeepSeek ID to roll
+back future preparations; this does not rewrite active rooms or enable automatic
+fallback. Actual GLM mapping speed and source coverage still need a live check.
+See [mapping speed research](OPENROUTER_MAPPING_SPEED_RESEARCH.md) for candidate
+models, published throughput and the pending same-paper quality/timing check.
 
 ## Allowances and recovery
 

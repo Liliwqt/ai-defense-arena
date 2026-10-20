@@ -14,7 +14,19 @@ from backend.practice_tiers import FREE, FREE_MODEL, FREE_PROVIDER, FREE_CONTEXT
 from backend.provider_allowance import ProviderAllowance, AllowanceError, reported_nano
 from backend.openrouter_stream import ENDPOINT, payload, strict_schema, stream as open_stream
 
-MODEL = 'deepseek/deepseek-v4.1-flash-1017'
+LEGACY_MODEL = 'deepseek/deepseek-v4.1-flash-1017'
+MODEL = 'z-ai/glm-5.3-flash'
+
+
+def mapping_timeout_seconds():
+    """Operator transport limit; applies to retained preparations on their next attempt."""
+    try:
+        seconds = int(os.getenv('OPENROUTER_MAPPING_TIMEOUT_SECONDS', '300'))
+        if not 30 <= seconds <= 600:
+            raise ValueError
+        return seconds
+    except ValueError:
+        raise QuestionGenerationError('Check OPENROUTER_MAPPING_TIMEOUT_SECONDS on the server (30–600 seconds).') from None
 
 
 @dataclass(frozen=True)
@@ -25,11 +37,13 @@ class MappingPolicy:
     output_nano_per_token: int = 1200
 
     tier: str = 'standard'
-    model: str = MODEL
+    model: str = LEGACY_MODEL
     reasoning_tokens: int | None = None
     request_limit: int | None = None
     context_tokens: int | None = None
     provider_only: list[str] | None = None
+    # Retained policies without this field used high reasoning.
+    reasoning_effort: str = 'high'
 
     @classmethod
     def configured(cls, tier='standard'):
@@ -41,15 +55,25 @@ class MappingPolicy:
         try:
             output = int(os.getenv('OPENROUTER_MAPPING_MAX_OUTPUT_TOKENS', '65536'))
             ceiling = Decimal(os.getenv('OPENROUTER_PREPARATION_USD', '0.75'))
+            effort = os.getenv('OPENROUTER_MAPPING_REASONING_EFFORT', 'low')
+            if effort not in {'low', 'high'}:
+                raise QuestionGenerationError('Check OPENROUTER_MAPPING_REASONING_EFFORT on the server (low or high).')
+            model = os.getenv('OPENROUTER_MAPPING_MODEL', MODEL)
+            if model not in {MODEL, LEGACY_MODEL}:
+                raise QuestionGenerationError('Check OPENROUTER_MAPPING_MODEL on the server (z-ai/glm-5.3-flash or deepseek/deepseek-v4.1-flash-1017).')
             if not 1024 <= output <= 131072 or not ceiling.is_finite() or not Decimal('0') < ceiling <= 10:
                 raise ValueError
-            return cls(output, int((ceiling * 1_000_000_000).to_integral_value(rounding=ROUND_CEILING)))
+            return cls(output, int((ceiling * 1_000_000_000).to_integral_value(rounding=ROUND_CEILING)), model=model, reasoning_effort=effort)
         except (ValueError, InvalidOperation):
             raise QuestionGenerationError('Check OPENROUTER_MAPPING_MAX_OUTPUT_TOKENS and OPENROUTER_PREPARATION_USD on the server.') from None
 
 
 class MappingClient:
-    mapping_reasoning = {'effort': 'high'}
+    @property
+    def mapping_reasoning(self):
+        if self.policy.reasoning_tokens is not None:
+            return {'max_tokens': self.policy.reasoning_tokens}
+        return {'effort': self.policy.reasoning_effort}
 
     def __init__(self, scope: str, owner: str, api_key=None, *, stopped=lambda: False, tier='standard'):
         key = (api_key if api_key is not None else os.getenv('OPENROUTER_API_KEY', '')).strip()
@@ -78,16 +102,18 @@ class MappingClient:
 
     @contextmanager
     def stream(self, *, input, text_format, **unused):
-        deadline = monotonic() + 90
+        timeout_seconds = mapping_timeout_seconds()
+        deadline = monotonic() + timeout_seconds
 
         def current():
-            if self.stopped() or monotonic() >= deadline:
-                raise QuestionGenerationError('OpenRouter mapping was cancelled or timed out. Retry when ready.')
+            if self.stopped():
+                raise QuestionGenerationError('OpenRouter mapping was cancelled.')
+            if monotonic() >= deadline:
+                raise QuestionGenerationError(f'OpenRouter mapping exceeded its {timeout_seconds}-second time limit. Retry mapping when ready.')
 
         current()
         schema = strict_schema(text_format.model_json_schema())
-        reasoning = {'effort': 'high'} if self.policy.reasoning_tokens is None else {'max_tokens': self.policy.reasoning_tokens}
-        body = payload(self.policy.model, input, text_format, reasoning={**reasoning, 'exclude': True},
+        body = payload(self.policy.model, input, text_format, reasoning={**self.mapping_reasoning, 'exclude': True},
                        max_tokens=self.policy.max_output_tokens, free=self.policy.tier == FREE,
                        provider_only=self.policy.provider_only)
         # Byte fallback is a conservative token bound; include schema/message
@@ -103,7 +129,7 @@ class MappingClient:
             raise QuestionGenerationError(str(error)) from None
         try:
             current()
-            with httpx.Client(timeout=httpx.Timeout(90, read=15), follow_redirects=False) as client:
+            with httpx.Client(timeout=httpx.Timeout(30, connect=10, read=30), follow_redirects=False) as client:
                 with open_stream(client, api_key=self.api_key, body=body, schema=text_format,
                         current=current, on_usage=lambda usage: self._settle_usage(identity, usage)) as stream:
                     yield stream

@@ -41,6 +41,14 @@ class ProviderStatusError(TransientProviderError):
 
 def status_error(status, error=None):
     """Classify known routing reasons without copying provider-controlled text."""
+    if status == 429:
+        message = error.get('message', '') if isinstance(error, dict) else ''
+        message = message.lower() if isinstance(message, str) else ''
+        if message.startswith('rate limit exceeded: free-models-per-day'):
+            return ProviderStatusError(status, 'OpenRouter’s daily free-model request allowance is exhausted (HTTP 429). Wait for the next UTC day or ask the operator to check the account’s free-model allowance. Retrying now will not reset it.')
+        if message.startswith('rate limit exceeded: free-models-per-min'):
+            return ProviderStatusError(status, 'OpenRouter’s per-minute free-model request limit was reached (HTTP 429). Wait at least a minute before retrying. Repeated retries also consume free requests.')
+        return ProviderStatusError(status, 'OpenRouter or the selected provider reached a rate or capacity limit (HTTP 429). Wait before retrying. If it persists, ask the operator to check OpenRouter Activity and the account’s free-model allowance.')
     if status == 404:
         message = error.get('message', '') if isinstance(error, dict) else ''
         if isinstance(message, str) and message.lower().startswith('no endpoints found matching your data policy'):
