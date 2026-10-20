@@ -4,6 +4,8 @@ This project is a small FastAPI/React multiplayer hackathon prototype with a Str
 
 Use `main` as the default destination for every push until the user changes this preference (2026-10-19). The user authorized merging `feature/question-first-room` into `main`, superseding the earlier hackathon freeze. Keep unrelated uncommitted work separate when merging or publishing.
 
+Allow Render auto-deployment on pushes to `main`: omit `[skip render]` and other deployment-skip markers unless the user requests otherwise (2026-10-20).
+
 Before working:
 
 1. Read `README.md` and `PROJECT_LOG.md`, then inspect the files relevant to your task. The code is the source of truth if the log is stale.

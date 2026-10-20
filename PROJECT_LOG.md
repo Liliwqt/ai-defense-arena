@@ -4,6 +4,8 @@ Use this file to track completed updates across agents and session windows. See 
 
 ## Current status
 
+- Render publication requested, 2026-10-20: the user explicitly requested pushing main without skipping Render. A documentation commit without skip markers publishes the already-verified free mapping correction (cd1ffa6); AGENTS.md records this preference for future pushes. Git publication permits auto-deployment but does not establish hosted deployment success. After deployment, create a fresh Free practice room; existing frozen NVIDIA rooms retain their old policy. Actual provider inference remains unverified.
+
 - Free mapping404 correction verified and published, 2026-10-20 (source cd1ffa6): new free preparations/runs use xingchen-agi/xing4.0-29b-a4b:free pinned to Phala with262144context, existing no-collection/zero-price/no-fallback guards. The prior NVIDIA free endpoint collects/trains on prompts and conflicts with data_collection deny, a concrete routing mismatch explaining the reported live404. Old frozen NVIDIA scopes refuse with fresh-room guidance rather than silently switching/resetting quotas. Bounded HTTP/SSE404 diagnostics distinguish privacy from unavailable routes without echoing provider text. Isolated Python718, React396/build and final22focused checks pass with external providers mocked. Source pushed and remote-verified on main; live requires a Render redeploy and a fresh room; actual account/provider inference and quality remain unverified. No API-key change or privacy relaxation; unrelated edits preserved.
 
 - Published and stopped, 2026-10-20: source **d732747** pushed to GitHub main, remote hash independently verified equal to local HEAD. Includes free practice, OpenRouter text migration commits and Google-free local testing. User requested stopping all: no project servers/tests remain;8000,8001,8874,8876,8877,8884and disposable PostgreSQL55486are closed. Existing editor/MCP tooling is not an application server. Unrelated QR/reasoning/planning work remains uncommitted and excluded. Launcher/local HTTP/WS6pass; earlier isolated free705/Pg202/React396/build pass; later mixed-workspace714run is not a passing gate because the then-running server held the private PDF lease. No inference, hosted verification or deployment; commits use [skip render].
@@ -309,6 +311,7 @@ Use this file to track completed updates across agents and session windows. See 
 - Generated questions carry a validated conversational `lead_in`: distinct panelist voices briefly react to the latest answer, match a substantive answer's language, and stay separate from the grounded question and citation. The previous exchange remains visible while the next response is generated.
 
 ## Active work
+
 
 
 
@@ -3707,3 +3710,8 @@ Append new entries to the **end** of this file in date order:
 
 - Continued the user-authorized main publication for this free-tier feature after the live404report. Source cd1ffa6 fixes the incompatible free default/diagnostics; normal push advanced main fromc372ea6 tocd1ffa6. `git ls-remote --heads origin main` independently returned cd1ffa6b06a30fe57d403866a0863fb678515b9b. Unrelated dirty work remained excluded. This follow-up records publication only.
 - Source uses [skip render]: no deployment or hosted inference was triggered/verified. User must redeploy Render and create a fresh free room so it receives the Xing4/Phala policy; old frozen NVIDIA rooms are intentionally not rewritten. OPENROUTER_API_KEY remains the variable; no key value was accessed or changed. Full offline718Python/396React/build and final22focused evidence remains as above; actual account/provider compatibility and model quality still need live verification. All test processes completed and no persistent app server was started for this fix.
+
+### 2026-10-20 — Render deployment publication requested on main
+
+- The user explicitly requested a push without skipping Render. AGENTS.md now records that main pushes omit deployment-skip markers. This documentation-only publication includes the previously committed free mapping correction cd1ffa6 through normal Git history; unrelated working-tree edits remain excluded. Closed root-render-publication with this handoff.
+- Verification: documentation diff and whitespace review; runtime code is unchanged from the isolated 718 Python / 396 React / production-build checks and 22 final focused checks recorded above (offline, external providers mocked). A normal main push is the publication action; Render build/deployment success and actual inference require separate hosted evidence. After deployment, use a fresh Free practice room.
