@@ -33,7 +33,7 @@ from backend.question_generator import (
     CONVERSATION_GUIDANCE, SCENARIO_GUIDANCE,
 )
 from backend.research_panel import research_panel_guidance
-from backend.practice_tiers import FREE, FREE_MODEL, validate_tier, validate_tier_budget
+from backend.practice_tiers import FREE, FREE_MODEL, FREE_PROVIDER, FREE_CONTEXT_TOKENS, validate_tier, validate_tier_budget
 
 PLANNER_MODEL = 'z-ai/glm-5.3-flash'
 PLANNER_REASONING = {'effort': 'low'}
@@ -94,6 +94,8 @@ class RunQuestionPolicy:
     tier: str = 'standard'
     request_limit: int | None = None
     coaching_request_reserve: int = 0
+    context_tokens: int = CONTEXT_TOKENS
+    provider_only: list[str] | None = None
 
     def __post_init__(self):
         if self.planner_reasoning is None:
@@ -118,7 +120,8 @@ class RunQuestionPolicy:
                 reviewer_reasoning={role: {'max_tokens': 2048} for role in RESEARCH_PANELISTS},
                 interaction_reasoning={role: {'max_tokens': 512} for role in RESEARCH_PANELISTS},
                 coaching_model=FREE_MODEL, coaching_reasoning={'max_tokens': 2048},
-                request_limit=80, coaching_request_reserve=12)
+                request_limit=80, coaching_request_reserve=12,
+                context_tokens=FREE_CONTEXT_TOKENS, provider_only=[FREE_PROVIDER])
         try:
             ceiling = Decimal(os.getenv('OPENROUTER_RUN_USD', '5.00'))
             if not ceiling.is_finite() or not Decimal('0') < ceiling <= 100:
@@ -305,9 +308,10 @@ class RunQuestionClient:
         if not self.api_key or any(char.isspace() for char in self.api_key):
             raise QuestionGenerationError('Set a clean OPENROUTER_API_KEY on the server to generate defense questions.')
         policy = self._load_policy()
-        body = payload(model, messages, schema, reasoning=reasoning, max_tokens=max_tokens, free=policy.tier == FREE)
+        body = payload(model, messages, schema, reasoning=reasoning, max_tokens=max_tokens,
+                       free=policy.tier == FREE, provider_only=policy.provider_only)
         input_bound = len(json.dumps({'messages': messages, 'schema': body['response_format']}, ensure_ascii=False).encode()) + FRAMING_BYTES
-        if input_bound + max_tokens > CONTEXT_TOKENS:
+        if input_bound + max_tokens > policy.context_tokens:
             raise QuestionGenerationError('The accepted material exceeds the bounded OpenRouter question context. Reduce the material; it was not truncated.')
         bound = policy.stage_bound(input_bound, max_tokens)
         allowance = ProviderAllowance(self.scope, self.owner)

@@ -13,9 +13,11 @@ import httpx
 from pydantic import ValidationError
 
 from backend.question_generator import InvalidQuestionResponse, QuestionGenerationError
+from backend.practice_tiers import RETIRED_FREE_MODEL
 
 ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
 MAX_RESPONSE_CHARS = 2_000_000
+MAX_ERROR_BYTES = 16384
 
 
 class TransientProviderError(QuestionGenerationError):
@@ -37,6 +39,32 @@ class ProviderStatusError(TransientProviderError):
         self.retryable = status_code >= 500
 
 
+def status_error(status, error=None):
+    """Classify known routing reasons without copying provider-controlled text."""
+    if status == 404:
+        message = error.get('message', '') if isinstance(error, dict) else ''
+        if isinstance(message, str) and message.lower().startswith('no endpoints found matching your data policy'):
+            return ProviderStatusError(status, 'OpenRouter has no endpoint matching the app/account privacy settings (HTTP 404). The operator needs to configure a compatible model and provider.')
+        return ProviderStatusError(status, 'OpenRouter found no compatible endpoint for the configured model and request (HTTP 404). Check model/provider availability and supported parameters.')
+    return ProviderStatusError(status, f'OpenRouter request failed (HTTP {status}). Check server configuration or retry later.')
+
+
+def http_status_error(response, current):
+    """Bound error reads; malformed/oversized bodies retain the HTTP verdict."""
+    data = bytearray()
+    try:
+        for chunk in response.iter_bytes():
+            current()
+            if len(data) + len(chunk) > MAX_ERROR_BYTES:
+                return status_error(response.status_code)
+            data.extend(chunk)
+        document = json.loads(data)
+        error = document.get('error') if isinstance(document, dict) else None
+        return status_error(response.status_code, error)
+    except (ValueError, UnicodeError, RecursionError, httpx.HTTPError):
+        return status_error(response.status_code)
+
+
 def provider_stream_error(error):
     """Classify a provider envelope without exposing its upstream message.
 
@@ -51,7 +79,7 @@ def provider_stream_error(error):
         if error_type == 'rate_limit_exceeded':
             code = 429
         if type(code) is int and 400 <= code <= 599:
-            return ProviderStatusError(code, f'OpenRouter request failed (HTTP {code}). Check server configuration or retry later.')
+            return status_error(code, error)
         if code == 'server_error' or error_type == 'server_error':
             return ProviderStatusError(500, 'OpenRouter server error. Retry when the service is available.')
     return QuestionGenerationError('OpenRouter reported a provider error. Check server configuration or retry later.')
@@ -69,10 +97,12 @@ def strict_schema(schema):
     return schema
 
 
-def payload(model, messages, schema, *, reasoning, max_tokens, free=False):
+def payload(model, messages, schema, *, reasoning, max_tokens, free=False, provider_only=None):
     """One guarded request body; routes without the exact contract are excluded."""
     if free and not model.endswith(':free'):
         raise QuestionGenerationError('Free practice requires a free model. No paid request was sent.')
+    if free and model == RETIRED_FREE_MODEL:
+        raise QuestionGenerationError('This room uses an older free model that conflicts with the app’s privacy settings. Create another room to use the updated free route; retrying this room will not change its saved model.')
     prices = {'prompt': 0, 'completion': 0, 'request': 0} if free else {'prompt': .30, 'completion': 1.20, 'request': 0}
     return {'model': model, 'messages': messages, 'reasoning': reasoning,
         'max_tokens': max_tokens, 'stream': True,
@@ -80,7 +110,8 @@ def payload(model, messages, schema, *, reasoning, max_tokens, free=False):
         'response_format': {'type': 'json_schema', 'json_schema': {
             'name': schema.__name__, 'strict': True, 'schema': strict_schema(schema.model_json_schema())}},
         'provider': {'allow_fallbacks': False, 'require_parameters': True,
-            'data_collection': 'deny', 'max_price': prices}}
+            'data_collection': 'deny', 'max_price': prices,
+            **({'only': list(provider_only)} if provider_only else {})}}
 
 
 class StructuredStream:
@@ -141,7 +172,7 @@ def stream(client, *, api_key, body, schema, current, on_usage):
     try:
         with client.stream('POST', ENDPOINT, json=body, headers={'Authorization': 'Bearer ' + api_key}) as response:
             if response.status_code != 200:
-                raise ProviderStatusError(response.status_code, f'OpenRouter request failed (HTTP {response.status_code}). Check server configuration or retry later.')
+                raise http_status_error(response, current)
             yield StructuredStream(response, schema, current, on_usage)
     except httpx.HTTPError:
         raise ProviderConnectionError('OpenRouter connection failed. Retry when the service is available.') from None

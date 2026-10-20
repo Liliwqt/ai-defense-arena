@@ -10,7 +10,7 @@ from time import monotonic
 import httpx
 
 from backend.question_generator import QuestionGenerationError
-from backend.practice_tiers import FREE, FREE_MODEL, validate_tier
+from backend.practice_tiers import FREE, FREE_MODEL, FREE_PROVIDER, FREE_CONTEXT_TOKENS, validate_tier
 from backend.provider_allowance import ProviderAllowance, AllowanceError, reported_nano
 from backend.openrouter_stream import ENDPOINT, payload, strict_schema, stream as open_stream
 
@@ -28,13 +28,16 @@ class MappingPolicy:
     model: str = MODEL
     reasoning_tokens: int | None = None
     request_limit: int | None = None
+    context_tokens: int | None = None
+    provider_only: list[str] | None = None
 
     @classmethod
     def configured(cls, tier='standard'):
         validate_tier(tier)
         if tier == FREE:
             return cls(max_output_tokens=16384, tier=FREE, model=FREE_MODEL,
-                       reasoning_tokens=4096, request_limit=3)
+                       reasoning_tokens=4096, request_limit=3,
+                       context_tokens=FREE_CONTEXT_TOKENS, provider_only=[FREE_PROVIDER])
         try:
             output = int(os.getenv('OPENROUTER_MAPPING_MAX_OUTPUT_TOKENS', '65536'))
             ceiling = Decimal(os.getenv('OPENROUTER_PREPARATION_USD', '0.75'))
@@ -85,11 +88,13 @@ class MappingClient:
         schema = strict_schema(text_format.model_json_schema())
         reasoning = {'effort': 'high'} if self.policy.reasoning_tokens is None else {'max_tokens': self.policy.reasoning_tokens}
         body = payload(self.policy.model, input, text_format, reasoning={**reasoning, 'exclude': True},
-                       max_tokens=self.policy.max_output_tokens, free=self.policy.tier == FREE)
+                       max_tokens=self.policy.max_output_tokens, free=self.policy.tier == FREE,
+                       provider_only=self.policy.provider_only)
         # Byte fallback is a conservative token bound; include schema/message
         # serialization and a fixed allowance for provider framing, never truncate.
         input_bound = len(json.dumps({'messages': input, 'schema': schema}, ensure_ascii=False).encode()) + 8192
-        if input_bound + self.policy.max_output_tokens > (1_000_000 if self.policy.tier == FREE else 1_048_576):
+        context = self.policy.context_tokens or (1_000_000 if self.policy.tier == FREE else 1_048_576)
+        if input_bound + self.policy.max_output_tokens > context:
             raise QuestionGenerationError('The accepted material exceeds the bounded OpenRouter mapping context. Reduce the material; it was not truncated.')
         bound = input_bound * self.policy.input_nano_per_token + self.policy.max_output_tokens * self.policy.output_nano_per_token
         try:

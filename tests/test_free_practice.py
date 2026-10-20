@@ -15,7 +15,7 @@ from backend.live_store import LiveStore
 from backend.openrouter_mapping import MappingClient, MappingPolicy
 from backend.openrouter_questions import RunQuestionPolicy, establish_run_allowance
 from backend.openrouter_stream import payload
-from backend.practice_tiers import FREE_MODEL
+from backend.practice_tiers import FREE_MODEL, FREE_CONTEXT_TOKENS, RETIRED_FREE_MODEL
 from backend.provider_allowance import ProviderAllowance, AllowanceError
 from backend.question_generator import QuestionGenerationError, QuestionDraft
 from backend.research_plan import ResearchPlanDraft
@@ -28,15 +28,61 @@ from tests import test_research_plan as maps
 
 
 class FreePolicyTests(IsolatedAllowanceTests):
+    def test_mapping_selects_a_free_route_compatible_with_no_collection(self):
+        calls = []
+        def provider(request):
+            body = json.loads(request.content)
+            calls.append(body)
+            if body['model'] == 'nvidia/nemotron-3.5-super-vl:free' and body['provider']['data_collection'] == 'deny':
+                return httpx.Response(404, json={'error': {'code': 404,
+                    'message': 'No endpoints found matching your data policy.'}})
+            self.assertEqual(body['model'], 'xingchen-agi/xing4.0-29b-a4b:free')
+            self.assertEqual(body['provider']['only'], ['phala'])
+            self.assertEqual(body['provider']['data_collection'], 'deny')
+            self.assertEqual(body['provider']['max_price'], {'prompt': 0, 'completion': 0, 'request': 0})
+            return stream_response(maps.draft(), usage={'cost': 0})
+        with patch('httpx.Client', side_effect=lambda **kw: HTTPClient(transport=httpx.MockTransport(provider))):
+            client = MappingClient('compatible-free-map', 'owner', tier='free')
+            result = client.parse(input=[], text_format=ResearchPlanDraft)
+        self.assertEqual(len(result.output_parsed.topics), 4)
+        self.assertEqual(len(calls), 1)
+
     def test_free_policy_routes_every_task_to_free_model_and_rejects_large_budget(self):
         policy = establish_run_allowance('free-run', 'owner', self.files, 8, tier='free')
         self.assertEqual(set(policy.reviewer_models.values()), {FREE_MODEL})
         self.assertEqual(policy.planner_model, FREE_MODEL)
         self.assertEqual(policy.coaching_model, FREE_MODEL)
+        self.assertEqual(policy.provider_only, ['phala'])
+        self.assertEqual(policy.context_tokens, FREE_CONTEXT_TOKENS)
         with self.assertRaisesRegex(ValueError, 'up to 8'):
             establish_run_allowance('too-long', 'owner', self.files, 9, tier='free')
         with self.assertRaisesRegex(QuestionGenerationError, 'tier is fixed'):
             establish_run_allowance('free-run', 'owner', self.files, 8)
+
+    def test_legacy_preparation_stays_fixed_and_requires_new_room_without_dispatch(self):
+        saved = asdict(MappingPolicy.configured('free'))
+        saved.update(model=RETIRED_FREE_MODEL, provider_only=None, context_tokens=1000000)
+        allowance = ProviderAllowance('legacy-map', 'owner')
+        allowance.establish(saved['allowance_nano'], saved)
+        with patch('httpx.Client') as http:
+            with self.assertRaisesRegex(QuestionGenerationError, 'Create another room'):
+                MappingClient('legacy-map', 'owner', tier='free').parse(input=[], text_format=ResearchPlanDraft)
+        http.assert_not_called()
+        self.assertEqual(allowance.policy(), saved)
+        self.assertEqual(allowance.snapshot()['used'], 0)
+
+    def test_free_context_refuses_oversized_mapping_and_coaching_before_dispatch(self):
+        from backend.openrouter_questions import RunQuestionClient
+        from backend.question_generator import CoachingDraft
+        large = [{'role': 'user', 'content': 'x' * FREE_CONTEXT_TOKENS}]
+        establish_run_allowance('context-run', 'owner', self.files, 4, tier='free')
+        with patch('httpx.Client') as http:
+            with self.assertRaisesRegex(QuestionGenerationError, 'context'):
+                MappingClient('context-map', 'owner', tier='free').parse(input=large, text_format=ResearchPlanDraft)
+            with self.assertRaisesRegex(QuestionGenerationError, 'context'):
+                RunQuestionClient('context-run', 'owner', self.session, self.files).coaching().parse(
+                    input=large, text_format=CoachingDraft)
+        http.assert_not_called()
 
     def test_free_payload_requires_free_suffix_and_zero_price_fence(self):
         body = payload(FREE_MODEL, [], QuestionDraft, reasoning={'max_tokens': 512}, max_tokens=4096, free=True)
@@ -232,6 +278,7 @@ class FreeRoomTests(unittest.TestCase):
                 self.assertEqual(states[0]['feedback'], states[1]['feedback'])
                 self.assertEqual(len(states[0]['feedback']['answer_cards']), 4)
         self.assertTrue(all(body['model'] == FREE_MODEL for body in router.calls))
+        self.assertTrue(all(body['provider']['only'] == ['phala'] for body in router.calls))
         self.assertTrue(all(body['provider']['max_price'] == {'prompt': 0, 'completion': 0, 'request': 0} for body in router.calls))
         with account_store.connect_store(account_store.database_path()) as db:
             row = db.execute('SELECT cost FROM defense_runs WHERE id=?', (room.run_id,)).fetchone()
