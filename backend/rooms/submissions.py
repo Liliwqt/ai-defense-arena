@@ -10,13 +10,16 @@ from fastapi import HTTPException
 from backend.project_files import ProjectFile
 from backend.question_generator import (
     DEFAULT_MODEL, GroundedQuestion, AnsweredQuestion, ClarificationExchange,
-    PanelistProbe, SubmissionDecision, interpret_submission,
+    CombinedSubmissionDraft, PanelistProbe, QuestionGenerationError, SubmissionDecision,
+    interpret_submission,
 )
-from backend.openrouter_questions import RunQuestionClient, run_scope
+from backend.openrouter_questions import (
+    COMBINED_PLANNING, COMBINED_PLANNING_GUIDANCE, RunQuestionClient, run_scope,
+)
 from backend.processing_policy import ProcessingWindowExpired, decide_retry
 from backend.resource_limits import limit
 from backend.timed_turn import PendingSubmission, DeadlineExpired
-from backend.defense_session import ResearchDefenseSession
+from backend.defense_session import PlannedMove, ResearchDefenseSession
 from backend.rooms.commands import (
     CommandResult, VerifiedActor, SubmissionCommand, SubmitAnswer,
     SubmitDirectAnswer, SubmitProbeReply, DiscardVoiceDraft, FinishProbe, RetryInterpretation, UsePendingAnswer,
@@ -53,38 +56,63 @@ class InterpretationInput:
     provider_scope: str | None = None
     provider_owner: str | None = None
     provider_stopped: Callable[[], bool] | None = None
+    planning_contract: str = ''
+    planning_session: ResearchDefenseSession | None = None
+    recovery_namespace: str | None = None
 
 
 def capture_interpretation(room: "Room", pending: PendingSubmission, *,
                            provider_stopped: Callable[[], bool] | None = None) -> InterpretationInput:
     """Capture under the room lock; mutable probe/history data is detached."""
     turn = room.defense.turns[pending.turn]
-    context = room.defense.context() if isinstance(room.defense, ResearchDefenseSession) else None
+    research = isinstance(room.defense, ResearchDefenseSession)
+    context = room.defense.context() if research else None
     if context is not None:
         context = copy.deepcopy(context)
         context["current_topic"] = turn.topic_id
-    funded = bool(room.run_id and room.owner_account_id
-                  and isinstance(room.defense, ResearchDefenseSession))
+    funded = bool(room.run_id and room.owner_account_id and research)
+    combined = (funded and pending.probe_id is None
+                and room.planning_contract == COMBINED_PLANNING)
+    planning_session = None
+    if combined:
+        planning_session = copy.deepcopy(room.defense)
+        prospective = planning_session.turns[pending.turn]
+        prospective.answer = pending.text
+        prospective.speaker_name = pending.name
+        prospective.input_provenance = pending.input_provenance
+        context = planning_session.context()
+        context["current_topic"] = prospective.topic_id
     return InterpretationInput(pending, tuple(room.files), turn.panelist, turn.question,
         tuple(turn.clarifications), tuple(copy.deepcopy(room.defense.answered_history())),
         room.defense_type, room.research_stage, copy.deepcopy(turn.probe) if pending.probe_id else None,
         turn.answer, turn.speaker_name, context,
         provider_scope=run_scope(room.run_id) if funded else None,
         provider_owner=room.owner_account_id if funded else None,
-        provider_stopped=provider_stopped if funded else None)
+        provider_stopped=provider_stopped if funded else None,
+        planning_contract=room.planning_contract,
+        planning_session=planning_session,
+        recovery_namespace=(f'{room.code}:{room.defense_view_id}:{room.preparation_id}'
+                            if combined else None))
 
 
 InterpretationRequest = Callable[[InterpretationInput], Awaitable[SubmissionDecision]]
 
 
 async def request_interpretation(request: InterpretationInput) -> SubmissionDecision:
-    client = None
+    funded = None
+    combined = (request.planning_session is not None
+                and request.planning_contract == COMBINED_PLANNING)
     if request.provider_scope and request.provider_owner:
-        client = RunQuestionClient(request.provider_scope, request.provider_owner, None,
-                                   request.files,
-                                   stopped=request.provider_stopped or (lambda: False)
-                                   ).interaction(request.panelist)
-    return await asyncio.to_thread(
+        funded = RunQuestionClient(request.provider_scope, request.provider_owner,
+                                   request.planning_session, request.files,
+                                   stopped=request.provider_stopped or (lambda: False))
+    client = funded.interaction(request.panelist, combined=combined) if funded else None
+    extra = {}
+    if combined:
+        extra.update(text_format=CombinedSubmissionDraft,
+                     planning_context=request.research_context,
+                     planning_guidance=COMBINED_PLANNING_GUIDANCE)
+    decision = await asyncio.to_thread(
         interpret_submission, list(request.files), None,
         panelist=request.panelist, question=request.question, submission=request.pending.text,
         clarifications=request.clarifications, history=request.history,
@@ -94,7 +122,20 @@ async def request_interpretation(request: InterpretationInput) -> SubmissionDeci
         **({"probe": request.probe, "original_answer": request.original_answer,
             "original_speaker_name": request.original_speaker_name,
             "speaker_name": request.pending.name} if request.probe else {}),
+        **extra,
     )
+    if not combined or decision.action != 'answer':
+        return decision
+    if decision.plan is None:
+        raise QuestionGenerationError('The AI returned an incomplete research plan. Please retry.')
+    planned = PlannedMove(decision.plan.panelist, decision.plan.topic_id,
+                          decision.plan.is_follow_up, decision.plan.assessment)
+    request.planning_session.validate_plan(planned)
+    identity = funded.plan_identity(
+        history=request.planning_session.answered_history(),
+        context=request.planning_session.context(),
+        defense_type=request.defense_type, research_stage=request.research_stage)
+    return replace(decision, plan_identity=identity)
 
 
 async def run_interpretation(owner: "RoomCoordinator", work: InterpretationWork,
@@ -228,6 +269,12 @@ async def run_interpretation(owner: "RoomCoordinator", work: InterpretationWork,
                 if not room.interpretation_failed(work.interpretation_id, work.pending, str(failure), now):
                     return
                 outcome = "failed"
+            if (outcome == "answered" and decision is not None and decision.plan is not None
+                    and decision.plan_identity and request.recovery_namespace):
+                room.question_recovery.seed(
+                    request.recovery_namespace, decision.plan_identity,
+                    PlannedMove(decision.plan.panelist, decision.plan.topic_id,
+                                decision.plan.is_follow_up, decision.plan.assessment))
         if outcome is None:
             room.finish_operation(now, "failed")
             room.clear_interaction_window()

@@ -35,9 +35,11 @@ def reserve_room_run(owner: "RoomCoordinator", account_id: str, confirmed: bool,
             raise AccessError("Confirm the current research profile and question budget before starting.")
         from backend.openrouter_questions import establish_run_allowance, run_scope
         try:
-            establish_run_allowance(run_scope(run_id), account_id, room.files, budget, tier=room.practice_tier)
+            policy = establish_run_allowance(run_scope(run_id), account_id, room.files,
+                                             budget, tier=room.practice_tier)
         except QuestionGenerationError as failure:
             raise AccessError(str(failure)) from None
+        room.planning_contract = policy.planning_contract
     if live_mode():
         from backend.account_store import account_access
         if not free_tier and not account_access(account_id)['free_access']:

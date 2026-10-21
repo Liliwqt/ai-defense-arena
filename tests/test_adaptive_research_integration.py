@@ -9,6 +9,7 @@ from tests.research_coaching_fixtures import with_cards, scope_options
 import unittest
 from unittest.mock import patch
 
+from backend.openrouter_questions import SEPARATE_PLANNING
 from backend.question_generator import (
     CoachingDraft, InvalidQuestionResponse, QuestionGenerationError,
     RESEARCH_PANELISTS, SubmissionDraft, generate_coaching_report,
@@ -153,6 +154,8 @@ class AdaptiveResearchIntegrationTests(unittest.TestCase):
             for index in range(12):
                 for socket in (h, g):
                     voting = self.until(socket, "voting", index + 1)
+                    if index == 0:
+                        coverage.game_server.rooms[code].planning_contract = SEPARATE_PLANNING
                     self.assertEqual(voting["research_plan"]["profile"], fixed)
                     turn = voting["turns"][-1]
                     expected = "    save_reservation(student_id)" if turn["filename"] == "queue.py" else PAPER.splitlines()[turn["evidence_line"] - 1]

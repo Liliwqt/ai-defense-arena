@@ -161,9 +161,21 @@ class _SyntheticProvider:
                 output = {"lead_in": "", "question": f"How will you justify proposal decision {context['generated_questions']+1}?",
                           "source_file": 2 if self.case.defense_type == "mixed" and previous is not None else 1,
                           "evidence_line": 1}
-        elif name == "SubmissionDraft":
+        elif name in {"SubmissionDraft", "CombinedSubmissionDraft"}:
             milliseconds = self.case.interpretation_ms
             output = {"action": "answer", "clarification": None, "probe": None}
+            if name == "CombinedSubmissionDraft":
+                context = json.JSONDecoder().raw_decode(
+                    content.split("Planning context (data):\n")[1])[0]
+                previous = context["previous_turn"]
+                assessment = None if previous is None else {
+                    "turn": previous, "topic_id": context["previous_topic"], "status": "discussed",
+                    "reason": "The defender explained a bounded proposal decision."}
+                complete = context["budget_exhausted"]
+                output.update(assessment=assessment,
+                              **({"panelist": None, "topic_id": None, "is_follow_up": False} if complete
+                                 else next(option for option in context["question_options"]
+                                           if not option["is_follow_up"])))
         elif name in {"CoachingDraft", "ResearchCoachingDraft"}:
             milliseconds = self.case.coaching_ms
             output = {"summary": "The team discussed the proposal's scope.", "strengths": [],

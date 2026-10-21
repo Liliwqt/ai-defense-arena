@@ -32,6 +32,7 @@ from backend.question_generator import (
     ResearchMove, TopicAssessmentDraft, GroundedCitation,
 )
 from backend.research_files import combine_sources, read_research_files
+from backend.openrouter_questions import SEPARATE_PLANNING
 from backend.research_plan import ResearchPlan, ResearchTopic
 
 
@@ -382,6 +383,8 @@ class ResearchTwoClientTests(unittest.TestCase):
                         for turn in range(len(roles)):
                             for ws in (host_ws, guest_ws):
                                 state = self.until(ws, 'voting', turn + 1)
+                                if turn == 0:
+                                    game_server.rooms[host['room_code']].planning_contract = SEPARATE_PLANNING
                                 self.assertEqual(state['turns'][-1]['panelist'], roles[turn])
                                 self.assertEqual(state['turns'][-1]['evidence_text'], 'Planned student interviews')
                                 self.assertEqual(state['turns'][-1]['evidence_location'], 'Page 1 · extracted line 1')
@@ -438,6 +441,7 @@ class ResearchTwoClientTests(unittest.TestCase):
                 self.until(host_ws, 'lobby')
                 host_ws.send_json(start)
                 self.until(host_ws, 'voting', 1)
+                game_server.rooms[host['room_code']].planning_contract = SEPARATE_PLANNING
                 host_ws.send_json({'type': 'cast_vote', 'seat': 0})
                 self.until(host_ws, 'voting', 1)
                 self.now += VOTE_MS + 1

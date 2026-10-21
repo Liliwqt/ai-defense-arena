@@ -34,6 +34,8 @@ from tests import test_provider_allowance
 from tests import test_openrouter_coaching
 from tests import test_openrouter_checkpoint
 from tests import test_free_practice
+from tests import test_combined_planning
+from tests import test_openrouter_questions
 
 
 class LocalDatabase:
@@ -55,6 +57,22 @@ class LocalDatabase:
         env.start()
         self.addCleanup(env.stop)
         super().setUp()
+
+
+class PostgresCombinedInteractions(LocalDatabase, test_combined_planning.CombinedFundedTests):
+    def setUp(self):
+        super().setUp()
+        # The shared provider fixture normally isolates SQLite. Restore the
+        # disposable PostgreSQL adapter for this real concurrency/hold gate.
+        env = patch.dict(os.environ, {'DATABASE_URL': self.pg_url})
+        env.start()
+        self.addCleanup(env.stop)
+        from backend.openrouter_questions import establish_run_allowance
+        self.policy = establish_run_allowance(self.scope, 'owner', self.files, 4)
+
+
+class PostgresCombinedRounds(LocalDatabase, test_openrouter_questions.FundedQuestionRoundsTests):
+    pass
 
 
 class PostgresFreePolicy(LocalDatabase, test_free_practice.FreePolicyTests):

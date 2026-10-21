@@ -70,6 +70,15 @@ class QuestionPlanRecovery:
             self._token = object()
             return QuestionPlanLease(self, self._token)
 
+    def seed(self, namespace: str, identity: str, plan: "PlannedMove") -> None:
+        with self._lock:
+            if namespace != self._namespace:
+                self._namespace = namespace
+            self._token = object()
+            self._identity = identity
+            self._plan = deepcopy(plan)
+            self._stage = 'writing'
+
     def invalidate(self, *, keep_plan: bool = False) -> None:
         with self._lock:
             self._token = object()

@@ -2,6 +2,7 @@
 
 import json
 import os
+from dataclasses import asdict
 from pathlib import Path
 import tempfile
 import unittest
@@ -12,17 +13,17 @@ import httpx
 from backend import game_server
 from backend.defense_session import PlannedMove, ResearchDefenseSession
 from backend.openrouter_questions import (
-    FRAMING_BYTES, RunQuestionClient, RunQuestionPolicy, establish_run_allowance,
+    COMBINED_PLANNING, FRAMING_BYTES, RunQuestionClient, RunQuestionPolicy,
+    SEPARATE_PLANNING, establish_run_allowance,
 )
 from backend.provider_allowance import ProviderAllowance
 from backend.project_files import ProjectFile
 from backend.question_generator import (
     CoachingReport, GroundedQuestion, QuestionGenerationError, RESEARCH_PANELISTS, ResearchMove,
-    SubmissionDecision, TopicAssessmentDraft,
+    TopicAssessmentDraft,
 )
 from backend.rooms import coaching as coaching_workflow
 from backend.rooms import planning as planning_workflow
-from backend.rooms import submissions as submission_workflow
 from backend.rooms.commands import CatchUpDeadline
 from backend.timed_turn import VOTE_MS
 from tests import test_research_coverage as coverage
@@ -73,6 +74,18 @@ class IsolatedAllowanceTests(unittest.TestCase):
 
 
 class FundedQuestionPolicyTests(IsolatedAllowanceTests):
+
+    def test_standard_uses_the_versioned_combined_contract_and_legacy_snapshots_stay_separate(self):
+        with patch.dict(os.environ, {'OPENROUTER_RUN_USD': '5.00'}):
+            policy = RunQuestionPolicy.configured()
+        self.assertEqual(policy.planning_contract, COMBINED_PLANNING)
+        self.assertEqual(policy.combined_output_tokens, 6144)
+        stored = asdict(policy)
+        stored.pop('planning_contract')
+        self.assertEqual(RunQuestionPolicy(**stored).planning_contract, SEPARATE_PLANNING)
+        self.assertGreater(policy.question_bound(self.files, 4),
+                           RunQuestionPolicy(**stored).question_bound(self.files, 4))
+
     def test_ceiling_configuration_is_bounded_and_explicit(self):
         with patch.dict(os.environ, {'OPENROUTER_RUN_USD': '5.00'}):
             policy = RunQuestionPolicy.configured()
@@ -151,6 +164,7 @@ class FundedQuestionClientTests(IsolatedAllowanceTests):
         self.assertEqual(move.question.question, 'How will the team justify the stated pilot design?')
         self.assertEqual((move.question.filename, move.question.evidence_line), ('study.md', 4))
         self.assertEqual(ProviderAllowance('run:client', 'owner').snapshot()['used'], 1_000_000)
+
 
     def test_ineligible_plan_is_rejected_before_any_reviewer_request(self):
         def handler(request):
@@ -330,7 +344,6 @@ class FundedQuestionClientTests(IsolatedAllowanceTests):
         self.assertNotIn('any reviewer may cite paper or implementation', research)
         self.assertIn('In mixed mode any reviewer may cite paper or implementation.', mixed)
 
-
     def test_processing_deadline_stops_writer_before_dispatch(self):
         import asyncio
         from backend.processing_policy import ProcessingPolicy
@@ -379,7 +392,6 @@ class FundedQuestionClientTests(IsolatedAllowanceTests):
         self.assertIn('limit', room.error)
         self.assertFalse(room.defense.turns)
         self.assertIsNone(room.operation)
-
 
 
 class FundedQuestionProtocolTests(maps.ResearchPlanRoomTests):
@@ -510,14 +522,27 @@ class FundedQuestionRoundsTests(coverage.CoverageProtocolTests):
         return host, guest
 
     def test_two_client_funded_defense_settles_every_stage_and_completes_at_budget(self):
-        outputs, questions = [], []
-        for index, role in enumerate(RESEARCH_PANELISTS):
-            prior = None if index == 0 else assessment(f'topic-{index}', index - 1)
-            outputs.append(planner_move(role, f'topic-{index + 1}', assessment=prior))
-            questions.append(f'Funded question {index + 1}?')
-            outputs.append(reviewer_question(questions[-1], evidence_line=index * 2 + 4,
-                                             lead_in='' if index == 0 else 'You described the pilot decision.'))
-        outputs.append(planner_move(None, None, action='complete', assessment=assessment('topic-4', 3)))
+        questions = [f'Funded question {index + 1}?' for index in range(4)]
+        outputs = [planner_move(METHODOLOGY, 'topic-1'),
+                   reviewer_question(questions[0], evidence_line=4),
+                   {'action': 'answer', 'clarification': None, 'probe': None,
+                    'assessment': assessment('topic-1', 0),
+                    'panelist': ETHICS, 'topic_id': 'topic-2', 'is_follow_up': False},
+                   reviewer_question(questions[1], evidence_line=6,
+                                     lead_in='You described the pilot decision.'),
+                   {'action': 'answer', 'clarification': None, 'probe': None,
+                    'assessment': assessment('topic-2', 1),
+                    'panelist': IMPACT, 'topic_id': 'topic-3', 'is_follow_up': False},
+                   reviewer_question(questions[2], evidence_line=8,
+                                     lead_in='You described the pilot decision.'),
+                   {'action': 'answer', 'clarification': None, 'probe': None,
+                    'assessment': assessment('topic-3', 2),
+                    'panelist': JUDGE, 'topic_id': 'topic-4', 'is_follow_up': False},
+                   reviewer_question(questions[3], evidence_line=10,
+                                     lead_in='You described the pilot decision.'),
+                   {'action': 'answer', 'clarification': None, 'probe': None,
+                    'assessment': assessment('topic-4', 3),
+                    'panelist': None, 'topic_id': None, 'is_follow_up': False}]
 
         def coach(files, history, key, model, **kwargs):
             draft = CoachingReport(summary='The approved budget ended.', strengths=[], improvements=[],
@@ -526,7 +551,6 @@ class FundedQuestionRoundsTests(coverage.CoverageProtocolTests):
         host, guest = self.create_room()
         code = host['room_code']
         with patch.object(planning_workflow, 'generate_research_plan', return_value=self.plan), \
-             patch.object(submission_workflow, 'interpret_submission', return_value=SubmissionDecision('answer')), \
              patch.object(coaching_workflow, 'generate_coaching_report', side_effect=coach):
             with self.client.websocket_connect(f'/ws/{code}') as h, self.client.websocket_connect(f'/ws/{code}') as g:
                 calls = self.funded(*outputs)
@@ -546,6 +570,10 @@ class FundedQuestionRoundsTests(coverage.CoverageProtocolTests):
                         state = self.until(socket, 'voting', index + 1)
                         self.assertEqual(state['turns'][-1]['question'], questions[index])
                         self.assertEqual(state['turns'][-1]['panelist'], RESEARCH_PANELISTS[index])
+                        if index:
+                            self.assertEqual(state['turns'][-2]['answered_by'],
+                                             'Host' if (index - 1) % 2 == 0 else 'Sam')
+                            self.assertEqual(state['turns'][-2]['answer'], f'Answer {index}.')
                     h.send_json({'type': 'cast_vote', 'seat': index % 2})
                     for socket in (h, g):
                         self.until(socket, 'voting', index + 1)
@@ -563,18 +591,176 @@ class FundedQuestionRoundsTests(coverage.CoverageProtocolTests):
                     self.assertEqual(final['feedback']['summary'], 'The approved budget ended.')
         self.assertEqual([call['model'] for call in calls],
                          ['z-ai/glm-5.3-flash', 'deepseek/deepseek-v4.1-flash-1017',
-                          'z-ai/glm-5.3-flash', 'anthropic/claude-haiku-5.5',
-                          'z-ai/glm-5.3-flash', 'qwen/qwen3.8-flash',
-                          'z-ai/glm-5.3-flash', 'z-ai/glm-5.3-flash',
+                          'deepseek/deepseek-v4.1-flash-1017', 'anthropic/claude-haiku-5.5',
+                          'anthropic/claude-haiku-5.5', 'qwen/qwen3.8-flash',
+                          'qwen/qwen3.8-flash', 'z-ai/glm-5.3-flash',
                           'z-ai/glm-5.3-flash'])
+        self.assertEqual([call['response_format']['json_schema']['name'] for call in calls],
+                         ['PlanDraft', 'QuestionDraft',
+                          'CombinedSubmissionDraft', 'QuestionDraft',
+                          'CombinedSubmissionDraft', 'QuestionDraft',
+                          'CombinedSubmissionDraft', 'QuestionDraft',
+                          'CombinedSubmissionDraft'])
         self.assertEqual([call['reasoning'] for call in calls],
-                         [{'effort': 'low'}, {'effort': 'high'}, {'effort': 'low'}, {'effort': 'medium'},
-                          {'effort': 'low'}, {'max_tokens': 2048}, {'effort': 'low'}, {'effort': 'high'},
-                          {'effort': 'low'}])
+                         [{'effort': 'low'}, {'effort': 'high'}, {'effort': 'low'},
+                          {'effort': 'medium'}, {'effort': 'low'}, {'max_tokens': 2048},
+                          {'max_tokens': 1024}, {'effort': 'high'}, {'effort': 'low'}])
         account = self._offline_credentials[2]
         room = game_server.rooms[code]
+        self.assertEqual(room.planning_contract, COMBINED_PLANNING)
         snapshot = ProviderAllowance(f'run:{room.run_id}', account['id']).snapshot()
         self.assertEqual(snapshot['used'], 4_500_000)
+
+    def create_mixed_room(self):
+        files = [('research_files', ('study.md', PAPER.encode(), 'text/markdown')),
+                 ('files', ('queue.py', b'queue = []\n', 'text/x-python'))]
+        response = self.client.post('/api/rooms', data={'host_name': 'Host', 'host_passcode': 'offline-passcode',
+                                                        'defense_type': 'mixed', 'research_stage': 'proposal'},
+                                    files=files)
+        self.assertEqual(response.status_code, 201, response.text)
+        host = response.json()
+        guest = self.client.post(f"/api/rooms/{host['room_code']}/join", json={'name': 'Sam'}).json()
+        return host, guest
+
+    def test_four_question_funded_mixed_run_uses_combined_planning_and_cites_code(self):
+        questions = [f'Mixed combined question {index + 1}?' for index in range(4)]
+        outputs = [planner_move(METHODOLOGY, 'topic-1'),
+                   reviewer_question(questions[0], source_file=1, evidence_line=1),
+                   {'action': 'answer', 'clarification': None, 'probe': None,
+                    'assessment': assessment('topic-1', 0),
+                    'panelist': ETHICS, 'topic_id': 'topic-2', 'is_follow_up': False},
+                   reviewer_question(questions[1], source_file=1, evidence_line=1,
+                                     lead_in='You described the pilot decision.'),
+                   {'action': 'answer', 'clarification': None, 'probe': None,
+                    'assessment': assessment('topic-2', 1),
+                    'panelist': IMPACT, 'topic_id': 'topic-3', 'is_follow_up': False},
+                   reviewer_question(questions[2], source_file=1, evidence_line=1,
+                                     lead_in='You described the pilot decision.'),
+                   {'action': 'answer', 'clarification': None, 'probe': None,
+                    'assessment': assessment('topic-3', 2),
+                    'panelist': JUDGE, 'topic_id': 'topic-4', 'is_follow_up': False},
+                   reviewer_question(questions[3], source_file=1, evidence_line=1,
+                                     lead_in='You described the pilot decision.'),
+                   {'action': 'answer', 'clarification': None, 'probe': None,
+                    'assessment': assessment('topic-4', 3),
+                    'panelist': None, 'topic_id': None, 'is_follow_up': False}]
+
+        def coach(files, history, key, model, **kwargs):
+            draft = CoachingReport(summary='The approved budget ended.', strengths=[], improvements=[],
+                                   next_step='Review the remaining topics.', closing='You explained the pilot decisions.')
+            return with_cards(draft, history, **scope_options(kwargs))
+        host, guest = self.create_mixed_room()
+        code = host['room_code']
+        with patch.object(planning_workflow, 'generate_research_plan', return_value=self.plan), \
+             patch.object(coaching_workflow, 'generate_coaching_report', side_effect=coach):
+            with self.client.websocket_connect(f'/ws/{code}') as h, self.client.websocket_connect(f'/ws/{code}') as g:
+                calls = self.funded(*outputs)
+                for socket, token in ((h, host['player_token']), (g, guest['player_token'])):
+                    socket.send_json({'type': 'hello', 'token': token})
+                    self.until(socket, 'lobby')
+                h.send_json({'type': 'prepare_research_plan'})
+                for socket in (h, g):
+                    self.until(socket, research_planning_status='ready')
+                h.send_json({'type': 'approve_research_plan', 'plan_id': self.plan.id,
+                             'question_budget': 4, 'confirm_profile': True})
+                for socket in (h, g):
+                    self.until(socket, research_plan_approved=True)
+                h.send_json({'type': 'start', 'plan_id': self.plan.id, 'question_budget': 4})
+                for index in range(4):
+                    for socket in (h, g):
+                        state = self.until(socket, 'voting', index + 1)
+                        self.assertEqual(state['turns'][-1]['question'], questions[index])
+                        self.assertEqual(state['turns'][-1]['panelist'], RESEARCH_PANELISTS[index])
+                        self.assertEqual(state['turns'][-1]['filename'], 'queue.py')
+                        if index:
+                            self.assertEqual(state['turns'][-2]['answered_by'],
+                                             'Host' if (index - 1) % 2 == 0 else 'Sam')
+                            self.assertEqual(state['turns'][-2]['answer'], f'Answer {index}.')
+                    h.send_json({'type': 'cast_vote', 'seat': index % 2})
+                    for socket in (h, g):
+                        self.until(socket, 'voting', index + 1)
+                    self.now += VOTE_MS + 1
+                    self.client.portal.call(game_server._coordinator(game_server.rooms[code]).execute,
+                                            CatchUpDeadline())
+                    for socket in (h, g):
+                        state = self.until(socket, 'question', index + 1)
+                        self.assertEqual(state['selected_seat'], index % 2)
+                    speaker = h if index % 2 == 0 else g
+                    speaker.send_json({'type': 'submit_answer', 'turn': index, 'answer': f'Answer {index + 1}.'})
+                for socket in (h, g):
+                    final = self.until(socket, 'complete', 4, feedback_status='ready')
+                    self.assertEqual(final['completion_reason'], 'budget exhausted')
+        self.assertEqual([call['response_format']['json_schema']['name'] for call in calls],
+                         ['PlanDraft', 'QuestionDraft',
+                          'CombinedSubmissionDraft', 'QuestionDraft',
+                          'CombinedSubmissionDraft', 'QuestionDraft',
+                          'CombinedSubmissionDraft', 'QuestionDraft',
+                          'CombinedSubmissionDraft'])
+        self.assertEqual(len(calls), 9)
+        room = game_server.rooms[code]
+        self.assertEqual(room.planning_contract, COMBINED_PLANNING)
+        account = self._offline_credentials[2]
+        snapshot = ProviderAllowance(f'run:{room.run_id}', account['id']).snapshot()
+        self.assertEqual(snapshot['used'], 4_500_000)
+
+    def test_invalid_combined_plan_is_rejected_before_the_writer_and_preserves_the_answer(self):
+        outputs = [planner_move(METHODOLOGY, 'topic-1'),
+                   reviewer_question('How will the team justify the stated pilot design?'),
+                   {'action': 'answer', 'clarification': None, 'probe': None,
+                    'assessment': assessment('topic-1', 0),
+                    'panelist': 'unassigned', 'topic_id': 'topic-2', 'is_follow_up': False},
+                   {'action': 'answer', 'clarification': None, 'probe': None,
+                    'assessment': assessment('topic-1', 0),
+                    'panelist': ETHICS, 'topic_id': 'topic-2', 'is_follow_up': False},
+                   reviewer_question('How will the team report claim changes?', evidence_line=6,
+                                     lead_in='You described the pilot decision.')]
+        host, guest = self.create_room()
+        code = host['room_code']
+        with patch.object(planning_workflow, 'generate_research_plan', return_value=self.plan):
+            with self.client.websocket_connect(f'/ws/{code}') as h, self.client.websocket_connect(f'/ws/{code}') as g:
+                calls = self.funded(*outputs)
+                for socket, token in ((h, host['player_token']), (g, guest['player_token'])):
+                    socket.send_json({'type': 'hello', 'token': token})
+                    self.until(socket, 'lobby')
+                h.send_json({'type': 'prepare_research_plan'})
+                for socket in (h, g):
+                    self.until(socket, research_planning_status='ready')
+                h.send_json({'type': 'approve_research_plan', 'plan_id': self.plan.id,
+                             'question_budget': 4, 'confirm_profile': True})
+                for socket in (h, g):
+                    self.until(socket, research_plan_approved=True)
+                h.send_json({'type': 'start', 'plan_id': self.plan.id, 'question_budget': 4})
+                for socket in (h, g):
+                    self.until(socket, 'voting', 1)
+                h.send_json({'type': 'cast_vote', 'seat': 0})
+                for socket in (h, g):
+                    self.until(socket, 'voting', 1)
+                self.now += VOTE_MS + 1
+                self.client.portal.call(game_server._coordinator(game_server.rooms[code]).execute,
+                                        CatchUpDeadline())
+                for socket in (h, g):
+                    self.until(socket, 'question', 1)
+                h.send_json({'type': 'submit_answer', 'turn': 0, 'answer': 'Answer 1.'})
+                for socket in (h, g):
+                    failed = self.until(socket, 'interpretation_retry', 1)
+                    self.assertIn('invalid research topic or reviewer', failed['error'])
+                    self.assertEqual(failed['turns'][0]['answer'], None)
+                room = game_server.rooms[code]
+                self.assertIsNotNone(room.pending_submission)
+                self.assertEqual(room.pending_submission.text, 'Answer 1.')
+                self.assertEqual(len(calls), 3)
+                h.send_json({'type': 'retry_interpretation'})
+                for socket in (h, g):
+                    state = self.until(socket, 'voting', 2)
+                    self.assertEqual(state['turns'][0]['answer'], 'Answer 1.')
+                    self.assertEqual(state['turns'][1]['question'],
+                                     'How will the team report claim changes?')
+        self.assertEqual([call['response_format']['json_schema']['name'] for call in calls],
+                         ['PlanDraft', 'QuestionDraft', 'CombinedSubmissionDraft',
+                          'CombinedSubmissionDraft', 'QuestionDraft'])
+        account = self._offline_credentials[2]
+        snapshot = ProviderAllowance(f'run:{room.run_id}', account['id']).snapshot()
+        self.assertEqual(snapshot['used'], 2_500_000)
 
     def test_transient_failure_after_an_answer_recovers_without_a_manual_retry(self):
         self.check_post_answer_recovery(httpx.Response(503, text='{}'), retry=True)
@@ -599,14 +785,15 @@ class FundedQuestionRoundsTests(coverage.CoverageProtocolTests):
     def check_post_answer_recovery(self, failure, *, retry):
         outputs = [planner_move(METHODOLOGY, 'topic-1'),
                    reviewer_question('How will the team justify the stated pilot design?'),
+                   {'action': 'answer', 'clarification': None, 'probe': None,
+                    'assessment': assessment('topic-1', 0),
+                    'panelist': ETHICS, 'topic_id': 'topic-2', 'is_follow_up': False},
                    failure,
-                   planner_move(ETHICS, 'topic-2', assessment=assessment('topic-1', 0)),
                    reviewer_question('How will the team report claim changes?', evidence_line=6,
                                      lead_in='You described the pilot decision.')]
         host, guest = self.create_room()
         code = host['room_code']
-        with patch.object(planning_workflow, 'generate_research_plan', return_value=self.plan), \
-             patch.object(submission_workflow, 'interpret_submission', return_value=SubmissionDecision('answer')):
+        with patch.object(planning_workflow, 'generate_research_plan', return_value=self.plan):
             with self.client.websocket_connect(f'/ws/{code}') as h, self.client.websocket_connect(f'/ws/{code}') as g:
                 calls = self.funded(*outputs)
                 for socket, token in ((h, host['player_token']), (g, guest['player_token'])):
@@ -642,17 +829,18 @@ class FundedQuestionRoundsTests(coverage.CoverageProtocolTests):
                         self.assertNotIn('private upstream details', state['error'])
                 room = game_server.rooms[code]
                 self.assertIsNone(room.question_retry_generation_id)
-        expected_models = ['z-ai/glm-5.3-flash', 'deepseek/deepseek-v4.1-flash-1017', 'z-ai/glm-5.3-flash']
+        expected_models = ['z-ai/glm-5.3-flash', 'deepseek/deepseek-v4.1-flash-1017',
+                           'deepseek/deepseek-v4.1-flash-1017', 'anthropic/claude-haiku-5.5']
         if retry:
-            expected_models += ['z-ai/glm-5.3-flash', 'anthropic/claude-haiku-5.5']
+            expected_models.append('anthropic/claude-haiku-5.5')
         self.assertEqual([call['model'] for call in calls], expected_models)
         account = self._offline_credentials[2]
         snapshot = ProviderAllowance(f'run:{room.run_id}', account['id']).snapshot()
         policy = RunQuestionPolicy(**ProviderAllowance(f'run:{room.run_id}', account['id']).policy())
         failed = policy.stage_bound(len(json.dumps(
-            {'messages': calls[2]['messages'], 'schema': calls[2]['response_format']},
-            ensure_ascii=False).encode()) + FRAMING_BYTES, calls[2]['max_tokens'])
-        self.assertEqual(snapshot['used'], (2_000_000 if retry else 1_000_000) + failed)
+            {'messages': calls[3]['messages'], 'schema': calls[3]['response_format']},
+            ensure_ascii=False).encode()) + FRAMING_BYTES, calls[3]['max_tokens'])
+        self.assertEqual(snapshot['used'], (2_000_000 if retry else 1_500_000) + failed)
         self.assertEqual(snapshot['remaining'], snapshot['ceiling'] - snapshot['used'])
 
 

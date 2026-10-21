@@ -28,8 +28,8 @@ from backend.provider_allowance import (
 )
 from backend.question_generator import (
     CRITICAL_JUDGE, ETHICS_REVIEWER, IMPACT_REVIEWER, METHODOLOGY_REVIEWER,
-    RESEARCH_PANELISTS, AnsweredQuestion, InvalidQuestionResponse, QuestionGenerationError,
-    QuestionDraft, ResearchMove, TopicAssessmentDraft, _ground_question,
+    RESEARCH_PANELISTS, AnsweredQuestion, CombinedSubmissionDraft, InvalidQuestionResponse,
+    QuestionGenerationError, QuestionDraft, ResearchMove, TopicAssessmentDraft, _ground_question,
     _language_guidance, _research_advice_guidance, _research_guidance, _role_guidance,
     build_project_source, serialize_transcript,
     CONVERSATION_GUIDANCE, SCENARIO_GUIDANCE,
@@ -41,6 +41,8 @@ from backend.practice_tiers import FREE, FREE_MODEL, FREE_PROVIDER, FREE_CONTEXT
 
 PLANNER_MODEL = 'z-ai/glm-5.3-flash'
 PLANNER_REASONING = {'effort': 'low'}
+SEPARATE_PLANNING = 'separate-v1'
+COMBINED_PLANNING = 'combined-v1'
 # Verified 2026-10-19 from the live public catalog (GET /api/v1/models): Qwen
 # advertises supports_max_tokens with no named efforts, while GLM is mandatory
 # reasoning whose default effort is max, so its effort is always explicit.
@@ -66,6 +68,7 @@ INTERACTION_REASONING = {
     CRITICAL_JUDGE: {'effort': 'low'},
 }
 INTERACTION_OUTPUT_TOKENS = 2048
+COMBINED_OUTPUT_TOKENS = 6144
 COACHING_MODEL = 'anthropic/claude-haiku-5.5'
 # The smallest verified context across the bundle (Qwen); larger contexts would
 # let a request exceed a reviewer's own ceiling.
@@ -89,6 +92,8 @@ class RunQuestionPolicy:
     reviewer_output_tokens: int = 8192
     interaction_reasoning: dict = None
     interaction_output_tokens: int = INTERACTION_OUTPUT_TOKENS
+    planning_contract: str = SEPARATE_PLANNING
+    combined_output_tokens: int = COMBINED_OUTPUT_TOKENS
     coaching_model: str = COACHING_MODEL
     coaching_reasoning: dict = None
     coaching_output_tokens: int = 8192
@@ -130,7 +135,8 @@ class RunQuestionPolicy:
             ceiling = Decimal(os.getenv('OPENROUTER_RUN_USD', '5.00'))
             if not ceiling.is_finite() or not Decimal('0') < ceiling <= 100:
                 raise ValueError
-            return cls(ceiling_nano=int((ceiling * 1_000_000_000).to_integral_value(rounding=ROUND_CEILING)))
+            return cls(ceiling_nano=int((ceiling * 1_000_000_000).to_integral_value(rounding=ROUND_CEILING)),
+                       planning_contract=COMBINED_PLANNING)
         except (ValueError, InvalidOperation):
             raise QuestionGenerationError('Check OPENROUTER_RUN_USD on the server.') from None
 
@@ -150,6 +156,10 @@ class RunQuestionPolicy:
 
     def question_bound(self, files, budget: int) -> int:
         per_turn = self.input_bytes(files, budget)
+        if self.planning_contract == COMBINED_PLANNING:
+            opening = self.stage_bound(per_turn, self.planner_output_tokens)
+            return (opening + budget * (self.stage_bound(per_turn, self.combined_output_tokens)
+                                        + self.stage_bound(per_turn, self.reviewer_output_tokens)))
         return budget * (self.stage_bound(per_turn, self.planner_output_tokens)
                          + self.stage_bound(per_turn, self.reviewer_output_tokens))
 
@@ -218,6 +228,21 @@ PLANNER_GUIDANCE = (
     "Private team chat is absent and must not be inferred."
 )
 
+COMBINED_PLANNING_GUIDANCE = (
+    "This request also plans the next move after the submission. If the submission is clarify or probe, "
+    "leave assessment, panelist, topic_id null and is_follow_up false. If it is an answer, assess the "
+    "separate Latest submission for the current question, not the prior resolved transcript. "
+    "Use exactly planning context previous_turn and previous_topic as the assessment turn and topic_id. "
+    "Assess actual discussion, not whether the research is proven correct: addressed means a sufficient "
+    "explanation of the objective, discussed means a partial explanation, and needs clarification means "
+    "a material unresolved gap. Give a short evidence-based reason. "
+    "Choose one exact allowed question option, using a follow-up only for a material gap; otherwise "
+    "prioritize untouched topics, then unresolved topics. Complete only when the budget is exhausted "
+    "or all topics are addressed after this assessment and all four reviewers have spoken. "
+    "A completed plan has a valid assessment, panelist and topic_id null, and is_follow_up false. "
+    "Never invent an option or question in this stage."
+)
+
 REVIEWER_GUIDANCE = (
     "Ask the next question for an ongoing research practice defense as the selected reviewer. "
     "The server selected this reviewer, topic and follow-up status and already validated them; "
@@ -240,9 +265,10 @@ class ReviewerInteractionClient:
     model, interaction reasoning and output bound.
     """
 
-    def __init__(self, funded: "RunQuestionClient", panelist: str):
+    def __init__(self, funded: "RunQuestionClient", panelist: str, *, combined=False):
         self.funded = funded
         self.panelist = panelist
+        self.combined = combined
         self.responses = self
 
     def parse(self, *, model=None, reasoning=None, store=None, input, text_format, **unused):
@@ -251,10 +277,13 @@ class ReviewerInteractionClient:
         interaction_reasoning = policy.interaction_reasoning.get(self.panelist)
         if assigned is None or interaction_reasoning is None:
             raise QuestionGenerationError('The defense provider policy is unavailable. Contact the operator.')
+        if self.combined and policy.planning_contract != COMBINED_PLANNING:
+            raise QuestionGenerationError('The combined planning contract is unavailable for this run.')
         messages = [{'role': item.get('role'), 'content': item.get('content')} for item in input]
         output = self.funded._ask(
             model=assigned, messages=messages, schema=text_format,
-            reasoning=interaction_reasoning, max_tokens=policy.interaction_output_tokens)
+            reasoning=interaction_reasoning,
+            max_tokens=policy.combined_output_tokens if self.combined else policy.interaction_output_tokens)
         return SimpleNamespace(output_parsed=output)
 
 
@@ -355,9 +384,9 @@ class RunQuestionClient:
                 pass
             return stream.get_final_response().output_parsed
 
-    def interaction(self, panelist: str) -> ReviewerInteractionClient:
+    def interaction(self, panelist: str, *, combined=False) -> ReviewerInteractionClient:
         """A funded client bound to the current speaking reviewer."""
-        return ReviewerInteractionClient(self, panelist)
+        return ReviewerInteractionClient(self, panelist, combined=combined)
 
     def coaching(self) -> RunCoachingClient:
         """A funded coach admitted against the full run ceiling."""
@@ -395,6 +424,15 @@ class RunQuestionClient:
         ]
         return messages
 
+    def plan_identity(self, *, history, context, defense_type, research_stage) -> str:
+        policy = self._load_policy()
+        return hashlib.sha256(json.dumps({
+            'scope': self.scope, 'owner': self.owner, 'policy': asdict(policy),
+            'files': [asdict(file) for file in self.files], 'context': context,
+            'history': [asdict(item) for item in history],
+            'defense_type': defense_type, 'research_stage': research_stage,
+        }, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+
     def research_move(self, project_files, *, history: list[AnsweredQuestion], context: dict,
                       defense_type: str = 'research', research_stage: str = 'infer') -> ResearchMove:
         self.files = list(project_files)
@@ -403,12 +441,8 @@ class RunQuestionClient:
         if not isinstance(self.session, ResearchDefenseSession):
             raise QuestionGenerationError('The funded question route requires a research defense.')
         source, lookup, _ = build_project_source(self.files)
-        identity = hashlib.sha256(json.dumps({
-            'scope': self.scope, 'owner': self.owner, 'policy': asdict(policy),
-            'files': [asdict(file) for file in self.files], 'context': context,
-            'history': [asdict(item) for item in history],
-            'defense_type': defense_type, 'research_stage': research_stage,
-        }, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+        identity = self.plan_identity(history=history, context=context,
+                                      defense_type=defense_type, research_stage=research_stage)
         planned = self.recovery.bind(identity) if self.recovery else None
         if planned is None:
             draft = self._ask(model=policy.planner_model,

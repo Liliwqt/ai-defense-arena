@@ -107,10 +107,11 @@ class SyntheticReplayTests(unittest.IsolatedAsyncioTestCase):
                      if record["event"] == "total" and record["kind"] == "question"]
         interpretations = [record for record in records
                            if record["event"] == "total" and record["kind"] == "interpretation"]
-        self.assertEqual(len(questions), 5)  # Four turns plus the planner's completion.
-        self.assertEqual([record["duration_ms"] for record in questions], [600]*4 + [300])
+        self.assertEqual(len(questions), 5)  # Opening, three planned writers, and final completion.
+        self.assertEqual([record["duration_ms"] for record in questions], [600, 300, 300, 300, 0])
         self.assertEqual([record["duration_ms"] for record in interpretations], [200]*4)
-        self.assertTrue(all(record.get("input_tokens") for record in questions))
+        self.assertTrue(all(record.get("input_tokens") for record in questions[:-1]))
+        self.assertFalse(questions[-1].get("input_tokens"))
         serialized = json.dumps(records)
         self.assertNotIn(case.source_text.strip(), serialized)
         self.assertNotIn(case.answer, serialized)
@@ -151,7 +152,7 @@ class SyntheticReplayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["only_in_baseline_cases"], [])
         self.assertEqual(result["only_in_candidate_cases"], ["case-b"])
         question = result["cases"]["case-a"]["groups"]["total:question"]
-        self.assertEqual(question["median_delta_ms"], 600)
+        self.assertEqual(question["median_delta_ms"], 300)
 
     async def test_comparison_rejects_same_case_id_with_changed_sources_or_answers(self):
         from dataclasses import replace

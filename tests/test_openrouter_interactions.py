@@ -13,7 +13,7 @@ import httpx
 from backend import game_server
 from backend.defense_session import ResearchDefenseSession
 from backend.openrouter_questions import (
-    INTERACTION_OUTPUT_TOKENS, RunQuestionClient, RunQuestionPolicy,
+    COMBINED_OUTPUT_TOKENS, INTERACTION_OUTPUT_TOKENS, RunQuestionClient, RunQuestionPolicy,
     establish_run_allowance, run_scope,
 )
 from backend.provider_allowance import ProviderAllowance
@@ -252,9 +252,11 @@ class FundedInteractionProtocolTests(coverage.CoverageProtocolTests):
                          [{'effort': 'low'}, {'effort': 'high'}, {'effort': 'low'},
                           {'effort': 'low'}, {'effort': 'low'}, {'effort': 'low'},
                           {'effort': 'medium'}])
+        self.assertEqual([call['response_format']['json_schema']['name'] for call in calls[2:5]],
+                         ['CombinedSubmissionDraft', 'CombinedSubmissionDraft', 'SubmissionDraft'])
+        self.assertEqual([call['max_tokens'] for call in calls[2:5]],
+                         [COMBINED_OUTPUT_TOKENS, COMBINED_OUTPUT_TOKENS, INTERACTION_OUTPUT_TOKENS])
         for call in calls[2:5]:
-            self.assertEqual(call['response_format']['json_schema']['name'], 'SubmissionDraft')
-            self.assertEqual(call['max_tokens'], INTERACTION_OUTPUT_TOKENS)
             self.assertIn('Methodology Reviewer', call['messages'][0]['content'])
             self.assertIn(ANSWER, call['messages'][1]['content'])
         self.assertIn('We mean the measured pilot wait',

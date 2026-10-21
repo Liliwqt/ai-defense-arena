@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from backend import game_server
 from backend.rooms.commands import CatchUpDeadline
+from backend.openrouter_questions import SEPARATE_PLANNING
 from backend.question_generator import SubmissionDecision, ProbeRequest
 from tests import test_opening_history_protocol as opening_protocol
 from tests import test_research_coverage as coverage
@@ -52,6 +53,7 @@ class LiveVoiceProtocolTests(unittest.TestCase):
     def test_manual_voice_finalization_uses_one_verified_normal_answer(self):
         provider = FakeSpeechSocket()
         def use_room(socket, state):
+            game_server.rooms[state['room_code']].planning_contract = SEPARATE_PLANNING
             socket.send_json({'type': 'cast_vote', 'seat': 0})
             self.until(socket, 'voting')
             self.now = state['vote_deadline_ms']
@@ -91,6 +93,7 @@ class LiveVoiceProtocolTests(unittest.TestCase):
     def answering(self, callback, provider=None):
         provider = provider or FakeSpeechSocket()
         def use_room(socket, state):
+            game_server.rooms[state['room_code']].planning_contract = SEPARATE_PLANNING
             socket.send_json({'type':'cast_vote','seat':0})
             self.until(socket, 'voting')
             self.now = state['vote_deadline_ms']

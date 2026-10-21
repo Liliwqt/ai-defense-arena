@@ -6,6 +6,8 @@ from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import patch
 
+from backend import game_server
+from backend.openrouter_questions import SEPARATE_PLANNING
 from backend.project_files import ProjectFile
 from backend.question_generator import (
     AnsweredQuestion, CoachingDraft, ResearchCoachingDraft, CoachingReport, QuestionGenerationError,
@@ -241,6 +243,7 @@ class CoachingClosingProtocolTests(unittest.TestCase):
                 self.until(h, research_plan_approved=True)
                 h.send_json({"type": "start", "plan_id": plan.id, "question_budget": 4})
                 state = self.until(h, "voting", 1)
+                game_server.rooms[code].planning_contract = SEPARATE_PLANNING
                 for socket in (h, g):
                     socket.send_json({"type": "cast_vote", "seat": 1})
                 self.until(h, "voting", vote_counts={"0": 0, "1": 2})

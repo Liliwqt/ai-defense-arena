@@ -21,6 +21,7 @@ from pydantic import ValidationError
 from backend import game_server
 from backend.timed_turn import PendingSubmission
 from backend.defense_session import PlannedMove, ResearchDefenseSession, advance_defense
+from backend.openrouter_questions import SEPARATE_PLANNING
 from backend.project_files import ProjectFile
 from backend.question_generator import (RESEARCH_PANELISTS, ResearchMove, ResearchMoveDraft, TopicAssessmentDraft,
     GroundedQuestion, GroundedCitation, QuestionGenerationError, generate_research_move,
@@ -590,6 +591,8 @@ class CoverageProtocolTests(unittest.TestCase):
                                 h.send_json({'type':'retry'})
                             for ws in (h,g):
                                 state=self.until(ws,'voting',index+1)
+                                if index==0:
+                                    game_server.rooms[code].planning_contract = SEPARATE_PLANNING
                                 self.assertEqual(state['question_budget'],12)
                                 turn=state['turns'][-1]
                                 expected='    save_reservation(student_id)' if turn['filename']=='queue.py' else PAPER.splitlines()[turn['evidence_line']-1]

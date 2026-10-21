@@ -13,6 +13,7 @@ from backend.processing_policy import ProcessingPolicy
 from backend.defense_session import DefenseSession, ResearchDefenseSession, PANELIST_ORDER
 from backend.project_files import ProjectFile
 from backend.question_generator import CoachingReport
+from backend.openrouter_questions import SEPARATE_PLANNING
 from backend.research_plan import ResearchPlan, ResearchPlanProgress, ResearchProfileDescription
 from backend.resource_limits import AIBudget, limit
 from backend.coaching_progress import CoachingProgress
@@ -91,6 +92,7 @@ class Room(TimedTurn):
     preparation_id: str = field(default_factory=lambda: secrets.token_hex(24))
     practice_tier: str = "standard"
     processing_policy: ProcessingPolicy = field(default_factory=ProcessingPolicy.legacy, compare=False)
+    planning_contract: str = SEPARATE_PLANNING
     interaction_deadline_ms: int | None = field(default=None, compare=False)
     interaction_transient_retries: int = field(default=0, compare=False)
 

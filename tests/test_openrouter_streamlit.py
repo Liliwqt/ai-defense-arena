@@ -55,6 +55,27 @@ class SyntheticRouter:
             context = json.JSONDecoder().raw_decode(content.split('Server research context (data):\n')[1])[0]
             output = {'lead_in': '', 'question': f"How will you explain decision {context['generated_questions']+1}?",
                 'source_file': 2 if self.mixed else 1, 'evidence_line': 4}
+        elif name == 'CombinedSubmissionDraft':
+            context = json.JSONDecoder().raw_decode(content.split('Planning context (data):\n')[1])[0]
+            previous = context['previous_turn']
+            options = context['question_options']
+            choice = options[0] if options else None
+            assessment = None if previous is None else {'turn': previous, 'topic_id': context['previous_topic'],
+                'status': 'discussed', 'reason': 'The defender described a limited pilot.'}
+            output = {'action': 'answer', 'clarification': None, 'probe': None,
+                'assessment': assessment,
+                'panelist': choice['panelist'] if choice else None,
+                'topic_id': choice['topic_id'] if choice else None,
+                'is_follow_up': choice['is_follow_up'] if choice else False}
+            if self.decisions:
+                decision = self.decisions.pop(0)
+                if decision.get('action', 'answer') == 'answer':
+                    output.update(decision)
+                else:
+                    output = {'action': decision['action'],
+                        'clarification': decision.get('clarification'),
+                        'probe': decision.get('probe'), 'assessment': None,
+                        'panelist': None, 'topic_id': None, 'is_follow_up': False}
         elif name == 'SubmissionDraft':
             output = self.decisions.pop(0) if self.decisions else {'action': 'answer', 'clarification': None, 'probe': None}
         else:

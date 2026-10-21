@@ -189,7 +189,7 @@ class RoomTurnRecoveryTests(unittest.TestCase):
             if failed_writer[0] and name == 'QuestionDraft':
                 router.calls.append(body)
                 return httpx.Response(404, json={'error': {'code':404,'message':'Synthetic unavailable writer'}})
-            if submission_failures_left[0] and name == 'SubmissionDraft':
+            if submission_failures_left[0] and name in {'SubmissionDraft', 'CombinedSubmissionDraft'}:
                 submission_failures_left[0] -= 1
                 router.calls.append(body)
                 return httpx.Response(503, json={'error': 'Synthetic unavailable provider'})
@@ -285,7 +285,6 @@ class RoomTurnRecoveryTests(unittest.TestCase):
 
     def test_standard_accepted_answer_survives_failed_writer(self):
         self._accepted_answer_recovery('standard')
-
     def test_free_accepted_answer_survives_failed_writer_without_upgrading(self):
         self._accepted_answer_recovery('free')
 

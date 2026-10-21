@@ -370,6 +370,7 @@ class ProbeProtocolTests(unittest.TestCase):
         from contextlib import ExitStack
         from unittest.mock import patch
         from tests.test_research_coverage import PAPER, plan, proposal, Client
+        from backend.openrouter_questions import SEPARATE_PLANNING
         from backend.question_generator import generate_research_move, CoachingReport
         for mode in ('research', 'mixed'):
             with self.subTest(mode=mode), ExitStack() as stack:
@@ -406,6 +407,8 @@ class ProbeProtocolTests(unittest.TestCase):
                     hs.send_json({'type':'start','plan_id':planned.id,'question_budget':4})
                     for i in range(4):
                         for ws in (hs,gs): self.receive_phase(ws,'question')
+                        if i == 0:
+                            server.rooms[host['room_code']].planning_contract = SEPARATE_PLANNING
                         speaker=gs if i%2==0 else hs
                         speaker.send_json({'type':'submit_answer','turn':i,'answer':f'Original answer {i}.'})
                         if i in (0,3):

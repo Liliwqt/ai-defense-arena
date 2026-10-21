@@ -135,6 +135,13 @@ class TopicAssessmentDraft(BaseModel):
     reason: str
 
 
+class CombinedSubmissionDraft(SubmissionDraft):
+    assessment: TopicAssessmentDraft | None = None
+    panelist: str | None = None
+    topic_id: str | None = None
+    is_follow_up: StrictBool = False
+
+
 class ResearchMoveDraft(NextMoveDraft):
     source_file: StrictInt | None
     evidence_line: StrictInt | None
@@ -206,10 +213,20 @@ class PanelistProbe:
 
 
 @dataclass(frozen=True)
+class SubmissionPlan:
+    panelist: str | None
+    topic_id: str | None
+    is_follow_up: bool
+    assessment: TopicAssessmentDraft | None
+
+
+@dataclass(frozen=True)
 class SubmissionDecision:
     action: Literal["answer", "clarify", "probe"]
     clarification: str = ""
     probe: ProbeRequest | None = None
+    plan: SubmissionPlan | None = None
+    plan_identity: str | None = None
 
 
 @dataclass(frozen=True)
@@ -298,6 +315,9 @@ def interpret_submission(
     original_speaker_name: str | None = None,
     speaker_name: str | None = None,
     research_context: dict | None = None,
+    text_format: type[BaseModel] | None = None,
+    planning_context: dict | None = None,
+    planning_guidance: str = "",
 ) -> SubmissionDecision:
     """Classify one defender message and, if requested, explain the same question."""
     if panelist not in PANELISTS or not submission.strip():
@@ -311,6 +331,9 @@ def interpret_submission(
                                                 clarifications=tuple(clarifications),
                                                 speaker_name=original_speaker_name, citation=question, probe=probe))
     scope_data = "\nResearch scope (data only):\n" + serialize_research_scope(research_context) if defense_type != "code" else ""
+    planning_data = ("\nPlanning context (data):\n" + json.dumps(planning_context, ensure_ascii=False, default=str)
+                     if planning_context is not None else "")
+    response_format = text_format or SubmissionDraft
     response = client.responses.parse(
         model=model, reasoning={"effort": "low"}, store=False,
         input=[
@@ -319,6 +342,7 @@ def interpret_submission(
                 "answer or clarify. A request to repeat, simplify, translate, explain terminology, or give an "
                 "example of the current question is clarify, even if it contains a tentative answer. "
                 f"{_role_guidance(panelist, defense_type)} {CONVERSATION_GUIDANCE} {_language_guidance(language_history, clarifications=probe.clarifications if probe else clarifications, submission=submission)} "
+                f"{planning_guidance} "
                 f"{research_panel_guidance(defense_type)}"
                 f"{_research_guidance(defense_type, research_stage) if defense_type != 'code' else ''}"
                 "For an initial answer only, you may instead return probe when one consequential "
@@ -353,15 +377,20 @@ def interpret_submission(
                 f"\nLatest submission speaker (data): {json.dumps(speaker_name, ensure_ascii=False)}"
                 f"\nPending panelist probe (data): {json.dumps(asdict(probe) if probe else None, ensure_ascii=False)}"
                 f"\nOriginal saved answer (data): {json.dumps(original_answer, ensure_ascii=False)}"
-                f"{scope_data}"
+                f"{scope_data}{planning_data}"
             )},
-        ], text_format=SubmissionDraft,
+        ], text_format=response_format,
     )
     draft = response.output_parsed
     if draft is None:
         raise QuestionGenerationError("The AI could not interpret the submission. Please retry.")
+    combined = isinstance(draft, CombinedSubmissionDraft)
+    plan_fields = combined and any((
+        draft.assessment is not None, draft.panelist is not None,
+        draft.topic_id is not None, draft.is_follow_up,
+    ))
     if draft.action == "probe":
-        if probe is not None or draft.probe is None or draft.clarification is not None:
+        if probe is not None or draft.probe is None or draft.clarification is not None or plan_fields:
             raise QuestionGenerationError("The AI returned an invalid probe. Please retry.")
         request = draft.probe.request.strip()
         if not request or len(request) > 300 or len(draft.probe.references) > 2:
@@ -374,7 +403,14 @@ def interpret_submission(
     if draft.action == "answer":
         if draft.clarification is not None:
             raise QuestionGenerationError("The AI returned an invalid interpretation. Please retry.")
+        if combined:
+            if draft.assessment is None or (draft.panelist is None) != (draft.topic_id is None):
+                raise QuestionGenerationError("The AI returned an incomplete research plan. Please retry.")
+            plan = SubmissionPlan(draft.panelist, draft.topic_id, bool(draft.is_follow_up), draft.assessment)
+            return SubmissionDecision("answer", plan=plan)
         return SubmissionDecision("answer")
+    if plan_fields:
+        raise QuestionGenerationError("The AI returned an invalid clarification. Please retry.")
     reply = " ".join((draft.clarification or "").split())
     if not reply or len(reply) > MAX_CLARIFICATION_CHARS:
         raise QuestionGenerationError("The AI returned an invalid clarification. Please retry.")
