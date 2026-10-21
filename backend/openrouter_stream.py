@@ -18,6 +18,31 @@ from backend.practice_tiers import RETIRED_FREE_MODEL
 ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
 MAX_RESPONSE_CHARS = 2_000_000
 MAX_ERROR_BYTES = 16384
+_FUNDING_MARKERS = (
+    'insufficient_quota',
+    'insufficient credit',
+    'insufficient_credits',
+    'not enough credit',
+    'requires more credits',
+    'credit balance',
+    'exceeded your current quota',
+    'billing_hard_limit_reached',
+)
+
+
+def funding_exhausted(payload=None, message: str = '') -> bool:
+    """Recognize exhausted funds in provider-controlled error metadata."""
+    values = [message]
+    if isinstance(payload, dict):
+        values.extend(payload.get(key) for key in ('message', 'code', 'type'))
+        metadata = payload.get('metadata')
+        if isinstance(metadata, dict):
+            values.extend(metadata.get(key) for key in (
+                'message', 'code', 'type', 'error_type', 'provider_code'))
+    elif payload is not None:
+        values.append(str(payload))
+    text = ' '.join(value for value in values if isinstance(value, str)).lower()
+    return any(marker in text for marker in _FUNDING_MARKERS)
 
 
 class TransientProviderError(QuestionGenerationError):
@@ -41,9 +66,9 @@ class ProviderStatusError(TransientProviderError):
             retry_after_seconds = None
         self.status_code = status_code
         self.retry_after_seconds = retry_after_seconds
-        self.manual_only = manual_only
+        self.manual_only = manual_only or (status_code == 429 and funding_exhausted(message=message))
         self.retryable = status_code >= 500 or (
-            status_code == 429 and not manual_only and retry_after_seconds is not None)
+            status_code == 429 and not self.manual_only and retry_after_seconds is not None)
 
 
 def retry_after_seconds(value) -> int | None:
@@ -91,6 +116,9 @@ def status_error(status, error=None, retry_after: int | None = None):
                                        retry_after_seconds=retry_after, manual_only=True)
         if 'per-day' in message or 'daily' in message:
             return ProviderStatusError(status, 'OpenRouter’s daily request allowance is exhausted (HTTP 429). Wait for the next UTC day or ask the operator to check the account’s allowance. Retrying now will not reset it.',
+                                       retry_after_seconds=retry_after, manual_only=True)
+        if funding_exhausted(error, message):
+            return ProviderStatusError(status, 'OpenRouter cannot fund this request (HTTP 429). Check the account’s credits or billing settings, or contact the operator. Retrying now will not reset it.',
                                        retry_after_seconds=retry_after, manual_only=True)
         if message.startswith('rate limit exceeded: free-models-per-min'):
             return ProviderStatusError(status, 'OpenRouter’s per-minute free-model request limit was reached (HTTP 429). Wait at least a minute before retrying. Repeated retries also consume free requests.',

@@ -1,8 +1,11 @@
 # Defense-turn responsiveness tickets
 
-Approved breakdown: 2026-10-21. Ticket 01 has 9/9 local implementation checks and
-is ready-for-human; visual sign-off is separate. Ticket 02 now has 8/8 local checks and is ready-for-human; see
-[its review](reviews/02.md). Ticket 03 now has 7/9 local checks and is ready-for-human; see [its review](reviews/03.md). Later tickets remain unstarted.
+Approved breakdown: 2026-10-21. Tickets01(9/9),02(8/8) and03(9/9) have complete
+local implementation checks and remain ready-for-human; visual approval is separate.
+Ticket03 corrections passed [independent recheck](reviews/03-fixes-recheck.md) and
+its [checkpoint1 presentation](reviews/03-preview.md) is available locally.
+Ticket04 is the next implementation dependency after checkpoint review; later
+tickets remain unstarted. No publication or deployment is implied.
 See [fix verification](reviews/01-fixes.md) and [interface evidence](reviews/01-interface.md).
 
 | Ticket | Blocked by | Status |

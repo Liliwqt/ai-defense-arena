@@ -60,6 +60,7 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
     next_clock = None
     feedback_id = None
     repeated_candidate = None
+    window_deadline = None
     try:
         # Each candidate is detached. History and access commit before publication;
         # rejected/racing duplicate candidates roll back without charging the run.
@@ -92,6 +93,8 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
                 request = prepare_progression(room.defense, defense_type=room.defense_type,
                                               research_stage=room.research_stage)
                 files = tuple(room.files)
+                window_deadline = (room.operation.window_deadline_ms
+                                   if room.operation else None)
                 opening_key = None
                 if room.owner_account_id and room.run_id and room.defense_type != "code" and (room.defense is None or not room.defense.turns):
                     opening_key = paper_key(files)
@@ -99,8 +102,22 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
             if started:
                 await owner._publish()
             if opening_key:
+                remaining = room.processing_policy.remaining_ms(
+                    window_deadline, owner._workflows.now())
+                if remaining is not None and remaining <= 0:
+                    raise ProcessingWindowExpired(room.processing_policy.expiry_message())
                 try:
-                    recent = await asyncio.to_thread(recent_openings, account_id, opening_key)
+                    lookup = asyncio.to_thread(recent_openings, account_id, opening_key)
+                    if remaining is None:
+                        recent = await lookup
+                    else:
+                        try:
+                            recent = await asyncio.wait_for(lookup, timeout=remaining / 1000)
+                        except TimeoutError as failure:
+                            raise ProcessingWindowExpired(
+                                room.processing_policy.expiry_message()) from failure
+                except ProcessingWindowExpired:
+                    raise
                 except Exception as failure:
                     raise QuestionGenerationError("Recent opening history could not be checked. No defense was charged; retry when storage recovers.") from failure
                 request = replace(request, recent_openings=tuple(recent))
@@ -110,9 +127,14 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
                 if room.run_id and room.owner_account_id and isinstance(request.session, ResearchDefenseSession):
                     request = replace(request, provider_scope=run_scope(room.run_id),
                                       provider_owner=room.owner_account_id,
-                                      provider_stopped=lambda: not owner._question_current(work),
+                                      provider_stopped=lambda: (
+                                          not owner._question_current(work)
+                                          or (window_deadline is not None
+                                              and owner._workflows.now() >= window_deadline)),
                                       provider_recovery=room.question_recovery.claim(
                                           f'{room.code}:{room.defense_view_id}:{room.preparation_id}'))
+                if room.processing_expired(owner._workflows.now()):
+                    raise ProcessingWindowExpired(room.processing_policy.expiry_message())
                 room.ai_budget.admit(attempt_key, cap, room.owner_account_id or room.code)
             try:
                 now = owner._workflows.now()
@@ -224,12 +246,15 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
         async with room.lock:
             if not owner._question_current(work):
                 return
+            now = owner._workflows.now()
+            if room.processing_expired(now) or (
+                    window_deadline is not None and now >= window_deadline):
+                error = ProcessingWindowExpired(room.processing_policy.expiry_message())
             room.question_retry_generation_id = None
             room.phase = "retry"
             room.opening_candidate = repeated_candidate if isinstance(error, RepeatedOpening) else None
             room.error = str(error) if isinstance(error, RepeatedOpening) else safe_generation_error(error)
-            room.finish_operation(owner._workflows.now(), "failed",
-                                  failure_class=type(error).__name__)
+            room.finish_operation(now, "failed", failure_class=type(error).__name__)
             room.clear_interaction_window()
             try:
                 if room.defense is None or not room.defense.turns:

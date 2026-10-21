@@ -268,7 +268,7 @@ function roomStatus(state: Readonly<RoomState> | null): string {
   if (state?.phase === "retry") return state.opening_repeated ? "Opening choice" : "Retry needed";
   if (state?.phase === "reacting") return "Panelist speaking…";
   if (state?.phase === "generating") {
-    if (state.question_retrying) return "Retrying next question…";
+    if (state.question_retrying) return state.turns.some(isResolved) ? "Retrying next question…" : "Retrying first question…";
     const previous = state.turns?.at(-1);
     return previous?.timed_out ? "Reviewing missed turn…" : previous?.answer ? "Reviewing answer…" : "Preparing question…";
   }
@@ -294,7 +294,9 @@ function lifecycleGuidance(state: Readonly<RoomState> | null): string {
     return state.self_is_host ? "Start the defense from Controls when your team is ready." : "Waiting for the host to start the defense.";
   }
   if (state.phase === "generating") {
-    if (state.question_retrying) return "Preparing the next question again… The resolved turn is saved; no need to resubmit.";
+    if (state.question_retrying) return state.turns.some(isResolved)
+      ? "Preparing the next question again… The resolved turn is saved; no need to resubmit."
+      : "Preparing the first question again… Your uploads are retained.";
     const previous = state.turns?.at(-1);
     return previous?.timed_out ? "Reviewing missed turn… No answer was given; wait for the next question."
       : previous?.answer ? "Reviewing answer… The accepted answer is saved; wait for the panel."

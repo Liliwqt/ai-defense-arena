@@ -2,10 +2,17 @@
 
 import asyncio
 from dataclasses import replace
+import threading
 import unittest
+from unittest.mock import patch
+
+import httpx
+from openai import APIStatusError
 
 from backend.defense_session import DefenseSession
-from backend.openrouter_stream import ProviderConnectionError, ProviderStatusError
+from backend.openrouter_stream import (
+    ProviderConnectionError, ProviderStatusError, provider_stream_error, status_error,
+)
 from backend.processing_policy import (
     LEGACY, STANDARD, ProcessingPolicy, ProcessingWindowExpired, decide_retry,
     transient_directive,
@@ -16,6 +23,7 @@ from backend.room_operations import RoomOperation
 from backend.rooms.commands import GenerateQuestion, VerifiedActor
 from backend.rooms.coordinator import RoomCoordinator, RoomWorkflows
 from backend.rooms.model import Player, Room
+from backend.rooms.questions import QuestionWork, run_question
 from backend.rooms.submissions import (
     InterpretationWork, capture_interpretation, run_interpretation,
 )
@@ -77,6 +85,26 @@ class ProcessingPolicyTests(unittest.TestCase):
         self.assertFalse(decide_retry(error, ProcessingPolicy.legacy(), 0, None, 1).allowed)
         self.assertTrue(decide_retry(ProviderStatusError(503, 'temporary'),
                                      ProcessingPolicy.legacy(), 0, None, 1).allowed)
+
+    def test_exhausted_funds_are_never_automatically_retried(self):
+        request = httpx.Request('POST', 'https://provider.example.test')
+        http_error = status_error(429, {'message': 'Insufficient credits'},
+                                  retry_after=1)
+        stream_error = provider_stream_error(
+            {'code': 429, 'message': 'insufficient_quota'}, retry_after=1)
+        sdk_error = APIStatusError(
+            'insufficient credits',
+            response=httpx.Response(429, request=request,
+                                    headers={'Retry-After': '1'}),
+            body={'code': 'insufficient_quota'})
+        direct_error = ProviderStatusError(429, 'insufficient credits',
+                                           retry_after_seconds=1)
+        for error in (http_error, stream_error, sdk_error, direct_error):
+            with self.subTest(error=type(error).__name__):
+                self.assertIsNone(transient_directive(error))
+                self.assertFalse(decide_retry(error, ProcessingPolicy.standard(),
+                                              10_000, 55_000, 1).allowed)
+                self.assertNotIn('Insufficient credits', str(error))
 
 
 class OperationWindowSnapshotTests(unittest.TestCase):
@@ -448,6 +476,51 @@ class BoundedWorkTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(room.interpretation_attempts, 2)
         self.assertEqual(room.phase, 'question')
         self.assertIsNone(room.error)
+        self.assertIsNone(room.operation)
+
+    async def test_opening_history_lookup_is_bounded_by_the_processing_window(self):
+        policy = replace(ProcessingPolicy.standard(), window_ms=50)
+        _guest, room = self.make_room(policy)
+        room.files = [ProjectFile('study.md', 'Synthetic study.', 'research_text')]
+        room.owner_account_id, room.run_id, room.defense_type = 'owner', 'run', 'research'
+        room.begin_interaction_window(1000)
+        entered, release = threading.Event(), threading.Event()
+        calls = []
+
+        def history(*args):
+            entered.set()
+            release.wait(1)
+            return []
+
+        async def ask(*args):
+            calls.append(args)
+            raise AssertionError('Provider must not run')
+
+        async def deliver(socket, payload):
+            pass
+
+        owner = RoomCoordinator(room, RoomWorkflows(
+            deliver=deliver, question_request=ask, now=lambda: 1000))
+        self.addAsyncCleanup(owner.shutdown)
+        self.addCleanup(release.set)
+        with patch('backend.rooms.questions.recent_openings', side_effect=history), \
+             patch('backend.rooms.questions.release_run'):
+            task = asyncio.create_task(run_question(owner, QuestionWork(1, True, 'run')))
+            try:
+                await asyncio.wait_for(asyncio.to_thread(entered.wait), 1)
+                await asyncio.wait_for(task, 0.2)
+            finally:
+                release.set()
+                if not task.done():
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+        self.assertEqual(calls, [])
+        self.assertEqual(room.phase, 'retry')
+        self.assertIn('limit', room.error)
+        self.assertEqual(room.ai_budget.attempts.get('question:0', 0), 0)
         self.assertIsNone(room.operation)
 
     async def test_expired_window_never_applies_a_late_result(self):

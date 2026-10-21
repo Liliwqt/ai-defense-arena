@@ -54,3 +54,11 @@ it("keeps the accepted exchange and citation readable during automatic question 
   expect(view.card.reviewStatus).toContain("Your answer is saved");
   expect(view.controls.questionRetry).toBe(false);
 });
+
+it("does not claim a saved answer while retrying the opening", () => {
+  const state: RoomState = { ...previewState, phase: "generating", question_retrying: true, turns: [] };
+  const view = deriveRoomPresentation(state);
+  expect(view.status).toBe("Retrying first question…");
+  expect(view.guidance).toBe("Preparing the first question again… Your uploads are retained.");
+  expect(view.guidance).not.toContain("turn is saved");
+});

@@ -331,6 +331,57 @@ class FundedQuestionClientTests(IsolatedAllowanceTests):
         self.assertIn('In mixed mode any reviewer may cite paper or implementation.', mixed)
 
 
+    def test_processing_deadline_stops_writer_before_dispatch(self):
+        import asyncio
+        from backend.processing_policy import ProcessingPolicy
+        from backend.rooms.coordinator import RoomCoordinator, RoomWorkflows
+        from backend.rooms.model import Player, Room
+        from backend.rooms.questions import QuestionWork, run_question
+
+        clock = [1000]
+        schemas = []
+
+        def provider(request):
+            body = json.loads(request.content)
+            schemas.append(body['response_format']['json_schema']['name'])
+            output = (planner_move(METHODOLOGY, 'topic-1') if len(schemas) == 1
+                      else reviewer_question('How will the team justify the pilot?'))
+            if len(schemas) == 1:
+                clock[0] = 46_000
+            return stream_response(output)
+
+        def client(*args, **kwargs):
+            return HTTPClient(transport=httpx.MockTransport(provider))
+
+        room = Room('DEADLINE', self.files, {'host': Player('host', 'Host', 0, True)},
+                    defense_type='research', research_stage='proposal', defense=self.session,
+                    owner_account_id='owner', run_id='deadline', phase='generating',
+                    generation_id=1, processing_policy=ProcessingPolicy.standard())
+        room.begin_interaction_window(1000)
+        establish_run_allowance('run:deadline', 'owner', self.files, 4)
+
+        async def drive():
+            async def deliver(*args):
+                pass
+            owner = RoomCoordinator(room, RoomWorkflows(deliver=deliver, now=lambda: clock[0]))
+            try:
+                with patch('backend.rooms.questions.recent_openings', return_value=[]), \
+                     patch('backend.rooms.questions.charge_run'), \
+                     patch('backend.rooms.questions.release_run'), \
+                     patch('httpx.Client', side_effect=client):
+                    await run_question(owner, QuestionWork(1, True, 'deadline'))
+            finally:
+                await owner.shutdown()
+
+        asyncio.run(drive())
+        self.assertEqual(schemas, ['PlanDraft'])
+        self.assertEqual(room.phase, 'retry')
+        self.assertIn('limit', room.error)
+        self.assertFalse(room.defense.turns)
+        self.assertIsNone(room.operation)
+
+
+
 class FundedQuestionProtocolTests(maps.ResearchPlanRoomTests):
     def funded(self, *outputs, usage=None):
         calls = []

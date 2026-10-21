@@ -5,7 +5,9 @@ from typing import Literal
 
 from openai import APIConnectionError, APIStatusError
 
-from backend.openrouter_stream import ProviderConnectionError, ProviderStatusError
+from backend.openrouter_stream import (
+    ProviderConnectionError, ProviderStatusError, funding_exhausted,
+)
 from backend.question_generator import QuestionGenerationError
 
 LEGACY = 'legacy'
@@ -123,7 +125,8 @@ def transient_directive(error: BaseException) -> RetryDirective | None:
     if isinstance(error, APIStatusError):
         status, retry_after = _api_status_and_retry_after(error)
         if status == 429:
-            if retry_after is None:
+            if retry_after is None or funding_exhausted(
+                    getattr(error, 'body', None), str(error)):
                 return None
             return RetryDirective(retry_after * 1000, provider_directed=True)
         if status >= 500:
