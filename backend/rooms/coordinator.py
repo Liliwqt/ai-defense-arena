@@ -190,10 +190,11 @@ class RoomCoordinator:
             await self._publish()
         return result
 
-    def _retire_work(self) -> set[asyncio.Task]:
+    def _retire_work(self, *, keep_question_plan: bool = False) -> set[asyncio.Task]:
         """Under room.lock: fence all lanes before cancelling their old work."""
         room = self._room
         room.clear_operation()
+        room.question_recovery.invalidate(keep_plan=keep_question_plan)
         room.generation_id += 1
         room.research_plan_generation_id += 1
         room.feedback_generation_id += 1

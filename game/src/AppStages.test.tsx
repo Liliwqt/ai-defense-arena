@@ -121,3 +121,18 @@ it("waits in the room for coaching generation and its optional closing before au
   view.rerender(<App />);
   expect(screen.getByRole("heading", { name: "Defense results" })).toBeVisible();
 });
+
+it("restores stage-specific writer recovery in room and Controls without reopening an answer", async () => {
+  socket.roomState = room({ phase: "retry", question_recovery_stage: "writing", question_attempts_left: 1,
+    turns: [{ ...room().turns[0], answer: "Keep my accepted answer.", answered_by: "Alex" }] });
+  const view = render(<App />);
+  expect(screen.getByRole("button", { name: "Retry question writing" })).toBeVisible();
+  expect(screen.queryByRole("textbox", { name: /chosen to answer/i })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: /settings.*controls|^Controls$/i }));
+  const retry = screen.getByRole("button", { name: "Retry question writing" });
+  await userEvent.click(retry);
+  expect(socket.sendEvent).toHaveBeenCalledExactlyOnceWith({ type: "retry" });
+  socket.roomState = { ...socket.roomState!, phase: "generating", question_recovery_stage: null };
+  view.rerender(<App />);
+  expect(screen.queryByRole("button", { name: "Retry question writing" })).not.toBeInTheDocument();
+});

@@ -44,7 +44,8 @@ async def request_question(request: PreparedProgression, files: tuple[ProjectFil
     client = None
     if request.provider_scope and request.provider_owner and isinstance(request.session, ResearchDefenseSession):
         client = RunQuestionClient(request.provider_scope, request.provider_owner, request.session, files,
-                                   stopped=request.provider_stopped or (lambda: False))
+                                   stopped=request.provider_stopped or (lambda: False),
+                                   recovery=request.provider_recovery)
     return await asyncio.to_thread(request.generate, list(files), None,
         DEFAULT_MODEL, client=client,
         first_question=generate_first_question,
@@ -99,7 +100,9 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
                 if room.run_id and room.owner_account_id and isinstance(request.session, ResearchDefenseSession):
                     request = replace(request, provider_scope=run_scope(room.run_id),
                                       provider_owner=room.owner_account_id,
-                                      provider_stopped=lambda: not owner._question_current(work))
+                                      provider_stopped=lambda: not owner._question_current(work),
+                                      provider_recovery=room.question_recovery.claim(
+                                          f'{room.code}:{room.defense_view_id}:{room.preparation_id}'))
                 room.ai_budget.admit(attempt_key, cap, room.owner_account_id or room.code)
             try:
                 result = await owner._workflows.question_request(request, files)

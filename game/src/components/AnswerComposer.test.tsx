@@ -19,6 +19,17 @@ const defaults = {
 };
 
 describe("AnswerComposer", () => {
+  it("names saved-plan writer recovery without asking for another answer", async () => {
+    const send = vi.fn(() => true);
+    const state: RoomState = { ...questionState, phase: "retry", question_attempts_left: 1,
+      question_recovery_stage: "writing", turns: [{ ...questionState.turns[0], answer: "Accepted explanation." }] };
+    render(<AnswerComposer {...defaults} roomState={state} onSendEvent={send} />);
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.getByText(/validated plan is saved/i)).toBeVisible();
+    const retry = screen.getByRole("button", { name: "Retry question writing" });
+    await userEvent.click(retry);
+    expect(send).toHaveBeenCalledExactlyOnceWith({ type: "retry" });
+  });
   it("offers the host an inline next-question retry without resubmitting the answer", async () => {
     const send = vi.fn(() => true);
     const state: RoomState = { ...questionState, phase: "retry", question_attempts_left: 1,

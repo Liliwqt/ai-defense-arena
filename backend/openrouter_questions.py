@@ -9,8 +9,10 @@ can access the protected remainder through the same reservation/usage ledger.
 """
 
 from contextlib import contextmanager
+from copy import deepcopy
 from dataclasses import asdict, dataclass, replace
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
+import hashlib
 import json
 import os
 from time import monotonic
@@ -34,6 +36,7 @@ from backend.question_generator import (
 )
 from backend.research_panel import research_panel_guidance
 from backend.room_operations import record_supplied_usage
+from backend.turn_recovery import QuestionPlanLease
 from backend.practice_tiers import FREE, FREE_MODEL, FREE_PROVIDER, FREE_CONTEXT_TOKENS, validate_tier, validate_tier_budget
 
 PLANNER_MODEL = 'z-ai/glm-5.3-flash'
@@ -276,13 +279,14 @@ class RunQuestionClient:
     """Two-stage funded client; the room still owns validation and publication."""
 
     def __init__(self, scope: str, owner: str, session: ResearchDefenseSession | None, files, *, api_key=None,
-                 stopped=lambda: False):
+                 stopped=lambda: False, recovery: QuestionPlanLease | None = None):
         self.scope, self.owner = scope, owner
         self.session = session
         self.files = list(files)
         self.api_key = (api_key if api_key is not None else os.getenv('OPENROUTER_API_KEY', '')).strip()
-        self.stopped = stopped
+        self.stopped = lambda: stopped() or (recovery is not None and not recovery.current)
         self.policy = None
+        self.recovery = recovery
 
     def _check(self):
         if self.stopped():
@@ -399,24 +403,38 @@ class RunQuestionClient:
         if not isinstance(self.session, ResearchDefenseSession):
             raise QuestionGenerationError('The funded question route requires a research defense.')
         source, lookup, _ = build_project_source(self.files)
-        draft = self._ask(model=policy.planner_model,
-                          messages=self._planner_messages(source, history, context, defense_type, research_stage),
-                          schema=PlanDraft, reasoning=policy.planner_reasoning,
-                          max_tokens=policy.planner_output_tokens)
-        if draft.action == 'complete':
-            if any(value is not None for value in (draft.panelist, draft.topic_id)) or draft.is_follow_up:
-                raise InvalidQuestionResponse('The AI returned dialogue after completion. Please retry.')
-        elif draft.action != 'ask' or draft.panelist not in RESEARCH_PANELISTS:
-            raise InvalidQuestionResponse('The AI chose an invalid research plan. Please retry.')
-        planned = PlannedMove(draft.panelist, draft.topic_id, bool(draft.is_follow_up), draft.assessment)
+        identity = hashlib.sha256(json.dumps({
+            'scope': self.scope, 'owner': self.owner, 'policy': asdict(policy),
+            'files': [asdict(file) for file in self.files], 'context': context,
+            'history': [asdict(item) for item in history],
+            'defense_type': defense_type, 'research_stage': research_stage,
+        }, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+        planned = self.recovery.bind(identity) if self.recovery else None
+        if planned is None:
+            draft = self._ask(model=policy.planner_model,
+                              messages=self._planner_messages(source, history, context, defense_type, research_stage),
+                              schema=PlanDraft, reasoning=policy.planner_reasoning,
+                              max_tokens=policy.planner_output_tokens)
+            if draft.action == 'complete':
+                if any(value is not None for value in (draft.panelist, draft.topic_id)) or draft.is_follow_up:
+                    raise InvalidQuestionResponse('The AI returned dialogue after completion. Please retry.')
+            elif draft.action != 'ask' or draft.panelist not in RESEARCH_PANELISTS:
+                raise InvalidQuestionResponse('The AI chose an invalid research plan. Please retry.')
+            planned = PlannedMove(draft.panelist, draft.topic_id, bool(draft.is_follow_up), draft.assessment)
+            self.session.validate_plan(planned)
+            self._check()
+            if self.recovery:
+                self.recovery.remember(planned)
         self.session.validate_plan(planned)
         self._check()
-        if draft.action == 'complete':
-            return ResearchMove(None, None, None, False, draft.assessment)
-        review = self._ask(model=policy.reviewer_models[draft.panelist],
+        if planned.panelist is None:
+            if self.recovery:
+                self.recovery.complete()
+            return ResearchMove(None, None, None, False, planned.assessment)
+        review = self._ask(model=policy.reviewer_models[planned.panelist],
                            messages=self._reviewer_messages(planned, source, history, context, defense_type, research_stage),
                            schema=QuestionDraft,
-                           reasoning=policy.reviewer_reasoning[draft.panelist],
+                           reasoning=policy.reviewer_reasoning[planned.panelist],
                            max_tokens=policy.reviewer_output_tokens)
         # Mirror the legacy research generator: mixed mode lets every reviewer
         # cite paper or implementation; research mode stays paper-only.
@@ -425,4 +443,11 @@ class RunQuestionClient:
         question = _ground_question(review, lookup, eligible)
         if not history and question.lead_in:
             raise InvalidQuestionResponse('The opening question must have no reaction. Please retry.')
-        return ResearchMove(draft.panelist, question, draft.topic_id, draft.is_follow_up, draft.assessment)
+        move = ResearchMove(planned.panelist, question, planned.topic_id, planned.is_follow_up, planned.assessment)
+        # Final session rules (including duplicate questions) belong to writer
+        # validation. Do not discard its eligible plan until those also pass.
+        deepcopy(self.session).apply_move(move)
+        self._check()
+        if self.recovery:
+            self.recovery.complete()
+        return move

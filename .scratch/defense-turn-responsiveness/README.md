@@ -1,14 +1,14 @@
 # Defense-turn responsiveness tickets
 
 Approved breakdown: 2026-10-21. Ticket 01 has 9/9 local implementation checks and
-is ready-for-human; visual sign-off is separate. The user explicitly authorized
-ticket 02 continuation on 2026-10-21. Later tickets remain unstarted.
+is ready-for-human; visual sign-off is separate. Ticket 02 now has 8/8 local checks and is ready-for-human; see
+[its review](reviews/02.md). Ticket 03 is unblocked; later tickets remain unstarted.
 See [fix verification](reviews/01-fixes.md) and [interface evidence](reviews/01-interface.md).
 
 | Ticket | Blocked by | Status |
 | --- | --- | --- |
 | [01 — Factual animated waiting and baseline timing](issues/01-factual-animated-waiting-and-baseline-timing.md) | None | ready-for-human |
-| [02 — Retained answers and failed-stage recovery](issues/02-retained-answers-and-failed-stage-recovery.md) | 01 | ready-for-agent |
+| [02 — Retained answers and failed-stage recovery](issues/02-retained-answers-and-failed-stage-recovery.md) | 01 | ready-for-human |
 | [03 — Bounded processing and transient retry](issues/03-bounded-processing-and-transient-retry.md) | 02 | ready-for-agent |
 | [04 — Combined planning for accepted answers](issues/04-combined-planning-for-accepted-answers.md) | 03 | ready-for-agent |
 | [05 — Clarification, probes and alternate turn paths](issues/05-clarification-probes-and-alternate-turn-paths.md) | 04 | ready-for-agent |

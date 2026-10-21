@@ -23,6 +23,7 @@ from backend.rooms.openings import OpeningCandidate
 from backend.rooms.speech import SpeechState, draft_snapshot
 from backend.timed_turn import TimedTurn
 from backend.room_documents import RoomDocuments
+from backend.turn_recovery import QuestionPlanRecovery
 
 if TYPE_CHECKING:
     from backend.rooms.coordinator import RoomCoordinator
@@ -66,6 +67,7 @@ class Room(TimedTurn):
     research_plan_generation_id: int = 0
     feedback_generation_id: int = 0
     operation: RoomOperation | None = field(default=None, compare=False)
+    question_recovery: QuestionPlanRecovery = field(default_factory=QuestionPlanRecovery, repr=False, compare=False)
     chat: list[dict[str, Any]] = field(default_factory=list)
     chat_seq: int = 0
     clock_task: asyncio.Task | None = field(default=None, repr=False)
@@ -250,6 +252,7 @@ class Room(TimedTurn):
         operation = self.visible_operation()
         return {
             "room_code": self.code,
+            "question_recovery_stage": self.question_recovery.stage if self.phase == "retry" else None,
             "voice": self.speech.snapshot() if self.defense_type != "code" else None,
             "defense_view_id": self.defense_view_id,
             "documents": self.documents.snapshot() if self.documents else [],

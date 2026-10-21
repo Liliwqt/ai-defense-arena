@@ -57,12 +57,18 @@ def generate_next_question(session, files, api_key, model):
             advance_defense(session, files, api_key, model=model, client=client)
     except Exception as error:
         st.session_state["defense_error"] = generation_error_message(error, model, api_key)
+        if isinstance(session, ResearchDefenseSession) and st.session_state['research_provider'].question_recovery.stage == 'writing':
+            st.session_state['defense_error'] = 'Question writing failed. Your answer and validated plan are retained. ' + st.session_state['defense_error']
     else:
         st.session_state.pop("defense_error", None)
 
 
 def prepare_research_scope(files, api_key, model, mode, research_stage):
     """Explicit preparation retains saved host descriptions even on failure."""
+    previous = st.session_state.get('research_provider')
+    if previous is not None:
+        previous.question_recovery.invalidate()
+        previous.session = None
     st.session_state.pop("defense_session", None)
     st.session_state.pop("research_coaching", None)
     st.session_state.pop("research_coaching_job", None)
@@ -330,6 +336,7 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                         if item["reason"]:
                             st.caption(item["reason"])
                 if not session.completed and st.button("End defense"):
+                    st.session_state['research_provider'].question_recovery.invalidate()
                     session.end()
                     st.rerun()
             else:
@@ -364,7 +371,10 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                     advance_research_report(api_key, model)
             elif session.needs_question:
                 st.info("Your answer is saved. Retry generating the next question.")
-                if st.button("Retry next question", disabled=not bool(api_key)):
+                recovery = st.session_state.get('research_provider')
+                retry_label = ('Retry question writing' if recovery and recovery.question_recovery.stage == 'writing'
+                               else 'Retry next question')
+                if st.button(retry_label, disabled=not bool(api_key)):
                     generate_next_question(session, files, api_key, model)
                     st.rerun()
             elif session.awaiting_answer:
@@ -409,8 +419,9 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                                 )
                         except Exception as error:
                             if probe:
-                                st.session_state[recovery_key] = generation_error_message(error, model, api_key)
+                                st.session_state[recovery_key] = 'Your reply is retained, not yet accepted. ' + generation_error_message(error, model, api_key)
                             st.error(generation_error_message(error, model, api_key))
+                            st.info('Your submission is retained in the answer box, not yet accepted. Send to panelist retries the saved text; you do not need to retype it.')
                             if probe:
                                 st.rerun()
                         else:

@@ -186,7 +186,7 @@ async def handle_lifecycle(owner: "RoomCoordinator", actor: VerifiedActor, comma
             if room.phase != "retry":
                 error = "There is no failed question to retry."
             else:
-                owner._retire_work()
+                owner._retire_work(keep_question_plan=True)
                 generate_first = room.defense is None or not room.defense.turns
                 room.phase = "generating"
                 room.error = None

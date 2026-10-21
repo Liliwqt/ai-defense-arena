@@ -7,7 +7,7 @@ import { ResearchPlanPanel } from "./ResearchPlanPanel";
 import { useTabDraft } from "../hooks/useTabDraft";
 import { createRoom, RoomCreationError, type RoomCreationProgress } from "../lib/createRoom";
 
-import { deriveRoomPresentation, type RoomPresentation } from "../lib/roomPresentation";
+import { deriveRoomPresentation, questionRecoveryAction, type RoomPresentation } from "../lib/roomPresentation";
 
 interface ControlsPanelProps {
   presentation?: RoomPresentation;
@@ -461,7 +461,7 @@ export function ControlsPanel({
                   onClick={handleRetry}
                   className={primaryBtn}
                 >
-                  Retry question
+                  {questionRecoveryAction(roomState) ?? "Retry question"}
                 </button>
               )}
               {presentation.controls.coachingRetry && (

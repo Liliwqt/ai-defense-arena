@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import type { RoomState } from "../types";
 import { useTabDraft } from "../hooks/useTabDraft";
 
-import { deriveRoomPresentation, type RoomPresentation } from "../lib/roomPresentation";
+import { deriveRoomPresentation, questionRecoveryAction, type RoomPresentation } from "../lib/roomPresentation";
 
 interface AnswerComposerProps {
   active?: boolean;
@@ -90,7 +90,7 @@ export function AnswerComposer({ active = true, playerToken, roomState, connecte
               if (onSendEvent({ type: "retry" })) setQuestionRetryPending(true);
               else setLocalError("Could not send the retry. Reconnect and try again; your saved turns are retained.");
             }}>
-            {roomState.turns.some(turn => turn.answer || turn.timed_out) ? "Retry next question" : "Retry first question"}
+            {questionRecoveryAction(roomState) ?? (roomState.turns.some(turn => turn.answer || turn.timed_out) ? "Retry next question" : "Retry first question")}
           </button>}
         </div>
       ) : submission.showRecovery && !canWrite && roomState ? (

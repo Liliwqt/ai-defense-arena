@@ -55,6 +55,11 @@ export interface WaitingPresentation {
   startedAtMs: number | null;
 }
 
+export function questionRecoveryAction(state: Readonly<RoomState> | null): string | null {
+  return state?.question_recovery_stage === "writing" ? "Retry question writing"
+    : state?.question_recovery_stage === "planning" ? "Retry question planning" : null;
+}
+
 function questionLabel(retrying: boolean): string {
   return retrying ? "Trying again… Preparing your question…" : "Thinking… Preparing your question…";
 }
@@ -134,7 +139,8 @@ function deriveWaiting(state: Readonly<RoomState> | null): WaitingPresentation |
   if (state.phase === "retry" && !state.opening_repeated) {
     return { active: false, retryWait: true, startedAtMs: null,
       label: state.question_attempts_left === 0 ? "Recovery needed" : "Waiting to retry…",
-      detail: state.turns.some(isResolved) ? "Your resolved turns are saved." : "Your uploads are retained." };
+      detail: [state.question_recovery_stage === "writing" ? "The validated plan is saved." : "",
+        state.turns.some(isResolved) ? "Your resolved turns are saved." : "Your uploads are retained."].filter(Boolean).join(" ") };
   }
   return null;
 }
@@ -296,6 +302,11 @@ function lifecycleGuidance(state: Readonly<RoomState> | null): string {
     if (state.opening_repeated) return state.self_is_host ? "Review the preview, then retry or accept the repeated opening. Voting has not started." : "Waiting for the host to choose an opening. No question timer has started.";
     if (state.question_attempts_left === 0) return recoveryGuidance(state, "question", 0);
     const saved = state.turns.some(turn => isResolved(turn)) ? "Your resolved turns are saved. " : "Your uploads are retained. ";
+    if (state.question_recovery_stage) {
+      const stage = state.question_recovery_stage === "writing" ? "question writing" : "question planning";
+      return saved + (state.self_is_host ? `Retry ${stage} below or in Controls.`
+        : `The host can retry ${stage}; you do not need to resubmit.`);
+    }
     return saved + (state.self_is_host ? "Retry the question below or in Controls." : "The host can retry the question; you do not need to resubmit.");
   }
   if (state.phase === "complete") {

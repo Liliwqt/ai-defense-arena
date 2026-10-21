@@ -234,6 +234,7 @@ export interface RoomState {
   interpretation_attempts_left?: number;
   question_attempts_left?: number;
   question_retrying?: boolean;
+  question_recovery_stage?: "planning" | "writing" | null;
   opening_repeated?: boolean;
   opening_candidate?: { id: string; panelist: string; question: string; filename: string;
     evidence_text: string; evidence_location: string } | null;

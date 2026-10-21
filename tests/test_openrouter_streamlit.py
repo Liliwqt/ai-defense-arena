@@ -178,7 +178,7 @@ class OpenRouterFallbackTests(IsolatedAllowanceTests):
         self.send(app)
         self.assertEqual(app.session_state['defense_session'].turns[0].answer, 'We will limit our claim to the campus pilot.')
         self.assertTrue(app.session_state['defense_session'].needs_question)
-        button(app, 'Retry next question').click().run()
+        button(app, 'Retry question writing').click().run()
         self.assertFalse(app.exception)
         self.assertEqual(practice.run_scope, scope)
         for _ in range(11):
