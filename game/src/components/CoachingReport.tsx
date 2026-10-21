@@ -23,7 +23,7 @@ export function CoachingReport({ feedbackStatus, feedback, closingPanelist, prog
       <h3>Coaching Report</h3>
       {feedbackStatus === "generating" && (waiting
         ? <WaitingIndicator label={waiting.label} detail={waiting.detail} active={waiting.active}
-            startedAtMs={waiting.startedAtMs} serverNowMs={serverNowMs} />
+            startedAtMs={waiting.startedAtMs} retryAtMs={waiting.retryAtMs} serverNowMs={serverNowMs} />
         : <p className="report-status" role="status">Preparing your coaching report…</p>)}
       {feedbackStatus === "failed" && <p className="report-error" role="alert">The coaching report could not be generated. {failureGuidance}</p>}
       {progress && <section className="coaching-progress" aria-label="Coaching progress">

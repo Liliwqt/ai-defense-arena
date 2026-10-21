@@ -175,18 +175,24 @@ class RoomTurnRecoveryTests(unittest.TestCase):
             if all(state.get(key) == value for key, value in conditions.items()): return state
         self.fail('Expected recovery state not received')
 
-    def provider(self, *, free=False):
+    def provider(self, *, free=False, submission_failures=0):
         import json
         router = DuplicateWriterRouter()
         failed_writer = [False]
+        submission_failures_left = [submission_failures]
         def respond(request):
             body = json.loads(request.content)
             if failed_writer[0] == 'duplicate':
                 router.duplicate_next = True
                 failed_writer[0] = False
-            if failed_writer[0] and body['response_format']['json_schema']['name'] == 'QuestionDraft':
+            name = body['response_format']['json_schema']['name']
+            if failed_writer[0] and name == 'QuestionDraft':
                 router.calls.append(body)
                 return httpx.Response(404, json={'error': {'code':404,'message':'Synthetic unavailable writer'}})
+            if submission_failures_left[0] and name == 'SubmissionDraft':
+                submission_failures_left[0] -= 1
+                router.calls.append(body)
+                return httpx.Response(503, json={'error': 'Synthetic unavailable provider'})
             response = router(request)
             if free:
                 return httpx.Response(response.status_code, text=response.text.replace('"cost": 0.0005','"cost": 0'))
@@ -287,7 +293,7 @@ class RoomTurnRecoveryTests(unittest.TestCase):
         from backend import game_server
         from backend.rooms.commands import CatchUpDeadline
         clock=[1_000_000]
-        router,failed_writer=self.provider()
+        router,failed_writer=self.provider(submission_failures=4)
         with patch('backend.game_server._now_ms',side_effect=lambda:clock[0]):
             host=self.create()
             guest=self.client.post(f"/api/rooms/{host['room_code']}/join",json={'name':'Sam'}).json()
@@ -303,7 +309,6 @@ class RoomTurnRecoveryTests(unittest.TestCase):
                 self.client.portal.call(room.coordinator.execute,CatchUpDeadline())
                 question=self.until(socket,phase='question')
                 deadline=question['answer_deadline_ms']
-                router.fail_name='SubmissionDraft'
                 socket.send_json({'type':'submit_answer','turn':0,'answer':'Retain this exact explanation.'})
                 failed=self.until(socket,phase='interpretation_retry')
                 self.assertEqual(failed['my_pending_submission'],'Retain this exact explanation.')
@@ -312,9 +317,8 @@ class RoomTurnRecoveryTests(unittest.TestCase):
                 self.assertIsNone(hidden.get('my_pending_submission'))
                 self.assertEqual(failed['answer_deadline_ms'],deadline)
                 clock[0]+=17_000
-                router.fail_name='SubmissionDraft'
                 socket.send_json({'type':'retry_interpretation'})
-                retried=self.until(socket,phase='interpretation_retry',interpretation_attempts_left=4)
+                retried=self.until(socket,phase='interpretation_retry',interpretation_attempts_left=2)
                 self.assertEqual(retried['answer_deadline_ms'],deadline)
                 self.assertEqual(retried['my_pending_submission'],'Retain this exact explanation.')
                 failed_writer[0]=True

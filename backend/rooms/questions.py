@@ -16,6 +16,9 @@ from backend.live_store import LiveStore
 from backend.opening_history import OpeningQuestion, RepeatedOpening, paper_key, recent_openings
 from backend.openrouter_questions import RunQuestionClient, run_scope
 from backend.openrouter_stream import TransientProviderError
+from backend.processing_policy import (
+    ProcessingWindowExpired, decide_retry, transient_directive,
+)
 from backend.resource_limits import limit
 from backend.question_generator import (
     DEFAULT_MODEL, InvalidQuestionResponse, QuestionGenerationError, generate_first_question,
@@ -66,17 +69,24 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
                 async with room.lock:
                     if not owner._question_current(work):
                         return
-                    room.resume_operation(owner._workflows.now())
+                    now = owner._workflows.now()
+                    if room.processing_expired(now):
+                        raise ProcessingWindowExpired(room.processing_policy.expiry_message())
+                    room.resume_operation(now)
                     room.revision += 1
                 await owner._publish()
             async with room.lock:
                 if not owner._question_current(work):
                     return
+                now = owner._workflows.now()
                 if attempt == 0:
                     room.begin_operation(kind="question", operation_id=f"question:{work.generation_id}",
-                                         stage="generating", now=owner._workflows.now())
+                                         stage="generating", now=now,
+                                         window_deadline_ms=room.next_processing_deadline(now))
                     room.revision += 1
                     started = True
+                if room.processing_expired(now):
+                    raise ProcessingWindowExpired(room.processing_policy.expiry_message())
                 cap = limit('AI_QUESTION_ATTEMPTS', 3, 10)
                 attempt_key = f'question:{len(room.defense.turns) if room.defense else 0}'
                 request = prepare_progression(room.defense, defense_type=room.defense_type,
@@ -105,7 +115,21 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
                                           f'{room.code}:{room.defense_view_id}:{room.preparation_id}'))
                 room.ai_budget.admit(attempt_key, cap, room.owner_account_id or room.code)
             try:
-                result = await owner._workflows.question_request(request, files)
+                now = owner._workflows.now()
+                operation = room.operation
+                assert operation is not None
+                remaining = room.processing_policy.remaining_ms(operation.window_deadline_ms, now)
+                if remaining is not None and remaining <= 0:
+                    raise ProcessingWindowExpired(room.processing_policy.expiry_message())
+                if remaining is None:
+                    result = await owner._workflows.question_request(request, files)
+                else:
+                    try:
+                        result = await asyncio.wait_for(
+                            owner._workflows.question_request(request, files),
+                            timeout=remaining / 1000)
+                    except TimeoutError as error:
+                        raise ProcessingWindowExpired(room.processing_policy.expiry_message()) from error
                 try:
                     session = request.apply(result)
                 except ValueError as error:
@@ -113,6 +137,8 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
                 async with room.lock:
                     if not owner._question_current(work):
                         return
+                    if room.processing_expired(owner._workflows.now()):
+                        raise ProcessingWindowExpired(room.processing_policy.expiry_message())
                     room.question_retry_generation_id = None
                     opening = room.defense is None or not room.defense.turns
                     if room.run_id and opening and session.turns:
@@ -142,27 +168,56 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
                         next_clock = (room.clock_id, room.reaction_deadline_ms or room.vote_deadline_ms)
                     room.error = None
                     room.finish_operation(owner._workflows.now(), "succeeded")
+                    room.clear_interaction_window()
                     room.revision += 1
             except (RepeatedOpening, InvalidQuestionResponse, ValidationError, APIConnectionError, APIStatusError,
                     TransientProviderError) as error:
-                if isinstance(error, TransientProviderError):
-                    recoverable = error.retryable
-                else:
-                    recoverable = not isinstance(error, APIStatusError) or error.status_code >= 500
+                transient = transient_directive(error) is not None
+                recoverable = transient or isinstance(
+                    error, (RepeatedOpening, InvalidQuestionResponse, ValidationError))
                 async with room.lock:
                     if not owner._question_current(work):
                         return
                     resolved = room.defense is not None and bool(room.defense.turns) and (
                         room.defense.turns[-1].answer is not None or room.defense.turns[-1].timed_out)
                     duplicate = isinstance(error, RepeatedOpening)
-                    if attempt or not recoverable or (not duplicate and (first or not resolved)) or not room.ai_budget.remaining(attempt_key, cap):
+                    if (attempt or not recoverable
+                            or (not transient and not duplicate and (first or not resolved))
+                            or (transient and room.processing_policy.version == 'legacy'
+                                and (first or not resolved))
+                            or (transient and room.interaction_transient_retries
+                                >= room.processing_policy.automatic_retries)
+                            or not room.ai_budget.remaining(attempt_key, cap)):
                         raise
+                    now = owner._workflows.now()
+                    operation = room.operation
+                    deadline = operation.window_deadline_ms if operation else None
+                    if transient:
+                        decision = decide_retry(error, room.processing_policy, now, deadline, 1)
+                        if not decision.allowed:
+                            if decision.supplemental:
+                                raise QuestionGenerationError(
+                                    f'{safe_generation_error(error)} {decision.supplemental}') from error
+                            raise
+                        delay_ms = decision.delay_ms
+                    else:
+                        if room.processing_expired(now):
+                            raise ProcessingWindowExpired(room.processing_policy.expiry_message())
+                        delay_ms = 0 if duplicate else 1000
+                        if deadline is not None and now + delay_ms >= deadline:
+                            raise QuestionGenerationError(
+                                f'{safe_generation_error(error)} The automatic retry would exceed '
+                                'the remaining processing window. Use recovery to retry manually.') from error
                     room.question_retry_generation_id = work.generation_id
-                    room.retry_operation(owner._workflows.now())
+                    if transient:
+                        room.interaction_transient_retries += 1
+                    room.retry_operation(now, retry_at_ms=(
+                        None if duplicate or room.processing_policy.version == 'legacy'
+                        else now + delay_ms))
                     room.revision += 1
                 await owner._publish()
                 if not duplicate:
-                    await owner._workflows.sleep(1)
+                    await owner._workflows.sleep(delay_ms / 1000)
                 continue
             break
     except Exception as error:
@@ -175,6 +230,7 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
             room.error = str(error) if isinstance(error, RepeatedOpening) else safe_generation_error(error)
             room.finish_operation(owner._workflows.now(), "failed",
                                   failure_class=type(error).__name__)
+            room.clear_interaction_window()
             try:
                 if room.defense is None or not room.defense.turns:
                     release_run(room.run_id)

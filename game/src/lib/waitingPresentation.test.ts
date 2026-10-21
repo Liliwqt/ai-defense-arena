@@ -29,12 +29,21 @@ describe("deriveWaiting", () => {
     });
   });
 
+  it("keeps the admitted retry label during the retried interpretation attempt", () => {
+    const interpretation = { ...previewState, phase: "interpreting" as const,
+      operation: { id: "interpretation:4", kind: "interpretation" as const,
+        stage: "reviewing_answer", started_at_ms: 9000, attempt: 2, retrying: true } };
+    expect(deriveRoomPresentation(interpretation).waiting?.label)
+      .toBe("Trying again… Evaluating your answer…");
+  });
+
   it("freezes the active indicator during automatic retry backoff", () => {
     const view = deriveRoomPresentation({ ...accepted,
-      operation: { ...operation, stage: "retry_wait", attempt: 2, retrying: true } });
+      operation: { ...operation, stage: "retry_wait", attempt: 2, retrying: true,
+        retry_at_ms: 12_000 } });
     expect(view.waiting).toMatchObject({
       active: false, retryWait: true, label: "Waiting to retry…",
-      startedAtMs: null, detail: "The accepted answer is saved.",
+      startedAtMs: null, retryAtMs: 12_000, detail: "The accepted answer is saved.",
     });
   });
 

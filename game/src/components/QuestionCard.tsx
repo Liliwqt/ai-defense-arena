@@ -69,7 +69,7 @@ export function QuestionCard({ roomState, playerToken, presentation = deriveRoom
         ? <div className="question-review-status">
           <WaitingIndicator label={presentation.waiting.label} detail={presentation.waiting.detail}
             active={presentation.waiting.active} startedAtMs={presentation.waiting.startedAtMs}
-            serverNowMs={roomState?.server_now_ms} />
+            retryAtMs={presentation.waiting.retryAtMs} serverNowMs={roomState?.server_now_ms} />
           {content.reviewStatus?.includes("Timer") && <p>{content.reviewStatus}</p>}
         </div>
         : content.reviewStatus && <p className="question-review-status" aria-live="polite">{content.reviewStatus}</p>}

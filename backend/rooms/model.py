@@ -9,6 +9,7 @@ from typing import Any, TYPE_CHECKING
 from fastapi import WebSocket
 
 from backend.practice_tiers import FREE_QUESTION_LIMIT
+from backend.processing_policy import ProcessingPolicy
 from backend.defense_session import DefenseSession, ResearchDefenseSession, PANELIST_ORDER
 from backend.project_files import ProjectFile
 from backend.question_generator import CoachingReport
@@ -89,6 +90,9 @@ class Room(TimedTurn):
     defense_view_id: str = field(default_factory=lambda: secrets.token_hex(12))
     preparation_id: str = field(default_factory=lambda: secrets.token_hex(24))
     practice_tier: str = "standard"
+    processing_policy: ProcessingPolicy = field(default_factory=ProcessingPolicy.legacy, compare=False)
+    interaction_deadline_ms: int | None = field(default=None, compare=False)
+    interaction_transient_retries: int = field(default=0, compare=False)
 
     @property
     def has_confirmed_research_profile(self) -> bool:
@@ -96,6 +100,23 @@ class Room(TimedTurn):
 
     def online_players(self) -> dict[str, int]:
         return {player.token: player.seat for player in self.players.values() if player.sockets}
+
+    def begin_interaction_window(self, now: int) -> None:
+        self.interaction_deadline_ms = self.processing_policy.deadline_ms(now)
+        self.interaction_transient_retries = 0
+
+    def clear_interaction_window(self) -> None:
+        self.interaction_deadline_ms = None
+        self.interaction_transient_retries = 0
+
+    def next_processing_deadline(self, now: int) -> int | None:
+        if self.interaction_deadline_ms is not None:
+            return self.interaction_deadline_ms
+        return self.processing_policy.deadline_ms(now)
+
+    def processing_expired(self, now: int) -> bool:
+        operation = self.operation
+        return bool(operation and self.processing_policy.expired(operation.window_deadline_ms, now))
 
     @property
     def active_deadline_ms(self) -> int | None:
@@ -109,10 +130,12 @@ class Room(TimedTurn):
         self.closing_deadline_ms = None
 
     def begin_operation(self, *, kind: str, operation_id: str, stage: str, now: int,
-                        attempt: int = 1, retrying: bool = False) -> None:
+                        attempt: int = 1, retrying: bool = False,
+                        window_deadline_ms: int | None = None) -> None:
         if self.operation is not None:
             release_operation(self.operation.usage_key)
         self.operation = RoomOperation(operation_id, kind, stage, now, now, attempt, retrying)
+        self.operation.window_deadline_ms = window_deadline_ms
         bind_operation(self.operation.usage_key)
 
     def finish_operation_stage(self, now: int, outcome: str,
@@ -133,7 +156,7 @@ class Room(TimedTurn):
         operation.stage_started_at_ms = now
         operation.stage_finished = False
 
-    def retry_operation(self, now: int) -> None:
+    def retry_operation(self, now: int, *, retry_at_ms: int | None = None) -> None:
         operation = self.operation
         if operation is None:
             return
@@ -142,16 +165,18 @@ class Room(TimedTurn):
         operation.retrying = True
         operation.stage = "retry_wait"
         operation.stage_started_at_ms = now
+        operation.retry_at_ms = retry_at_ms
 
-    def resume_operation(self, now: int) -> None:
+    def resume_operation(self, now: int, *, stage: str = "generating") -> None:
         operation = self.operation
         if operation is None:
             return
         if operation.stage == "retry_wait":
             record_stage(operation, ended_at_ms=now, outcome="retried")
-            operation.stage = "generating"
+            operation.stage = stage
             operation.stage_started_at_ms = now
-        operation.retrying = False
+        operation.retrying = True
+        operation.retry_at_ms = None
 
     def finish_operation(self, now: int, outcome: str, usage: dict | None = None,
                          failure_class: str | None = None) -> None:
@@ -187,8 +212,12 @@ class Room(TimedTurn):
         if self.phase == "complete" and self.closing_deadline_ms is not None and now >= self.closing_deadline_ms:
             self.closing_deadline_ms = None
             self.clock_id += 1
+            self.clear_interaction_window()
             return "closing_finished"
-        return super().expire(now, online, session, expected_id, choose)
+        outcome = super().expire(now, online, session, expected_id, choose)
+        if outcome in {"timed_out", "probe_expired"}:
+            self.clear_interaction_window()
+        return outcome
 
     def expires_at(self):
         if self.closed or not self.settled or self.phase not in {'lobby', 'retry', 'complete'} or self.research_planning_status == 'planning' or self.feedback_status in {'generating', 'failed'}:
@@ -265,6 +294,7 @@ class Room(TimedTurn):
             "opening_candidate": self.opening_candidate.preview() if self.opening_candidate and recipient and recipient.is_host else None,
             "question_retrying": self.phase == "generating" and self.question_retry_generation_id == self.generation_id,
             "operation": operation.snapshot() if operation else None,
+            "processing_policy": self.processing_policy.snapshot(),
             "coaching_attempts_left": (1 if self.coaching_progress.can_retry else 0) if self.coaching_progress else self.ai_budget.remaining('coaching', limit('AI_COACHING_ATTEMPTS', 3, 10)),
             "plan_attempts_left": self.ai_budget.remaining('plan', limit('AI_PLAN_ATTEMPTS', 3, 10)),
             "self_seat": recipient.seat if recipient is not None else None,

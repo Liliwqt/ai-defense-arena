@@ -114,6 +114,13 @@ export interface AnswerCoachingCard {
 }
 
 export type CoachingSectionStatus = "pending" | "generating" | "ready" | "failed" | "cancelled";
+export interface ProcessingPolicySnapshot {
+  version: string;
+  window_ms: number | null;
+  automatic_retries: number;
+  provider_directed_retry: boolean;
+  retry_after_max_ms: number;
+}
 export interface RoomOperation {
   id: string;
   kind: "question" | "interpretation" | "mapping" | "coaching";
@@ -121,6 +128,8 @@ export interface RoomOperation {
   started_at_ms: number;
   attempt: number;
   retrying: boolean;
+  window_deadline_ms?: number | null;
+  retry_at_ms?: number | null;
 }
 export interface CoachingProgress {
   job_id: string;
@@ -235,6 +244,7 @@ export interface RoomState {
   question_attempts_left?: number;
   question_retrying?: boolean;
   question_recovery_stage?: "planning" | "writing" | null;
+  processing_policy?: ProcessingPolicySnapshot;
   opening_repeated?: boolean;
   opening_candidate?: { id: string; panelist: string; question: string; filename: string;
     evidence_text: string; evidence_location: string } | null;

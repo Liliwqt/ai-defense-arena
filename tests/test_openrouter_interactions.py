@@ -268,7 +268,7 @@ class FundedInteractionProtocolTests(coverage.CoverageProtocolTests):
     def test_manual_retry_keeps_the_run_assignment_and_does_not_double_dispatch(self):
         outputs = [planner_move(METHODOLOGY, 'topic-1'),
                    reviewer_question('How will the team justify the stated pilot design?'),
-                   httpx.Response(503, text='{}'), clarification()]
+                   httpx.Response(503, text='{}'), httpx.Response(503, text='{}'), clarification()]
         host, guest = self.create_room()
         code = host['room_code']
         with patch.object(planning_workflow, 'generate_research_plan', return_value=self.plan):
@@ -281,25 +281,49 @@ class FundedInteractionProtocolTests(coverage.CoverageProtocolTests):
                     state = self.until(socket, phase='interpretation_retry')
                     self.assertIn('HTTP 503', state['error'])
                     self.assertEqual(state['turns'][0]['answer'], None)
-                self.assertEqual(len(calls), 3)
+                    self.assertEqual(state['interpretation_attempts_left'], 4)
+                self.assertEqual(len(calls), 4)
                 with patch.dict(os.environ, {'OPENROUTER_RUN_USD': '0.50'}):
                     h.send_json({'type': 'retry_interpretation'})
                     for socket in (h, g):
                         state = self.until(socket, phase='question')
                         self.assertEqual(state['turns'][0]['clarifications'][0]['reply'],
                                          'We mean the measured pilot wait, not a guess.')
-                self.assertEqual(len(calls), 4)
+                self.assertEqual(len(calls), 5)
                 h.send_json({'type': 'retry_interpretation'})
                 for _ in range(10):
                     if h.receive_json()['type'] == 'error':
                         break
                 else:
                     self.fail('The duplicate retry was accepted.')
-                self.assertEqual(len(calls), 4)
+                self.assertEqual(len(calls), 5)
         self.assertEqual([call['model'] for call in calls[2:]],
-                         ['deepseek/deepseek-v4.1-flash-1017'] * 2)
+                         ['deepseek/deepseek-v4.1-flash-1017'] * 3)
         self.assertEqual([call['reasoning'] for call in calls[2:]],
-                         [{'effort': 'low'}] * 2)
+                         [{'effort': 'low'}] * 3)
+
+    def test_transient_rate_limit_retries_once_before_recovery(self):
+        outputs = [planner_move(METHODOLOGY, 'topic-1'),
+                   reviewer_question('How will the team justify the stated pilot design?'),
+                   httpx.Response(429, headers={'retry-after': '0'}, json={'error': {
+                       'code': 429, 'message': 'Rate limit exceeded: free-models-per-min.'}}),
+                   clarification()]
+        host, guest = self.create_room()
+        code = host['room_code']
+        with patch.object(planning_workflow, 'generate_research_plan', return_value=self.plan):
+            with self.client.websocket_connect(f'/ws/{code}') as h, \
+                 self.client.websocket_connect(f'/ws/{code}') as g:
+                calls = self.funded(*outputs)
+                self.open_question(((h, host['player_token']), (g, guest['player_token'])))
+                h.send_json({'type': 'submit_answer', 'turn': 0, 'answer': ANSWER})
+                for socket in (h, g):
+                    state = self.until(socket, phase='question')
+                    self.assertEqual(state['error'], None)
+                    self.assertEqual(state['interpretation_attempts_left'], 4)
+                    self.assertIsNone(state['operation'])
+                    self.assertEqual(state['turns'][0]['clarifications'][0]['reply'],
+                                     'We mean the measured pilot wait, not a guess.')
+                self.assertEqual(len(calls), 4)
 
     def test_exhausted_allowance_keeps_the_saved_answer_and_blocks_paid_retry(self):
         outputs = [planner_move(METHODOLOGY, 'topic-1'),
@@ -373,7 +397,7 @@ class FundedInteractionProtocolTests(coverage.CoverageProtocolTests):
     def test_failed_interaction_resumes_the_answer_clock(self):
         outputs = [planner_move(METHODOLOGY, 'topic-1'),
                    reviewer_question('How will the team justify the stated pilot design?'),
-                   httpx.Response(503, text='{}'),
+                   httpx.Response(503, text='{}'), httpx.Response(503, text='{}'),
                    planner_move(ETHICS, 'topic-2',
                                 assessment=assessment('topic-1', 0, status='needs clarification')),
                    reviewer_question('How will the team report claim changes?',
@@ -402,17 +426,17 @@ class FundedInteractionProtocolTests(coverage.CoverageProtocolTests):
                     self.assertEqual(state['turns'][0]['answer'], None)
                     self.assertEqual(state['turns'][1]['question'],
                                      'How will the team report claim changes?')
-        self.assertEqual(len(calls), 5)
+        self.assertEqual(len(calls), 6)
 
     def test_retry_repauses_only_for_the_elapsed_processing_time(self):
         entered, release = threading.Event(), threading.Event()
         outputs = [planner_move(METHODOLOGY, 'topic-1'),
                    reviewer_question('How will the team justify the stated pilot design?'),
-                   httpx.Response(503, text='{}'),
+                   httpx.Response(503, text='{}'), httpx.Response(503, text='{}'),
                    clarification()]
 
         def gate(count):
-            if count == 4:
+            if count == 5:
                 entered.set()
                 release.wait(10)
         host, guest = self.create_room()
@@ -446,7 +470,7 @@ class FundedInteractionProtocolTests(coverage.CoverageProtocolTests):
         outputs = [planner_move(METHODOLOGY, 'topic-1'),
                    reviewer_question('How will the team justify the stated pilot design?'),
                    probe(),
-                   httpx.Response(503, text='{}')]
+                   httpx.Response(503, text='{}'), httpx.Response(503, text='{}')]
         host, guest = self.create_room()
         code = host['room_code']
         with patch.object(planning_workflow, 'generate_research_plan', return_value=self.plan):
@@ -483,7 +507,7 @@ class FundedInteractionProtocolTests(coverage.CoverageProtocolTests):
                    reviewer_question('How will the team justify the stated pilot design?')]
         if probe_reply:
             outputs.append(probe())
-        outputs += [httpx.Response(503, text='{}'), clarification()]
+        outputs += [httpx.Response(503, text='{}'), httpx.Response(503, text='{}'), clarification()]
         host, guest = self.create_room()
         code = host['room_code']
         with patch.object(planning_workflow, 'generate_research_plan', return_value=self.plan):
@@ -524,7 +548,7 @@ class FundedInteractionProtocolTests(coverage.CoverageProtocolTests):
                         self.assertEqual(state['turns'][0]['probe']['status'], 'pending')
                         self.assertEqual(state['probe_deadline_ms'], deadline)
                     self.assertEqual(len(state['turns']), 1)
-                self.assertEqual(len(calls), 2 if budget else 5 if probe_reply else 4)
+                self.assertEqual(len(calls), 2 if budget else 6 if probe_reply else 5)
 
     def test_duplicate_submission_is_rejected_and_reconnect_sees_the_pending_answer(self):
         entered, release = threading.Event(), threading.Event()

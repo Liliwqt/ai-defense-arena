@@ -14,6 +14,7 @@ class ProviderErrorTests(unittest.TestCase):
         for provider_message, expected in (
             ('Rate limit exceeded: free-models-per-day. private upstream details', 'daily free-model'),
             ('Rate limit exceeded: free-models-per-min. private upstream details', 'per-minute'),
+            ('Daily request quota exhausted. private upstream details', 'daily request allowance'),
             ('private upstream details', 'rate or capacity limit'),
         ):
             for http_status in (429, 200):
@@ -22,6 +23,21 @@ class ProviderErrorTests(unittest.TestCase):
                     self.assertIn(expected, str(error))
                     self.assertNotIn('Check server configuration', str(error))
                     self.assertFalse(error.retryable)
+
+    def test_retry_after_makes_only_bounded_429s_retryable(self):
+        for http_status in (429, 200):
+            with self.subTest(http_status=http_status):
+                error = self.failure({'code': 429, 'message': 'Rate limit exceeded: free-models-per-min.'},
+                                     http_status=http_status, headers={'retry-after': '2'})
+                self.assertTrue(error.retryable)
+                self.assertEqual(error.retry_after_seconds, 2)
+                daily = self.failure({'code': 429, 'message': 'Rate limit exceeded: free-models-per-day.'},
+                                     http_status=http_status, headers={'retry-after': '2'})
+                self.assertFalse(daily.retryable)
+                self.assertTrue(daily.manual_only)
+                malformed = self.failure({'code': 429, 'message': 'private upstream details'},
+                                         http_status=http_status, headers={'retry-after': 'later'})
+                self.assertFalse(malformed.retryable)
 
     def test_http_privacy_rejection_has_safe_actionable_diagnostic(self):
         response = httpx.Response(404, json={'error': {'message':
@@ -67,10 +83,10 @@ class ProviderErrorTests(unittest.TestCase):
                 self.assertFalse(raised.exception.retryable)
                 self.assertNotIn('private upstream details', str(raised.exception))
 
-    def failure(self, error, *, http_status=200):
-        response = httpx.Response(http_status, json={'error': error}) if http_status != 200 else httpx.Response(200, text='data: ' + json.dumps({
+    def failure(self, error, *, http_status=200, headers=None):
+        response = httpx.Response(http_status, json={'error': error}, headers=headers) if http_status != 200 else httpx.Response(200, text='data: ' + json.dumps({
             'error': error, 'choices': [{'index': 0, 'delta': {}, 'finish_reason': 'error'}],
-        }) + '\n\n')
+        }) + '\n\n', headers=headers)
         with httpx.Client(transport=httpx.MockTransport(lambda request: response)) as client:
             with self.assertRaises(QuestionGenerationError) as raised:
                 with stream(client, api_key='offline-key', body={}, schema=None,

@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from backend.rooms.model import Player, Room, now_ms as _now_ms
+from backend.processing_policy import ProcessingPolicy
 from backend.rooms.coordinator import (
     RoomCoordinator, RoomWorkflows,
 )
@@ -416,7 +417,8 @@ async def create_room(
                 code = _room_code()
             token = _new_token()
             room = Room(code, project_files, {token: Player(token, name, 0, True)}, defense_type, research_stage,
-                        practice_tier=practice_tier, owner_account_id=account["id"], created_ms=_now_ms(), activity_ms=_now_ms(), documents=documents)
+                        practice_tier=practice_tier, processing_policy=ProcessingPolicy.for_tier(practice_tier),
+                        owner_account_id=account["id"], created_ms=_now_ms(), activity_ms=_now_ms(), documents=documents)
             _coordinator(room)
             rooms[code] = room
         published = True

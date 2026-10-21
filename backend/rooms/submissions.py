@@ -13,6 +13,7 @@ from backend.question_generator import (
     PanelistProbe, SubmissionDecision, interpret_submission,
 )
 from backend.openrouter_questions import RunQuestionClient, run_scope
+from backend.processing_policy import ProcessingWindowExpired, decide_retry
 from backend.resource_limits import limit
 from backend.timed_turn import PendingSubmission, DeadlineExpired
 from backend.defense_session import ResearchDefenseSession
@@ -99,18 +100,106 @@ async def request_interpretation(request: InterpretationInput) -> SubmissionDeci
 async def run_interpretation(owner: "RoomCoordinator", work: InterpretationWork,
                              request: InterpretationInput) -> None:
     room = owner._room
+    now = owner._workflows.now()
     async with room.lock:
         if not owner._interpretation_current(work):
             return
         room.begin_operation(kind="interpretation", operation_id=f"interpretation:{work.interpretation_id}",
                              stage="reviewing_reply" if work.pending.probe_id else "reviewing_answer",
-                             now=owner._workflows.now())
+                             now=now, window_deadline_ms=room.next_processing_deadline(now))
         room.revision += 1
     await owner._publish()
     failure_class = None
+    decision = None
+    error = None
+    attempt = 0
     try:
-        decision = await owner._workflows.interpretation_request(request)
-        error = None
+        while True:
+            async with room.lock:
+                if not owner._interpretation_current(work):
+                    break
+                now = owner._workflows.now()
+                if room.processing_expired(now):
+                    raise ProcessingWindowExpired(room.processing_policy.expiry_message())
+                if attempt:
+                    room.resume_operation(now, stage=(
+                        "reviewing_reply" if work.pending.probe_id else "reviewing_answer"))
+                    room.revision += 1
+            if attempt:
+                await owner._publish()
+            try:
+                operation = room.operation
+                assert operation is not None
+                remaining = room.processing_policy.remaining_ms(operation.window_deadline_ms,
+                                                                owner._workflows.now())
+                if remaining is not None and remaining <= 0:
+                    raise ProcessingWindowExpired(room.processing_policy.expiry_message())
+                if remaining is None:
+                    decision = await owner._workflows.interpretation_request(request)
+                else:
+                    try:
+                        decision = await asyncio.wait_for(
+                            owner._workflows.interpretation_request(request),
+                            timeout=remaining / 1000)
+                    except TimeoutError as failure:
+                        raise ProcessingWindowExpired(room.processing_policy.expiry_message()) from failure
+                error = None
+            except Exception as failure:
+                decision, error = None, safe_generation_error(failure)
+                failure_class = type(failure).__name__
+                async with room.lock:
+                    if (room.closed or room.run_id != work.run_id
+                            or room.interpretation_id != work.interpretation_id
+                            or room.pending_submission is not work.pending):
+                        return
+                    now = owner._workflows.now()
+                    if not owner._interpretation_current(work):
+                        break
+                    if room.processing_expired(now):
+                        error = room.processing_policy.expiry_message()
+                        failure_class = "ProcessingWindowExpired"
+                        break
+                    if (attempt >= room.processing_policy.automatic_retries
+                            or room.processing_policy.version == 'legacy'
+                            or room.interaction_transient_retries
+                            >= room.processing_policy.automatic_retries):
+                        break
+                    operation = room.operation
+                    deadline = operation.window_deadline_ms if operation else None
+                    attempts_remaining = max(0, limit('AI_INTERPRETATION_ATTEMPTS', 6, 20)
+                                             - room.interpretation_attempts)
+                    retry = decide_retry(failure, room.processing_policy, now, deadline,
+                                         attempts_remaining)
+                    if not retry.allowed:
+                        if retry.supplemental:
+                            error = f"{error} {retry.supplemental}"
+                        break
+                    try:
+                        attempt_key = f'interpret:{len(room.defense.turns)-1}' if room.defense else ''
+                        room.ai_budget.admit(attempt_key, limit('AI_INTERPRETATION_ATTEMPTS', 6, 20),
+                                             room.owner_account_id or room.code)
+                    except HTTPException as denied:
+                        error = safe_generation_error(denied)
+                        failure_class = "HTTPException"
+                        break
+                    room.interpretation_attempts += 1
+                    room.interaction_transient_retries += 1
+                    room.retry_operation(now, retry_at_ms=now + retry.delay_ms)
+                    room.revision += 1
+                await owner._publish()
+                await owner._workflows.sleep(retry.delay_ms / 1000)
+                attempt += 1
+                continue
+            async with room.lock:
+                if (room.closed or room.run_id != work.run_id
+                        or room.interpretation_id != work.interpretation_id
+                        or room.pending_submission is not work.pending):
+                    return
+                if room.processing_expired(owner._workflows.now()):
+                    decision = None
+                    error = room.processing_policy.expiry_message()
+                    failure_class = "ProcessingWindowExpired"
+            break
     except Exception as failure:
         decision, error = None, safe_generation_error(failure)
         failure_class = type(failure).__name__
@@ -128,6 +217,7 @@ async def run_interpretation(owner: "RoomCoordinator", work: InterpretationWork,
         now = owner._workflows.now()
         if error is not None:
             room.interpretation_failed(work.interpretation_id, work.pending, error, now)
+            room.clear_interaction_window()
             outcome = "failed"
         else:
             try:
@@ -140,6 +230,7 @@ async def run_interpretation(owner: "RoomCoordinator", work: InterpretationWork,
                 outcome = "failed"
         if outcome is None:
             room.finish_operation(now, "failed")
+            room.clear_interaction_window()
             return
         if outcome in {"answered", "probed"}:
             attach_provenance(room, work.pending.turn, work.pending.probe_id, work.pending.input_provenance)
@@ -147,6 +238,8 @@ async def run_interpretation(owner: "RoomCoordinator", work: InterpretationWork,
             next_clock = (room.clock_id, room.answer_deadline_ms)
         elif outcome == "answered":
             generation_id, feedback_id = owner._resolve_turn_locked()
+        if outcome != "answered":
+            room.clear_interaction_window()
         room.finish_operation(now, "failed" if outcome == "failed" else "succeeded",
                               failure_class=failure_class if outcome == "failed" else None)
         room.revision += 1
@@ -202,23 +295,27 @@ async def handle_submission(owner: "RoomCoordinator", actor: VerifiedActor,
                     raise ValueError('Interpretation allowance used. Use the saved submission as an answer.')
                 room.ai_budget.admit(attempt_key, cap, room.owner_account_id or room.code)
                 room.retry_interpretation(is_host=player.is_host, seat=player.seat, now=now)
+                room.begin_interaction_window(now)
                 interpretation_id = room.interpretation_id
             elif isinstance(command, UsePendingAnswer):
                 provenance = room.pending_submission.input_provenance if room.pending_submission else None
                 turn_index = room.pending_submission.turn if room.pending_submission else None
                 probe_id = room.pending_submission.probe_id if room.pending_submission else None
                 room.accept_saved_answer(room.defense, player.token, player.seat)
+                room.clear_interaction_window()
                 if turn_index is not None:
                     attach_provenance(room, turn_index, probe_id, provenance)
                 generation_id, feedback_id = owner._resolve_turn_locked()
             elif isinstance(command, SubmitDirectAnswer):
                 room.submit_direct(player.token, player.name, player.seat, command.turn,
                                    command.answer, room.defense, now)
+                room.clear_interaction_window()
                 generation_id, feedback_id = owner._resolve_turn_locked()
             elif isinstance(command, FinishProbe):
                 if room.phase != "interpretation_retry" and not room.probe_recovery_available and room.interpretation_attempts < cap and room.ai_budget.remaining(attempt_key, cap) > 0:
                     raise ValueError("Continue with the original answer is available during probe recovery.")
                 room.finish_probe(player.seat, command.turn, command.probe_id, room.defense, now)
+                room.clear_interaction_window()
                 generation_id, feedback_id = owner._resolve_turn_locked()
             elif isinstance(command, SubmitProbeReply):
                 room.validate_submit(player.seat, command.turn, command.answer, room.defense,
@@ -230,14 +327,17 @@ async def handle_submission(owner: "RoomCoordinator", actor: VerifiedActor,
                 room.submit_probe_reply(player.token, player.name, player.seat, command.turn,
                     command.probe_id, command.answer, room.defense, now, direct=command.direct)
                 if command.direct:
+                    room.clear_interaction_window()
                     generation_id, feedback_id = owner._resolve_turn_locked()
                 else:
+                    room.begin_interaction_window(now)
                     interpretation_id = room.interpretation_id
             elif isinstance(command, SubmitAnswer):
                 room.validate_submit(player.seat, command.turn, command.answer, room.defense, now)
                 room.ai_budget.admit(attempt_key, cap, room.owner_account_id or room.code)
                 room.submit(player.token, player.name, player.seat, command.turn,
                             command.answer, room.defense, now)
+                room.begin_interaction_window(now)
                 interpretation_id = room.interpretation_id
         except HTTPException as failure:
             result = CommandResult(False, str(failure.detail), "ai_admission" if failure.status_code == 429 else None)

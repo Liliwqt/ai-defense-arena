@@ -35,6 +35,20 @@ describe("WaitingIndicator", () => {
     expect(screen.getByRole("status").textContent).toContain("5s");
   });
 
+  it("counts down a known retry without announcing every tick", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(10_000));
+    render(<WaitingIndicator label="Waiting to retry…" active={false} startedAtMs={null}
+      retryAtMs={13_000} serverNowMs={9_000} />);
+    const status = screen.getByRole("status");
+    const retry = status.querySelector(".waiting-retry");
+    expect(retry).toHaveAttribute("aria-hidden", "true");
+    expect(retry?.textContent).toBe("Retrying in 4s");
+    expect(screen.getByText("Waiting to retry…")).toBeTruthy();
+    act(() => vi.advanceTimersByTime(2000));
+    expect(status.querySelector(".waiting-retry")?.textContent).toBe("Retrying in 2s");
+  });
+
   it("stops motion and busy state while waiting for a retry decision", () => {
     vi.useFakeTimers();
     render(<WaitingIndicator label="Waiting to retry…" active={false} startedAtMs={null} />);

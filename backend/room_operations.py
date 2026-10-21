@@ -55,9 +55,11 @@ class RoomOperation:
     # An opaque lifetime identity isolates receipts, including late callbacks.
     usage_key: str = field(default_factory=lambda: secrets.token_hex(24), repr=False)
     stage_finished: bool = False
+    window_deadline_ms: int | None = None
+    retry_at_ms: int | None = None
 
     def snapshot(self) -> dict:
-        return {
+        result = {
             "id": self.id,
             "kind": self.kind,
             "stage": self.stage,
@@ -65,6 +67,11 @@ class RoomOperation:
             "attempt": self.attempt,
             "retrying": self.retrying,
         }
+        if self.window_deadline_ms is not None:
+            result["window_deadline_ms"] = self.window_deadline_ms
+        if self.retry_at_ms is not None:
+            result["retry_at_ms"] = self.retry_at_ms
+        return result
 
 
 class TimingSink:

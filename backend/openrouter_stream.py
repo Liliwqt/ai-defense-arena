@@ -31,49 +31,100 @@ class ProviderConnectionError(TransientProviderError):
 
 
 class ProviderStatusError(TransientProviderError):
-    """The provider rejected one request; only server failures are retryable."""
+    """The provider rejected one request; server failures and bounded 429s are retryable."""
 
-    def __init__(self, status_code: int, message: str):
+    def __init__(self, status_code: int, message: str, *,
+                 retry_after_seconds: int | None = None, manual_only: bool = False):
         super().__init__(message)
+        if (isinstance(retry_after_seconds, bool) or not isinstance(retry_after_seconds, int)
+                or not 0 <= retry_after_seconds <= 86_400):
+            retry_after_seconds = None
         self.status_code = status_code
-        self.retryable = status_code >= 500
+        self.retry_after_seconds = retry_after_seconds
+        self.manual_only = manual_only
+        self.retryable = status_code >= 500 or (
+            status_code == 429 and not manual_only and retry_after_seconds is not None)
 
 
-def status_error(status, error=None):
+def retry_after_seconds(value) -> int | None:
+    """Accept only a whole, non-negative delta-seconds value from the provider."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if 0 <= value <= 86_400 else None
+    if isinstance(value, str):
+        text = value.strip()
+        if text.isdigit():
+            seconds = int(text)
+            return seconds if seconds <= 86_400 else None
+    return None
+
+
+def header_retry_after(headers) -> int | None:
+    try:
+        return retry_after_seconds(headers.get('retry-after'))
+    except (AttributeError, TypeError):
+        return None
+
+
+def envelope_retry_after(error) -> int | None:
+    if not isinstance(error, dict):
+        return None
+    metadata = error.get('metadata')
+    for value in (error.get('retry_after'), error.get('retry_after_seconds'),
+                  metadata.get('retry_after') if isinstance(metadata, dict) else None,
+                  metadata.get('retry_after_seconds') if isinstance(metadata, dict) else None):
+        seconds = retry_after_seconds(value)
+        if seconds is not None:
+            return seconds
+    return None
+
+
+def status_error(status, error=None, retry_after: int | None = None):
     """Classify known routing reasons without copying provider-controlled text."""
+    retry_after = retry_after_seconds(retry_after)
     if status == 429:
         message = error.get('message', '') if isinstance(error, dict) else ''
         message = message.lower() if isinstance(message, str) else ''
         if message.startswith('rate limit exceeded: free-models-per-day'):
-            return ProviderStatusError(status, 'OpenRouter’s daily free-model request allowance is exhausted (HTTP 429). Wait for the next UTC day or ask the operator to check the account’s free-model allowance. Retrying now will not reset it.')
+            return ProviderStatusError(status, 'OpenRouter’s daily free-model request allowance is exhausted (HTTP 429). Wait for the next UTC day or ask the operator to check the account’s free-model allowance. Retrying now will not reset it.',
+                                       retry_after_seconds=retry_after, manual_only=True)
+        if 'per-day' in message or 'daily' in message:
+            return ProviderStatusError(status, 'OpenRouter’s daily request allowance is exhausted (HTTP 429). Wait for the next UTC day or ask the operator to check the account’s allowance. Retrying now will not reset it.',
+                                       retry_after_seconds=retry_after, manual_only=True)
         if message.startswith('rate limit exceeded: free-models-per-min'):
-            return ProviderStatusError(status, 'OpenRouter’s per-minute free-model request limit was reached (HTTP 429). Wait at least a minute before retrying. Repeated retries also consume free requests.')
-        return ProviderStatusError(status, 'OpenRouter or the selected provider reached a rate or capacity limit (HTTP 429). Wait before retrying. If it persists, ask the operator to check OpenRouter Activity and the account’s free-model allowance.')
+            return ProviderStatusError(status, 'OpenRouter’s per-minute free-model request limit was reached (HTTP 429). Wait at least a minute before retrying. Repeated retries also consume free requests.',
+                                       retry_after_seconds=retry_after)
+        return ProviderStatusError(status, 'OpenRouter or the selected provider reached a rate or capacity limit (HTTP 429). Wait before retrying. If it persists, ask the operator to check OpenRouter Activity and the account’s free-model allowance.',
+                                   retry_after_seconds=retry_after)
     if status == 404:
         message = error.get('message', '') if isinstance(error, dict) else ''
         if isinstance(message, str) and message.lower().startswith('no endpoints found matching your data policy'):
             return ProviderStatusError(status, 'OpenRouter has no endpoint matching the app/account privacy settings (HTTP 404). The operator needs to configure a compatible model and provider.')
         return ProviderStatusError(status, 'OpenRouter found no compatible endpoint for the configured model and request (HTTP 404). Check model/provider availability and supported parameters.')
-    return ProviderStatusError(status, f'OpenRouter request failed (HTTP {status}). Check server configuration or retry later.')
+    return ProviderStatusError(status, f'OpenRouter request failed (HTTP {status}). Check server configuration or retry later.',
+                               retry_after_seconds=retry_after)
 
 
 def http_status_error(response, current):
     """Bound error reads; malformed/oversized bodies retain the HTTP verdict."""
+    retry_after = header_retry_after(response.headers)
     data = bytearray()
     try:
         for chunk in response.iter_bytes():
             current()
             if len(data) + len(chunk) > MAX_ERROR_BYTES:
-                return status_error(response.status_code)
+                return status_error(response.status_code, retry_after=retry_after)
             data.extend(chunk)
         document = json.loads(data)
         error = document.get('error') if isinstance(document, dict) else None
-        return status_error(response.status_code, error)
+        return status_error(response.status_code, error,
+                            retry_after=retry_after if retry_after is not None else envelope_retry_after(error))
     except (ValueError, UnicodeError, RecursionError, httpx.HTTPError):
-        return status_error(response.status_code)
+        return status_error(response.status_code, retry_after=retry_after)
 
 
-def provider_stream_error(error):
+def provider_stream_error(error, *, retry_after: int | None = None):
     """Classify a provider envelope without exposing its upstream message.
 
     Headers may already be HTTP200 when a provider rejects the request. Unknown
@@ -86,8 +137,9 @@ def provider_stream_error(error):
         error_type = metadata.get('error_type') if isinstance(metadata, dict) else None
         if error_type == 'rate_limit_exceeded':
             code = 429
+        retry_after = retry_after if retry_after is not None else envelope_retry_after(error)
         if type(code) is int and 400 <= code <= 599:
-            return status_error(code, error)
+            return status_error(code, error, retry_after=retry_after)
         if code == 'server_error' or error_type == 'server_error':
             return ProviderStatusError(500, 'OpenRouter server error. Retry when the service is available.')
     return QuestionGenerationError('OpenRouter reported a provider error. Check server configuration or retry later.')
@@ -144,7 +196,7 @@ class StructuredStream:
             try:
                 event = json.loads(raw)
                 if 'error' in event:
-                    raise provider_stream_error(event['error'])
+                    raise provider_stream_error(event['error'], retry_after=header_retry_after(self.response.headers))
                 if event.get('usage') is not None:
                     self.on_usage(event['usage'])
                 for choice in event.get('choices', []):

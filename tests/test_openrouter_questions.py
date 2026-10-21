@@ -379,6 +379,7 @@ class FundedQuestionProtocolTests(maps.ResearchPlanRoomTests):
         with patch('backend.rooms.planning.generate_research_plan', return_value=self.plan), \
              self.client.websocket_connect(f"/ws/{self.host['room_code']}") as socket:
             calls = self.funded(httpx.Response(503, text='{}'),
+                                httpx.Response(503, text='{}'),
                                 planner_move(METHODOLOGY, 'topic-1'),
                                 reviewer_question('How will the team justify the stated pilot design?'))
             self.start(socket)
@@ -388,7 +389,8 @@ class FundedQuestionProtocolTests(maps.ResearchPlanRoomTests):
                 socket.send_json({'type': 'retry'})
                 state = self.until(socket, phase='voting')
         self.assertEqual([call['model'] for call in calls],
-                         ['z-ai/glm-5.3-flash', 'z-ai/glm-5.3-flash', 'deepseek/deepseek-v4.1-flash-1017'])
+                         ['z-ai/glm-5.3-flash', 'z-ai/glm-5.3-flash',
+                          'z-ai/glm-5.3-flash', 'deepseek/deepseek-v4.1-flash-1017'])
         self.assertEqual(state['turns'][0]['question'], 'How will the team justify the stated pilot design?')
         account = self._offline_credentials[2]
         snapshot = ProviderAllowance(f'run:{room.run_id}', account['id']).snapshot()

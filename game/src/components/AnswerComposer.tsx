@@ -82,6 +82,7 @@ export function AnswerComposer({ active = true, playerToken, roomState, connecte
           {localError || actionError || !connected
             ? <p role="status">{localError || actionError || "Reconnecting… Your saved turns are retained."}</p>
             : <WaitingIndicator label={waiting?.label ?? "Waiting to retry…"} active={false}
+                retryAtMs={waiting?.retryAtMs} serverNowMs={roomState?.server_now_ms}
                 detail={[waiting?.detail, presentation.guidance].filter(Boolean).join(" ")} />}
           {roomState.self_is_host && <button type="button"
             disabled={recoveryDisabled || questionRetryPending || !presentation.controls.questionRetryAvailable}
@@ -96,7 +97,8 @@ export function AnswerComposer({ active = true, playerToken, roomState, connecte
       ) : submission.showRecovery && !canWrite && roomState ? (
         <div className="submission-retry">
           {waiting
-            ? <WaitingIndicator label={waiting.label} active={false}
+            ? <WaitingIndicator label={waiting.label} active={false} retryAtMs={waiting.retryAtMs}
+                serverNowMs={roomState?.server_now_ms}
                 detail={[waiting.detail, reviewGuidance].filter(Boolean).join(" ")} />
             : <p role="status">{reviewGuidance}</p>}
           {roomState.my_pending_submission && <p className="pending-text">{roomState.my_pending_submission}</p>}
@@ -143,7 +145,7 @@ export function AnswerComposer({ active = true, playerToken, roomState, connecte
           : waiting && (waiting.active || submission.retrying)
             ? <WaitingIndicator label={waiting.label} active={waiting.active}
                 detail={[waiting.detail, submission.reviewing ? submission.reviewGuidance : ""].filter(Boolean).join(" ")}
-                startedAtMs={waiting.startedAtMs} serverNowMs={roomState?.server_now_ms} />
+                startedAtMs={waiting.startedAtMs} retryAtMs={waiting.retryAtMs} serverNowMs={roomState?.server_now_ms} />
             : <p id="answer-status" role="status">
               {turnIndex >= 0 ? presentation.teammateInstruction : presentation.guidance}
             </p>

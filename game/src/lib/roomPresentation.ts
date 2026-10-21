@@ -53,6 +53,7 @@ export interface WaitingPresentation {
   label: string;
   detail?: string;
   startedAtMs: number | null;
+  retryAtMs?: number | null;
 }
 
 export function questionRecoveryAction(state: Readonly<RoomState> | null): string | null {
@@ -64,8 +65,9 @@ function questionLabel(retrying: boolean): string {
   return retrying ? "Trying again… Preparing your question…" : "Thinking… Preparing your question…";
 }
 
-function interpretationLabel(probePending: boolean): string {
-  return probePending ? "Reviewing your probe reply…" : "Evaluating your answer…";
+function interpretationLabel(probePending: boolean, retrying = false): string {
+  const label = probePending ? "Reviewing your probe reply…" : "Evaluating your answer…";
+  return retrying ? `Trying again… ${label}` : label;
 }
 
 export function mappingLabel(stage?: string | null): string {
@@ -87,7 +89,7 @@ function deriveWaiting(state: Readonly<RoomState> | null): WaitingPresentation |
     const startedAtMs = typeof operation.started_at_ms === "number" ? operation.started_at_ms : null;
     if (operation.stage === "retry_wait") {
       return { active: false, retryWait: true, startedAtMs: null,
-        label: "Waiting to retry…",
+        label: "Waiting to retry…", retryAtMs: operation.retry_at_ms ?? null,
         detail: state.turns.some(isResolved) ? retainedDetail(state) : "Your uploads are retained." };
     }
     if (operation.kind === "question") {
@@ -97,7 +99,7 @@ function deriveWaiting(state: Readonly<RoomState> | null): WaitingPresentation |
     }
     if (operation.kind === "interpretation") {
       return { active: true, retryWait: false, startedAtMs,
-        label: interpretationLabel(operation.stage === "reviewing_reply"),
+        label: interpretationLabel(operation.stage === "reviewing_reply", operation.retrying),
         detail: state.my_pending_submission ? "Submission saved, not yet accepted." : undefined };
     }
     if (operation.kind === "mapping") {
@@ -134,7 +136,8 @@ function deriveWaiting(state: Readonly<RoomState> | null): WaitingPresentation |
   if (state.phase === "interpretation_retry") {
     return { active: false, retryWait: true, startedAtMs: null,
       label: state.interpretation_attempts_left === 0 ? "Recovery needed" : "Waiting to retry…",
-      detail: state.my_pending_submission ? "Submission saved, not accepted." : "Your submission was retained." };
+      detail: [state.my_pending_submission ? "Submission saved, not accepted." : "Your submission was retained.",
+        state.error].filter(Boolean).join(" ") };
   }
   if (state.phase === "retry" && !state.opening_repeated) {
     return { active: false, retryWait: true, startedAtMs: null,

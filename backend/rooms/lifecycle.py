@@ -111,6 +111,7 @@ async def handle_lifecycle(owner: "RoomCoordinator", actor: VerifiedActor, comma
                 error = "Prepare and confirm the current research profile, map and question budget before starting."
             else:
                 owner._retire_work()
+                room.clear_interaction_window()
                 if room.defense_type != "code":
                     room.defense = ResearchDefenseSession.create(room.research_plan, room.research_budget_preview,
                                                                  room.defense_type, room.research_stage)
@@ -129,6 +130,7 @@ async def handle_lifecycle(owner: "RoomCoordinator", actor: VerifiedActor, comma
                     error = str(failure)
                 else:
                     owner._retire_work()
+                    room.clear_interaction_window()
                     if isinstance(room.defense,ResearchDefenseSession) and not room.defense.completed:
                         room.defense.end()
                     room.phase = "complete"
@@ -145,6 +147,7 @@ async def handle_lifecycle(owner: "RoomCoordinator", actor: VerifiedActor, comma
                 error = "The defense is already complete."
             else:
                 owner._retire_work()
+                room.clear_interaction_window()
                 room.defense.end()
                 release_run(room.run_id)
                 if live_mode() and room.run_id:
@@ -157,6 +160,7 @@ async def handle_lifecycle(owner: "RoomCoordinator", actor: VerifiedActor, comma
         elif isinstance(command, RestartDefense):
             # Cancel an in-flight map without letting it mutate an active defense.
             owner._retire_work()
+            room.clear_interaction_window()
             if room.research_planning_status == "planning":
                 room.research_planning_status = "none"
                 room.research_plan_progress = None
@@ -187,6 +191,7 @@ async def handle_lifecycle(owner: "RoomCoordinator", actor: VerifiedActor, comma
                 error = "There is no failed question to retry."
             else:
                 owner._retire_work(keep_question_plan=True)
+                room.clear_interaction_window()
                 generate_first = room.defense is None or not room.defense.turns
                 room.phase = "generating"
                 room.error = None
@@ -198,6 +203,7 @@ async def handle_lifecycle(owner: "RoomCoordinator", actor: VerifiedActor, comma
         return CommandResult(False, error)
     await owner._publish()
     if generate_first is not None and generation_id is not None:
+        room.begin_interaction_window(owner._workflows.now())
         owner._schedule_question(generation_id, generate_first)
     if feedback_generation_id is not None:
         owner._schedule_coaching(feedback_generation_id)
