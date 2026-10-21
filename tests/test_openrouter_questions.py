@@ -228,6 +228,52 @@ class FundedQuestionClientTests(IsolatedAllowanceTests):
             self.call(client)
         self.assertEqual(len(self.calls), 1)
 
+    def test_focused_writer_expands_once_then_cites_beyond_the_view(self):
+        from backend.room_operations import bind_operation, take_supplied_usage
+
+        lines = [f"Section line {index}." for index in range(1, 41)]
+        lines[3] = "Recruit volunteers for a two-week pilot."
+        lines[5] = "Obtain consent and anonymize responses."
+        lines[7] = "Compare students' wait times."
+        lines[9] = "A single campus may not represent other campuses."
+        lines[29] = "Retention remained stable twelve weeks after rollout."
+        text = "\n".join(lines) + "\n"
+        files = [ProjectFile('study.md', text, 'research_text')]
+        plan = maps.generate_research_plan(files, 'offline-key', research_stage='proposal',
+                                           client=maps.FakeClient(maps.draft()))
+        session = ResearchDefenseSession.create(plan, 4, 'research', 'proposal')
+        session.apply_move(ResearchMove(METHODOLOGY, GroundedQuestion(
+            'Opening question?', 'study.md', 4, lines[3]), 'topic-1', False, None))
+        session.turns[-1].answer = 'We checked retention after twelve weeks.'
+
+        def handler(request):
+            self.calls.append(json.loads(request.content))
+            if len(self.calls) == 1:
+                output = planner_move(ETHICS, 'topic-2',
+                                      assessment=assessment('topic-1', 0))
+            elif len(self.calls) == 2:
+                output = {'lookup': {'query': 'retention twelve weeks after rollout', 'source_files': [1]}}
+            else:
+                output = reviewer_question('What does retention show?', source_file=1, evidence_line=30)
+            return stream_response(output)
+        client = self.make(handler, files=files, session=session)
+        bind_operation('question:focus')
+        try:
+            move = client.research_move(files, history=session.answered_history(), context=session.context(),
+                                        defense_type='research', research_stage='proposal')
+        finally:
+            usage = take_supplied_usage('question:focus')
+        self.assertEqual(len(self.calls), 3)
+        prompts = [call['messages'][1]['content'] for call in self.calls]
+        self.assertIn('Accepted evidence', prompts[0])
+        self.assertIn('Accepted evidence', prompts[1])
+        self.assertNotIn('Retention remained stable', prompts[0])
+        self.assertNotIn('Retention remained stable', prompts[1])
+        self.assertIn('Retention remained stable', prompts[2])
+        self.assertEqual(move.question.evidence_line, 30)
+        self.assertEqual(usage['lookup_requests'], 1)
+        self.assertGreater(usage['lookup_bytes'], 0)
+
     def test_unknown_usage_retains_both_full_reservations(self):
         def handler(request):
             self.calls.append(json.loads(request.content))
@@ -249,6 +295,8 @@ class FundedQuestionClientTests(IsolatedAllowanceTests):
             self.calls.append(json.loads(request.content))
             return stream_response(planner_move(METHODOLOGY, 'topic-1'))
         client = self.make(handler)
+        stored = ProviderAllowance('run:client', 'owner').policy()
+        client.policy = RunQuestionPolicy(**{**stored, 'evidence_policy': 'full-v1'})
         huge = 'a' * 1_200_000
         with patch('backend.openrouter_questions.build_project_source',
                    return_value=(huge, {1: (self.files[0], huge)}, set())):

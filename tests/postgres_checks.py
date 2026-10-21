@@ -36,6 +36,7 @@ from tests import test_openrouter_checkpoint
 from tests import test_free_practice
 from tests import test_combined_planning
 from tests import test_combined_exchanges
+from tests import test_focused_routes
 from tests import test_openrouter_questions
 
 
@@ -77,6 +78,10 @@ class PostgresCombinedRounds(LocalDatabase, test_openrouter_questions.FundedQues
 
 
 class PostgresCombinedExchanges(LocalDatabase, test_combined_exchanges.CombinedExchangeProtocolTests):
+    pass
+
+
+class PostgresFocusedRoutes(LocalDatabase, test_focused_routes.FocusedRouteTests):
     pass
 
 

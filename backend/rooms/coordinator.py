@@ -289,8 +289,10 @@ class RoomCoordinator:
         key = (work.run_id, work.interpretation_id)
         if key in self._interpretation_tasks:
             return self._interpretation_tasks[key]
+        deadline = room.interaction_deadline_ms
         request = capture_interpretation(room, work.pending,
-                                         provider_stopped=lambda: not self._interpretation_current(work))
+            provider_stopped=lambda: (not self._interpretation_current(work)
+                or (deadline is not None and self._workflows.now() >= deadline)))
         return self._retain_work_task(self._interpretation_tasks, key,
                                       asyncio.create_task(run_interpretation(self, work, request)))
 

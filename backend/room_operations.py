@@ -12,7 +12,8 @@ from pathlib import Path
 from threading import Lock
 
 _LOGGER = logging.getLogger("defense.operation_timing")
-_SAFE_USAGE = ("input_tokens", "output_tokens", "reasoning_tokens", "cost_nano", "model", "provider")
+_SAFE_USAGE = ("input_tokens", "output_tokens", "reasoning_tokens", "cost_nano", "model", "provider",
+               "lookup_bytes", "lookup_requests", "lookup_duration_ms")
 _OPERATION = ContextVar("operation_timing_operation", default=None)
 _USAGE_LOCK = Lock()
 _ACTIVE_OPERATIONS: set[str] = set()
@@ -123,6 +124,9 @@ def _supplied_fields(usage: dict, *, model: str | None = None) -> dict:
         "output_tokens": _number(usage.get("output_tokens", usage.get("completion_tokens"))),
         "reasoning_tokens": _number(usage.get("reasoning_tokens", details.get("reasoning_tokens"))),
         "cost_nano": _nano(usage.get("cost")),
+        "lookup_bytes": _number(usage.get("lookup_bytes")),
+        "lookup_requests": _number(usage.get("lookup_requests")),
+        "lookup_duration_ms": _number(usage.get("lookup_duration_ms")),
     }
     if model:
         fields["model"] = model
@@ -159,7 +163,8 @@ def record_supplied_usage(usage: dict, *, model: str | None = None) -> None:
             return
         supplied = _SUPPLIED_USAGE.setdefault(operation_id, {})
         for key, value in fields.items():
-            if key in {"input_tokens", "output_tokens", "reasoning_tokens", "cost_nano"}:
+            if key in {"input_tokens", "output_tokens", "reasoning_tokens", "cost_nano",
+                       "lookup_bytes", "lookup_requests", "lookup_duration_ms"}:
                 supplied[key] = supplied.get(key, 0) + value
             else:
                 supplied[key] = value

@@ -34,6 +34,7 @@ class QuestionPlanLease:
             self._check()
             if self._owner._identity != identity:
                 self._owner._identity, self._owner._plan = identity, None
+                self._owner._evidence = None
             self._owner._stage = 'writing' if self._owner._plan is not None else 'planning'
             return deepcopy(self._owner._plan)
 
@@ -43,10 +44,21 @@ class QuestionPlanLease:
             self._owner._plan = deepcopy(plan)
             self._owner._stage = 'writing'
 
+    def retained_evidence(self):
+        with self._owner._lock:
+            self._check()
+            return deepcopy(self._owner._evidence)
+
+    def remember_evidence(self, evidence):
+        with self._owner._lock:
+            self._check()
+            self._owner._evidence = deepcopy(evidence)
+
     def complete(self) -> None:
         with self._owner._lock:
             self._check()
             self._owner._identity = self._owner._plan = self._owner._stage = None
+            self._owner._evidence = None
 
     def _check(self) -> None:
         if self._owner._token is not self._token:
@@ -61,11 +73,13 @@ class QuestionPlanRecovery:
         self._identity = None
         self._plan = None
         self._stage = None
+        self._evidence = None
 
     def claim(self, namespace: str) -> QuestionPlanLease:
         with self._lock:
             if namespace != self._namespace:
                 self._identity = self._plan = self._stage = None
+                self._evidence = None
                 self._namespace = namespace
             self._token = object()
             return QuestionPlanLease(self, self._token)
@@ -76,6 +90,7 @@ class QuestionPlanRecovery:
                 self._namespace = namespace
             self._token = object()
             self._identity = identity
+            self._evidence = None
             self._plan = deepcopy(plan)
             self._stage = 'writing'
 
@@ -84,6 +99,7 @@ class QuestionPlanRecovery:
             self._token = object()
             if not keep_plan:
                 self._identity = self._plan = self._stage = None
+                self._evidence = None
 
     @property
     def stage(self) -> str | None:

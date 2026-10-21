@@ -95,7 +95,7 @@ class FundedPlanRecoveryTests(IsolatedAllowanceTests):
         from copy import deepcopy
         from backend.project_files import ProjectFile
         from backend.question_generator import QuestionGenerationError
-        for change in ('unchanged', 'source', 'preparation', 'context', 'run'):
+        for change in ('unchanged', 'source', 'preparation', 'context', 'profile', 'run'):
             with self.subTest(change=change):
                 self.recovery.invalidate()
                 self.router.fail_name = 'QuestionDraft'
@@ -106,6 +106,10 @@ class FundedPlanRecoveryTests(IsolatedAllowanceTests):
                 if change == 'source': options['files'] = [ProjectFile('study.md', PAPER+'Additional accepted detail.\n', 'research_text')]
                 if change == 'preparation': options['namespace'] = 'room:new-preparation:run'
                 if change == 'context': options['session'].question_budget = 5
+                if change == 'profile':
+                    from dataclasses import replace
+                    options['session'].plan = replace(options['session'].plan,
+                        profile=replace(options['session'].plan.profile, fields=('Physics',)))
                 if change == 'run': options['scope'] = 'run:new'
                 result = self.move(**options)
                 self.assertEqual(result.question.filename, 'study.md')

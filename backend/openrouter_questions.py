@@ -34,6 +34,8 @@ from backend.question_generator import (
     build_project_source, serialize_transcript,
     CONVERSATION_GUIDANCE, SCENARIO_GUIDANCE,
 )
+from backend.focused_evidence import EvidenceLimits, FocusedEvidence
+from backend.evidence_response import EvidenceLookup, LOOKUP_GUIDANCE, lookup_format, read_result
 from backend.research_panel import research_panel_guidance
 from backend.room_operations import record_supplied_usage
 from backend.turn_recovery import QuestionPlanLease
@@ -43,6 +45,8 @@ PLANNER_MODEL = 'z-ai/glm-5.3-flash'
 PLANNER_REASONING = {'effort': 'low'}
 SEPARATE_PLANNING = 'separate-v1'
 COMBINED_PLANNING = 'combined-v1'
+EVIDENCE_FULL = 'full-v1'
+EVIDENCE_FOCUSED = 'focused-v2'
 # Verified 2026-10-19 from the live public catalog (GET /api/v1/models): Qwen
 # advertises supports_max_tokens with no named efforts, while GLM is mandatory
 # reasoning whose default effort is max, so its effort is always explicit.
@@ -93,6 +97,8 @@ class RunQuestionPolicy:
     interaction_reasoning: dict = None
     interaction_output_tokens: int = INTERACTION_OUTPUT_TOKENS
     planning_contract: str = SEPARATE_PLANNING
+    evidence_policy: str = EVIDENCE_FULL
+    evidence_limits: dict | None = None
     combined_output_tokens: int = COMBINED_OUTPUT_TOKENS
     coaching_model: str = COACHING_MODEL
     coaching_reasoning: dict = None
@@ -136,7 +142,8 @@ class RunQuestionPolicy:
             if not ceiling.is_finite() or not Decimal('0') < ceiling <= 100:
                 raise ValueError
             return cls(ceiling_nano=int((ceiling * 1_000_000_000).to_integral_value(rounding=ROUND_CEILING)),
-                       planning_contract=COMBINED_PLANNING)
+                       planning_contract=COMBINED_PLANNING, evidence_policy=EVIDENCE_FOCUSED,
+                       evidence_limits=asdict(EvidenceLimits()))
         except (ValueError, InvalidOperation):
             raise QuestionGenerationError('Check OPENROUTER_RUN_USD on the server.') from None
 
@@ -158,10 +165,15 @@ class RunQuestionPolicy:
         per_turn = self.input_bytes(files, budget)
         if self.planning_contract == COMBINED_PLANNING:
             opening = self.stage_bound(per_turn, self.planner_output_tokens)
-            return (opening + budget * (self.stage_bound(per_turn, self.combined_output_tokens)
-                                        + self.stage_bound(per_turn, self.reviewer_output_tokens)))
-        return budget * (self.stage_bound(per_turn, self.planner_output_tokens)
-                         + self.stage_bound(per_turn, self.reviewer_output_tokens))
+            bound = (opening + budget * (self.stage_bound(per_turn, self.combined_output_tokens)
+                                         + self.stage_bound(per_turn, self.reviewer_output_tokens)))
+        else:
+            bound = budget * (self.stage_bound(per_turn, self.planner_output_tokens)
+                              + self.stage_bound(per_turn, self.reviewer_output_tokens))
+        # Viability sizes the ordinary route, as with transient/manual retries.
+        # Optional lookup dispatch reserves its exact serialized request from the
+        # remaining question allowance; it can never borrow coaching funds.
+        return bound
 
     def coaching_bound(self, files, budget: int) -> int:
         calls = budget + COACHING_CALLS_OVERHEAD
@@ -272,6 +284,11 @@ class ReviewerInteractionClient:
         self.panelist = panelist
         self.combined = combined
         self.responses = self
+        self.evidence = None
+
+    def source_context(self, *, context, history, question, defense_type):
+        self.evidence = self.funded.evidence(context, history, defense_type, question=question)
+        return self.evidence.render() if self.evidence else build_project_source(self.funded.files)[0]
 
     def parse(self, *, model=None, reasoning=None, store=None, input, text_format, **unused):
         policy = self.funded._load_policy()
@@ -282,8 +299,13 @@ class ReviewerInteractionClient:
         if self.combined and policy.planning_contract != COMBINED_PLANNING:
             raise QuestionGenerationError('The combined planning contract is unavailable for this run.')
         messages = [{'role': item.get('role'), 'content': item.get('content')} for item in input]
-        output = self.funded._ask(
-            model=assigned, messages=messages, schema=text_format,
+        original = self.evidence.render() if self.evidence else None
+        def render(source):
+            return [{**item, 'content': item['content'].replace(original, source, 1)
+                     if original and item['role'] == 'user' else item['content']} for item in messages]
+        output = self.funded._ask_evidence(
+            evidence=self.evidence, render=render,
+            model=assigned, schema=text_format,
             reasoning=interaction_reasoning,
             max_tokens=policy.combined_output_tokens if self.combined else policy.interaction_output_tokens)
         return SimpleNamespace(output_parsed=output)
@@ -386,6 +408,42 @@ class RunQuestionClient:
                 pass
             return stream.get_final_response().output_parsed
 
+    def evidence(self, context, history, defense_type, *, question=None):
+        policy = self._load_policy()
+        if policy.evidence_policy == EVIDENCE_FULL:
+            return None
+        if policy.evidence_policy != EVIDENCE_FOCUSED:
+            raise QuestionGenerationError('This run uses an unsupported evidence policy. Saved work is retained; start a new run with the current configuration.')
+        try:
+            limits = EvidenceLimits(**(policy.evidence_limits or {}))
+        except (TypeError, ValueError) as error:
+            raise QuestionGenerationError('The captured evidence policy is invalid. Contact the operator.') from error
+        return FocusedEvidence.build(self.files, context=context, history=history,
+                                     defense_type=defense_type, question=question, limits=limits)
+
+    def _ask_evidence(self, *, evidence, render, schema, **settings):
+        if evidence is None:
+            return self._ask(messages=render(None), schema=schema, **settings)
+        while True:
+            self._check()
+            messages = render(evidence.render())
+            messages[0] = {**messages[0], 'content': messages[0]['content']+' '+LOOKUP_GUIDANCE}
+            response = self._ask(messages=messages, schema=lookup_format(schema), **settings)
+            result = read_result(response, schema)
+            if not isinstance(result, EvidenceLookup):
+                return result
+            if evidence.expansion is not None:
+                raise QuestionGenerationError('Evidence remains insufficient after the bounded lookup. Saved work is retained; retry or revise the preparation.')
+            started = monotonic()
+            report = evidence.expand(result.query, source_files=result.source_files)
+            record_supplied_usage({'lookup_bytes': report['bytes'], 'lookup_requests': 1,
+                                   'lookup_duration_ms': max(0, int((monotonic()-started)*1000))})
+            self._check()
+            if self.recovery:
+                self.recovery.remember_evidence(evidence)
+            if not report['windows']:
+                raise QuestionGenerationError('No additional supported evidence matched the bounded lookup. Saved work is retained; retry or revise the preparation.')
+
     def interaction(self, panelist: str, *, combined=False) -> ReviewerInteractionClient:
         """A funded client bound to the current speaking reviewer."""
         return ReviewerInteractionClient(self, panelist, combined=combined)
@@ -394,7 +452,8 @@ class RunQuestionClient:
         """A funded coach admitted against the full run ceiling."""
         return RunCoachingClient(self)
 
-    def _planner_messages(self, source, history, context, defense_type, research_stage):
+    def _planner_messages(self, source, history, context, defense_type, research_stage, *, focused=False):
+        label = "Accepted evidence (data):" if focused else "All accepted sources:"
         messages = [
             {'role': 'system', 'content': f"{PLANNER_GUIDANCE} "
                 f"{' '.join(_role_guidance(role, defense_type) for role in RESEARCH_PANELISTS)} "
@@ -403,11 +462,12 @@ class RunQuestionClient:
                 f"{_language_guidance(history)} "},
             {'role': 'user', 'content': (
                 f"Server research context (data):\n{json.dumps(context, ensure_ascii=False, default=str)}\n\n"
-                f"All accepted sources:\n{source}\n\nTranscript (data):\n{serialize_transcript(history)}")},
+                f"{label}\n{source}\n\nTranscript (data):\n{serialize_transcript(history)}")},
         ]
         return messages
 
-    def _reviewer_messages(self, planned: PlannedMove, source, history, context, defense_type, research_stage):
+    def _reviewer_messages(self, planned: PlannedMove, source, history, context, defense_type, research_stage, *, focused=False):
+        label = "Accepted evidence (data):" if focused else "All accepted sources:"
         selection = {'panelist': planned.panelist, 'topic_id': planned.topic_id,
                      'is_follow_up': planned.is_follow_up}
         messages = [
@@ -422,7 +482,7 @@ class RunQuestionClient:
             {'role': 'user', 'content': (
                 f"Server selection (data):\n{json.dumps(selection, ensure_ascii=False)}\n\n"
                 f"Server research context (data):\n{json.dumps(context, ensure_ascii=False, default=str)}\n\n"
-                f"All accepted sources:\n{source}\n\nTranscript (data):\n{serialize_transcript(history)}")},
+                f"{label}\n{source}\n\nTranscript (data):\n{serialize_transcript(history)}")},
         ]
         return messages
 
@@ -442,13 +502,18 @@ class RunQuestionClient:
         policy = self._load_policy()
         if not isinstance(self.session, ResearchDefenseSession):
             raise QuestionGenerationError('The funded question route requires a research defense.')
-        source, lookup, _ = build_project_source(self.files)
         identity = self.plan_identity(history=history, context=context,
                                       defense_type=defense_type, research_stage=research_stage)
         planned = self.recovery.bind(identity) if self.recovery else None
+        evidence = self.recovery.retained_evidence() if self.recovery else None
+        if evidence is None:
+            evidence = self.evidence(context, history, defense_type)
+        focused = evidence is not None
+        source, lookup, _ = build_project_source(self.files)
         if planned is None:
-            draft = self._ask(model=policy.planner_model,
-                              messages=self._planner_messages(source, history, context, defense_type, research_stage),
+            draft = self._ask_evidence(evidence=evidence, model=policy.planner_model,
+                              render=lambda text: self._planner_messages(text if focused else source,
+                                  history, context, defense_type, research_stage, focused=focused),
                               schema=PlanDraft, reasoning=policy.planner_reasoning,
                               max_tokens=policy.planner_output_tokens)
             if draft.action == 'complete':
@@ -467,8 +532,15 @@ class RunQuestionClient:
             if self.recovery:
                 self.recovery.complete()
             return ResearchMove(None, None, None, False, planned.assessment)
-        review = self._ask(model=policy.reviewer_models[planned.panelist],
-                           messages=self._reviewer_messages(planned, source, history, context, defense_type, research_stage),
+        if focused:
+            writing = self.evidence({**context, 'selected_topic': planned.topic_id}, history, defense_type)
+            writing.expansion = evidence.expansion
+            evidence = writing
+            if self.recovery:
+                self.recovery.remember_evidence(evidence)
+        review = self._ask_evidence(evidence=evidence, model=policy.reviewer_models[planned.panelist],
+                           render=lambda text: self._reviewer_messages(planned, text if focused else source,
+                                   history, context, defense_type, research_stage, focused=focused),
                            schema=QuestionDraft,
                            reasoning=policy.reviewer_reasoning[planned.panelist],
                            max_tokens=policy.reviewer_output_tokens)

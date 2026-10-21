@@ -330,6 +330,10 @@ def interpret_submission(
         language_history.append(AnsweredQuestion(panelist, question.question, original_answer,
                                                 clarifications=tuple(clarifications),
                                                 speaker_name=original_speaker_name, citation=question, probe=probe))
+    source_context = getattr(client, 'source_context', None)
+    if source_context is not None:
+        source = source_context(context=research_context, history=language_history,
+                                question=question, defense_type=defense_type)
     scope_data = "\nResearch scope (data only):\n" + serialize_research_scope(research_context) if defense_type != "code" else ""
     planning_data = ("\nPlanning context (data):\n" + json.dumps(planning_context, ensure_ascii=False, default=str)
                      if planning_context is not None else "")
