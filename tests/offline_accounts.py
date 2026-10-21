@@ -58,7 +58,12 @@ def authenticate(test, client=None, *, unit_server=None):
 
 
 def fallback(test):
-    """Private fallback provider scope with a real disposable local ledger."""
+    """Historical typed contracts with a real ledger and explicit legacy policy.
+
+    These fixtures stub the old separate generation/interpretation seams. New
+    combined/focused Standard behavior uses the real synthetic HTTP router in
+    test_openrouter_streamlit, without this legacy policy override.
+    """
     folder = tempfile.TemporaryDirectory()
     test.addCleanup(folder.cleanup)
     env = patch.dict(os.environ, {
@@ -68,3 +73,11 @@ def fallback(test):
     })
     env.start()
     test.addCleanup(env.stop)
+    from dataclasses import replace
+    from backend.openrouter_questions import RunQuestionPolicy, SEPARATE_PLANNING, EVIDENCE_FULL
+    configured = RunQuestionPolicy.configured
+    policy = patch.object(RunQuestionPolicy, 'configured', side_effect=lambda tier='standard':
+        replace(configured(tier), planning_contract=SEPARATE_PLANNING,
+                evidence_policy=EVIDENCE_FULL, evidence_limits=None))
+    policy.start()
+    test.addCleanup(policy.stop)

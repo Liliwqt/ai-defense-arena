@@ -28,15 +28,21 @@ class SyntheticRouter:
         self.fail_name = None
         self.fail_turns = None
         self.decisions = []
+        self.on_request = None
+        self.usage = None
 
     def __call__(self, request):
         body = json.loads(request.content)
         self.calls.append(body)
+        if self.on_request is not None:
+            override = self.on_request(body)
+            if override is not None:
+                return override
         name = body['response_format']['json_schema']['name']
         content = body['messages'][-1]['content']
         if self.fail_name == name:
             self.fail_name = None
-            return httpx.Response(503, json={'error': 'Synthetic unavailable provider'})
+            return httpx.Response(404, json={'error': 'Synthetic unavailable model'})
         if name == 'ResearchPlanDraft':
             output = draft()
             if self.mixed:
@@ -89,7 +95,7 @@ class SyntheticRouter:
                     return httpx.Response(503, json={'error': 'Synthetic unavailable section'})
                 history = self.app.session_state['defense_session'].coaching_history()
                 output['answer_cards'] = [card for card in cards_for(history) if card['turn'] in indices]
-        return stream_response(output)
+        return stream_response(output, usage=self.usage)
 
 
 class OpenRouterFallbackTests(IsolatedAllowanceTests):
@@ -160,8 +166,13 @@ class OpenRouterFallbackTests(IsolatedAllowanceTests):
             coaching = [body for body in calls if 'CoachingDraft' in body['response_format']['json_schema']['name']]
             self.assertEqual(len(coaching), 3)
             self.assertTrue(all(body['model'] == 'anthropic/claude-haiku-5.5' and body['reasoning'] == {'effort': 'high'} for body in coaching))
+            interactive = [body['response_format']['json_schema']['name'] for body in calls
+                           if 'Coaching' not in body['response_format']['json_schema']['name']]
+            self.assertEqual(interactive, ['ResearchPlanDraft', 'PlanDraft', 'QuestionDraft',
+                'CombinedSubmissionDraft', 'QuestionDraft', 'CombinedSubmissionDraft', 'QuestionDraft',
+                'CombinedSubmissionDraft', 'QuestionDraft', 'CombinedSubmissionDraft'])
             practice = app.session_state['research_provider']
-            self.assertEqual(ProviderAllowance(practice.run_scope, practice.owner).snapshot()['used'], 8_000_000)
+            self.assertEqual(ProviderAllowance(practice.run_scope, practice.owner).snapshot()['used'], 6_000_000)
 
     def connect(self, router):
         self.enterContext(patch.dict('os.environ', {'OPENAI_API_KEY': '', 'OPENAI_MODEL': 'unused'}))
@@ -202,6 +213,7 @@ class OpenRouterFallbackTests(IsolatedAllowanceTests):
         button(app, 'Retry question writing').click().run()
         self.assertFalse(app.exception)
         self.assertEqual(practice.run_scope, scope)
+
         for _ in range(11):
             self.send(app)
         self.assertTrue(app.session_state['defense_session'].completed)
@@ -226,22 +238,267 @@ class OpenRouterFallbackTests(IsolatedAllowanceTests):
         self.assertEqual(len(router.calls), count + 1)
         self.assertEqual(practice.run_scope, scope)
 
+    def test_one_processing_window_retains_accepted_answer_after_late_writer(self):
+        clock = [1_000_000]
+        router = SyntheticRouter()
+        with patch('backend.streamlit_turns.now_ms', side_effect=lambda: clock[0], create=True):
+            app = self.connect(router)
+            self.prepare(app, 4)
+            button(app, 'Start defense').click().run()
+            def advance_clock(body):
+                name = body['response_format']['json_schema']['name']
+                clock[0] += 30_000 if name == 'CombinedSubmissionDraft' else 15_000
+            router.on_request = advance_clock
+            self.send(app, 'Keep my accepted explanation.')
+            session = app.session_state['defense_session']
+            self.assertEqual(session.turns[0].answer, 'Keep my accepted explanation.')
+            self.assertEqual(len(session.turns), 1)
+            self.assertTrue(session.needs_question)
+            self.assertIn('45-second', ' '.join(item.value for item in app.error))
+            count = len(router.calls)
+            app.run()
+            self.assertEqual(len(router.calls), count)
+            router.on_request = None
+            button(app, 'Retry question writing').click().run()
+            self.assertFalse(app.exception)
+            self.assertEqual([call['response_format']['json_schema']['name'] for call in router.calls[count:]], ['QuestionDraft'])
+
+    def test_one_transient_retry_is_shared_by_interpretation_and_writer(self):
+        router = SyntheticRouter()
+        app = self.connect(router)
+        self.prepare(app, 4)
+        button(app, 'Start defense').click().run()
+        failures = {'CombinedSubmissionDraft': 1, 'QuestionDraft': 1}
+        stages = []
+        def transient(body):
+            name = body['response_format']['json_schema']['name']
+            stages.append(app.session_state['research_provider'].turns.status)
+            if failures.get(name):
+                failures[name] -= 1
+                return httpx.Response(503, json={'error': 'Synthetic temporary failure'})
+        router.on_request = transient
+        before = len(router.calls)
+        self.send(app, 'One explanation, not repeated submissions.')
+        session = app.session_state['defense_session']
+        self.assertEqual(session.turns[0].answer, 'One explanation, not repeated submissions.')
+        self.assertTrue(session.needs_question)
+        self.assertEqual([body['response_format']['json_schema']['name'] for body in router.calls[before:]],
+                         ['CombinedSubmissionDraft', 'CombinedSubmissionDraft', 'QuestionDraft'])
+        self.assertIn('Trying again', stages[1])
+        self.assertIn('Answer saved', stages[2])
+        before = len(router.calls)
+        button(app, 'Retry question writing').click().run()
+        self.assertEqual([body['response_format']['json_schema']['name'] for body in router.calls[before:]], ['QuestionDraft'])
+
+    def test_provider_directed_retry_and_manual_limits_keep_the_draft(self):
+        for headers, message, retries in [({'Retry-After': '2'}, 'upstream busy', 1),
+                ({}, 'upstream busy', 0), ({'Retry-After': '50'}, 'upstream busy', 0),
+                ({'Retry-After': '2'}, 'free-models-per-day limit exceeded', 0)]:
+            with self.subTest(headers=headers, message=message):
+                clock = [1_000_000]
+                with patch('backend.streamlit_turns.now_ms', side_effect=lambda: clock[0]), \
+                     patch('backend.streamlit_turns.sleep', side_effect=lambda seconds: clock.__setitem__(0, clock[0]+int(seconds*1000))):
+                    router = SyntheticRouter()
+                    app = self.connect(router)
+                    self.prepare(app, 4)
+                    button(app, 'Start defense').click().run()
+                    count = len(router.calls)
+                    def rate_limit(body):
+                        if len(router.calls) == count+1:
+                            return httpx.Response(429, headers=headers, json={'error': {'message': message}})
+                    router.on_request = rate_limit
+                    self.send(app, 'Do not erase this explanation.')
+                    session = app.session_state['defense_session']
+                    if retries:
+                        self.assertEqual(session.turns[0].answer, 'Do not erase this explanation.')
+                        self.assertEqual(len(router.calls)-count, 3)
+                    else:
+                        self.assertIsNone(session.turns[0].answer)
+                        self.assertEqual(len(router.calls)-count, 1)
+                        app.run()
+                        self.assertEqual(next(area for area in app.text_area if area.label.startswith('Your ')).value,
+                                         'Do not erase this explanation.')
+                        self.assertIn('not yet accepted', ' '.join(item.value for item in app.info))
+                        button(app, 'Retry saved submission').click().run()
+                        self.assertEqual(session.turns[0].answer, 'Do not erase this explanation.')
+
+    def test_whole_app_lookup_and_reply_keep_grounding_language_and_current_question(self):
+        router = SyntheticRouter(mixed=True)
+        app = self.connect(router)
+        paper = PAPER + '\n'.join(f'Background note {n}.' for n in range(40)) + '\nDecisive comparison: repeated baseline periods.'
+        app.file_uploader[1].set_value([('study.md', paper.encode(), 'text/markdown')]).run()
+        self.prepare(app, 8)
+        button(app, 'Start defense').click().run()
+        session = app.session_state['defense_session']
+        original = session.turns[0].question
+        router.decisions = [
+            {'action': 'clarify', 'clarification': 'Explain how the baseline supports your comparison.'},
+            {'action': 'probe', 'probe': {'request': 'Which baseline period?', 'references': []}},
+        ]
+        self.send(app, 'What comparison do you mean?')
+        self.send(app, 'We compare the proposed pilot to baseline periods.')
+        self.assertEqual(session.turns[0].question, original)
+        count = len(router.calls)
+        def lookup(body):
+            if len(router.calls) == count+1:
+                self.assertNotIn('Decisive comparison:', body['messages'][-1]['content'])
+                return stream_response({'lookup': {'query': 'Decisive comparison', 'source_files': [2]}})
+        router.on_request = lookup
+        self.send(app, 'Sa baseline mi mag-compare sa waiting time, Bisaya lang.')
+        requests = router.calls[count:]
+        self.assertEqual([body['response_format']['json_schema']['name'] for body in requests],
+                         ['CombinedSubmissionDraft', 'CombinedSubmissionDraft', 'QuestionDraft'])
+        self.assertIn('BROADER LOOKUP', requests[1]['messages'][-1]['content'])
+        self.assertIn('Decisive comparison:', requests[1]['messages'][-1]['content'])
+        self.assertIn('Cebuano', requests[-1]['messages'][0]['content'])
+        self.assertEqual(session.turns[0].answer, 'We compare the proposed pilot to baseline periods.')
+        self.assertEqual(session.turns[0].probe.reply, 'Sa baseline mi mag-compare sa waiting time, Bisaya lang.')
+        self.assertEqual(len(session.turns), 2)
+        for _ in range(7):
+            self.send(app)
+        self.assertTrue(session.completed)
+        button(app, 'Generate coaching').click().run()
+        self.assertEqual(len(app.session_state['research_coaching'].answer_cards), 8)
+        self.assertEqual(app.session_state['research_coaching_job'].completion_status, 'ready')
+
+    def test_free_coaching_keeps_its_original_tier_and_run_allowance(self):
+        from backend.practice_tiers import FREE_MODEL
+        router = SyntheticRouter()
+        router.usage = {'cost': 0}
+        with patch.dict('os.environ', {'OPENROUTER_FREE_PER_MINUTE': '1000',
+                'OPENROUTER_FREE_DAILY_REQUESTS': '1000', 'OPENROUTER_FREE_OWNER_DAILY_REQUESTS': '1000'}):
+            app = self.connect(router)
+            next(item for item in app.selectbox if item.label == 'Practice tier').select('Free practice').run()
+            self.prepare(app, 4)
+            button(app, 'Start defense').click().run()
+            practice = app.session_state['research_provider']
+            scope = practice.run_scope
+            for _ in range(4):
+                self.send(app)
+            button(app, 'Generate coaching').click().run()
+            self.assertFalse(app.exception)
+            self.assertEqual(app.session_state['research_coaching_job'].completion_status, 'ready')
+            self.assertIs(app.session_state['research_provider'], practice)
+            self.assertEqual(practice.run_scope, scope)
+            self.assertTrue(all(body['model'] == FREE_MODEL for body in router.calls))
+            self.assertEqual(ProviderAllowance(scope, practice.owner).policy()['tier'], 'free')
+            self.assertFalse(any(body['response_format']['json_schema']['name'] == 'CombinedSubmissionDraft' for body in router.calls))
+
+    def test_duplicate_operation_is_rejected_and_cancelled_writer_cannot_publish(self):
+        from backend.question_generator import QuestionGenerationError
+        router = SyntheticRouter()
+        app = self.connect(router)
+        self.prepare(app, 4)
+        button(app, 'Start defense').click().run()
+        practice = app.session_state['research_provider']
+        session = app.session_state['defense_session']
+        count = len(router.calls)
+        def interrupt(body):
+            if body['response_format']['json_schema']['name'] == 'CombinedSubmissionDraft':
+                with self.assertRaisesRegex(QuestionGenerationError, 'already in progress'):
+                    practice.flow(session, self.files).submit('Duplicate should not dispatch.')
+            else:
+                practice.cancel()
+        router.on_request = interrupt
+        self.send(app, 'Keep this accepted answer despite cancellation.')
+        self.assertEqual(session.turns[0].answer, 'Keep this accepted answer despite cancellation.')
+        self.assertEqual(len(session.turns), 1)
+        self.assertEqual(len(router.calls)-count, 2)
+        self.assertIsNone(practice.question_recovery.stage)
+        self.assertFalse(practice.turns.busy)
+        app.run()
+        self.assertEqual(len(router.calls)-count, 2)
+
+    def test_saved_legacy_policy_keeps_separate_planning_without_a_new_allowance(self):
+        from dataclasses import asdict
+        from backend.defense_session import ResearchDefenseSession
+        from backend.openrouter_questions import RunQuestionPolicy
+        router = SyntheticRouter()
+        app = self.connect(router)
+        self.prepare(app, 4)
+        practice = app.session_state['research_provider']
+        saved = ResearchDefenseSession.create(app.session_state['research_plan'], 4, 'research', 'infer')
+        policy = RunQuestionPolicy().snapshotted(self.files, 4)
+        ProviderAllowance('retained-legacy-run', practice.owner).establish(policy.ceiling_nano, asdict(policy))
+        practice.session, practice.run_scope = saved, 'retained-legacy-run'
+        app.session_state['defense_session'] = saved
+        app.session_state['defense_run_id'] = 1
+        app.run()
+        button(app, 'Retry next question').click().run()
+        count = len(router.calls)
+        self.send(app)
+        self.assertEqual([body['response_format']['json_schema']['name'] for body in router.calls[count:]],
+                         ['SubmissionDraft', 'PlanDraft', 'QuestionDraft'])
+        self.assertEqual(practice.run_scope, 'retained-legacy-run')
+        self.assertNotIn('Focused accepted evidence', router.calls[-1]['messages'][-1]['content'])
+
+    def test_failed_submission_attempt_cap_survives_reruns(self):
+        router = SyntheticRouter()
+        with patch.dict('os.environ', {'AI_INTERPRETATION_ATTEMPTS': '2'}):
+            app = self.connect(router)
+            self.prepare(app, 4)
+            button(app, 'Start defense').click().run()
+            count = len(router.calls)
+            router.on_request = lambda body: httpx.Response(404, json={'error': 'Synthetic unavailable model'})
+            self.send(app, 'Keep this draft through the bounded retries.')
+            for _ in range(3):
+                app.run()
+                button(app, 'Retry saved submission').click().run()
+                self.assertFalse(app.exception)
+            self.assertEqual(len(router.calls)-count, 2)
+            self.assertIsNone(app.session_state['defense_session'].turns[0].answer)
+            self.assertIn('retry allowance', ' '.join(item.value for item in app.error))
+
+    def test_blocked_provider_returns_recovery_at_deadline_and_cannot_rejoin_manual_retry(self):
+        from threading import Event
+        blocked, release, finished = Event(), Event(), Event()
+        clock = [1_000_000]
+        router = SyntheticRouter()
+        with patch('backend.streamlit_turns.now_ms', side_effect=lambda: clock[0]):
+            app = self.connect(router)
+            self.prepare(app, 4)
+            button(app, 'Start defense').click().run()
+            count = len(router.calls)
+            def hang(body):
+                if len(router.calls) == count+1:
+                    clock[0] += 45_000
+                    blocked.set()
+                    release.wait(2)
+                    finished.set()
+            router.on_request = hang
+            try:
+                self.send(app, 'Retain this while the provider is blocked.')
+                self.assertTrue(blocked.is_set())
+                self.assertFalse(finished.is_set())
+                self.assertIn('45-second', ' '.join(item.value for item in app.error))
+                app.run()
+                button(app, 'Retry saved submission').click().run()
+                session = app.session_state['defense_session']
+                self.assertEqual(session.turns[0].answer, 'Retain this while the provider is blocked.')
+                self.assertEqual(len(session.turns), 2)
+            finally:
+                release.set()
+                self.assertTrue(finished.wait(3))
+            app.run()
+            self.assertEqual(len(session.turns), 2)
+            self.assertEqual(len(router.calls)-count, 3)
+
     def test_exhausted_question_allowance_never_resets_and_still_funds_coaching(self):
         from backend.openrouter_questions import RunQuestionPolicy
         router = SyntheticRouter()
         app = self.connect(router)
         self.prepare(app, 4)
         button(app, 'Start defense').click().run()
-        router.fail_name = 'PlanDraft'
+        router.fail_name = 'QuestionDraft'
         self.send(app)
         practice = app.session_state['research_provider']
         allowance = ProviderAllowance(practice.run_scope, practice.owner)
         policy = RunQuestionPolicy(**allowance.policy())
-        allowance.reserve(policy.question_limit_nano - allowance.snapshot()['used'], limit=policy.question_limit_nano)
+        allowance.reserve(policy.question_limit_nano - int(allowance.snapshot()['used']), limit=policy.question_limit_nano)
         before = allowance.snapshot()
         count = len(router.calls)
         for _ in range(2):
-            button(app, 'Retry next question').click().run()
+            button(app, 'Retry question writing').click().run()
             self.assertFalse(app.exception)
             self.assertEqual(len(router.calls), count)
             self.assertEqual(allowance.snapshot(), before)
@@ -259,7 +516,7 @@ class OpenRouterFallbackTests(IsolatedAllowanceTests):
         self.prepare(app, 4)
         practice = app.session_state['research_provider']
         allowance = ProviderAllowance(practice.preparation_scope, practice.owner)
-        allowance.reserve(allowance.snapshot()['remaining'])
+        allowance.reserve(int(allowance.snapshot()['remaining']))
         count = len(router.calls)
         for label in ('Prepare map again', 'Retry research map'):
             button(app, label).click().run()
@@ -292,7 +549,7 @@ class OpenRouterFallbackTests(IsolatedAllowanceTests):
         session = app.session_state['defense_session']
         self.assertEqual(len(session.turns), 1)
         self.assertEqual(len(session.turns[0].clarifications), 1)
-        router.fail_name = 'SubmissionDraft'
+        router.fail_name = 'CombinedSubmissionDraft'
         self.send(app, 'A documented baseline period.')
         self.assertEqual(session.turns[0].answer, 'We would compare pilot waiting times.')
         self.assertIsNone(session.turns[0].probe.reply)
@@ -300,14 +557,15 @@ class OpenRouterFallbackTests(IsolatedAllowanceTests):
         self.send(app, 'A documented baseline period.')
         self.assertEqual(session.turns[0].probe.reply, 'A documented baseline period.')
         self.assertEqual(len(session.turns), 2)
-        models = [body['model'] for body in router.calls if body['response_format']['json_schema']['name'] == 'SubmissionDraft']
+        models = [body['model'] for body in router.calls if body['response_format']['json_schema']['name'] == 'CombinedSubmissionDraft']
         self.assertEqual(models, ['deepseek/deepseek-v4.1-flash-1017'] * 4)
 
     def test_unavailable_preparation_ledger_shows_safe_recovery_without_provider_dispatch(self):
         router = SyntheticRouter()
         app = self.connect(router)
         # A database path naming a directory is an actual storage boundary failure.
-        with patch.dict('os.environ', {'PAYMONGO_TEST_DB_PATH': str(Path(self.files[0].name).resolve().parent)}):
+        with patch.dict('os.environ', {'DATABASE_URL': '',
+                'PAYMONGO_TEST_DB_PATH': str(Path(self.files[0].name).resolve().parent)}):
             button(app, 'Prepare defense').click().run()
         self.assertFalse(app.exception)
         self.assertEqual(router.calls, [])
@@ -328,7 +586,7 @@ class OpenRouterFallbackTests(IsolatedAllowanceTests):
         practice = app.session_state['research_provider']
         allowance = ProviderAllowance(practice.run_scope, practice.owner)
         snapshot = allowance.snapshot()
-        allowance.reserve(snapshot['remaining'], limit=snapshot['ceiling'])
+        allowance.reserve(int(snapshot['remaining']), limit=snapshot['ceiling'])
         exhausted = allowance.snapshot()
         count = len(router.calls)
         for _ in range(2):

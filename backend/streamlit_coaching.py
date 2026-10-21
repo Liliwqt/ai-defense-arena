@@ -62,10 +62,12 @@ def progressive_research_report(files, history, context, mode, stage, api_key, m
     if job is None:
         if has_discussion(history) and not st.button('Generate coaching', disabled=not bool(api_key)):
             return None
-        from backend.streamlit_provider import provider_for
         try:
-            practice = provider_for(st.session_state, st.session_state['defense_project_fingerprint'])
-            practice.client(st.session_state['defense_session'], files)
+            practice = st.session_state.get('research_provider')
+            if (practice is None or practice.session is not st.session_state['defense_session']
+                    or not practice.run_scope):
+                from backend.question_generator import QuestionGenerationError
+                raise QuestionGenerationError('This retained report has no funded provider scope. Keep its answers or start a new practice.')
             job = CoachingProgress(CoachingInput(tuple(files), tuple(copy.deepcopy(history)), copy.deepcopy(context), mode, stage,
                 provider_scope=practice.run_scope, provider_owner=practice.owner))
         except Exception as error:

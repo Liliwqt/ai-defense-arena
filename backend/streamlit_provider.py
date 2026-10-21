@@ -8,6 +8,8 @@ No credential is kept in Streamlit state.
 
 from dataclasses import dataclass, field
 import secrets
+from threading import RLock
+from contextlib import contextmanager
 
 from backend.openrouter_mapping import MappingClient
 from backend.openrouter_questions import RunQuestionClient, establish_run_allowance
@@ -24,6 +26,8 @@ class ResearchProvider:
     run_scope: str | None = None
     session: ResearchDefenseSession | None = None
     question_recovery: QuestionPlanRecovery = field(default_factory=QuestionPlanRecovery, repr=False)
+    turns: object | None = field(default=None, repr=False)
+    _binding_lock: object = field(default_factory=RLock, repr=False, compare=False)
 
     def mapping(self):
         return MappingClient(self.preparation_scope, self.owner, tier=self.practice_tier)
@@ -32,14 +36,39 @@ class ResearchProvider:
         """Bind once before first dispatch; retries never establish another run."""
         if not isinstance(session, ResearchDefenseSession):
             raise QuestionGenerationError('OpenRouter practice requires a research or mixed defense.')
-        if self.session is not session:
+        with self._binding_lock:
+            if stopped():
+                raise QuestionGenerationError('This defense operation is no longer current.')
+            if self.session is not session:
+                self.question_recovery.invalidate()
+                scope = f'{self.owner}:run:{secrets.token_hex(24)}'
+                establish_run_allowance(scope, self.owner, files, session.question_budget, tier=self.practice_tier)
+                self.session, self.run_scope = session, scope
+            return RunQuestionClient(self.run_scope, self.owner, session, files,
+                stopped=lambda: self.session is not session or stopped(),
+                recovery=self.question_recovery.claim(self.preparation_scope))
+
+    def flow(self, session, files):
+        from backend.streamlit_turns import TypedDefenseFlow
+        with self._binding_lock:
+            if self.turns is None or self.turns.session is not session:
+                self.client(session, files)
+                self.turns = TypedDefenseFlow(self, session, files)
+            return self.turns
+
+    def cancel(self):
+        with self._binding_lock:
+            if self.turns is not None:
+                self.turns.cancelled = True
             self.question_recovery.invalidate()
-            scope = f'{self.owner}:run:{secrets.token_hex(24)}'
-            establish_run_allowance(scope, self.owner, files, session.question_budget, tier=self.practice_tier)
-            self.session, self.run_scope = session, scope
-        return RunQuestionClient(self.run_scope, self.owner, session, files,
-            stopped=lambda: self.session is not session or stopped(),
-            recovery=self.question_recovery.claim(self.preparation_scope))
+
+    @contextmanager
+    def publishing(self, session, stopped):
+        """Fence accepted state against a concurrent rerun changing the run."""
+        with self._binding_lock:
+            if self.session is not session or stopped():
+                raise QuestionGenerationError('This defense operation is no longer current.')
+            yield
 
 
 def provider_for(state, fingerprint: str, *, tier="standard") -> ResearchProvider:
@@ -53,8 +82,7 @@ def provider_for(state, fingerprint: str, *, tier="standard") -> ResearchProvide
     current = state.get('research_provider')
     if current is None or current.preparation_scope != scope or current.practice_tier != tier:
         if current is not None:
-            current.session = None
-            current.question_recovery.invalidate()
+            current.cancel()
         current = ResearchProvider(owner, scope, practice_tier=tier)
         state['research_provider'] = current
     return current

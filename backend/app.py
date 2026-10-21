@@ -52,9 +52,10 @@ def generation_error_message(error: Exception, model: str, api_key: str) -> str:
 def generate_next_question(session, files, api_key, model):
     try:
         with st.spinner("Preparing your next question…"):
-            client = (st.session_state["research_provider"].client(session, files)
-                      if isinstance(session, ResearchDefenseSession) else None)
-            advance_defense(session, files, api_key, model=model, client=client)
+            if isinstance(session, ResearchDefenseSession):
+                research_action(session, files, 'advance')
+            else:
+                advance_defense(session, files, api_key, model=model)
     except Exception as error:
         st.session_state["defense_error"] = generation_error_message(error, model, api_key)
         if isinstance(session, ResearchDefenseSession) and st.session_state['research_provider'].question_recovery.stage == 'writing':
@@ -63,12 +64,23 @@ def generate_next_question(session, files, api_key, model):
         st.session_state.pop("defense_error", None)
 
 
+def research_action(session, files, action, text=None):
+    flow = st.session_state['research_provider'].flow(session, files)
+    stage = st.empty()
+    try:
+        with st.spinner('Working on this defense turn…', show_time=True):
+            if action == 'submit':
+                return flow.submit(text, notify=stage.info)
+            return flow.advance(notify=stage.info)
+    finally:
+        stage.empty()
+
+
 def prepare_research_scope(files, api_key, model, mode, research_stage):
     """Explicit preparation retains saved host descriptions even on failure."""
     previous = st.session_state.get('research_provider')
     if previous is not None:
-        previous.question_recovery.invalidate()
-        previous.session = None
+        previous.cancel()
     st.session_state.pop("defense_session", None)
     st.session_state.pop("research_coaching", None)
     st.session_state.pop("research_coaching_job", None)
@@ -253,7 +265,7 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
 
     if files:
         st.success(f"Ready: {len(files)} accepted file(s).")
-        st.caption("The panel receives all files listed below for every question.")
+        st.caption("The panel can consult the accepted files below. Interactive research turns use relevant excerpts with bounded broader lookup when needed.")
         st.subheader("Accepted files")
         for file in files:
             with st.expander(f"{file.name} · {file.detail}" if file.detail else file.name):
@@ -273,6 +285,10 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
         sync_project_session(st.session_state, project_fingerprint)
         if mode != "code":
             provider_for(st.session_state, project_fingerprint, tier=practice_tier)
+            active_flow = st.session_state['research_provider'].turns
+            if active_flow is not None and active_flow.busy:
+                st.info(active_flow.status or 'This defense operation is already in progress.')
+                st.stop()
 
         st.subheader("2. Practice defense")
         api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
@@ -299,12 +315,12 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                     else:
                         new_session = ResearchDefenseSession.create(st.session_state["research_plan"],
                             st.session_state["research_confirmed_budget"], mode, research_stage)
-                        client = st.session_state["research_provider"].client(new_session, files)
+                        flow = st.session_state["research_provider"].flow(new_session, files)
                         st.session_state["defense_run_id"] = st.session_state.get("defense_run_id", 0) + 1
                         st.session_state.pop("research_coaching", None)
                         st.session_state.pop("research_coaching_job", None)
                         st.session_state["defense_session"] = new_session
-                        advance_defense(new_session, files, api_key, model=model, client=client)
+                        research_action(new_session, files, 'advance')
             except Exception as error:
                 st.session_state["defense_error"] = generation_error_message(error, model, api_key)
             else:
@@ -336,7 +352,7 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                         if item["reason"]:
                             st.caption(item["reason"])
                 if not session.completed and st.button("End defense"):
-                    st.session_state['research_provider'].question_recovery.invalidate()
+                    st.session_state['research_provider'].cancel()
                     session.end()
                     st.rerun()
             else:
@@ -370,7 +386,8 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                 if isinstance(session, ResearchDefenseSession):
                     advance_research_report(api_key, model)
             elif session.needs_question:
-                st.info("Your answer is saved. Retry generating the next question.")
+                st.info("Your answer is saved. Retry the failed question stage." if session.turns else
+                        "The first question is not ready. Retry its failed stage; no answer has been submitted.")
                 recovery = st.session_state.get('research_provider')
                 retry_label = ('Retry question writing' if recovery and recovery.question_recovery.stage == 'writing'
                                else 'Retry next question')
@@ -384,6 +401,12 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                 clarification_count = len(session.turns[-1].clarifications) + (len(probe.clarifications) if probe else 0)
                 stage_key = probe.id if probe else "answer"
                 recovery_key = f"probe_recovery_{run_id}_{stage_key}"
+                flow = (st.session_state['research_provider'].flow(session, files)
+                        if isinstance(session, ResearchDefenseSession) else None)
+                retry_saved = False
+                if flow is not None and flow.pending:
+                    st.info('Your submission is retained, not yet accepted. Retry the saved submission or revise it below.')
+                    retry_saved = st.button('Retry saved submission', disabled=not bool(api_key))
                 if probe and st.session_state.get(recovery_key):
                     st.error(st.session_state[recovery_key])
                     if st.button("Continue with original answer"):
@@ -392,16 +415,38 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                         if not session.completed:
                             generate_next_question(session, files, api_key, model)
                         st.rerun()
+                answer_key = f"answer_{run_id}_{turn_number}_{clarification_count}_{stage_key}"
+                if answer_key not in st.session_state and flow is not None and flow.pending:
+                    st.session_state[answer_key] = flow.pending
                 with st.form(f"answer_form_{run_id}_{turn_number}_{clarification_count}_{stage_key}"):
                     answer = st.text_area(
                         "Your probe reply or clarification request" if probe else "Your answer or clarification request",
                         max_chars=MAX_ANSWER_CHARS,
-                        key=f"answer_{run_id}_{turn_number}_{clarification_count}_{stage_key}",
+                        key=answer_key,
                     )
                     submitted = st.form_submit_button("Send to panelist")
-                if submitted:
+                if retry_saved:
+                    answer = flow.pending
+                if submitted or retry_saved:
                     if not answer.strip():
                         st.error("Write an answer or clarification request before continuing.")
+                    elif isinstance(session, ResearchDefenseSession):
+                        try:
+                            research_action(session, files, 'submit', answer)
+                        except Exception as error:
+                            st.session_state['defense_error'] = generation_error_message(error, model, api_key)
+                            if session.needs_question:
+                                st.session_state['defense_error'] = 'Your answer is saved. Retry the failed question stage. ' + st.session_state['defense_error']
+                            else:
+                                st.session_state[recovery_key] = 'Your submission is retained, not yet accepted. ' + st.session_state['defense_error']
+                            st.error(st.session_state['defense_error'])
+                            st.info('Your submission is retained in the answer box until it is accepted.')
+                            if session.needs_question or probe:
+                                st.rerun()
+                        else:
+                            st.session_state.pop('defense_error', None)
+                            st.session_state.pop(recovery_key, None)
+                            st.rerun()
                     else:
                         try:
                             with st.spinner("Evaluating your submission…"):

@@ -270,6 +270,11 @@ class ProgressiveFallbackTests(unittest.TestCase):
         with patch.dict(os.environ,{'OPENAI_API_KEY':'offline-key'}),patch('backend.question_generator.generate_coaching_report',side_effect=coach):
             app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'backend/app.py')).run()
             app.file_uploader[0].set_value([('paper.md',PAPER.encode(),'text/markdown')]).run()
+            from backend.project_files import ProjectFile
+            # A retained report belongs to an already funded run. Rendering
+            # Results must never establish a replacement provider allowance.
+            app.session_state['research_provider'].client(session,
+                [ProjectFile('paper.md', PAPER, 'research_text')])
             app.session_state['defense_session']=session;app.run()
             next(b for b in app.button if b.label=='Generate coaching').click().run()
             self.assertFalse(app.exception)
