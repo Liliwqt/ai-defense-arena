@@ -71,15 +71,18 @@ def capture_interpretation(room: "Room", pending: PendingSubmission, *,
         context = copy.deepcopy(context)
         context["current_topic"] = turn.topic_id
     funded = bool(room.run_id and room.owner_account_id and research)
-    combined = (funded and pending.probe_id is None
-                and room.planning_contract == COMBINED_PLANNING)
+    combined = funded and room.planning_contract == COMBINED_PLANNING
     planning_session = None
     if combined:
         planning_session = copy.deepcopy(room.defense)
         prospective = planning_session.turns[pending.turn]
-        prospective.answer = pending.text
-        prospective.speaker_name = pending.name
-        prospective.input_provenance = pending.input_provenance
+        if pending.probe_id is not None:
+            planning_session.resolve_probe(pending.text, speaker_name=pending.name, seat=pending.seat)
+            prospective.probe_input_provenance = pending.input_provenance
+        else:
+            prospective.answer = pending.text
+            prospective.speaker_name = pending.name
+            prospective.input_provenance = pending.input_provenance
         context = planning_session.context()
         context["current_topic"] = prospective.topic_id
     return InterpretationInput(pending, tuple(room.files), turn.panelist, turn.question,

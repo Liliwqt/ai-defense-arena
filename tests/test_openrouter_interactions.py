@@ -48,6 +48,11 @@ def answer():
     return {'action': 'answer', 'clarification': None, 'probe': None}
 
 
+def combined_answer():
+    return {**answer(), 'assessment': assessment('topic-1', 0),
+            'panelist': ETHICS, 'topic_id': 'topic-2', 'is_follow_up': False}
+
+
 class InteractionClientTests(unittest.TestCase):
     def setUp(self):
         folder = tempfile.TemporaryDirectory()
@@ -142,7 +147,7 @@ class InteractionClientTests(unittest.TestCase):
         self.assertEqual(self.calls, [])
 
 
-class FundedInteractionProtocolTests(coverage.CoverageProtocolTests):
+class FundedInteractionRooms(coverage.CoverageProtocolTests):
     test_twelve_question_research_and_mixed_with_vote_clarification_timeout_retry_reconnect_coaching = None
     test_twelve_question_pdf_research_and_mixed_preserve_private_originals_and_citations = None
 
@@ -158,9 +163,10 @@ class FundedInteractionProtocolTests(coverage.CoverageProtocolTests):
 
         def provider(request):
             calls.append(json.loads(request.content))
+            index = len(calls)
             if on_call is not None:
-                on_call(len(calls))
-            output = outputs[min(len(calls), len(outputs)) - 1]
+                on_call(index)
+            output = outputs[min(index, len(outputs)) - 1]
             return output if isinstance(output, httpx.Response) else stream_response(output, usage=usage)
 
         def client(*args, **kwargs):
@@ -170,11 +176,13 @@ class FundedInteractionProtocolTests(coverage.CoverageProtocolTests):
         self.addCleanup(patcher.stop)
         return calls
 
-    def create_room(self):
+    def create_room(self, defense_type='research'):
         files = [('research_files', ('study.md', PAPER.encode(), 'text/markdown'))]
+        if defense_type == 'mixed':
+            files.append(('files', ('pilot.py', b'consent_required = True\n', 'text/x-python')))
         response = self.client.post('/api/rooms', data={
             'host_name': 'Host', 'host_passcode': 'offline-passcode',
-            'defense_type': 'research', 'research_stage': 'proposal'}, files=files)
+            'defense_type': defense_type, 'research_stage': 'proposal'}, files=files)
         self.assertEqual(response.status_code, 201, response.text)
         host = response.json()
         guest = self.client.post(f"/api/rooms/{host['room_code']}/join",
@@ -204,11 +212,12 @@ class FundedInteractionProtocolTests(coverage.CoverageProtocolTests):
             state = self.until(socket, 'question', 1)
         return state
 
+
+class FundedInteractionProtocolTests(FundedInteractionRooms):
     def test_clarification_probe_and_reply_stay_with_the_speaking_reviewer(self):
         outputs = [planner_move(METHODOLOGY, 'topic-1'),
                    reviewer_question('How will the team justify the stated pilot design?'),
-                   clarification(), probe(), answer(),
-                   planner_move(ETHICS, 'topic-2', assessment=assessment('topic-1', 0)),
+                   clarification(), probe(), combined_answer(),
                    reviewer_question('How will the team report claim changes?', evidence_line=6,
                                      lead_in='You described the pilot decision.')]
         host, guest = self.create_room()
@@ -246,16 +255,16 @@ class FundedInteractionProtocolTests(coverage.CoverageProtocolTests):
         self.assertEqual([call['model'] for call in calls],
                          ['z-ai/glm-5.3-flash', 'deepseek/deepseek-v4.1-flash-1017',
                           'deepseek/deepseek-v4.1-flash-1017', 'deepseek/deepseek-v4.1-flash-1017',
-                          'deepseek/deepseek-v4.1-flash-1017', 'z-ai/glm-5.3-flash',
+                          'deepseek/deepseek-v4.1-flash-1017',
                           'anthropic/claude-haiku-5.5'])
         self.assertEqual([call['reasoning'] for call in calls],
                          [{'effort': 'low'}, {'effort': 'high'}, {'effort': 'low'},
-                          {'effort': 'low'}, {'effort': 'low'}, {'effort': 'low'},
+                          {'effort': 'low'}, {'effort': 'low'},
                           {'effort': 'medium'}])
         self.assertEqual([call['response_format']['json_schema']['name'] for call in calls[2:5]],
-                         ['CombinedSubmissionDraft', 'CombinedSubmissionDraft', 'SubmissionDraft'])
+                         ['CombinedSubmissionDraft'] * 3)
         self.assertEqual([call['max_tokens'] for call in calls[2:5]],
-                         [COMBINED_OUTPUT_TOKENS, COMBINED_OUTPUT_TOKENS, INTERACTION_OUTPUT_TOKENS])
+                         [COMBINED_OUTPUT_TOKENS] * 3)
         for call in calls[2:5]:
             self.assertIn('Methodology Reviewer', call['messages'][0]['content'])
             self.assertIn(ANSWER, call['messages'][1]['content'])
@@ -265,7 +274,7 @@ class FundedInteractionProtocolTests(coverage.CoverageProtocolTests):
                       calls[4]['messages'][1]['content'])
         account = self._offline_credentials[2]
         snapshot = ProviderAllowance(f'run:{game_server.rooms[code].run_id}', account['id']).snapshot()
-        self.assertEqual(snapshot['used'], 7 * 500_000)
+        self.assertEqual(snapshot['used'], 6 * 500_000)
 
     def test_manual_retry_keeps_the_run_assignment_and_does_not_double_dispatch(self):
         outputs = [planner_move(METHODOLOGY, 'topic-1'),

@@ -233,6 +233,8 @@ COMBINED_PLANNING_GUIDANCE = (
     "leave assessment, panelist, topic_id null and is_follow_up false. If it is an answer, assess the "
     "separate Latest submission for the current question, not the prior resolved transcript. "
     "Use exactly planning context previous_turn and previous_topic as the assessment turn and topic_id. "
+    "For a probe reply, assess the original answer and the attributed probe reply together, "
+    "keeping their authors separate; the probe and panelist explanations are not defender answers. "
     "Assess actual discussion, not whether the research is proven correct: addressed means a sufficient "
     "explanation of the objective, discussed means a partial explanation, and needs clarification means "
     "a material unresolved gap. Give a short evidence-based reason. "

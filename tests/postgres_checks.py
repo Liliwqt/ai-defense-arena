@@ -35,6 +35,7 @@ from tests import test_openrouter_coaching
 from tests import test_openrouter_checkpoint
 from tests import test_free_practice
 from tests import test_combined_planning
+from tests import test_combined_exchanges
 from tests import test_openrouter_questions
 
 
@@ -72,6 +73,10 @@ class PostgresCombinedInteractions(LocalDatabase, test_combined_planning.Combine
 
 
 class PostgresCombinedRounds(LocalDatabase, test_openrouter_questions.FundedQuestionRoundsTests):
+    pass
+
+
+class PostgresCombinedExchanges(LocalDatabase, test_combined_exchanges.CombinedExchangeProtocolTests):
     pass
 
 

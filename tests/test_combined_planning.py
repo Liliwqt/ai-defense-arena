@@ -6,7 +6,7 @@ from backend.defense_session import PlannedMove, ResearchDefenseSession
 from backend.openrouter_questions import COMBINED_PLANNING, SEPARATE_PLANNING
 from backend.project_files import ProjectFile
 from backend.question_generator import (
-    GroundedQuestion, QuestionGenerationError, RESEARCH_PANELISTS,
+    GroundedQuestion, ProbeRequest, QuestionGenerationError, RESEARCH_PANELISTS,
     ResearchMove, TopicAssessmentDraft,
 )
 from backend.rooms.model import Player, Room
@@ -147,6 +147,29 @@ class CombinedFundedTests(IsolatedAllowanceTests):
         self.assertEqual(decision.plan.panelist, IMPACT)
         self.assertIsNone(self.session.turns[1].answer)
         self.assertEqual(self.session.coverage['topic-2']['status'], 'discussed')
+
+    def test_probe_reply_plans_from_both_speakers_without_resolving_live_exchange(self):
+        original = 'We will compare consenting campus volunteers.'
+        reply = 'The comparison group follows the same recruitment criteria.'
+        self.session.begin_probe(original, ProbeRequest('Which comparison group?'), speaker_name='Ana')
+        probe = self.session.turns[0].probe
+        self.request = capture_interpretation(self.room, PendingSubmission(
+            0, 'guest', 'Sam', 1, reply, 1000, probe.id))
+        decision = self.invoke(self.response)
+        call = self.calls[0]
+        self.assertEqual(call['response_format']['json_schema']['name'], 'CombinedSubmissionDraft')
+        self.assertIsNotNone(decision.plan)
+        self.assertIsNotNone(decision.plan_identity)
+        system, user = (item['content'] for item in call['messages'])
+        self.assertIn('original answer and the attributed probe reply together', system)
+        self.assertIn(original, user)
+        self.assertIn(reply, user)
+        self.assertIn('"speaker_name": "Ana"', user)
+        self.assertIn('Latest submission speaker (data): "Sam"', user)
+        self.assertEqual(self.session.turns[0].answer, original)
+        self.assertEqual(probe.status, 'pending')
+        self.assertIsNone(probe.reply)
+        self.assertEqual(self.session.coverage['topic-1']['status'], 'discussed')
 
     def test_concurrent_combined_dispatch_preserves_protected_funds_and_unknown_hold(self):
         import asyncio

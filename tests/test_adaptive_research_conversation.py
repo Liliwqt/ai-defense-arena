@@ -6,7 +6,7 @@ import unittest
 from types import SimpleNamespace
 
 from backend.project_files import ProjectFile
-from backend.question_generator import GroundedQuestion, interpret_submission
+from backend.question_generator import CombinedSubmissionDraft, GroundedQuestion, interpret_submission
 from backend.research_plan import generate_research_plan, validate_profile_description
 from backend.defense_session import ResearchDefenseSession
 from tests.test_research_plan import FakeClient, PAPER, draft
@@ -102,7 +102,14 @@ class ResearchScopeRoomTests(unittest.TestCase):
         def interpret(files, key, **kwargs):
             kwargs.pop("client", None)
             requests.append(kwargs.get("research_context"))
-            return interpret_submission(files, key, client=ParsedClient(outputs.pop(0)), **kwargs)
+            output = outputs.pop(0)
+            if output.action == "answer" and kwargs.get("text_format") is CombinedSubmissionDraft:
+                context = kwargs["planning_context"]
+                output = CombinedSubmissionDraft(action="answer", clarification=None,
+                    assessment={"topic_id": "topic-1", "turn": 0, "status": "discussed",
+                                "reason": "The team explained its recruitment scope."},
+                    **next(option for option in context["question_options"] if not option["is_follow_up"]))
+            return interpret_submission(files, key, client=ParsedClient(output), **kwargs)
         def coach(files, history, key, model, **kwargs):
             kwargs.pop("client", None)
             scopes.append(kwargs["research_context"]["plan"]["profile"])
