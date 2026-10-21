@@ -77,8 +77,10 @@ class QuestionRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(generator.call_count, 2)
         self.assertEqual(self.room.phase, 'retry')
         self.assertEqual(snapshots[0]['phase'], 'generating')
-        self.assertTrue(snapshots[0]['question_retrying'])
-        self.assertEqual(snapshots[0]['turns'][0]['answer'], 'We preserve arrival order.')
+        retrying = [state for state in snapshots if state['question_retrying']]
+        self.assertTrue(retrying, 'The retry backoff should be published before it starts.')
+        self.assertEqual(retrying[0]['operation']['stage'], 'retry_wait')
+        self.assertEqual(retrying[0]['turns'][0]['answer'], 'We preserve arrival order.')
         self.assertFalse(snapshots[-1]['question_retrying'])
         self.assertEqual(snapshots[-1]['question_attempts_left'], 1)
         with patch.object(question_workflow, 'generate_next_move', return_value=self.next_move):

@@ -30,6 +30,7 @@ class CoachingSection:
     status: str = 'pending'
     attempts: int = 0
     error: str | None = None
+    failure_class: str | None = None
     report: "CoachingReport | None" = None
 
 
@@ -53,7 +54,7 @@ class CoachingProgress:
     def begin(self, section):
         if self.cancelled or section.status != 'pending' or section.attempts >= self.attempt_limit:
             raise ValueError('This coaching section cannot be started.')
-        section.status, section.error = 'generating', None
+        section.status, section.error, section.failure_class = 'generating', None, None
         section.attempts += 1
 
     def accept(self, section, report):
@@ -88,7 +89,7 @@ class CoachingProgress:
         if not self.can_retry:raise ValueError('Coaching retry allowance used. Completed cards are retained; use available recovery controls.')
         for section in self.sections:
             if section.status=='failed' and section.attempts<self.attempt_limit:
-                section.status,section.error='pending',None
+                section.status,section.error,section.failure_class='pending',None,None
         if self.completion_status=='failed' and self.completion_attempts<self.attempt_limit:
             self.completion_status,self.completion_error='pending',None
 

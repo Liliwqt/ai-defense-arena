@@ -36,9 +36,107 @@ function isResolved(turn: Turn): boolean {
   return turn.resolved ?? (!!turn.answer || !!turn.timed_out);
 }
 
+function retainedDetail(state: Readonly<RoomState>): string {
+  if (state.turns.some(turn => !!turn.answer)) return "The accepted answer is saved.";
+  if (state.turns.some(turn => !!turn.timed_out)) return "The missed turn is saved.";
+  return "Your uploads are retained.";
+}
+
 function interpretationStatus(state: Readonly<RoomState> | null): string | undefined {
   if (state?.phase !== "interpreting" && state?.phase !== "interpretation_retry") return undefined;
   return `${state.phase === "interpreting" ? "Reviewing submission" : "Submission review failed"} · Timer ${state.clock_paused === false ? "running" : "paused"}`;
+}
+
+export interface WaitingPresentation {
+  active: boolean;
+  retryWait: boolean;
+  label: string;
+  detail?: string;
+  startedAtMs: number | null;
+}
+
+function questionLabel(retrying: boolean): string {
+  return retrying ? "Trying again… Preparing your question…" : "Thinking… Preparing your question…";
+}
+
+function interpretationLabel(probePending: boolean): string {
+  return probePending ? "Reviewing your probe reply…" : "Evaluating your answer…";
+}
+
+export function mappingLabel(stage?: string | null): string {
+  return stage === "validating" ? "Checking source references…" : "Mapping your paper…";
+}
+
+function coachingLabel(stage: string, retrying: boolean): string {
+  const label = stage === "overview" ? "Preparing your coaching overview…"
+    : stage === "answers" ? "Preparing your answer coaching…"
+    : stage === "saving_completion" ? "Saving your coaching…"
+    : "Preparing your coaching report…";
+  return retrying ? `Trying again… ${label}` : label;
+}
+
+function deriveWaiting(state: Readonly<RoomState> | null): WaitingPresentation | null {
+  if (!state) return null;
+  const operation = state.operation;
+  if (operation) {
+    const startedAtMs = typeof operation.started_at_ms === "number" ? operation.started_at_ms : null;
+    if (operation.stage === "retry_wait") {
+      return { active: false, retryWait: true, startedAtMs: null,
+        label: "Waiting to retry…",
+        detail: state.turns.some(isResolved) ? retainedDetail(state) : "Your uploads are retained." };
+    }
+    if (operation.kind === "question") {
+      return { active: true, retryWait: false, startedAtMs,
+        label: questionLabel(operation.retrying),
+        detail: state.turns.some(isResolved) ? retainedDetail(state) : "Your uploads are retained." };
+    }
+    if (operation.kind === "interpretation") {
+      return { active: true, retryWait: false, startedAtMs,
+        label: interpretationLabel(operation.stage === "reviewing_reply"),
+        detail: state.my_pending_submission ? "Submission saved, not yet accepted." : undefined };
+    }
+    if (operation.kind === "mapping") {
+      return { active: true, retryWait: false, startedAtMs,
+        label: mappingLabel(operation.stage),
+        detail: "Draft topics stay provisional until the map passes validation." };
+    }
+    if (operation.kind === "coaching") {
+      return { active: true, retryWait: false, startedAtMs,
+        label: coachingLabel(operation.stage, operation.retrying),
+        detail: "Finished sections remain available while the rest are prepared." };
+    }
+    return { active: true, retryWait: false, startedAtMs, label: "Preparing a response…" };
+  }
+  if (state.phase === "generating") {
+    return { active: !state.question_retrying, retryWait: !!state.question_retrying, startedAtMs: null,
+      label: questionLabel(!!state.question_retrying),
+      detail: state.turns.some(isResolved) ? retainedDetail(state) : undefined };
+  }
+  if (state.phase === "interpreting") {
+    return { active: true, retryWait: false, startedAtMs: null,
+      label: interpretationLabel(state.turns.at(-1)?.probe?.status === "pending"),
+      detail: state.my_pending_submission ? "Submission saved, not yet accepted." : undefined };
+  }
+  if (state.research_planning_status === "planning") {
+    return { active: true, retryWait: false, startedAtMs: null,
+      label: mappingLabel(state.research_plan_progress?.stage),
+      detail: "Draft topics stay provisional until the map passes validation." };
+  }
+  if (state.feedback_status === "generating") {
+    return { active: true, retryWait: false, startedAtMs: null,
+      label: coachingLabel("", false) };
+  }
+  if (state.phase === "interpretation_retry") {
+    return { active: false, retryWait: true, startedAtMs: null,
+      label: state.interpretation_attempts_left === 0 ? "Recovery needed" : "Waiting to retry…",
+      detail: state.my_pending_submission ? "Submission saved, not accepted." : "Your submission was retained." };
+  }
+  if (state.phase === "retry" && !state.opening_repeated) {
+    return { active: false, retryWait: true, startedAtMs: null,
+      label: state.question_attempts_left === 0 ? "Recovery needed" : "Waiting to retry…",
+      detail: state.turns.some(isResolved) ? "Your resolved turns are saved." : "Your uploads are retained." };
+  }
+  return null;
 }
 
 function submissionRecoveryGuidance(state: Readonly<RoomState> | null, chosen: boolean, probing: boolean): string {
@@ -304,6 +402,7 @@ export function deriveRoomPresentation(state: Readonly<RoomState> | null) {
     controls: { questionRetry: phase === "retry", questionRetryAvailable: state?.question_attempts_left !== 0,
       coachingRetry: phase === "complete" && state?.feedback_status === "failed", coachingRetryAvailable: state?.coaching_attempts_left !== 0 },
     voting, chosenSelf, chosenName, submission, timer: deriveTimer(state), status: closing ? "Panelist closing…" : interpretationStatus(state) ?? roomStatus(state), progress,
+    waiting: deriveWaiting(state),
     coverage: { addressed: Object.values(state?.coverage ?? {}).filter(item => item.status === "addressed").length,
       total: state?.research_plan?.topics.length ?? 0 },
     voteInstruction, answerPrompt, teammateInstruction,

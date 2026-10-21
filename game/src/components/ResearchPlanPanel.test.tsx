@@ -217,7 +217,7 @@ describe("ResearchPlanPanel", () => {
     expect(screen.getByRole("list", { name: "Draft research topics" })).toHaveTextContent(topic.title);
     expect(screen.getByText(topic.references[0].evidence_text)).toBeTruthy();
     rerender(<ResearchPlanPanel {...props()} roomState={{ ...planning, research_plan_progress: { stage: "validating", topics: [topic] } }} />);
-    expect(screen.getByRole("status")).toHaveTextContent("Checking the complete map");
+    expect(screen.getByRole("status")).toHaveTextContent("Checking source references…");
     rerender(<ResearchPlanPanel {...props()} roomState={{ ...planning, research_planning_status: "failed", research_plan_progress: null }} />);
     expect(screen.queryByRole("list", { name: "Draft research topics" })).toBeNull();
     expect(screen.getByRole("alert")).toHaveTextContent("Your uploads are retained");

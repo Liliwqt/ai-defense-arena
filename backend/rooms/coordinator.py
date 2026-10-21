@@ -193,6 +193,7 @@ class RoomCoordinator:
     def _retire_work(self) -> set[asyncio.Task]:
         """Under room.lock: fence all lanes before cancelling their old work."""
         room = self._room
+        room.clear_operation()
         room.generation_id += 1
         room.research_plan_generation_id += 1
         room.feedback_generation_id += 1

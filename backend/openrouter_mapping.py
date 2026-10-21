@@ -13,6 +13,7 @@ from backend.question_generator import QuestionGenerationError
 from backend.practice_tiers import FREE, FREE_MODEL, FREE_PROVIDER, FREE_CONTEXT_TOKENS, validate_tier
 from backend.provider_allowance import ProviderAllowance, AllowanceError, reported_nano
 from backend.openrouter_stream import ENDPOINT, payload, strict_schema, stream as open_stream
+from backend.room_operations import record_supplied_usage
 
 LEGACY_MODEL = 'deepseek/deepseek-v4.1-flash-1017'
 MODEL = 'z-ai/glm-5.3-flash'
@@ -139,6 +140,7 @@ class MappingClient:
     def _settle_usage(self, identity, usage):
         # Settle every valid receipt so a later conflicting receipt cannot
         # overwrite earlier evidence. Missing evidence keeps the full bound.
+        record_supplied_usage(usage, model=self.policy.model)
         value = reported_nano(usage)
         if value is None:
             return

@@ -84,6 +84,7 @@ async def run_plan(owner: "RoomCoordinator", work: PlanWork, request: PlanInput)
             if not owner._plan_current(work):
                 return False
             room.research_plan_progress = update
+            room.advance_operation(update.stage, owner._workflows.now())
             room.revision += 1
         await owner._publish()
         return True
@@ -101,6 +102,8 @@ async def run_plan(owner: "RoomCoordinator", work: PlanWork, request: PlanInput)
             room.research_planning_status = "failed"
             room.research_plan_progress = None
             room.research_plan_error = safe_generation_error(error)
+            room.finish_operation(owner._workflows.now(), "failed",
+                                  failure_class=type(error).__name__)
             room.revision += 1
         await owner._publish()
         return
@@ -113,6 +116,7 @@ async def run_plan(owner: "RoomCoordinator", work: PlanWork, request: PlanInput)
         room.research_plan_error = None
         room.research_budget_preview = min(plan.suggested_budget, FREE_QUESTION_LIMIT) if room.practice_tier == "free" else plan.suggested_budget
         room.research_plan_approved = False
+        room.finish_operation(owner._workflows.now(), "succeeded")
         room.revision += 1
     await owner._publish()
 
@@ -155,6 +159,8 @@ async def handle_plan_command(owner: "RoomCoordinator", actor: VerifiedActor, co
                     room.research_budget_preview = None
                 room.research_plan_approved = False
                 room.research_plan_generation_id += 1
+                room.begin_operation(kind="mapping", operation_id=f"mapping:{room.research_plan_generation_id}",
+                                     stage="preparing", now=owner._workflows.now())
                 owner._schedule_research_plan(room.research_plan_generation_id)
             else:
                 if room.phase != "lobby" or room.research_planning_status != "ready" or room.research_plan is None:

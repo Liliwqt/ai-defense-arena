@@ -15,6 +15,10 @@ from backend.question_generator import CoachingReport
 from backend.research_plan import ResearchPlan, ResearchPlanProgress, ResearchProfileDescription
 from backend.resource_limits import AIBudget, limit
 from backend.coaching_progress import CoachingProgress
+from backend.room_operations import (
+    RoomOperation, bind_operation, record_stage, record_total, release_operation,
+    take_supplied_usage,
+)
 from backend.rooms.openings import OpeningCandidate
 from backend.rooms.speech import SpeechState, draft_snapshot
 from backend.timed_turn import TimedTurn
@@ -61,6 +65,7 @@ class Room(TimedTurn):
     research_plan_approved: bool = False
     research_plan_generation_id: int = 0
     feedback_generation_id: int = 0
+    operation: RoomOperation | None = field(default=None, compare=False)
     chat: list[dict[str, Any]] = field(default_factory=list)
     chat_seq: int = 0
     clock_task: asyncio.Task | None = field(default=None, repr=False)
@@ -100,6 +105,79 @@ class Room(TimedTurn):
         super().clear_clock()
         self.closing_panelist = None
         self.closing_deadline_ms = None
+
+    def begin_operation(self, *, kind: str, operation_id: str, stage: str, now: int,
+                        attempt: int = 1, retrying: bool = False) -> None:
+        if self.operation is not None:
+            release_operation(self.operation.usage_key)
+        self.operation = RoomOperation(operation_id, kind, stage, now, now, attempt, retrying)
+        bind_operation(self.operation.usage_key)
+
+    def finish_operation_stage(self, now: int, outcome: str,
+                               failure_class: str | None = None, usage: dict | None = None) -> None:
+        operation = self.operation
+        if operation is None or operation.stage_finished:
+            return
+        record_stage(operation, ended_at_ms=now, outcome=outcome,
+                     failure_class=failure_class, usage=usage)
+        operation.stage_finished = True
+
+    def advance_operation(self, stage: str, now: int) -> None:
+        operation = self.operation
+        if operation is None or (operation.stage == stage and not operation.stage_finished):
+            return
+        self.finish_operation_stage(now, "succeeded")
+        operation.stage = stage
+        operation.stage_started_at_ms = now
+        operation.stage_finished = False
+
+    def retry_operation(self, now: int) -> None:
+        operation = self.operation
+        if operation is None:
+            return
+        record_stage(operation, ended_at_ms=now, outcome="retrying")
+        operation.attempt += 1
+        operation.retrying = True
+        operation.stage = "retry_wait"
+        operation.stage_started_at_ms = now
+
+    def resume_operation(self, now: int) -> None:
+        operation = self.operation
+        if operation is None:
+            return
+        if operation.stage == "retry_wait":
+            record_stage(operation, ended_at_ms=now, outcome="retried")
+            operation.stage = "generating"
+            operation.stage_started_at_ms = now
+        operation.retrying = False
+
+    def finish_operation(self, now: int, outcome: str, usage: dict | None = None,
+                         failure_class: str | None = None) -> None:
+        operation = self.operation
+        if operation is None:
+            return
+        usage = take_supplied_usage(operation.usage_key, usage)
+        self.finish_operation_stage(now, outcome, failure_class=failure_class, usage=usage)
+        record_total(operation, ended_at_ms=now, outcome=outcome, usage=usage,
+                     failure_class=failure_class)
+        self.operation = None
+
+    def clear_operation(self) -> None:
+        if self.operation is not None:
+            release_operation(self.operation.usage_key)
+        self.operation = None
+
+    def visible_operation(self) -> RoomOperation | None:
+        operation = self.operation
+        if operation is None or self.closed:
+            return None
+        visible = {
+            "question": self.phase == "generating",
+            "interpretation": self.phase == "interpreting",
+            "mapping": self.research_planning_status == "planning",
+            "coaching": self.feedback_status == "generating",
+        }
+        return operation if visible.get(operation.kind, False) else None
 
     def expire(self, now, online, session, expected_id=None, choose=None):
         if expected_id is not None and self.clock_id != expected_id:
@@ -169,6 +247,7 @@ class Room(TimedTurn):
                 "next_step": self.feedback.next_step,
                 "closing": self.feedback.closing,
             }
+        operation = self.visible_operation()
         return {
             "room_code": self.code,
             "voice": self.speech.snapshot() if self.defense_type != "code" else None,
@@ -182,6 +261,7 @@ class Room(TimedTurn):
             "opening_repeated": self.opening_candidate is not None,
             "opening_candidate": self.opening_candidate.preview() if self.opening_candidate and recipient and recipient.is_host else None,
             "question_retrying": self.phase == "generating" and self.question_retry_generation_id == self.generation_id,
+            "operation": operation.snapshot() if operation else None,
             "coaching_attempts_left": (1 if self.coaching_progress.can_retry else 0) if self.coaching_progress else self.ai_budget.remaining('coaching', limit('AI_COACHING_ATTEMPTS', 3, 10)),
             "plan_attempts_left": self.ai_budget.remaining('plan', limit('AI_PLAN_ATTEMPTS', 3, 10)),
             "self_seat": recipient.seat if recipient is not None else None,

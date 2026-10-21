@@ -60,9 +60,22 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
         # Each candidate is detached. History and access commit before publication;
         # rejected/racing duplicate candidates roll back without charging the run.
         for attempt in range(2):
+            started = False
+            if attempt:
+                async with room.lock:
+                    if not owner._question_current(work):
+                        return
+                    room.resume_operation(owner._workflows.now())
+                    room.revision += 1
+                await owner._publish()
             async with room.lock:
                 if not owner._question_current(work):
                     return
+                if attempt == 0:
+                    room.begin_operation(kind="question", operation_id=f"question:{work.generation_id}",
+                                         stage="generating", now=owner._workflows.now())
+                    room.revision += 1
+                    started = True
                 cap = limit('AI_QUESTION_ATTEMPTS', 3, 10)
                 attempt_key = f'question:{len(room.defense.turns) if room.defense else 0}'
                 request = prepare_progression(room.defense, defense_type=room.defense_type,
@@ -72,6 +85,8 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
                 if room.owner_account_id and room.run_id and room.defense_type != "code" and (room.defense is None or not room.defense.turns):
                     opening_key = paper_key(files)
                 account_id = room.owner_account_id
+            if started:
+                await owner._publish()
             if opening_key:
                 try:
                     recent = await asyncio.to_thread(recent_openings, account_id, opening_key)
@@ -123,6 +138,7 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
                         room.present_question(room.defense, owner._workflows.now())
                         next_clock = (room.clock_id, room.reaction_deadline_ms or room.vote_deadline_ms)
                     room.error = None
+                    room.finish_operation(owner._workflows.now(), "succeeded")
                     room.revision += 1
             except (RepeatedOpening, InvalidQuestionResponse, ValidationError, APIConnectionError, APIStatusError,
                     TransientProviderError) as error:
@@ -139,6 +155,7 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
                     if attempt or not recoverable or (not duplicate and (first or not resolved)) or not room.ai_budget.remaining(attempt_key, cap):
                         raise
                     room.question_retry_generation_id = work.generation_id
+                    room.retry_operation(owner._workflows.now())
                     room.revision += 1
                 await owner._publish()
                 if not duplicate:
@@ -153,6 +170,8 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
             room.phase = "retry"
             room.opening_candidate = repeated_candidate if isinstance(error, RepeatedOpening) else None
             room.error = str(error) if isinstance(error, RepeatedOpening) else safe_generation_error(error)
+            room.finish_operation(owner._workflows.now(), "failed",
+                                  failure_class=type(error).__name__)
             try:
                 if room.defense is None or not room.defense.turns:
                     release_run(room.run_id)

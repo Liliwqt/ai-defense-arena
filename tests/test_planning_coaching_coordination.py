@@ -147,7 +147,9 @@ class PlanningCoachingCoordinationTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.sleep(0)
                 self.assertEqual(coordinator.view(actor), before)
                 self.assertFalse(room.settled)
-                self.assertEqual(states, [])
+                self.assertTrue(states)
+                self.assertEqual({state["operation"]["id"] for state in states}, {"coaching:1"})
+                self.assertEqual({state["revision"] for state in states}, {1})
 
     async def test_map_retry_keeps_uploads_and_generates_no_questions_on_failure(self):
         account = authenticate(self)

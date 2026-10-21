@@ -135,11 +135,12 @@ class SubmissionCoordinationTests(unittest.IsolatedAsyncioTestCase):
         async with room.lock:
             room.run_id = "new"
         before = coordinator.view(actor)
+        published_before_failure = len(states)
         release.set()
         await asyncio.wait_for(finished.wait(), 1)
         await asyncio.sleep(0)
         self.assertEqual(coordinator.view(actor), before)
-        self.assertEqual(len(states), 1)
+        self.assertEqual(len(states), published_before_failure)
 
     async def test_timeout_and_late_failure_resolve_one_unanswered_turn(self):
         guest = Player("guest", "Sam", 1, sockets={object()})

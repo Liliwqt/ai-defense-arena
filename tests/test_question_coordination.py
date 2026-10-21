@@ -44,7 +44,14 @@ class QuestionCoordinationTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.wait_for(published.wait(), 2)
         self.assertEqual(len(requests), 2)
         self.assertEqual([history[0].answer for history in requests], ["We preserve arrival order."] * 2)
-        self.assertTrue(states[0]["question_retrying"])
+        self.assertFalse(states[0]["question_retrying"])
+        self.assertEqual(states[0]["operation"]["kind"], "question")
+        self.assertFalse(states[0]["operation"]["retrying"])
+        retry_states = [state for state in states if state["question_retrying"]]
+        self.assertTrue(retry_states)
+        self.assertTrue(retry_states[0]["operation"]["retrying"])
+        self.assertEqual(retry_states[0]["operation"]["stage"], "retry_wait")
+        self.assertIsNone(states[-1]["operation"])
         self.assertEqual(states[0]["turns"][0]["answer"], "We preserve arrival order.")
         self.assertEqual(len(states[-1]["turns"]), 2)
         self.assertFalse(states[-1]["question_retrying"])
@@ -110,11 +117,13 @@ class QuestionCoordinationTests(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(coordinator.shutdown)
         await coordinator.execute(GenerateQuestion(1, True))
         await asyncio.wait_for(started.wait(), 2)
+        self.assertEqual(len(published), 1)
+        self.assertEqual(published[0]["operation"]["id"], "question:1")
         room.run_id = "new-run"
         release.set()
         await asyncio.wait_for(finished.wait(), 2)
         self.assertEqual(coordinator.view(VerifiedActor(guest.token))["turns"], [])
-        self.assertEqual(published, [])
+        self.assertEqual(len(published), 1)
         self.assertEqual(room.phase, "generating")
 
     async def test_duplicate_question_work_admits_once_and_publishes_one_opening(self):

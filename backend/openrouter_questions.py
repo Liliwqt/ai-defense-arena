@@ -33,6 +33,7 @@ from backend.question_generator import (
     CONVERSATION_GUIDANCE, SCENARIO_GUIDANCE,
 )
 from backend.research_panel import research_panel_guidance
+from backend.room_operations import record_supplied_usage
 from backend.practice_tiers import FREE, FREE_MODEL, FREE_PROVIDER, FREE_CONTEXT_TOKENS, validate_tier, validate_tier_budget
 
 PLANNER_MODEL = 'z-ai/glm-5.3-flash'
@@ -328,6 +329,7 @@ class RunQuestionClient:
                 raise QuestionGenerationError('OpenRouter question generation was cancelled or timed out. Retry when ready.')
 
         def settle(usage):
+            record_supplied_usage(usage, model=model)
             value = reported_nano(usage)
             if value is None:
                 return

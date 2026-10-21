@@ -114,6 +114,14 @@ export interface AnswerCoachingCard {
 }
 
 export type CoachingSectionStatus = "pending" | "generating" | "ready" | "failed" | "cancelled";
+export interface RoomOperation {
+  id: string;
+  kind: "question" | "interpretation" | "mapping" | "coaching";
+  stage: string;
+  started_at_ms: number;
+  attempt: number;
+  retrying: boolean;
+}
 export interface CoachingProgress {
   job_id: string;
   overview_status: CoachingSectionStatus;
@@ -177,6 +185,7 @@ export interface ResearchPlan {
 }
 
 export interface RoomState {
+  operation?: RoomOperation | null;
   coaching_progress?: CoachingProgress | null;
   my_voice_draft?: {attempt_id: string; text: string; turn: number; probe_id: string | null; view_id: string} | null;
   voice?: { enabled: boolean; remaining_ms: number; provider: string; model: string; language: string } | null;

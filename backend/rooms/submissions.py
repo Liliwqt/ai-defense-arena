@@ -102,11 +102,18 @@ async def run_interpretation(owner: "RoomCoordinator", work: InterpretationWork,
     async with room.lock:
         if not owner._interpretation_current(work):
             return
+        room.begin_operation(kind="interpretation", operation_id=f"interpretation:{work.interpretation_id}",
+                             stage="reviewing_reply" if work.pending.probe_id else "reviewing_answer",
+                             now=owner._workflows.now())
+        room.revision += 1
+    await owner._publish()
+    failure_class = None
     try:
         decision = await owner._workflows.interpretation_request(request)
         error = None
     except Exception as failure:
         decision, error = None, safe_generation_error(failure)
+        failure_class = type(failure).__name__
     # Obsolete provider completions cannot catch up or mutate a newer run.
     async with room.lock:
         if (room.closed or room.run_id != work.run_id
@@ -127,10 +134,12 @@ async def run_interpretation(owner: "RoomCoordinator", work: InterpretationWork,
                 outcome = room.interpret(room.defense, decision, work.interpretation_id,
                                          work.pending, room.online_players(), now)
             except ValueError as failure:
+                failure_class = type(failure).__name__
                 if not room.interpretation_failed(work.interpretation_id, work.pending, str(failure), now):
                     return
                 outcome = "failed"
         if outcome is None:
+            room.finish_operation(now, "failed")
             return
         if outcome in {"answered", "probed"}:
             attach_provenance(room, work.pending.turn, work.pending.probe_id, work.pending.input_provenance)
@@ -138,6 +147,8 @@ async def run_interpretation(owner: "RoomCoordinator", work: InterpretationWork,
             next_clock = (room.clock_id, room.answer_deadline_ms)
         elif outcome == "answered":
             generation_id, feedback_id = owner._resolve_turn_locked()
+        room.finish_operation(now, "failed" if outcome == "failed" else "succeeded",
+                              failure_class=failure_class if outcome == "failed" else None)
         room.revision += 1
     await owner._publish()
     if next_clock:

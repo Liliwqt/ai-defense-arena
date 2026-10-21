@@ -51,7 +51,7 @@ def generation_error_message(error: Exception, model: str, api_key: str) -> str:
 
 def generate_next_question(session, files, api_key, model):
     try:
-        with st.spinner("Reviewing your answer and preparing the next question..."):
+        with st.spinner("Preparing your next question…"):
             client = (st.session_state["research_provider"].client(session, files)
                       if isinstance(session, ResearchDefenseSession) else None)
             advance_defense(session, files, api_key, model=model, client=client)
@@ -73,7 +73,7 @@ def prepare_research_scope(files, api_key, model, mode, research_stage):
     st.session_state["research_plan_approved"] = False
     st.session_state["research_profile_dirty"] = False
     try:
-        with st.spinner("Mapping the uploaded research..."):
+        with st.spinner("Mapping your paper…"):
             client = st.session_state["research_provider"].mapping()
             plan = generate_research_plan(files, client.api_key, MAPPING_MODEL, client=client, defense_type=mode, research_stage=research_stage,
                     profile_correction=st.session_state.get("research_profile_correction"))
@@ -286,7 +286,7 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
             st.info("Prepare the research map and confirm its question budget before starting.")
         if st.button(button_label, disabled=not bool(api_key) or not research_ready):
             try:
-                with st.spinner("Reviewing defense materials..."):
+                with st.spinner("Preparing your first question…"):
                     if mode == "code":
                         request = prepare_progression(None, defense_type=mode, research_stage=research_stage)
                         new_session = request.apply(request.generate(files, api_key, model, first_question=generate_first_question))
@@ -351,7 +351,7 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                         st.info("The host ended before any answer or timeout was recorded. No discussion coverage was confirmed.")
                 elif report is None and st.button("Generate coaching", disabled=not bool(api_key)):
                     try:
-                        with st.spinner("Preparing coaching..."):
+                        with st.spinner("Preparing your coaching…"):
                             report = generate_coaching_report(files, coaching_history, api_key, model, defense_type=mode, research_stage=research_stage)
                     except Exception as exc:
                         st.error(generation_error_message(exc, model, api_key))
@@ -394,7 +394,7 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                         st.error("Write an answer or clarification request before continuing.")
                     else:
                         try:
-                            with st.spinner("Panelist is reading your submission..."):
+                            with st.spinner("Evaluating your submission…"):
                                 decision = interpret_submission(
                                     files, api_key, panelist=session.turns[-1].panelist,
                                     **({"client": st.session_state["research_provider"].client(session, files).interaction(session.turns[-1].panelist)}

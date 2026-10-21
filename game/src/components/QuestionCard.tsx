@@ -3,6 +3,7 @@ import { PageCitation } from "./PageCitation";
 import { useEffect, useRef, useState } from "react";
 import { PDFViewer } from "./PDFViewer";
 import { PaperMappingProgress } from "./PaperMappingProgress";
+import { WaitingIndicator } from "./WaitingIndicator";
 import { isResearchCitation } from "../lib/citation";
 import type { RoomState } from "../types";
 
@@ -64,13 +65,21 @@ export function QuestionCard({ roomState, playerToken, presentation = deriveRoom
           onClick={() => { setPaperTab(tab); if (tab === "question") setExpanded(false); }}>{tab === "paper" ? "Paper" : "Question"}</button>)}
       </div>}
       </div>
-      {content.reviewStatus && <p className="question-review-status" aria-live="polite">{content.reviewStatus}</p>}
+      {presentation.waiting && !content.mapping
+        ? <div className="question-review-status">
+          <WaitingIndicator label={presentation.waiting.label} detail={presentation.waiting.detail}
+            active={presentation.waiting.active} startedAtMs={presentation.waiting.startedAtMs}
+            serverNowMs={roomState?.server_now_ms} />
+          {content.reviewStatus?.includes("Timer") && <p>{content.reviewStatus}</p>}
+        </div>
+        : content.reviewStatus && <p className="question-review-status" aria-live="polite">{content.reviewStatus}</p>}
       <div className="question-scroll" ref={scrollRef} tabIndex={0} aria-label="Question and cited source">
       <div className="question-copy" id="paper-question-panel" role={hasPaper ? "tabpanel" : undefined} aria-labelledby={hasPaper ? "paper-tab-question" : undefined}>
       {roomState?.current_topic && <p className="question-topic">Topic: {roomState.research_plan?.topics.find(t => t.id === roomState.current_topic)?.title}</p>}
       {clarification && <p className="clarification-request"><strong>Defender asks:</strong> {clarification.request}</p>}
       <p id="question-text" className={content.mapping ? "mapping-intro" : undefined} aria-live={clarification ? "polite" : undefined}>{clarification?.reply ?? content.question}</p>
-      {content.mapping && <PaperMappingProgress progress={roomState?.research_plan_progress} />}
+      {content.mapping && <PaperMappingProgress progress={roomState?.research_plan_progress}
+        startedAtMs={presentation.waiting?.startedAtMs} serverNowMs={roomState?.server_now_ms} />}
       {content.initialAnswer && <p className="question-previous-answer"><strong>Original answer:</strong> <span>{content.initialAnswer}</span></p>}
       <ProbeExchange probe={content.probe} panelist={content.name} />
       {content.previousAnswer && <p className="question-previous-answer">{content.previousAnswer}</p>}

@@ -1,5 +1,7 @@
 import { AnswerCoaching } from "./AnswerCoaching";
+import { WaitingIndicator } from "./WaitingIndicator";
 import type { CoachingFeedback, CoachingProgress, FeedbackStatus } from "../types";
+import type { WaitingPresentation } from "../lib/roomPresentation";
 
 interface CoachingReportProps {
   failureGuidance?: string;
@@ -7,17 +9,22 @@ interface CoachingReportProps {
   feedback: CoachingFeedback | null;
   closingPanelist?: string | null;
   progress?: CoachingProgress | null;
+  waiting?: WaitingPresentation | null;
+  serverNowMs?: number;
   onRetry?: () => boolean;
   retryDisabled?: boolean;
 }
 
-export function CoachingReport({ feedbackStatus, feedback, closingPanelist, progress, onRetry, retryDisabled, failureGuidance = "Review Controls for recovery options." }: CoachingReportProps) {
+export function CoachingReport({ feedbackStatus, feedback, closingPanelist, progress, waiting, serverNowMs, onRetry, retryDisabled, failureGuidance = "Review Controls for recovery options." }: CoachingReportProps) {
   if (feedbackStatus === "none" && !progress) return null;
 
   return (
     <section className="coaching-report" aria-label="Coaching report">
       <h3>Coaching Report</h3>
-      {feedbackStatus === "generating" && <p className="report-status">Preparing your coaching report…</p>}
+      {feedbackStatus === "generating" && (waiting
+        ? <WaitingIndicator label={waiting.label} detail={waiting.detail} active={waiting.active}
+            startedAtMs={waiting.startedAtMs} serverNowMs={serverNowMs} />
+        : <p className="report-status" role="status">Preparing your coaching report…</p>)}
       {feedbackStatus === "failed" && <p className="report-error" role="alert">The coaching report could not be generated. {failureGuidance}</p>}
       {progress && <section className="coaching-progress" aria-label="Coaching progress">
         <p role="status">{progress.cards_ready} of {progress.cards_required} answers coached</p>

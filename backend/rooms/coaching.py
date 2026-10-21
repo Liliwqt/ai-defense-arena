@@ -70,8 +70,13 @@ async def run_coaching(owner: "RoomCoordinator", work: CoachingWork, request: Co
         async with room.lock:
             if not owner._coaching_current(work):
                 return
+            room.begin_operation(kind="coaching", operation_id=f"coaching:{work.generation_id}",
+                                 stage="preparing", now=owner._workflows.now(),
+                                 retrying=room.feedback_generation_id > 1)
             if has_discussion(request.history):
                 room.ai_budget.admit('coaching', limit('AI_COACHING_ATTEMPTS', 3, 10), room.owner_account_id or room.code)
+            room.revision += 1
+        await owner._publish()
         if not has_discussion(request.history):
             report = CoachingReport("The host ended the defense before any answer or timeout was recorded. No discussion coverage was confirmed.", [], [], "Review the paper map and start a new defense when the team is ready.",
                 answer_cards=factual_cards(request.history) if request.defense_type != "code" else None)
@@ -94,6 +99,7 @@ async def run_coaching(owner: "RoomCoordinator", work: CoachingWork, request: Co
                 room.closing_deadline_ms = room.terminal_ms + reaction_reading_ms(report.closing)
                 next_clock = (room.clock_id, room.closing_deadline_ms)
             room.error = None
+            room.finish_operation(owner._workflows.now(), "succeeded")
             room.revision += 1
     except Exception as error:
         async with room.lock:
@@ -101,6 +107,8 @@ async def run_coaching(owner: "RoomCoordinator", work: CoachingWork, request: Co
                 return
             room.feedback_status = "failed"
             room.error = safe_generation_error(error)
+            room.finish_operation(owner._workflows.now(), "failed",
+                                  failure_class=type(error).__name__)
             if live_mode() and work.run_id and not isinstance(error, HTTPException):
                 try:
                     LiveStore().service_state(work.run_id, "unavailable", "coaching")
@@ -146,10 +154,22 @@ async def run_progressive_coaching(owner, work):
         return owner._coaching_current(work) and room.coaching_progress is job and not job.cancelled
     if job is None:return
     request=job.request
+    async with room.lock:
+        if not current():return
+        pending = next((section for section in job.sections if section.status == 'pending'), None)
+        stage = ('overview' if pending.turns is None else 'answers') if pending else (
+            'saving_completion' if job.complete_sections else 'preparing')
+        room.begin_operation(kind="coaching", operation_id=f"coaching:{work.generation_id}",
+                             stage=stage, now=owner._workflows.now(),
+                             retrying=bool(job.completion_attempts or any(section.attempts for section in job.sections)))
+        room.revision += 1
+    await owner._publish()
     for section in job.sections:
         async with room.lock:
             if not current():return
             if section.status!='pending':continue
+            room.advance_operation("overview" if section.turns is None else "answers",
+                                   owner._workflows.now())
             job.begin(section)
             room.revision+=1
         await owner._publish()
@@ -170,6 +190,7 @@ async def run_progressive_coaching(owner, work):
             async with room.lock:
                 if not current():return
                 job.accept(section,report)
+                room.finish_operation_stage(owner._workflows.now(), "succeeded")
                 room.feedback=job.assembled()
                 if section.turns is None and not job.closing_started:
                     owner._clear_clock();job.closing_started=True
@@ -187,6 +208,9 @@ async def run_progressive_coaching(owner, work):
             async with room.lock:
                 if not current():return
                 section.status='failed';section.error=safe_generation_error(error)
+                section.failure_class=type(error).__name__
+                room.finish_operation_stage(owner._workflows.now(), "failed",
+                                            failure_class=section.failure_class)
                 room.error=section.error
                 if live_mode() and work.run_id and not isinstance(error,HTTPException):
                     try:LiveStore().service_state(work.run_id,'unavailable','coaching')
@@ -196,10 +220,12 @@ async def run_progressive_coaching(owner, work):
             if section.turns is None:break
     async with room.lock:
         if not current():return
+        failure_class = None
         if not job.complete_sections:
             room.feedback_status='failed'
             room.error=room.error or 'Required coaching sections are unfinished. Ready cards are retained.'
         else:
+            room.advance_operation("saving_completion", owner._workflows.now())
             try:
                 validate_complete(job.assembled(),request.history,request.defense_type,batched=True)
                 job.completion_attempts+=1
@@ -210,10 +236,17 @@ async def run_progressive_coaching(owner, work):
                 room.feedback=job.assembled();room.feedback_status='ready';room.settled=True
                 room.terminal_ms=owner._workflows.now();room.error=None
             except Exception as error:
+                failure_class = type(error).__name__
                 job.completion_status='failed';job.completion_error=safe_generation_error(error)
                 room.feedback_status='failed';room.error=job.completion_error
                 if live_mode() and work.run_id:
                     try:LiveStore().service_state(work.run_id,'unavailable','coaching')
                     except Exception:room.error='Completion could not be saved. Ready cards are retained; retry when service recovers.'
         room.revision+=1
+        if room.feedback_status != "ready" and failure_class is None:
+            failure_class = next((section.failure_class for section in job.sections
+                                  if section.failure_class), None)
+        room.finish_operation(owner._workflows.now(),
+                              "succeeded" if room.feedback_status=="ready" else "failed",
+                              failure_class=failure_class)
     await owner._publish()

@@ -1,5 +1,6 @@
 import {useVoiceCaptureSupported} from "../audio/nativeCapture";
 import { VoiceAnswer } from "./VoiceAnswer";
+import { WaitingIndicator } from "./WaitingIndicator";
 import { OpeningChoice } from "./OpeningChoice";
 import { useEffect, useState } from "react";
 import type { RoomState } from "../types";
@@ -73,11 +74,15 @@ export function AnswerComposer({ active = true, playerToken, roomState, connecte
     }
   }
 
+  const waiting = presentation.waiting;
   return (
     <section id="answer-composer" aria-label="Answer area">
       {roomState?.opening_repeated ? <OpeningChoice state={roomState} connected={connected} previewMode={previewMode} actionError={actionError} onSendEvent={onSendEvent} /> : presentation.controls.questionRetry && roomState ? (
-        <div className="submission-retry" role="status">
-          <p>{localError || actionError || (!connected ? "Reconnecting… Your saved turns are retained." : presentation.guidance)}</p>
+        <div className="submission-retry">
+          {localError || actionError || !connected
+            ? <p role="status">{localError || actionError || "Reconnecting… Your saved turns are retained."}</p>
+            : <WaitingIndicator label={waiting?.label ?? "Waiting to retry…"} active={false}
+                detail={[waiting?.detail, presentation.guidance].filter(Boolean).join(" ")} />}
           {roomState.self_is_host && <button type="button"
             disabled={recoveryDisabled || questionRetryPending || !presentation.controls.questionRetryAvailable}
             onClick={() => {
@@ -89,8 +94,11 @@ export function AnswerComposer({ active = true, playerToken, roomState, connecte
           </button>}
         </div>
       ) : submission.showRecovery && !canWrite && roomState ? (
-        <div className="submission-retry" role="status">
-          <p>{reviewGuidance}</p>
+        <div className="submission-retry">
+          {waiting
+            ? <WaitingIndicator label={waiting.label} active={false}
+                detail={[waiting.detail, reviewGuidance].filter(Boolean).join(" ")} />
+            : <p role="status">{reviewGuidance}</p>}
           {roomState.my_pending_submission && <p className="pending-text">{roomState.my_pending_submission}</p>}
           <div className="submission-retry-actions">
             <button type="button" disabled={recoveryDisabled || !submission.retryAvailable} onClick={() => onSendEvent({ type: "retry_interpretation" })}>Retry panelist</button>
@@ -131,13 +139,14 @@ export function AnswerComposer({ active = true, playerToken, roomState, connecte
           {probing && recoveryAvailable && <button type="button" disabled={!connected || previewMode || waitingForAnswerAck} onClick={() => onSendEvent({ type: "finish_probe", turn: turnIndex, probe_id: probe?.id })}>Continue with original answer</button>}
         </form>
       ) : (
-        <p id="answer-status" role={actionError ? "alert" : "status"}>
-          {actionError || (submission.reviewing || submission.retrying
-            ? submission.retrying ? reviewGuidance : submission.reviewGuidance
-            : turnIndex >= 0
-            ? presentation.teammateInstruction
-            : presentation.guidance)}
-        </p>
+        actionError ? <p id="answer-status" role="alert">{actionError}</p>
+          : waiting && (waiting.active || submission.retrying)
+            ? <WaitingIndicator label={waiting.label} active={waiting.active}
+                detail={[waiting.detail, submission.reviewing ? submission.reviewGuidance : ""].filter(Boolean).join(" ")}
+                startedAtMs={waiting.startedAtMs} serverNowMs={roomState?.server_now_ms} />
+            : <p id="answer-status" role="status">
+              {turnIndex >= 0 ? presentation.teammateInstruction : presentation.guidance}
+            </p>
       )}
     </section>
   );

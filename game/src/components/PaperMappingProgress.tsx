@@ -1,4 +1,6 @@
 import type { RoomState } from "../types";
+import { mappingLabel } from "../lib/roomPresentation";
+import { WaitingIndicator } from "./WaitingIndicator";
 
 const stages = [
   { id: "preparing", label: "Preparing accepted documents" },
@@ -6,15 +8,22 @@ const stages = [
   { id: "validating", label: "Checking the complete map" },
 ] as const;
 
-export function PaperMappingProgress({ progress }: { progress?: RoomState["research_plan_progress"] }) {
+export function PaperMappingProgress({ progress, startedAtMs = null, serverNowMs }: {
+  progress?: RoomState["research_plan_progress"];
+  startedAtMs?: number | null;
+  serverNowMs?: number;
+}) {
   const stage = progress?.stage ?? "mapping";
   const topics = progress?.topics ?? [];
   const step = stages.findIndex(item => item.id === stage);
-  const status = stage === "preparing" ? "Preparing uploaded research…" : stage === "validating"
-    ? "Checking the complete map and source references…" : "Mapping the uploaded research…";
+  const validating = stage === "validating";
+  const label = mappingLabel(stage);
+  const received = topics.length > 0
+    ? `${topics.length} draft ${topics.length === 1 ? "topic" : "topics"} received. No defense question has started.`
+    : "No defense question has started.";
   return <div className="room-create-progress paper-mapping-progress" aria-busy="true">
-    <p role="status" aria-live="polite" aria-atomic="true">{status} {topics.length > 0 ? `${topics.length} draft ${topics.length === 1 ? "topic" : "topics"} received.` : "No defense question has started."}</p>
-    <div className="room-create-progress-track" role="progressbar" aria-label="Paper mapping progress" aria-valuetext={stage === "mapping" ? "Mapping in progress" : status}>
+    <WaitingIndicator label={label} detail={received} startedAtMs={startedAtMs} serverNowMs={serverNowMs} />
+    <div className="room-create-progress-track" role="progressbar" aria-label="Paper mapping progress" aria-valuetext={stage === "preparing" ? "Preparing accepted documents" : validating ? "Checking the complete map" : "Mapping in progress"}>
       <span className="room-create-progress-fill is-indeterminate" aria-hidden="true" />
     </div>
     <ol className="mapping-stages" aria-label="Mapping stages">{stages.map((item, index) => <li key={item.id} aria-current={index === step ? "step" : undefined}>

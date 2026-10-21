@@ -146,7 +146,8 @@ describe("QuestionCard", () => {
       }],
     };
     render(<QuestionCard roomState={state} />);
-    expect(screen.getByText("Reviewing your answer…")).toBeTruthy();
+    expect(screen.getByText("Thinking… Preparing your question…")).toBeTruthy();
+    expect(screen.getByText("The accepted answer is saved.")).toBeTruthy();
     expect(screen.getByText("Why SQLite?")).toBeTruthy();
     expect(screen.getByText("Team answer · Alex: It keeps setup simple.")).toBeTruthy();
     expect(screen.getByText("DATABASE = 'queue.db'")).toBeTruthy();
@@ -160,7 +161,8 @@ describe("QuestionCard", () => {
         answer: null, timed_out: true, answered_by: null }],
     };
     render(<QuestionCard roomState={state} />);
-    expect(screen.getByText("Reviewing the missed turn…")).toBeTruthy();
+    expect(screen.getByText("Thinking… Preparing your question…")).toBeTruthy();
+    expect(screen.getByText("The missed turn is saved.")).toBeTruthy();
 expect(screen.getByText("Time expired · question passed to the panel.")).toBeTruthy();
   });
 
