@@ -75,3 +75,14 @@ records and keeps incomplete legacy totals unknown. Final correction846 Python
 (providers mocked),16 real-local-PostgreSQL checks pass; previous unchanged
 414 React/build evidence applies. No additional paid campaign, push/deployment,
 human visual approval or live-readiness claim. Ticket09 retains this unresolved gate.
+
+2026-10-23 — Offline rejected-opening correction implemented and reviewed.
+[Correction review](../reviews/08-contract-fix.md) records the schema-valid nullable
+reaction reproduction and the normal-result/lookup envelope fix. Citation, budget,
+timer and model policies remain intact; legacy flat responses still require a valid
+original domain result. Diagnostics now identify safe failure reason/stage. V2
+approach-specific scripts remove repeated language commands and use new fingerprints.
+852 Python/providers mocked,414 React/build and26 localPostgreSQL checks pass.
+Historical exact causes remain unknown. The prepared two-case Standard retest has
+ordinary boundsUS$0.5239734 and proposedUS$1cap; no new paid call or authorization.
+Actual-provider criteria2/4/5 stay open; no model promotion or publication.

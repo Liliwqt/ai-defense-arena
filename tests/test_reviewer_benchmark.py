@@ -13,6 +13,30 @@ from tests.test_openrouter_questions import IsolatedAllowanceTests
 
 
 class BenchmarkReportTests(unittest.TestCase):
+    def test_small_retest_plan_selects_only_builtin_cases_and_one_condition(self):
+        from tests.reviewer_benchmark import main
+        with redirect_stdout(StringIO()) as output,patch('httpx.Client',side_effect=AssertionError('No paid plan request')):
+            self.assertEqual(main(['--plan','--cases','quantitative-en','qualitative-bisaya',
+                                   '--conditions','current']),0)
+        plan=json.loads(output.getvalue())
+        self.assertEqual(len(plan['runs']),2)
+        self.assertEqual(plan['conditions'],['current'])
+        self.assertEqual({r['case_id'] for r in plan['runs']},{'quantitative-en','qualitative-bisaya'})
+        self.assertEqual(plan['protocol']['script_version'],'approach-grounded-v2')
+
+    def test_practice_answers_are_approach_specific_without_repeated_language_commands(self):
+        from tests.reviewer_cases import CASES
+        qualitative=next(case for case in CASES if case.approach=='qualitative')
+        theoretical=next(case for case in CASES if case.approach=='theoretical')
+        self.assertIn('audit trail',qualitative.answers[0])
+        self.assertIn('negative cases',qualitative.answers[0])
+        self.assertIn('counterexample',theoretical.answers[0])
+        for case in CASES:
+            for answer in case.answers:
+                self.assertNotIn('Bisaya lang',answer)
+                self.assertNotIn('Please use',answer)
+        self.assertIn('audit trail',qualitative.files[0].content)
+
     def test_late_request_records_reconcile_usage_and_do_not_make_failed_legacy_totals_complete(self):
         from tests.reviewer_benchmark import reconcile_records
         common={'condition':'current','case_id':'case-a','operation_id':'op','case_fingerprint':'same'}
@@ -70,6 +94,19 @@ class BenchmarkReportTests(unittest.TestCase):
 
 
 class BenchmarkFundingTests(IsolatedAllowanceTests):
+    def test_failed_schema_reports_safe_reason_and_stage_without_response_text(self):
+        from tests.reviewer_benchmark import run_case
+        from tests.reviewer_cases import CASES,policies
+        from tests.benchmark_transport import CampaignObserver
+        from tests.test_openrouter_questions import stream_response
+        observer=CampaignObserver('invalid-schema',100_000_000,policies()['current'],
+            transport_factory=lambda:httpx.MockTransport(lambda r:stream_response({
+                'result':{'action':'synthetic-private-marker'},'lookup':None})))
+        records,quality=run_case(CASES[0],'current',policies()['current'],observer,evidence='mocked')
+        self.assertEqual(records[0]['failure_code'],'response_schema_invalid')
+        self.assertEqual(records[0]['failure_stage'],'PlanDraft')
+        self.assertNotIn('synthetic-private-marker',json.dumps(records+quality))
+
     def test_unfinished_request_is_visible_and_cannot_supply_complete_transition_usage(self):
         from tests.benchmark_transport import CampaignObserver
         from backend.openrouter_questions import RunQuestionPolicy,PlanDraft

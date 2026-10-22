@@ -3,6 +3,9 @@
 Ticket 08 has an opt-in measurement harness. No candidate settings have been
 selected for the app. Mocked results establish instrumentation and accounting;
 actual schema support, dialogue quality, speed and cost remain unverified.
+The historical pilot and the subsequent normal-result/lookup contract correction
+are recorded in [the diagnosis](FOCUSED_RESPONSE_DIAGNOSIS.md). Revised scripts
+and the wire contract have new provenance; do not pool them with old pilot results.
 
 From the repository root, inspect the complete matrix without credentials or
 network requests:

@@ -24,10 +24,10 @@ class ReviewerCase:
     @property
     def files(self):
         methods = {
-            'quantitative': 'Compare paired baseline and pilot waiting times; report uncertainty without causal claims.',
-            'qualitative': 'Interview volunteers and analyze contrasting accounts; retain an audit trail and negative cases.',
-            'theoretical': 'Distinguish necessary from sufficient assumptions using a counterexample; no experiment is claimed.',
-            'computational/design': 'Compare paired benchmark inputs with a documented baseline and report failed runs.',
+            'quantitative': 'Compare paired baseline and pilot waiting times under matched workload and time bands; use one elapsed-time definition, summarize paired differences and uncertainty without causal claims.',
+            'qualitative': 'Interview volunteers and compare codes across contrasting accounts; use negative cases to revise interpretations and retain an audit trail linking codes to those revisions.',
+            'theoretical': 'Distinguish necessary from sufficient assumptions: a counterexample where the condition holds but the conclusion fails challenges sufficiency, not necessity; no experiment is claimed.',
+            'computational/design': 'Compare the same paired benchmark inputs under matched workload with a documented baseline implementation; retain failed runs and state uncontrolled assumptions.',
         }
         source = '\n'.join([
             f'Synthetic {self.field} proposal.',
@@ -48,15 +48,27 @@ class ReviewerCase:
 
     @property
     def answers(self):
+        english_methods = {
+            'quantitative': 'We will match workload and time bands, apply the same elapsed-time definition, and summarize paired waiting-time differences with uncertainty. This is a proposed comparison, not a causal effectiveness result.',
+            'qualitative': 'We will compare codes across accounts, use negative cases to revise interpretations, and keep an audit trail linking the codes to each revision. Contradicting accounts stay in the analysis.',
+            'theoretical': 'Our counterexample keeps the condition true while the conclusion fails. That challenges sufficiency; it does not disprove necessity. This is an argument about assumptions, not experimental evidence.',
+            'computational/design': 'We will run the same benchmark inputs under matched workload against the documented baseline implementation. Failed runs remain in the record, and uncontrolled assumptions limit our claims.',
+        }
+        bisaya_methods = {
+            'quantitative': 'Pareho ang workload, time bands ug definition sa elapsed time sa baseline ug pilot. I-report namo ang paired differences ug uncertainty; proposed comparison pa ni, dili pa proof nga effective ang system.',
+            'qualitative': 'I-compare namo ang codes sa lain-laing accounts. Kung naay negative cases, i-revise namo ang interpretation ug i-record sa audit trail kung unsang codes ang basehan sa change. Dili namo tangtangon ang accounts nga mosupak.',
+            'theoretical': 'Sa among counterexample, true ang condition pero dili mo-follow ang conclusion. Pasabot ana dili sufficient ang condition; wala pa namo na-disprove nga necessary siya. Argument ni bahin sa assumptions, dili experimental result.',
+            'computational/design': 'Pareho nga benchmark inputs ug workload ang gamiton sa baseline ug proposed implementation. I-document namo ang baseline ug failed runs. Kung naay uncontrolled assumptions, limitahan namo ang claim; wala pa mi completed results.',
+        }
         if self.language == 'modern-bisaya':
             return (
-                'Base sa proposed method, mag-compare mi gamit ang documented baseline. Wala pa mi results, so dili pa mi mo-claim nga effective na. Bisaya lang.',
+                bisaya_methods[self.approach],
                 'Voluntary ang participation kung naay participants. Gamay ra nga personal data ang kuhaon, ug i-attribute namo ang sources.',
                 'Sa stated setting pa lang among claim. Kinahanglan pa namo i-evaluate ang contribution before mi mo-generalize.',
                 'I-document namo ang excluded cases ug assumptions. Tan-awon pud namo ang alternative explanations; proposal pa ni.',
             )
         return (
-            'We will follow the stated comparison or argument and document its assumptions. This is a proposal, so we have no results establishing effectiveness.',
+            english_methods[self.approach],
             'Participation will be voluntary where relevant. We will minimize identifying information and attribute our sources.',
             'We limit the contribution to the stated setting and will evaluate it before generalizing.',
             'We will document excluded cases, justify assumptions and examine alternative explanations without claiming completed findings.',

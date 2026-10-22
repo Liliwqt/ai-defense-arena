@@ -251,7 +251,9 @@ class StructuredStream:
         try:
             return SimpleNamespace(output_parsed=self.schema.model_validate_json(self.text))
         except ValidationError:
-            raise InvalidQuestionResponse('OpenRouter returned an invalid structured response. Retry.') from None
+            error = InvalidQuestionResponse('OpenRouter returned an invalid structured response. Retry.')
+            error.reason_code = 'response_schema_invalid'
+            raise error from None
 
 
 @contextmanager

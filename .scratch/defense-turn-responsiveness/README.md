@@ -15,6 +15,9 @@ harness and a failed/incomplete actual-provider pilot (4/7 criteria).
 The authorized12-run comparison did not establish a ready route or all-role
 quality; no settings promoted. See the [actual evidence](reviews/08-provider-pilot.md),
 [offline review](reviews/08.md) and [protocol](../../docs/REVIEWER_BENCHMARK.md).
+The subsequent [contract correction](reviews/08-contract-fix.md) reproduces and
+fixes a nullable-result mismatch offline; its two-case retest remains unexecuted,
+so the actual-provider gate stays open.
 Actual model compatibility, speed, quality and
 cost still require provider evidence; no publication or deployment is implied.
 See [fix verification](reviews/01-fixes.md) and [interface evidence](reviews/01-interface.md).

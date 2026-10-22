@@ -14,6 +14,7 @@ from unittest.mock import patch
 from pydantic_core import to_jsonable_python
 
 from backend.defense_session import ResearchDefenseSession
+from backend.openrouter_questions import EVIDENCE_FULL
 from backend.processing_policy import ProcessingPolicy
 from backend.provider_allowance import ProviderAllowance
 from backend.room_operations import bind_operation, take_supplied_usage
@@ -21,6 +22,22 @@ from backend.streamlit_provider import ResearchProvider
 from tests.benchmark_transport import CampaignObserver, USAGE
 from tests.operation_timing_harness import summarize, compare, LOOKUP_FIELDS as LOOKUP
 from tests.reviewer_cases import CASES, policies
+
+
+def failure_code(error):
+    code = getattr(error, 'reason_code', None)
+    if code in {'evidence_mixed_result', 'evidence_missing_result', 'response_schema_invalid'}:
+        return code
+    from backend.processing_policy import ProcessingWindowExpired
+    from backend.openrouter_stream import ProviderStatusError
+    from backend.question_generator import InvalidQuestionResponse
+    if isinstance(error, ProcessingWindowExpired):
+        return 'processing_window_expired'
+    if isinstance(error, ProviderStatusError):
+        return 'http_'+str(error.status_code)
+    if isinstance(error, InvalidQuestionResponse):
+        return 'invalid_result'
+    return 'unclassified'
 
 
 def reconcile_records(records):
@@ -78,10 +95,10 @@ def summarize_campaign(records):
     return {'provider_gate': 'unreviewed', 'conditions': conditions, 'comparisons': comparisons}
 
 
-def measurement_plan():
-    configured = policies()
+def measurement_plan(cases=CASES, configured=None):
+    configured = policies() if configured is None else configured
     rows = []
-    for case in CASES:
+    for case in cases:
         for condition, policy in configured.items():
             captured = policy.snapshotted(case.files, 5)
             rows.append({'case_id': case.id, 'case_fingerprint': case.fingerprint,
@@ -91,8 +108,9 @@ def measurement_plan():
                 'policy': asdict(captured), 'ordinary_bound_nano': captured.question_bound(case.files, 5),
                 'admission_problem': captured.viability_problem(case.files, 5)})
     return {'evidence': 'plan-only', 'provider_gate': 'not-run', 'runs': rows,
-        'conditions': list(configured), 'cases': len(CASES),
+        'conditions': list(configured), 'cases': len(cases),
         'protocol': {'question_budget': 5, 'answered_turns': 4, 'maximum_same_question_replies': 1,
+            'script_version': 'approach-grounded-v2', 'focused_response_contract': 'nested-result-v2',
             'preparation': 'identical locally validated synthetic maps; no provider mapping call',
             'coaching': 'protected funds retained; no provider coaching call',
             'processing': 'same current 45-second policy in all conditions',
@@ -124,6 +142,7 @@ def run_case(case, condition, policy, observer, *, evidence, on_measure=None):
         'capture_version': 2,
         'condition': condition, 'run_id': identity, 'evidence': evidence,
         'policy_fingerprint': policy_digest, 'source_bytes': sum(len(f.content.encode()) for f in case.files)}
+    metadata['response_contract'] = 'flat-v1' if captured.evidence_policy == EVIDENCE_FULL else 'nested-result-v2'
     records, quality = [], []
     from backend.question_generator import RESEARCH_PANELISTS
 
@@ -135,6 +154,7 @@ def run_case(case, condition, policy, observer, *, evidence, on_measure=None):
         started = monotonic()
         result = None
         failure = None
+        reason = None
         statuses = []
         interpreted = []
         validated_plans = []
@@ -156,6 +176,7 @@ def run_case(case, condition, policy, observer, *, evidence, on_measure=None):
                 result = action(lambda text: statuses.append((monotonic(),text)))
         except Exception as error:
             failure = type(error).__name__
+            reason = failure_code(error)
         elapsed = round((monotonic()-started)*1000)
         supplied = take_supplied_usage(operation)
         stages, _ = observer.snapshot()
@@ -167,7 +188,8 @@ def run_case(case, condition, policy, observer, *, evidence, on_measure=None):
             'retry_wait_ms': round(sum((statuses[i+1][0] if i+1<len(statuses) else monotonic())-stamp
                 for i,(stamp,text) in enumerate(statuses) if text.startswith('Waiting to retry'))*1000),
             'outcome': 'failed' if failure else 'same_question' if result in {'clarified', 'probed'} else 'succeeded',
-            **({'failure_class': failure} if failure else {})}
+            **({'failure_class': failure, 'failure_code': reason,
+                'failure_stage': stages[-1]['stage'] if stages else 'before_dispatch'} if failure else {})}
         for field in USAGE:
             if stages and all(field in r for r in stages):
                 record[field] = sum(r[field] for r in stages)
@@ -178,6 +200,7 @@ def run_case(case, condition, policy, observer, *, evidence, on_measure=None):
         quality.append({**metadata, 'operation_id': operation, 'phase': record['phase'],
             'outgoing_role': outgoing, 'answer_script_index': answer_index,
             'decision': result, 'failure_class': failure,
+            **({'failure_code': reason, 'failure_stage': record['failure_stage']} if failure else {}),
             'interpretation_results': deepcopy(interpreted),
             'validated_next_plans': deepcopy(validated_plans),
             'coverage': deepcopy(session.coverage),
@@ -211,11 +234,11 @@ def run_case(case, condition, policy, observer, *, evidence, on_measure=None):
     return records, quality
 
 
-def run_campaign(observer, *, evidence, on_case=None):
+def run_campaign(observer, *, evidence, on_case=None, cases=CASES, configured=None):
     records, quality = [], []
-    configured = policies()
+    configured = policies() if configured is None else configured
     conditions = list(configured)
-    for index, case in enumerate(CASES):
+    for index, case in enumerate(cases):
         order = conditions[index % len(conditions):] + conditions[:index % len(conditions)]
         for condition in order:
             rows, review = run_case(case, condition, configured[condition], observer, evidence=evidence,
@@ -243,8 +266,13 @@ def main(argv=None):
     mode.add_argument('--execute', action='store_true', help='explicitly authorize the prepared synthetic provider requests')
     parser.add_argument('--max-usd', help='approved hard campaign spending ceiling')
     parser.add_argument('--output', type=Path)
+    parser.add_argument('--cases', nargs='+', choices=[case.id for case in CASES], help='built-in synthetic cases only')
+    parser.add_argument('--conditions', nargs='+', choices=list(policies()), help='captured comparison conditions')
     args = parser.parse_args(argv)
-    plan = measurement_plan()
+    cases = tuple(case for case in CASES if args.cases is None or case.id in args.cases)
+    configured = {name: policy for name, policy in policies().items()
+                  if args.conditions is None or name in args.conditions}
+    plan = measurement_plan(cases, configured)
     if not args.execute:
         print(json.dumps(plan, indent=2, sort_keys=True))
         return 0
@@ -276,7 +304,8 @@ def main(argv=None):
         (args.output/'report.json').write_text(json.dumps(report, indent=2, sort_keys=True)+'\n')
     with local_ledger(args.output):
         observer = CampaignObserver(secrets.token_hex(16), int(cap*1_000_000_000), policies()['current'])
-        records, quality, active = run_campaign(observer, evidence='actual-provider', on_case=write)
+        records, quality, active = run_campaign(observer, evidence='actual-provider', on_case=write,
+                                               cases=cases, configured=configured)
         # run_campaign returns stage rows too; write takes transition rows only.
         write([r for r in records if r['event'] == 'total'], quality)
     print('Evidence written. Provider gate remains unreviewed; no production setting was changed.')
