@@ -23,34 +23,57 @@ from tests.operation_timing_harness import summarize, compare, LOOKUP_FIELDS as 
 from tests.reviewer_cases import CASES, policies
 
 
+def reconcile_records(records):
+    """Join late request evidence without claiming incomplete usage is total cost."""
+    result = deepcopy(records)
+    for record in result:
+        if record['event'] != 'total' or not record.get('operation_id'):
+            continue
+        stages = [r for r in result if r['event'] == 'stage' and r.get('operation_id') == record['operation_id']]
+        for field in USAGE:
+            record.pop(field, None)
+        legacy_failure = record.get('capture_version') != 2 and record['outcome'] == 'failed'
+        record['request_count'] = len(stages)
+        record['request_count_is_lower_bound'] = legacy_failure
+        record['in_flight_requests'] = sum(r['outcome'] == 'in_flight' for r in stages)
+        if not legacy_failure:
+            for field in USAGE:
+                if stages and all(field in r for r in stages):
+                    record[field] = sum(r[field] for r in stages)
+    return result
+
+
 def summarize_campaign(records):
+    records = reconcile_records(records)
     conditions = {}
     for condition in sorted({r['condition'] for r in records}):
         selected = [r for r in records if r['condition'] == condition]
+        completed = [r for r in selected if r.get('outcome') != 'in_flight']
         transitions = [r for r in selected if r['event'] == 'total' and r['kind'] == 'transition']
         ordinary = [r for r in transitions if r.get('phase') == 'answer']
         within_15 = sum(r['outcome'] == 'succeeded' and r['duration_ms'] <= 15000 for r in ordinary)
         conditions[condition] = {
             'transition_timing': summarize(transitions),
-            'stages': summarize([r for r in selected if r['event'] == 'stage']),
+            'stages': summarize([r for r in completed if r['event'] == 'stage']),
+            'in_flight_requests': sum(r['event'] == 'stage' and r['outcome'] == 'in_flight' for r in selected),
             'target': {'attempted': len(ordinary), 'within_15_seconds': within_15,
                 'within_10_seconds': sum(r['outcome'] == 'succeeded' and r['duration_ms'] <= 10000 for r in ordinary),
                 'fraction_within_15_seconds': within_15/len(ordinary) if ordinary else None},
-            'by_model': {model: summarize([r for r in selected if r.get('model') == model])
-                         for model in sorted({r['model'] for r in selected if r.get('model')})},
+            'by_model': {model: summarize([r for r in completed if r.get('model') == model])
+                         for model in sorted({r['model'] for r in completed if r.get('model')})},
             'provider_identified_requests': sum(bool(r.get('provider')) for r in selected if r['event'] == 'stage'),
             'provider_unknown_requests': sum(not r.get('provider') for r in selected if r['event'] == 'stage'),
             'case_ids': sorted({r['case_id'] for r in transitions}),
             'automatic_retries': sum(r.get('automatic_retries', 0) for r in transitions),
             'retry_wait_ms': sum(r.get('retry_wait_ms', 0) for r in transitions),
             'broader_lookup': {field: {
-                'sum': sum(r[field] for r in transitions if field in r),
+                'sum': sum(r[field] for r in transitions if field in r) if any(field in r for r in transitions) else None,
                 'known_records': sum(field in r for r in transitions),
                 'unknown_records': sum(field not in r for r in transitions),
             } for field in LOOKUP},
         }
-    comparisons = {name: compare([r for r in records if r['condition'] == 'baseline'],
-                                [r for r in records if r['condition'] == name])
+    comparisons = {name: compare([r for r in records if r['condition'] == 'baseline' and r['outcome'] != 'in_flight'],
+                                [r for r in records if r['condition'] == name and r['outcome'] != 'in_flight'])
                    for name in conditions if name != 'baseline' and 'baseline' in conditions}
     return {'provider_gate': 'unreviewed', 'conditions': conditions, 'comparisons': comparisons}
 
@@ -98,6 +121,7 @@ def run_case(case, condition, policy, observer, *, evidence, on_measure=None):
     flow.processing = ProcessingPolicy.standard()
     policy_digest = hashlib.sha256(json.dumps(asdict(captured), sort_keys=True).encode()).hexdigest()
     metadata = {'case_id': case.id, 'case_fingerprint': case.fingerprint,
+        'capture_version': 2,
         'condition': condition, 'run_id': identity, 'evidence': evidence,
         'policy_fingerprint': policy_digest, 'source_bytes': sum(len(f.content.encode()) for f in case.files)}
     records, quality = [], []
@@ -240,9 +264,10 @@ def main(argv=None):
     (args.output/'plan.json').write_text(json.dumps(plan, indent=2, sort_keys=True)+'\n')
     def write(records, quality):
         stages, active = observer.snapshot()
-        (args.output/'measurements.jsonl').write_text(''.join(json.dumps(r, sort_keys=True)+'\n' for r in records+stages))
+        reconciled = reconcile_records(records+stages)
+        (args.output/'measurements.jsonl').write_text(''.join(json.dumps(r, sort_keys=True)+'\n' for r in reconciled))
         (args.output/'quality-review.json').write_text(json.dumps(quality, indent=2, sort_keys=True)+'\n')
-        report = summarize_campaign(records+stages)
+        report = summarize_campaign(reconciled)
         report.update(evidence='actual-provider', in_flight_requests=active,
                       funding={k: int(v) for k,v in observer.allowance.snapshot().items()})
         observed = {(r['case_id'], r['condition']) for r in records}

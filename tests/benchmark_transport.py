@@ -25,7 +25,7 @@ class CampaignObserver:
         self.context = {}
         self.records = []
         self._lock = Lock()
-        self.in_flight = 0
+        self._active = {}
 
     def client(self, *args, **kwargs):
         if args or 'transport' in kwargs:
@@ -35,15 +35,17 @@ class CampaignObserver:
     def append(self, record):
         with self._lock:
             self.records.append(record)
-            self.in_flight -= 1
+            self._active.pop(record['request_id'], None)
 
-    def request_started(self):
+    def request_started(self, record, started):
         with self._lock:
-            self.in_flight += 1
+            self._active[record['request_id']] = (deepcopy(record), started)
 
     def snapshot(self):
         with self._lock:
-            return deepcopy(self.records), self.in_flight
+            active = [{**record, 'duration_ms': round((monotonic()-started)*1000), 'outcome': 'in_flight'}
+                      for record, started in self._active.values()]
+            return deepcopy(self.records)+active, len(active)
 
 
 class _ObservedTransport(httpx.BaseTransport):
@@ -66,9 +68,10 @@ class _ObservedTransport(httpx.BaseTransport):
         reservation = self.observer.allowance.reserve(bound)
         record = {**self.context, 'event': 'stage', 'kind': 'provider_request',
             'stage': body['response_format']['json_schema']['name'], 'model': body['model'],
-            'reasoning': body['reasoning'], 'max_tokens': body['max_tokens'], 'reserved_nano': bound}
+            'reasoning': body['reasoning'], 'max_tokens': body['max_tokens'],
+            'reserved_nano': bound, 'request_id': reservation}
         started = monotonic()
-        self.observer.request_started()
+        self.observer.request_started(record, started)
         try:
             response = self.transport.handle_request(request)
         except Exception as error:

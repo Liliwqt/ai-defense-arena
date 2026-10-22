@@ -13,6 +13,24 @@ from tests.test_openrouter_questions import IsolatedAllowanceTests
 
 
 class BenchmarkReportTests(unittest.TestCase):
+    def test_late_request_records_reconcile_usage_and_do_not_make_failed_legacy_totals_complete(self):
+        from tests.reviewer_benchmark import reconcile_records
+        common={'condition':'current','case_id':'case-a','operation_id':'op','case_fingerprint':'same'}
+        rows=[{**common,'event':'total','kind':'transition','phase':'answer','outcome':'failed',
+               'duration_ms':45000,'request_count':1,'cost_nano':20},
+              {**common,'event':'stage','kind':'provider_request','outcome':'received','duration_ms':100,
+               'model':'model-a','cost_nano':20},
+              {**common,'event':'stage','kind':'provider_request','outcome':'received','duration_ms':200,
+               'model':'model-b'}]
+        result=reconcile_records(rows)
+        self.assertEqual(result[0]['request_count'],2)
+        self.assertNotIn('cost_nano',result[0])
+        self.assertTrue(result[0]['request_count_is_lower_bound'])
+        rows[0]['capture_version']=2
+        rows[-1]['cost_nano']=30
+        self.assertEqual(reconcile_records(rows)[0]['cost_nano'],50)
+        self.assertEqual(rows[0]['request_count'],1)
+
     def test_failed_transitions_and_unknown_cost_are_not_hidden(self):
         from tests.reviewer_benchmark import summarize_campaign
         records = [
@@ -31,6 +49,7 @@ class BenchmarkReportTests(unittest.TestCase):
         self.assertEqual(current['transition_timing']['total:transition']['usage']['cost_nano'],
                          {'sum': 20, 'known_records': 1, 'unknown_records': 1})
         self.assertEqual(result['provider_gate'], 'unreviewed')
+        self.assertIsNone(current['broader_lookup']['lookup_requests']['sum'])
 
     def test_plan_is_credential_free_and_execute_requires_explicit_local_configuration(self):
         from tests.reviewer_benchmark import main
@@ -51,6 +70,35 @@ class BenchmarkReportTests(unittest.TestCase):
 
 
 class BenchmarkFundingTests(IsolatedAllowanceTests):
+    def test_unfinished_request_is_visible_and_cannot_supply_complete_transition_usage(self):
+        from tests.benchmark_transport import CampaignObserver
+        from backend.openrouter_questions import RunQuestionPolicy,PlanDraft
+        from backend.openrouter_stream import payload
+        from tests.reviewer_benchmark import reconcile_records,summarize_campaign
+        policy=RunQuestionPolicy.configured()
+        observer=CampaignObserver('active-request',100_000_000,policy,
+            transport_factory=lambda:httpx.MockTransport(lambda r:httpx.Response(200,text='data: [DONE]\n\n')))
+        observer.context={'condition':'current','case_id':'case-a','case_fingerprint':'same','operation_id':'active'}
+        body=payload(policy.planner_model,[],PlanDraft,reasoning={'effort':'low'},max_tokens=100)
+        with observer.client() as client:
+            request=client.build_request('POST','https://openrouter.ai/api/v1/chat/completions',json=body)
+            response=client.send(request,stream=True)
+            stages,active=observer.snapshot()
+            self.assertEqual(active,1)
+            self.assertEqual(stages[0]['outcome'],'in_flight')
+            total={**observer.context,'event':'total','kind':'transition','phase':'answer','outcome':'failed',
+                   'duration_ms':45000,'capture_version':2,'cost_nano':99}
+            records=reconcile_records([total]+stages)
+            self.assertNotIn('cost_nano',records[0])
+            self.assertEqual(records[0]['request_count'],1)
+            summary=summarize_campaign(records)['conditions']['current']
+            self.assertEqual(summary['stages'],{})
+            self.assertEqual(summary['in_flight_requests'],1)
+            response.close()
+        stages,active=observer.snapshot()
+        self.assertEqual(active,0)
+        self.assertEqual(len(stages),1)
+
     def test_conflicting_cost_stays_unknown_even_when_the_stream_then_fails(self):
         from tests.benchmark_transport import CampaignObserver
         from backend.openrouter_questions import RunQuestionPolicy,PlanDraft

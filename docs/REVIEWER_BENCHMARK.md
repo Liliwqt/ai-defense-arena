@@ -96,6 +96,12 @@ Artifacts are refreshed after each transition:
 `received` on a request means transport completed, not that the structured result
 passed validation. Transition failure and the separate quality review are essential.
 Unknown cost, provider identity and lookup measurements are not reported as zeros.
+Active requests have a separate `in_flight` record and count; their elapsed time
+is excluded from completed-stage distributions. Transition totals are reconciled
+against request records whenever artifacts are written, so a late writer receipt
+cannot leave a planner-only cost labeled as the whole transition's bill. Failed
+records from capture version1 are conservatively unknown at transition level and
+their request counts are lower bounds; individual supplied receipts remain visible.
 Supplied token costs include reasoning where the provider reports it; reasoning
 tokens are separately unknown when omitted. A first-token or catalog speed figure
 cannot replace the full transition measurement.

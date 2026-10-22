@@ -11,9 +11,10 @@ Ticket 06's [corrected review](reviews/06-fixes.md) records focused interactive
 evidence, explicit bounded lookup and complete lookup-aware room tests.
 Ticket 07's [review](reviews/07.md) records typed optimized-flow parity, blocked-provider
 recovery and original coaching funds. Ticket08 has a reviewed offline comparison
-harness and an unresolved actual-provider gate (1/7 criteria); it requires operator
-authorization/configuration and real comparison before completion. See its
-[review](reviews/08.md) and [protocol](../../docs/REVIEWER_BENCHMARK.md).
+harness and a failed/incomplete actual-provider pilot (4/7 criteria).
+The authorized12-run comparison did not establish a ready route or all-role
+quality; no settings promoted. See the [actual evidence](reviews/08-provider-pilot.md),
+[offline review](reviews/08.md) and [protocol](../../docs/REVIEWER_BENCHMARK.md).
 Actual model compatibility, speed, quality and
 cost still require provider evidence; no publication or deployment is implied.
 See [fix verification](reviews/01-fixes.md) and [interface evidence](reviews/01-interface.md).
