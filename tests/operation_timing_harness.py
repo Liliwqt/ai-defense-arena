@@ -26,7 +26,9 @@ from collections import Counter
 from pathlib import Path
 from unittest.mock import patch
 
-USAGE_FIELDS = ("input_tokens", "output_tokens", "reasoning_tokens", "cost_nano")
+PROVIDER_USAGE_FIELDS = ("input_tokens", "output_tokens", "reasoning_tokens", "cost_nano")
+LOOKUP_FIELDS = ("lookup_bytes", "lookup_requests", "lookup_duration_ms")
+USAGE_FIELDS = PROVIDER_USAGE_FIELDS + LOOKUP_FIELDS
 VALID_EVENTS = {"stage", "total"}
 
 

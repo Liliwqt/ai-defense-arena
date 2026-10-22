@@ -6,7 +6,7 @@ unsupported readiness claim.
 
 **Blocked by:** 06 — Focused evidence and bounded broader lookup.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 Source: [confirmed specification](../spec.md). Breakdown approved on 2026-10-21.
 
@@ -29,10 +29,28 @@ Source: [confirmed specification](../spec.md). Breakdown approved on 2026-10-21.
   and distribution, and preserve the deterministic 45-second processing bound.
   Report unmet targets before making a live-ready claim; do not silently extend
   waits or weaken validation.
-- [ ] Provide reproducible harness/output and record actual-provider acceptance
+- [x] Provide reproducible harness/output and record actual-provider acceptance
   separately from mocks. If credentials/evidence are unavailable, record the
   unsatisfied gate and keep required criteria open; no bypass for final readiness.
 
 ## Comments
 
-Not started. Local ticket publication does not authorize implementation, push or deployment.
+2026-10-23 — Offline harness checkpoint implemented against user-approved
+`8465a88`. [Protocol and commands](../../../docs/REVIEWER_BENCHMARK.md).
+Four built-in synthetic cases compare separate/full, current combined/focused
+and bounded lower-reasoning settings through the actual typed/provider contracts.
+Persistent campaign admission, conservative unknown-cost holds, supplied usage,
+retry/lookup measurement and safe synthetic decision/dialogue artifacts are wired.
+No runtime defaults changed. Independent review corrections are implemented;
+final verification is recorded in [review 08](../reviews/08.md).
+
+**Not complete: 1/7 criteria checked.** Criteria 1–6 have offline scaffolding but
+remain open pending actual comparable inference, per-role/schema/grounding and
+language review, achieved timing/cost evidence and any justified settings selection.
+Mocked results cannot satisfy them. Public catalog metadata is not that evidence.
+No key is configured in the agent shell, and paid inference has not been authorized.
+The proposed pilot is twelve synthetic mini-runs with a $5 campaign admission cap;
+it can stop early if retries/lookups consume its allowance. Inspect the plan before
+authorizing/configuring a local key; never send the key in chat. Gate is explicitly
+unreviewed. Ticket09 must not treat this checkpoint as live acceptance.
+No paid calls, push/deployment, human visual approval or provider-readiness claim.

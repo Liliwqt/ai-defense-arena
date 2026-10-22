@@ -10,7 +10,11 @@ Ticket 03's [checkpoint 1 presentation](reviews/03-preview.md) remains available
 Ticket 06's [corrected review](reviews/06-fixes.md) records focused interactive
 evidence, explicit bounded lookup and complete lookup-aware room tests.
 Ticket 07's [review](reviews/07.md) records typed optimized-flow parity, blocked-provider
-recovery and original coaching funds. Ticket 08 is next and unstarted. Actual model compatibility, speed, quality and
+recovery and original coaching funds. Ticket08 has a reviewed offline comparison
+harness and an unresolved actual-provider gate (1/7 criteria); it requires operator
+authorization/configuration and real comparison before completion. See its
+[review](reviews/08.md) and [protocol](../../docs/REVIEWER_BENCHMARK.md).
+Actual model compatibility, speed, quality and
 cost still require provider evidence; no publication or deployment is implied.
 See [fix verification](reviews/01-fixes.md) and [interface evidence](reviews/01-interface.md).
 
@@ -23,7 +27,7 @@ See [fix verification](reviews/01-fixes.md) and [interface evidence](reviews/01-
 | [05 — Clarification, probes and alternate turn paths](issues/05-clarification-probes-and-alternate-turn-paths.md) | 04 | ready-for-human |
 | [06 — Focused evidence and bounded broader lookup](issues/06-focused-evidence-and-bounded-broader-lookup.md) | 05 | ready-for-human |
 | [07 — Typed Streamlit optimized-flow parity](issues/07-typed-streamlit-optimized-flow-parity.md) | 06 | ready-for-human |
-| [08 — Measured reviewer settings and provider gate](issues/08-measured-reviewer-settings-and-provider-gate.md) | 06 | ready-for-agent |
+| [08 — Measured reviewer settings and provider gate](issues/08-measured-reviewer-settings-and-provider-gate.md) | 06 | ready-for-human (provider gate open) |
 | [09 — Integrated defenses and local review handoff](issues/09-integrated-defenses-and-local-review-handoff.md) | 07, 08 | ready-for-agent |
 
 Checkpoint 1 ends at 03. Checkpoint 2 joins typed fallback 07 and measured

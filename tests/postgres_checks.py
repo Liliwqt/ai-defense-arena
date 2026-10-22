@@ -39,6 +39,7 @@ from tests import test_combined_exchanges
 from tests import test_focused_routes
 from tests import test_openrouter_questions
 from tests import test_openrouter_streamlit
+from tests import test_reviewer_benchmark
 
 
 class LocalDatabase:
@@ -91,6 +92,14 @@ class PostgresTypedFallback(LocalDatabase, test_openrouter_streamlit.OpenRouterF
         super().setUp()
         # The standalone typed fixture starts on SQLite; run its exact same
         # provider/UI contracts against this disposable PostgreSQL database.
+        env = patch.dict(os.environ, {'DATABASE_URL': self.pg_url})
+        env.start()
+        self.addCleanup(env.stop)
+
+
+class PostgresReviewerBenchmark(LocalDatabase, test_reviewer_benchmark.BenchmarkFundingTests):
+    def setUp(self):
+        super().setUp()
         env = patch.dict(os.environ, {'DATABASE_URL': self.pg_url})
         env.start()
         self.addCleanup(env.stop)
