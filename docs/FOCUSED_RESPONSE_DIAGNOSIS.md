@@ -1,5 +1,11 @@
 # Rejected focused openings: offline diagnosis
 
+Later evidence: the user approved and ran the separate US$1
+[two-case retest](../.scratch/defense-turn-responsiveness/reviews/08-retest-results.md).
+One opening passed; answer review and the second opening hit their45s deadlines.
+The preparation/authorization notes below describe the earlier offline checkpoint.
+The live compatibility/latency/all-role gate remains incomplete; settings unchanged.
+
 2026-10-23, starting commit `92c99fd`. No new paid call has been made.
 
 The prior pilot reported six generic generation failures and one invalid response,

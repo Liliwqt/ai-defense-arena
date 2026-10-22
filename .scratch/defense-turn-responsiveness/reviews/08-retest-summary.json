@@ -1,0 +1,546 @@
+{
+  "billing_evidence": {
+    "dispatched_requests": 5,
+    "retained_reservations_nano": 42272400,
+    "supplied_cost_nano": 1009595,
+    "unknown_receipt_requests": 2
+  },
+  "captured_cases": [
+    {
+      "approach": "quantitative",
+      "case_fingerprint": "1c306526bd04381b7914a08c58dc5fc7f30035bd106e40b64430205add25064f",
+      "case_id": "quantitative-en",
+      "defense_type": "research",
+      "field": "Service operations",
+      "language": "english",
+      "source_bytes": 842
+    },
+    {
+      "approach": "qualitative",
+      "case_fingerprint": "f355ccbe01a466eb364d898244e24557ee71bbbb4611e5e5ca51650ab1ab3484",
+      "case_id": "qualitative-bisaya",
+      "defense_type": "research",
+      "field": "Education",
+      "language": "modern-bisaya",
+      "source_bytes": 817
+    }
+  ],
+  "captured_policies": {
+    "current": {
+      "ceiling_nano": 5000000000,
+      "coaching_model": "anthropic/claude-haiku-5.5",
+      "coaching_output_tokens": 8192,
+      "coaching_reasoning": {
+        "effort": "high"
+      },
+      "coaching_request_reserve": 0,
+      "coaching_reserve_nano": 177613800,
+      "combined_output_tokens": 6144,
+      "context_tokens": 1000000,
+      "evidence_limits": {
+        "excerpt_bytes": 16000,
+        "excerpts": 14,
+        "expansion_bytes": 24000,
+        "expansion_windows": 6,
+        "lookups": 1,
+        "neighbour_lines": 3,
+        "study_bytes": 6000,
+        "study_lines": 8
+      },
+      "evidence_policy": "focused-v2",
+      "input_nano_per_token": 300,
+      "interaction_output_tokens": 2048,
+      "interaction_reasoning": {
+        "Critical Judge": {
+          "effort": "low"
+        },
+        "Ethics Reviewer": {
+          "effort": "low"
+        },
+        "Impact Reviewer": {
+          "max_tokens": 1024
+        },
+        "Methodology Reviewer": {
+          "effort": "low"
+        }
+      },
+      "output_nano_per_token": 1200,
+      "planner_model": "z-ai/glm-5.3-flash",
+      "planner_output_tokens": 4096,
+      "planner_reasoning": {
+        "effort": "low"
+      },
+      "planning_contract": "combined-v1",
+      "provider_only": null,
+      "request_limit": null,
+      "reviewer_models": {
+        "Critical Judge": "z-ai/glm-5.3-flash",
+        "Ethics Reviewer": "anthropic/claude-haiku-5.5",
+        "Impact Reviewer": "qwen/qwen3.8-flash",
+        "Methodology Reviewer": "deepseek/deepseek-v4.1-flash-1017"
+      },
+      "reviewer_output_tokens": 8192,
+      "reviewer_reasoning": {
+        "Critical Judge": {
+          "effort": "high"
+        },
+        "Ethics Reviewer": {
+          "effort": "medium"
+        },
+        "Impact Reviewer": {
+          "max_tokens": 2048
+        },
+        "Methodology Reviewer": {
+          "effort": "high"
+        }
+      },
+      "tier": "standard"
+    }
+  },
+  "comparisons": {},
+  "conditions": {
+    "current": {
+      "automatic_retries": 0,
+      "broader_lookup": {
+        "lookup_bytes": {
+          "known_records": 0,
+          "sum": null,
+          "unknown_records": 3
+        },
+        "lookup_duration_ms": {
+          "known_records": 0,
+          "sum": null,
+          "unknown_records": 3
+        },
+        "lookup_requests": {
+          "known_records": 0,
+          "sum": null,
+          "unknown_records": 3
+        }
+      },
+      "by_model": {
+        "deepseek/deepseek-v4.1-flash-1017": {
+          "stage:provider_request:CombinedSubmissionDraft": {
+            "count": 1,
+            "duration_ms": {
+              "max": 45094,
+              "median": 45094,
+              "min": 45094,
+              "p95": 45094
+            },
+            "event": "stage",
+            "failure_classes": {},
+            "kind": "provider_request",
+            "outcomes": {
+              "received": 1
+            },
+            "stage": "CombinedSubmissionDraft",
+            "usage": {
+              "cost_nano": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 1
+              },
+              "input_tokens": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 1
+              },
+              "lookup_bytes": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 1
+              },
+              "lookup_duration_ms": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 1
+              },
+              "lookup_requests": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 1
+              },
+              "output_tokens": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 1
+              },
+              "reasoning_tokens": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 1
+              }
+            }
+          },
+          "stage:provider_request:QuestionDraft": {
+            "count": 1,
+            "duration_ms": {
+              "max": 19578,
+              "median": 19578,
+              "min": 19578,
+              "p95": 19578
+            },
+            "event": "stage",
+            "failure_classes": {},
+            "kind": "provider_request",
+            "outcomes": {
+              "received": 1
+            },
+            "stage": "QuestionDraft",
+            "usage": {
+              "cost_nano": {
+                "known_records": 1,
+                "sum": 674760,
+                "unknown_records": 0
+              },
+              "input_tokens": {
+                "known_records": 1,
+                "sum": 5818,
+                "unknown_records": 0
+              },
+              "lookup_bytes": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 1
+              },
+              "lookup_duration_ms": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 1
+              },
+              "lookup_requests": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 1
+              },
+              "output_tokens": {
+                "known_records": 1,
+                "sum": 535,
+                "unknown_records": 0
+              },
+              "reasoning_tokens": {
+                "known_records": 1,
+                "sum": 482,
+                "unknown_records": 0
+              }
+            }
+          }
+        },
+        "z-ai/glm-5.3-flash": {
+          "stage:provider_request:PlanDraft": {
+            "count": 2,
+            "duration_ms": {
+              "max": 15277,
+              "median": 13867.5,
+              "min": 12458,
+              "p95": 15277
+            },
+            "event": "stage",
+            "failure_classes": {},
+            "kind": "provider_request",
+            "outcomes": {
+              "received": 2
+            },
+            "stage": "PlanDraft",
+            "usage": {
+              "cost_nano": {
+                "known_records": 2,
+                "sum": 334835,
+                "unknown_records": 0
+              },
+              "input_tokens": {
+                "known_records": 2,
+                "sum": 9422,
+                "unknown_records": 0
+              },
+              "lookup_bytes": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 2
+              },
+              "lookup_duration_ms": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 2
+              },
+              "lookup_requests": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 2
+              },
+              "output_tokens": {
+                "known_records": 2,
+                "sum": 1440,
+                "unknown_records": 0
+              },
+              "reasoning_tokens": {
+                "known_records": 2,
+                "sum": 1338,
+                "unknown_records": 0
+              }
+            }
+          }
+        }
+      },
+      "case_ids": [
+        "qualitative-bisaya",
+        "quantitative-en"
+      ],
+      "in_flight_requests": 1,
+      "provider_identified_requests": 4,
+      "provider_unknown_requests": 1,
+      "retry_wait_ms": 0,
+      "stages": {
+        "stage:provider_request:CombinedSubmissionDraft": {
+          "count": 1,
+          "duration_ms": {
+            "max": 45094,
+            "median": 45094,
+            "min": 45094,
+            "p95": 45094
+          },
+          "event": "stage",
+          "failure_classes": {},
+          "kind": "provider_request",
+          "outcomes": {
+            "received": 1
+          },
+          "stage": "CombinedSubmissionDraft",
+          "usage": {
+            "cost_nano": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 1
+            },
+            "input_tokens": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 1
+            },
+            "lookup_bytes": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 1
+            },
+            "lookup_duration_ms": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 1
+            },
+            "lookup_requests": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 1
+            },
+            "output_tokens": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 1
+            },
+            "reasoning_tokens": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 1
+            }
+          }
+        },
+        "stage:provider_request:PlanDraft": {
+          "count": 2,
+          "duration_ms": {
+            "max": 15277,
+            "median": 13867.5,
+            "min": 12458,
+            "p95": 15277
+          },
+          "event": "stage",
+          "failure_classes": {},
+          "kind": "provider_request",
+          "outcomes": {
+            "received": 2
+          },
+          "stage": "PlanDraft",
+          "usage": {
+            "cost_nano": {
+              "known_records": 2,
+              "sum": 334835,
+              "unknown_records": 0
+            },
+            "input_tokens": {
+              "known_records": 2,
+              "sum": 9422,
+              "unknown_records": 0
+            },
+            "lookup_bytes": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 2
+            },
+            "lookup_duration_ms": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 2
+            },
+            "lookup_requests": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 2
+            },
+            "output_tokens": {
+              "known_records": 2,
+              "sum": 1440,
+              "unknown_records": 0
+            },
+            "reasoning_tokens": {
+              "known_records": 2,
+              "sum": 1338,
+              "unknown_records": 0
+            }
+          }
+        },
+        "stage:provider_request:QuestionDraft": {
+          "count": 1,
+          "duration_ms": {
+            "max": 19578,
+            "median": 19578,
+            "min": 19578,
+            "p95": 19578
+          },
+          "event": "stage",
+          "failure_classes": {},
+          "kind": "provider_request",
+          "outcomes": {
+            "received": 1
+          },
+          "stage": "QuestionDraft",
+          "usage": {
+            "cost_nano": {
+              "known_records": 1,
+              "sum": 674760,
+              "unknown_records": 0
+            },
+            "input_tokens": {
+              "known_records": 1,
+              "sum": 5818,
+              "unknown_records": 0
+            },
+            "lookup_bytes": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 1
+            },
+            "lookup_duration_ms": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 1
+            },
+            "lookup_requests": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 1
+            },
+            "output_tokens": {
+              "known_records": 1,
+              "sum": 535,
+              "unknown_records": 0
+            },
+            "reasoning_tokens": {
+              "known_records": 1,
+              "sum": 482,
+              "unknown_records": 0
+            }
+          }
+        }
+      },
+      "target": {
+        "attempted": 1,
+        "fraction_within_15_seconds": 0.0,
+        "within_10_seconds": 0,
+        "within_15_seconds": 0
+      },
+      "transition_timing": {
+        "total:transition": {
+          "count": 3,
+          "duration_ms": {
+            "max": 45001,
+            "median": 45000,
+            "min": 32206,
+            "p95": 45001
+          },
+          "event": "total",
+          "failure_classes": {
+            "ProcessingWindowExpired": 2
+          },
+          "kind": "transition",
+          "outcomes": {
+            "failed": 2,
+            "succeeded": 1
+          },
+          "stage": null,
+          "usage": {
+            "cost_nano": {
+              "known_records": 1,
+              "sum": 892706,
+              "unknown_records": 2
+            },
+            "input_tokens": {
+              "known_records": 1,
+              "sum": 10550,
+              "unknown_records": 2
+            },
+            "lookup_bytes": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 3
+            },
+            "lookup_duration_ms": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 3
+            },
+            "lookup_requests": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 3
+            },
+            "output_tokens": {
+              "known_records": 1,
+              "sum": 1509,
+              "unknown_records": 2
+            },
+            "reasoning_tokens": {
+              "known_records": 1,
+              "sum": 1405,
+              "unknown_records": 2
+            }
+          }
+        }
+      }
+    }
+  },
+  "evidence": "actual-provider",
+  "funding": {
+    "ceiling": 1000000000,
+    "remaining": 956718005,
+    "used": 43281995
+  },
+  "in_flight_requests": 1,
+  "not_run": [],
+  "original_measurements_sha256": "921e7d099e8c5efafbb2d85dfd18b5c690bec7baaa68e7b5d9b7d8644e5e5090",
+  "protocol": {
+    "answered_turns": 4,
+    "baseline": "previous separate/full OpenRouter policy, not GPT Luna",
+    "coaching": "protected funds retained; no provider coaching call",
+    "focused_response_contract": "nested-result-v2",
+    "maximum_same_question_replies": 1,
+    "notes": "identical sources/answer scripts; adaptive dialogue paths may differ",
+    "order": "conditions rotated per case; one repeat is exploratory, not a power claim",
+    "preparation": "identical locally validated synthetic maps; no provider mapping call",
+    "processing": "same current 45-second policy in all conditions",
+    "quality": "manual review required for every role and condition",
+    "question_budget": 5,
+    "script_version": "approach-grounded-v2"
+  },
+  "provider_gate": "failed-incomplete",
+  "source_commit": "25d8a72"
+}

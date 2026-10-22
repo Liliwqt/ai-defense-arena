@@ -86,3 +86,13 @@ approach-specific scripts remove repeated language commands and use new fingerpr
 Historical exact causes remain unknown. The prepared two-case Standard retest has
 ordinary boundsUS$0.5239734 and proposedUS$1cap; no new paid call or authorization.
 Actual-provider criteria2/4/5 stay open; no model promotion or publication.
+
+2026-10-23 — User authorized the separate US$1 retest; both cases now ran on
+`25d8a72`. [Retest evidence](../reviews/08-retest-results.md): English opening
+accepted in32.206s, then low-reasoning DeepSeek combined answer review expired at45s.
+Bisaya opening expired at45s while its writer was unfinished. Only Methodology
+spoke; no successful answer-to-next-question transition or other-role quality
+evidence. No schema-invalid/incomplete-decision error was observed in this small
+sample, but the live gate remains failed/incomplete4/7. Five requests supplied
+US$0.001009595 in receipts plusUS$0.042272400 retained holds for two missing receipts.
+No model/reasoning changes, extra campaign, push/deployment or readiness claim.

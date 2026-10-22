@@ -1,5 +1,10 @@
 # Ticket 08 rejected-opening correction review
 
+Later evidence: the user authorized the separate US$1 campaign and the
+[two-case retest completed](08-retest-results.md). One opening passed; answer
+review and the other opening timed out. The historical preparation record below
+does not imply the retest is still pending. Provider gate remains incomplete.
+
 2026-10-23. Overall user-approved ticket08 review baseline: `8465a88`.
 Incremental correction starts at `92c99fd`. Seven scoped source/test/doc files
 are frozen in `.local/turn08-diagnosis/checkpoint` with a manifest and review patch;
