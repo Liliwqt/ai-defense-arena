@@ -1,0 +1,349 @@
+{
+  "evidence": "plan-only",
+  "fixture_sha256": "fc8f40f990656677edea9af9d7ae341be8d1c85ce253be29b3f9cef9333a032a",
+  "maximum_requests": 4,
+  "ordinary_bound_nano": 89341200,
+  "protocol": {
+    "inputs": "same reconstructed synthetic history/evidence per case, not retained original request bytes",
+    "lookup": "report lookup request without fetching or spending again",
+    "models": "unchanged; only Qwen is dispatched",
+    "operation": "reconstructed saved Impact question writer only",
+    "output_tokens": 8192,
+    "reasoning": {
+      "max_tokens": 2048
+    },
+    "retry": "none: single-request diagnostic, not the full defense retry policy",
+    "routes": {
+      "alibaba-global": {
+        "ignore": [
+          "alibaba/us-east-1"
+        ],
+        "only": [
+          "alibaba"
+        ]
+      },
+      "alibaba-us-east": {
+        "only": [
+          "alibaba/us-east-1"
+        ]
+      }
+    },
+    "scope": "not a full turn or complete defense; no model promotion",
+    "window_ms": 45000
+  },
+  "provider_gate": "not-run",
+  "runs": [
+    {
+      "case_fingerprint": "1c306526bd04381b7914a08c58dc5fc7f30035bd106e40b64430205add25064f",
+      "case_id": "quantitative-en",
+      "order": 0,
+      "policy": {
+        "ceiling_nano": 5000000000,
+        "coaching_model": "anthropic/claude-haiku-5.5",
+        "coaching_output_tokens": 8192,
+        "coaching_reasoning": {
+          "effort": "high"
+        },
+        "coaching_request_reserve": 0,
+        "coaching_reserve_nano": 177718800,
+        "combined_output_tokens": 6144,
+        "context_tokens": 1000000,
+        "evidence_limits": {
+          "excerpt_bytes": 16000,
+          "excerpts": 14,
+          "expansion_bytes": 24000,
+          "expansion_windows": 6,
+          "lookups": 1,
+          "neighbour_lines": 3,
+          "study_bytes": 6000,
+          "study_lines": 8
+        },
+        "evidence_policy": "focused-v2",
+        "input_nano_per_token": 300,
+        "interaction_output_tokens": 2048,
+        "interaction_reasoning": {
+          "Critical Judge": {
+            "effort": "low"
+          },
+          "Ethics Reviewer": {
+            "effort": "low"
+          },
+          "Impact Reviewer": {
+            "max_tokens": 1024
+          },
+          "Methodology Reviewer": {
+            "effort": "low"
+          }
+        },
+        "output_nano_per_token": 1200,
+        "planner_model": "z-ai/glm-5.3-flash",
+        "planner_output_tokens": 4096,
+        "planner_reasoning": {
+          "effort": "low"
+        },
+        "planning_contract": "combined-v1",
+        "provider_only": null,
+        "request_limit": null,
+        "reviewer_models": {
+          "Critical Judge": "z-ai/glm-5.3-flash",
+          "Ethics Reviewer": "anthropic/claude-haiku-5.5",
+          "Impact Reviewer": "qwen/qwen3.8-flash",
+          "Methodology Reviewer": "deepseek/deepseek-v4.1-flash-1017"
+        },
+        "reviewer_output_tokens": 8192,
+        "reviewer_reasoning": {
+          "Critical Judge": {
+            "effort": "high"
+          },
+          "Ethics Reviewer": {
+            "effort": "medium"
+          },
+          "Impact Reviewer": {
+            "max_tokens": 2048
+          },
+          "Methodology Reviewer": {
+            "effort": "high"
+          }
+        },
+        "tier": "standard"
+      },
+      "request_sha256": "f13d71ecace8676f8356bd279fa195342a893a93ed44955ea79fa21249fdfc2b",
+      "reserved_nano": 22366500,
+      "route": "alibaba-global"
+    },
+    {
+      "case_fingerprint": "1c306526bd04381b7914a08c58dc5fc7f30035bd106e40b64430205add25064f",
+      "case_id": "quantitative-en",
+      "order": 0,
+      "policy": {
+        "ceiling_nano": 5000000000,
+        "coaching_model": "anthropic/claude-haiku-5.5",
+        "coaching_output_tokens": 8192,
+        "coaching_reasoning": {
+          "effort": "high"
+        },
+        "coaching_request_reserve": 0,
+        "coaching_reserve_nano": 177718800,
+        "combined_output_tokens": 6144,
+        "context_tokens": 1000000,
+        "evidence_limits": {
+          "excerpt_bytes": 16000,
+          "excerpts": 14,
+          "expansion_bytes": 24000,
+          "expansion_windows": 6,
+          "lookups": 1,
+          "neighbour_lines": 3,
+          "study_bytes": 6000,
+          "study_lines": 8
+        },
+        "evidence_policy": "focused-v2",
+        "input_nano_per_token": 300,
+        "interaction_output_tokens": 2048,
+        "interaction_reasoning": {
+          "Critical Judge": {
+            "effort": "low"
+          },
+          "Ethics Reviewer": {
+            "effort": "low"
+          },
+          "Impact Reviewer": {
+            "max_tokens": 1024
+          },
+          "Methodology Reviewer": {
+            "effort": "low"
+          }
+        },
+        "output_nano_per_token": 1200,
+        "planner_model": "z-ai/glm-5.3-flash",
+        "planner_output_tokens": 4096,
+        "planner_reasoning": {
+          "effort": "low"
+        },
+        "planning_contract": "combined-v1",
+        "provider_only": null,
+        "request_limit": null,
+        "reviewer_models": {
+          "Critical Judge": "z-ai/glm-5.3-flash",
+          "Ethics Reviewer": "anthropic/claude-haiku-5.5",
+          "Impact Reviewer": "qwen/qwen3.8-flash",
+          "Methodology Reviewer": "deepseek/deepseek-v4.1-flash-1017"
+        },
+        "reviewer_output_tokens": 8192,
+        "reviewer_reasoning": {
+          "Critical Judge": {
+            "effort": "high"
+          },
+          "Ethics Reviewer": {
+            "effort": "medium"
+          },
+          "Impact Reviewer": {
+            "max_tokens": 2048
+          },
+          "Methodology Reviewer": {
+            "effort": "high"
+          }
+        },
+        "tier": "standard"
+      },
+      "request_sha256": "a2b3d65887efbf9556973ee0055a93c3e486dbe2cb3bcb6789ab642cf3902acc",
+      "reserved_nano": 22366500,
+      "route": "alibaba-us-east"
+    },
+    {
+      "case_fingerprint": "f355ccbe01a466eb364d898244e24557ee71bbbb4611e5e5ca51650ab1ab3484",
+      "case_id": "qualitative-bisaya",
+      "order": 1,
+      "policy": {
+        "ceiling_nano": 5000000000,
+        "coaching_model": "anthropic/claude-haiku-5.5",
+        "coaching_output_tokens": 8192,
+        "coaching_reasoning": {
+          "effort": "high"
+        },
+        "coaching_request_reserve": 0,
+        "coaching_reserve_nano": 177613800,
+        "combined_output_tokens": 6144,
+        "context_tokens": 1000000,
+        "evidence_limits": {
+          "excerpt_bytes": 16000,
+          "excerpts": 14,
+          "expansion_bytes": 24000,
+          "expansion_windows": 6,
+          "lookups": 1,
+          "neighbour_lines": 3,
+          "study_bytes": 6000,
+          "study_lines": 8
+        },
+        "evidence_policy": "focused-v2",
+        "input_nano_per_token": 300,
+        "interaction_output_tokens": 2048,
+        "interaction_reasoning": {
+          "Critical Judge": {
+            "effort": "low"
+          },
+          "Ethics Reviewer": {
+            "effort": "low"
+          },
+          "Impact Reviewer": {
+            "max_tokens": 1024
+          },
+          "Methodology Reviewer": {
+            "effort": "low"
+          }
+        },
+        "output_nano_per_token": 1200,
+        "planner_model": "z-ai/glm-5.3-flash",
+        "planner_output_tokens": 4096,
+        "planner_reasoning": {
+          "effort": "low"
+        },
+        "planning_contract": "combined-v1",
+        "provider_only": null,
+        "request_limit": null,
+        "reviewer_models": {
+          "Critical Judge": "z-ai/glm-5.3-flash",
+          "Ethics Reviewer": "anthropic/claude-haiku-5.5",
+          "Impact Reviewer": "qwen/qwen3.8-flash",
+          "Methodology Reviewer": "deepseek/deepseek-v4.1-flash-1017"
+        },
+        "reviewer_output_tokens": 8192,
+        "reviewer_reasoning": {
+          "Critical Judge": {
+            "effort": "high"
+          },
+          "Ethics Reviewer": {
+            "effort": "medium"
+          },
+          "Impact Reviewer": {
+            "max_tokens": 2048
+          },
+          "Methodology Reviewer": {
+            "effort": "high"
+          }
+        },
+        "tier": "standard"
+      },
+      "request_sha256": "41eb87b27f841adbb4cd4796f96d5836a2f8070a3f5cd037ff42187f3f72453a",
+      "reserved_nano": 22304100,
+      "route": "alibaba-global"
+    },
+    {
+      "case_fingerprint": "f355ccbe01a466eb364d898244e24557ee71bbbb4611e5e5ca51650ab1ab3484",
+      "case_id": "qualitative-bisaya",
+      "order": 1,
+      "policy": {
+        "ceiling_nano": 5000000000,
+        "coaching_model": "anthropic/claude-haiku-5.5",
+        "coaching_output_tokens": 8192,
+        "coaching_reasoning": {
+          "effort": "high"
+        },
+        "coaching_request_reserve": 0,
+        "coaching_reserve_nano": 177613800,
+        "combined_output_tokens": 6144,
+        "context_tokens": 1000000,
+        "evidence_limits": {
+          "excerpt_bytes": 16000,
+          "excerpts": 14,
+          "expansion_bytes": 24000,
+          "expansion_windows": 6,
+          "lookups": 1,
+          "neighbour_lines": 3,
+          "study_bytes": 6000,
+          "study_lines": 8
+        },
+        "evidence_policy": "focused-v2",
+        "input_nano_per_token": 300,
+        "interaction_output_tokens": 2048,
+        "interaction_reasoning": {
+          "Critical Judge": {
+            "effort": "low"
+          },
+          "Ethics Reviewer": {
+            "effort": "low"
+          },
+          "Impact Reviewer": {
+            "max_tokens": 1024
+          },
+          "Methodology Reviewer": {
+            "effort": "low"
+          }
+        },
+        "output_nano_per_token": 1200,
+        "planner_model": "z-ai/glm-5.3-flash",
+        "planner_output_tokens": 4096,
+        "planner_reasoning": {
+          "effort": "low"
+        },
+        "planning_contract": "combined-v1",
+        "provider_only": null,
+        "request_limit": null,
+        "reviewer_models": {
+          "Critical Judge": "z-ai/glm-5.3-flash",
+          "Ethics Reviewer": "anthropic/claude-haiku-5.5",
+          "Impact Reviewer": "qwen/qwen3.8-flash",
+          "Methodology Reviewer": "deepseek/deepseek-v4.1-flash-1017"
+        },
+        "reviewer_output_tokens": 8192,
+        "reviewer_reasoning": {
+          "Critical Judge": {
+            "effort": "high"
+          },
+          "Ethics Reviewer": {
+            "effort": "medium"
+          },
+          "Impact Reviewer": {
+            "max_tokens": 2048
+          },
+          "Methodology Reviewer": {
+            "effort": "high"
+          }
+        },
+        "tier": "standard"
+      },
+      "request_sha256": "e965d55895ffb7c3f4fa82201258b05f5d967868fac0c3e9b46a0afe60d6dc26",
+      "reserved_nano": 22304100,
+      "route": "alibaba-us-east"
+    }
+  ]
+}

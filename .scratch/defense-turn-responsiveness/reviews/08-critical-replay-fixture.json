@@ -1,0 +1,117 @@
+{
+  "case_fingerprint": "1c306526bd04381b7914a08c58dc5fc7f30035bd106e40b64430205add25064f",
+  "case_id": "quantitative-en",
+  "coverage": {
+    "topic-1": {
+      "reason": "The submission again restates line 4 \u2014 matched workload and time bands, one elapsed-time definition, paired differences with uncertainty \u2014 and keeps the non-causal framing, but it still doesn't name the measure or pre-set cutoff that decides a match, so the pairing rule remains unjustified.",
+      "status": "needs clarification",
+      "turns": [
+        0,
+        1
+      ]
+    },
+    "topic-2": {
+      "reason": "The answer commits to voluntary participation and minimal identifying information, which matches line 5 of the source, but it repeats 'where relevant' without saying who decides when people are involved, so the voluntariness safeguard is only partly explained.",
+      "status": "discussed",
+      "turns": [
+        2,
+        3
+      ]
+    },
+    "topic-3": {
+      "reason": "The answer repeats the source statement from line 6 without naming concrete features of the proposed local setting that bound the contribution, or specifying what the pre-generalization evaluation would involve.",
+      "status": "needs clarification",
+      "turns": [
+        4,
+        5
+      ]
+    },
+    "topic-4": {
+      "reason": "",
+      "status": "discussed",
+      "turns": []
+    }
+  },
+  "displayed": [
+    {
+      "citation_file": "synthetic-study.md",
+      "citation_line": 4,
+      "clarifications": [],
+      "is_follow_up": false,
+      "panelist": "Methodology Reviewer",
+      "probe": null,
+      "question": "How will you decide which baseline and pilot cases count as a matched pair \u2014 what actually defines a match on workload and time band?",
+      "reaction": "",
+      "topic_id": "topic-1"
+    },
+    {
+      "citation_file": "synthetic-study.md",
+      "citation_line": 4,
+      "clarifications": [],
+      "is_follow_up": true,
+      "panelist": "Methodology Reviewer",
+      "probe": null,
+      "question": "What measure and pre-set cutoff will define a workload match and a time band?",
+      "reaction": "You've been clear this is a proposed paired comparison, not a causal result; the matching rule still sounds high-level.",
+      "topic_id": "topic-1"
+    },
+    {
+      "citation_file": "synthetic-study.md",
+      "citation_line": 5,
+      "clarifications": [],
+      "is_follow_up": false,
+      "panelist": "Ethics Reviewer",
+      "probe": null,
+      "question": "If the waiting times come from individual people, how will the team keep participation voluntary and the records minimally identifying, as the proposal describes?",
+      "reaction": "Switching to my side of things. Waiting-time records can involve real people, so I want to be careful here.",
+      "topic_id": "topic-2"
+    },
+    {
+      "citation_file": "synthetic-study.md",
+      "citation_line": 5,
+      "clarifications": [],
+      "is_follow_up": true,
+      "panelist": "Ethics Reviewer",
+      "probe": null,
+      "question": "Who decides when participation counts as relevant for these waiting-time records?",
+      "reaction": "Thanks, that helps. The phrase 'where relevant' still leaves open when people are actually involved, and that matters for waiting-time records.",
+      "topic_id": "topic-2"
+    },
+    {
+      "citation_file": "synthetic-study.md",
+      "citation_line": 6,
+      "clarifications": [],
+      "is_follow_up": false,
+      "panelist": "Impact Reviewer",
+      "probe": null,
+      "question": "The proposal says the contribution is limited to this local setting and needs evaluation before generalizing; how will you justify that bounded scope for service operations?",
+      "reaction": "",
+      "topic_id": "topic-3"
+    },
+    {
+      "citation_file": "synthetic-study.md",
+      "citation_line": 6,
+      "clarifications": [],
+      "is_follow_up": true,
+      "panelist": "Impact Reviewer",
+      "probe": null,
+      "question": "What specific features of this proposed local study make its contribution bounded rather than generalizable?",
+      "reaction": "Hmm, noted. You've restated the boundary from the proposal, but what actually defines that local setting's limits?",
+      "topic_id": "topic-3"
+    },
+    {
+      "citation_file": "synthetic-study.md",
+      "citation_line": 7,
+      "clarifications": [],
+      "is_follow_up": false,
+      "panelist": "Critical Judge",
+      "probe": null,
+      "question": "What specific selection assumptions are being made about the participants that could constitute an alternative explanation for the observed waiting time differences?",
+      "reaction": "",
+      "topic_id": "topic-4"
+    }
+  ],
+  "reconstruction": "validated displayed synthetic turns plus original role-indexed answer scripts; fixed new map ID, not original retained request bytes",
+  "script_version": "approach-grounded-v2",
+  "source_campaign": "08-complete-candidate"
+}

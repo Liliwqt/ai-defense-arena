@@ -5,6 +5,7 @@ from typing import MutableMapping
 from uuid import uuid4
 
 from backend.project_files import ProjectFile
+from backend.response_diagnostics import classify_rejection
 from backend.question_generator import (
     AnsweredQuestion,
     ClarificationExchange,
@@ -298,32 +299,38 @@ class ResearchDefenseSession(DefenseSession):
                     or assessment.status not in {"discussed", "needs clarification", "addressed"}
                     or not assessment.reason.strip() or len(assessment.reason) > 600
                     or (previous.timed_out and assessment.status != "needs clarification")):
-                raise QuestionGenerationError("The AI returned an invalid coverage assessment. Please retry.")
+                raise classify_rejection(QuestionGenerationError("The AI returned an invalid coverage assessment. Please retry."),
+                                         'plan_invalid_assessment')
             item = coverage[assessment.topic_id]
             item["status"], item["reason"] = assessment.status, assessment.reason.strip()
             if assessment.turn not in item["turns"]:
                 item["turns"].append(assessment.turn)
         elif assessment is not None:
-            raise QuestionGenerationError("The opening move cannot assess an answer. Please retry.")
+            raise classify_rejection(QuestionGenerationError("The opening move cannot assess an answer. Please retry."),
+                                     'plan_opening_has_assessment')
         all_spoken = set(RESEARCH_PANELISTS).issubset({t.panelist for t in self.turns})
         covered = all(value["status"] == "addressed" for value in coverage.values())
         exhausted = len(self.turns) >= self.question_budget
         should_finish = exhausted or (covered and all_spoken)
         if panelist is None and question is None:
             if not should_finish or topic_id is not None or is_follow_up:
-                raise QuestionGenerationError("The AI ended the research defense too early. Please retry.")
+                raise classify_rejection(QuestionGenerationError("The AI ended the research defense too early. Please retry."),
+                                         'plan_premature_completion')
         else:
             option = {"panelist": panelist, "topic_id": topic_id, "is_follow_up": is_follow_up}
             if should_finish or (require_question and question is None) or option not in self.question_options(coverage):
-                raise QuestionGenerationError("The AI chose an invalid research topic or reviewer. Please retry.")
+                raise classify_rejection(QuestionGenerationError("The AI chose an invalid research topic or reviewer. Please retry."),
+                                         'plan_invalid_selection')
             if question is not None and any(t.question.question.strip().casefold() == question.question.strip().casefold() for t in self.turns):
-                raise QuestionGenerationError("The AI repeated an earlier question. Please retry.")
+                raise classify_rejection(QuestionGenerationError("The AI repeated an earlier question. Please retry."),
+                                         'plan_duplicate_question')
         return coverage, should_finish
 
     def validate_plan(self, planned: PlannedMove) -> None:
         """Reject an ineligible planner choice before any reviewer request."""
         if not isinstance(planned, PlannedMove):
-            raise QuestionGenerationError("The AI returned an invalid research plan. Please retry.")
+            raise classify_rejection(QuestionGenerationError("The AI returned an invalid research plan. Please retry."),
+                                     'plan_invalid_type')
         self._validated(panelist=planned.panelist, question=None, topic_id=planned.topic_id,
                         is_follow_up=planned.is_follow_up, assessment=planned.assessment,
                         require_question=False)

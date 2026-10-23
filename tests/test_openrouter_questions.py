@@ -791,7 +791,7 @@ class FundedQuestionRoundsTests(coverage.CoverageProtocolTests):
                 h.send_json({'type': 'submit_answer', 'turn': 0, 'answer': 'Answer 1.'})
                 for socket in (h, g):
                     failed = self.until(socket, 'interpretation_retry', 1)
-                    self.assertIn('invalid research topic or reviewer', failed['error'])
+                    self.assertIn('invalid structured response', failed['error'])
                     self.assertEqual(failed['turns'][0]['answer'], None)
                 room = game_server.rooms[code]
                 self.assertIsNotNone(room.pending_submission)

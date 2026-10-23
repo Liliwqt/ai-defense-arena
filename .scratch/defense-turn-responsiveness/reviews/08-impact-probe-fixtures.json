@@ -1,0 +1,162 @@
+[
+  {
+    "answer_script_indices": [
+      0,
+      0,
+      1
+    ],
+    "case_fingerprint": "1c306526bd04381b7914a08c58dc5fc7f30035bd106e40b64430205add25064f",
+    "case_id": "quantitative-en",
+    "coverage": {
+      "topic-1": {
+        "reason": "The submission restates matching on workload and time bands and a non-causal paired summary, but it does not say what happens to baseline or pilot cases outside the matched bands. That leaves the concrete pairing rule partially unresolved.",
+        "status": "needs clarification",
+        "turns": [
+          0,
+          1
+        ]
+      },
+      "topic-2": {
+        "reason": "",
+        "status": "discussed",
+        "turns": []
+      },
+      "topic-3": {
+        "reason": "",
+        "status": "pending",
+        "turns": []
+      },
+      "topic-4": {
+        "reason": "",
+        "status": "pending",
+        "turns": []
+      }
+    },
+    "displayed": [
+      {
+        "citation_file": "synthetic-study.md",
+        "citation_line": 4,
+        "clarifications": [],
+        "is_follow_up": false,
+        "panelist": "Methodology Reviewer",
+        "probe": null,
+        "question": "How will you define a matched baseline\u2013pilot pair under the workload and time bands, so each paired difference compares like with like?",
+        "reaction": "",
+        "topic_id": "topic-1"
+      },
+      {
+        "citation_file": "synthetic-study.md",
+        "citation_line": 4,
+        "clarifications": [],
+        "is_follow_up": true,
+        "panelist": "Methodology Reviewer",
+        "probe": null,
+        "question": "What's your plan for baseline or pilot cases that fall outside the matched bands \u2014 exclude them, or report them separately?",
+        "reaction": "Okay, matching on both workload and time bands keeps the comparison like for like, though tight bands can leave some cases without a counterpart.",
+        "topic_id": "topic-1"
+      },
+      {
+        "citation_file": "synthetic-study.md",
+        "citation_line": 5,
+        "clarifications": [],
+        "is_follow_up": false,
+        "panelist": "Ethics Reviewer",
+        "probe": null,
+        "question": "Since the proposal says to minimize identifying data where people are involved, how would you handle identifying details in the waiting-time records before the paired comparison?",
+        "reaction": "",
+        "topic_id": "topic-2"
+      }
+    ],
+    "saved_plan": {
+      "assessment": {
+        "reason": "The answer names voluntary participation and minimizing identifying information, which largely restates the source line. It does not say how identifying details in the waiting-time records would be removed or handled before the paired comparison.",
+        "status": "discussed",
+        "topic_id": "topic-2",
+        "turn": 2
+      },
+      "is_follow_up": false,
+      "panelist": "Impact Reviewer",
+      "topic_id": "topic-3"
+    }
+  },
+  {
+    "answer_script_indices": [
+      0,
+      0,
+      1
+    ],
+    "case_fingerprint": "f355ccbe01a466eb364d898244e24557ee71bbbb4611e5e5ca51650ab1ab3484",
+    "case_id": "qualitative-bisaya",
+    "coverage": {
+      "topic-1": {
+        "reason": "The reply repeats the coding, negative-case, and audit-trail procedure, but it does not explain why interviews are the appropriate qualitative source for the bounded contribution. That leaves the design justification unresolved.",
+        "status": "needs clarification",
+        "turns": [
+          0,
+          1
+        ]
+      },
+      "topic-2": {
+        "reason": "",
+        "status": "discussed",
+        "turns": []
+      },
+      "topic-3": {
+        "reason": "",
+        "status": "pending",
+        "turns": []
+      },
+      "topic-4": {
+        "reason": "",
+        "status": "pending",
+        "turns": []
+      }
+    },
+    "displayed": [
+      {
+        "citation_file": "synthetic-study.md",
+        "citation_line": 4,
+        "clarifications": [],
+        "is_follow_up": false,
+        "panelist": "Methodology Reviewer",
+        "probe": null,
+        "question": "Line 4 says you'll interview volunteers and compare codes across contrasting accounts \u2014 can you walk me through why a qualitative interview design is the right fit for the bounded contribution you're aiming at?",
+        "reaction": "",
+        "topic_id": "topic-1"
+      },
+      {
+        "citation_file": "synthetic-study.md",
+        "citation_line": 4,
+        "clarifications": [],
+        "is_follow_up": true,
+        "panelist": "Methodology Reviewer",
+        "probe": null,
+        "question": "Unsa ang makuha ninyo sa pag-interview sa volunteers nga dili ninyo makuha sa laing paagi, labi na sa pag-explain sa bounded contribution?",
+        "reaction": "Klaro ang plano ninyo sa negative cases ug audit trail, pero bahin man to sa analysis \u2014 wala pa nako maklaro ang basehan sa design mismo.",
+        "topic_id": "topic-1"
+      },
+      {
+        "citation_file": "synthetic-study.md",
+        "citation_line": 5,
+        "clarifications": [],
+        "is_follow_up": false,
+        "panelist": "Ethics Reviewer",
+        "probe": null,
+        "question": "Sa Line 5, giingnan nga voluntary ang participation kung naay tawo nga apil. Unsaon ninyo pag-ensure nga boluntaryo gyud ang mga volunteers sa interviews?",
+        "reaction": "",
+        "topic_id": "topic-2"
+      }
+    ],
+    "saved_plan": {
+      "assessment": {
+        "reason": "The answer names voluntary participation, minimal personal data, and source attribution, which match Line 5. It does not yet explain how volunteers are informed, how consent is given, or how they can withdraw, so the safeguard is only partly explained.",
+        "status": "discussed",
+        "topic_id": "topic-2",
+        "turn": 2
+      },
+      "is_follow_up": false,
+      "panelist": "Impact Reviewer",
+      "topic_id": "topic-3"
+    }
+  }
+]

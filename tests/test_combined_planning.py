@@ -116,7 +116,7 @@ class CombinedFundedTests(IsolatedAllowanceTests):
         output = {'action': 'answer', 'clarification': None, 'probe': None,
                   'assessment': {'topic_id': context['previous_topic'], 'turn': context['previous_turn'],
                                  'status': 'discussed', 'reason': 'The defender described volunteer recruitment.'},
-                  **context['question_options'][0]}
+                  'next_move': context['question_options'][0]['choice_id']}
         return stream_response(output, usage={} if unknown_usage else {'cost': 0})
 
     def invoke(self, handler):
@@ -170,6 +170,20 @@ class CombinedFundedTests(IsolatedAllowanceTests):
         self.assertEqual(probe.status, 'pending')
         self.assertIsNone(probe.reply)
         self.assertEqual(self.session.coverage['topic-1']['status'], 'discussed')
+
+    def test_pending_probe_reply_schema_rejects_another_probe_without_resolving_it(self):
+        from backend.question_generator import InvalidQuestionResponse
+        from tests.test_openrouter_questions import stream_response
+        self.session.begin_probe('The original answer.', ProbeRequest('Which comparison group?'))
+        probe = self.session.turns[0].probe
+        self.request = capture_interpretation(self.room, PendingSubmission(
+            0, 'guest', 'Sam', 1, 'The comparison uses the same criteria.', 1000, probe.id))
+        with self.assertRaises(InvalidQuestionResponse):
+            self.invoke(lambda request: stream_response({'result': {
+                'action': 'probe', 'probe': {'request': 'Another probe?', 'references': []}}, 'lookup': None}))
+        self.assertEqual(probe.status, 'pending')
+        self.assertIsNone(probe.reply)
+        self.assertEqual(self.session.turns[0].answer, 'The original answer.')
 
     def test_concurrent_combined_dispatch_preserves_protected_funds_and_unknown_hold(self):
         import asyncio

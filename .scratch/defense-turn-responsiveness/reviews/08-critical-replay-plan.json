@@ -1,0 +1,104 @@
+{
+  "case_fingerprint": "1c306526bd04381b7914a08c58dc5fc7f30035bd106e40b64430205add25064f",
+  "case_id": "quantitative-en",
+  "evidence": "plan-only",
+  "fixture_sha256": "15d62911685c354c0bc5dc6e42a3580ce90a138b475fd090e33d76e777d242dc",
+  "max_tokens": 6144,
+  "maximum_requests": 2,
+  "model": "z-ai/glm-5.3-flash",
+  "ordinary_bound_nano": 50693400,
+  "policy": {
+    "ceiling_nano": 5000000000,
+    "coaching_model": "anthropic/claude-haiku-5.5",
+    "coaching_output_tokens": 8192,
+    "coaching_reasoning": {
+      "effort": "high"
+    },
+    "coaching_request_reserve": 0,
+    "coaching_reserve_nano": 327612000,
+    "combined_output_tokens": 6144,
+    "context_tokens": 1000000,
+    "evidence_limits": {
+      "excerpt_bytes": 16000,
+      "excerpts": 14,
+      "expansion_bytes": 24000,
+      "expansion_windows": 6,
+      "lookups": 1,
+      "neighbour_lines": 3,
+      "study_bytes": 6000,
+      "study_lines": 8
+    },
+    "evidence_policy": "focused-v2",
+    "input_nano_per_token": 300,
+    "interaction_output_tokens": 2048,
+    "interaction_reasoning": {
+      "Critical Judge": {
+        "effort": "low"
+      },
+      "Ethics Reviewer": {
+        "effort": "low"
+      },
+      "Impact Reviewer": {
+        "max_tokens": 1024
+      },
+      "Methodology Reviewer": {
+        "effort": "low"
+      }
+    },
+    "output_nano_per_token": 1200,
+    "planner_model": "z-ai/glm-5.3-flash",
+    "planner_output_tokens": 4096,
+    "planner_reasoning": {
+      "effort": "low"
+    },
+    "planning_contract": "combined-v1",
+    "provider_only": null,
+    "request_limit": null,
+    "reviewer_models": {
+      "Critical Judge": "z-ai/glm-5.3-flash",
+      "Ethics Reviewer": "anthropic/claude-haiku-5.5",
+      "Impact Reviewer": "qwen/qwen3.8-flash",
+      "Methodology Reviewer": "deepseek/deepseek-v4.1-flash-1017"
+    },
+    "reviewer_output_tokens": 8192,
+    "reviewer_reasoning": {
+      "Critical Judge": {
+        "effort": "high"
+      },
+      "Ethics Reviewer": {
+        "effort": "medium"
+      },
+      "Impact Reviewer": {
+        "enabled": false
+      },
+      "Methodology Reviewer": {
+        "effort": "high"
+      }
+    },
+    "tier": "standard"
+  },
+  "protocol": {
+    "earlier_stages": "reconstructed synthetic history only; no mapping/planning/question/coaching request",
+    "limitation": "new stable synthetic map ID; not original retained wire bytes or proof of historical cause",
+    "lookup": "report without expansion or another request",
+    "operation": "two identical reconstructed Critical combined-review requests",
+    "retry": "none",
+    "validation": "unchanged submission and prospective-plan validators, no state publication",
+    "window_ms": 45000
+  },
+  "provider": {
+    "allow_fallbacks": false,
+    "data_collection": "deny",
+    "max_price": {
+      "completion": 1.2,
+      "prompt": 0.3,
+      "request": 0
+    },
+    "require_parameters": true
+  },
+  "provider_gate": "not-run",
+  "reasoning": {
+    "effort": "low"
+  },
+  "request_sha256": "656e672c3b02d1be51a88d0eef9a50fe3a395cade091eec38b2ce5c01971493d"
+}

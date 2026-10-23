@@ -1,0 +1,1304 @@
+{
+  "approved_campaign_cap_nano": 5000000000,
+  "billing": {
+    "known_plus_holds_nano": 79006019,
+    "missing_receipts": 3,
+    "requests": 21,
+    "retained_unknown_cost_holds_nano": 62592900,
+    "scope": "this approved campaign only; supplied receipts are not an audited invoice",
+    "supplied_cost_nano": 16413119,
+    "supplied_receipts": 18
+  },
+  "conditions": {
+    "complete-candidate": {
+      "automatic_retries": 0,
+      "broader_lookup": {
+        "lookup_bytes": {
+          "known_records": 0,
+          "sum": null,
+          "unknown_records": 11
+        },
+        "lookup_duration_ms": {
+          "known_records": 0,
+          "sum": null,
+          "unknown_records": 11
+        },
+        "lookup_requests": {
+          "known_records": 0,
+          "sum": null,
+          "unknown_records": 11
+        }
+      },
+      "by_model": {
+        "anthropic/claude-haiku-5.5": {
+          "stage:provider_request:CombinedSubmissionDraft": {
+            "count": 2,
+            "duration_ms": {
+              "max": 7998,
+              "median": 7528.0,
+              "min": 7058,
+              "p95": 7998
+            },
+            "event": "stage",
+            "failure_classes": {},
+            "kind": "provider_request",
+            "outcomes": {
+              "received": 2
+            },
+            "stage": "CombinedSubmissionDraft",
+            "usage": {
+              "cost_nano": {
+                "known_records": 2,
+                "sum": 4124000,
+                "unknown_records": 0
+              },
+              "input_tokens": {
+                "known_records": 2,
+                "sum": 30495,
+                "unknown_records": 0
+              },
+              "lookup_bytes": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 2
+              },
+              "lookup_duration_ms": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 2
+              },
+              "lookup_requests": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 2
+              },
+              "output_tokens": {
+                "known_records": 2,
+                "sum": 2149,
+                "unknown_records": 0
+              },
+              "reasoning_tokens": {
+                "known_records": 2,
+                "sum": 1803,
+                "unknown_records": 0
+              }
+            }
+          },
+          "stage:provider_request:QuestionDraft": {
+            "count": 2,
+            "duration_ms": {
+              "max": 8290,
+              "median": 6414.5,
+              "min": 4539,
+              "p95": 8290
+            },
+            "event": "stage",
+            "failure_classes": {},
+            "kind": "provider_request",
+            "outcomes": {
+              "received": 2
+            },
+            "stage": "QuestionDraft",
+            "usage": {
+              "cost_nano": {
+                "known_records": 2,
+                "sum": 2955800,
+                "unknown_records": 0
+              },
+              "input_tokens": {
+                "known_records": 2,
+                "sum": 22938,
+                "unknown_records": 0
+              },
+              "lookup_bytes": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 2
+              },
+              "lookup_duration_ms": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 2
+              },
+              "lookup_requests": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 2
+              },
+              "output_tokens": {
+                "known_records": 2,
+                "sum": 1324,
+                "unknown_records": 0
+              },
+              "reasoning_tokens": {
+                "known_records": 2,
+                "sum": 1100,
+                "unknown_records": 0
+              }
+            }
+          }
+        },
+        "deepseek/deepseek-v4.1-flash-1017": {
+          "stage:provider_request:CombinedSubmissionDraft": {
+            "count": 2,
+            "duration_ms": {
+              "max": 10047,
+              "median": 7558.5,
+              "min": 5070,
+              "p95": 10047
+            },
+            "event": "stage",
+            "failure_classes": {},
+            "kind": "provider_request",
+            "outcomes": {
+              "received": 2
+            },
+            "stage": "CombinedSubmissionDraft",
+            "usage": {
+              "cost_nano": {
+                "known_records": 2,
+                "sum": 1687125,
+                "unknown_records": 0
+              },
+              "input_tokens": {
+                "known_records": 2,
+                "sum": 15039,
+                "unknown_records": 0
+              },
+              "lookup_bytes": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 2
+              },
+              "lookup_duration_ms": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 2
+              },
+              "lookup_requests": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 2
+              },
+              "output_tokens": {
+                "known_records": 2,
+                "sum": 1098,
+                "unknown_records": 0
+              },
+              "reasoning_tokens": {
+                "known_records": 2,
+                "sum": 789,
+                "unknown_records": 0
+              }
+            }
+          },
+          "stage:provider_request:QuestionDraft": {
+            "count": 5,
+            "duration_ms": {
+              "max": 15240,
+              "median": 1233,
+              "min": 1166,
+              "p95": 15240
+            },
+            "event": "stage",
+            "failure_classes": {
+              "HTTP429": 3
+            },
+            "kind": "provider_request",
+            "outcomes": {
+              "failed": 3,
+              "received": 2
+            },
+            "stage": "QuestionDraft",
+            "usage": {
+              "cost_nano": {
+                "known_records": 2,
+                "sum": 1172367,
+                "unknown_records": 3
+              },
+              "input_tokens": {
+                "known_records": 2,
+                "sum": 11423,
+                "unknown_records": 3
+              },
+              "lookup_bytes": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 5
+              },
+              "lookup_duration_ms": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 5
+              },
+              "lookup_requests": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 5
+              },
+              "output_tokens": {
+                "known_records": 2,
+                "sum": 718,
+                "unknown_records": 3
+              },
+              "reasoning_tokens": {
+                "known_records": 2,
+                "sum": 584,
+                "unknown_records": 3
+              }
+            }
+          }
+        },
+        "qwen/qwen3.8-flash": {
+          "stage:provider_request:CombinedSubmissionDraft": {
+            "count": 2,
+            "duration_ms": {
+              "max": 22610,
+              "median": 18529.0,
+              "min": 14448,
+              "p95": 22610
+            },
+            "event": "stage",
+            "failure_classes": {},
+            "kind": "provider_request",
+            "outcomes": {
+              "received": 2
+            },
+            "stage": "CombinedSubmissionDraft",
+            "usage": {
+              "cost_nano": {
+                "known_records": 2,
+                "sum": 3563144,
+                "unknown_records": 0
+              },
+              "input_tokens": {
+                "known_records": 2,
+                "sum": 18534,
+                "unknown_records": 0
+              },
+              "lookup_bytes": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 2
+              },
+              "lookup_duration_ms": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 2
+              },
+              "lookup_requests": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 2
+              },
+              "output_tokens": {
+                "known_records": 2,
+                "sum": 1958,
+                "unknown_records": 0
+              },
+              "reasoning_tokens": {
+                "known_records": 2,
+                "sum": 1724,
+                "unknown_records": 0
+              }
+            }
+          },
+          "stage:provider_request:QuestionDraft": {
+            "count": 2,
+            "duration_ms": {
+              "max": 3100,
+              "median": 2968.5,
+              "min": 2837,
+              "p95": 3100
+            },
+            "event": "stage",
+            "failure_classes": {},
+            "kind": "provider_request",
+            "outcomes": {
+              "received": 2
+            },
+            "stage": "QuestionDraft",
+            "usage": {
+              "cost_nano": {
+                "known_records": 2,
+                "sum": 1748576,
+                "unknown_records": 0
+              },
+              "input_tokens": {
+                "known_records": 2,
+                "sum": 14793,
+                "unknown_records": 0
+              },
+              "lookup_bytes": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 2
+              },
+              "lookup_duration_ms": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 2
+              },
+              "lookup_requests": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 2
+              },
+              "output_tokens": {
+                "known_records": 2,
+                "sum": 167,
+                "unknown_records": 0
+              },
+              "reasoning_tokens": {
+                "known_records": 2,
+                "sum": 0,
+                "unknown_records": 0
+              }
+            }
+          }
+        },
+        "z-ai/glm-5.3-flash": {
+          "stage:provider_request:CombinedSubmissionDraft": {
+            "count": 1,
+            "duration_ms": {
+              "max": 16442,
+              "median": 16442,
+              "min": 16442,
+              "p95": 16442
+            },
+            "event": "stage",
+            "failure_classes": {},
+            "kind": "provider_request",
+            "outcomes": {
+              "received": 1
+            },
+            "stage": "CombinedSubmissionDraft",
+            "usage": {
+              "cost_nano": {
+                "known_records": 1,
+                "sum": 246824,
+                "unknown_records": 0
+              },
+              "input_tokens": {
+                "known_records": 1,
+                "sum": 9942,
+                "unknown_records": 0
+              },
+              "lookup_bytes": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 1
+              },
+              "lookup_duration_ms": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 1
+              },
+              "lookup_requests": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 1
+              },
+              "output_tokens": {
+                "known_records": 1,
+                "sum": 983,
+                "unknown_records": 0
+              },
+              "reasoning_tokens": {
+                "known_records": 1,
+                "sum": 839,
+                "unknown_records": 0
+              }
+            }
+          },
+          "stage:provider_request:PlanDraft": {
+            "count": 4,
+            "duration_ms": {
+              "max": 12309,
+              "median": 7564.5,
+              "min": 4440,
+              "p95": 12309
+            },
+            "event": "stage",
+            "failure_classes": {},
+            "kind": "provider_request",
+            "outcomes": {
+              "received": 4
+            },
+            "stage": "PlanDraft",
+            "usage": {
+              "cost_nano": {
+                "known_records": 4,
+                "sum": 748676,
+                "unknown_records": 0
+              },
+              "input_tokens": {
+                "known_records": 4,
+                "sum": 18959,
+                "unknown_records": 0
+              },
+              "lookup_bytes": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 4
+              },
+              "lookup_duration_ms": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 4
+              },
+              "lookup_requests": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 4
+              },
+              "output_tokens": {
+                "known_records": 4,
+                "sum": 3275,
+                "unknown_records": 0
+              },
+              "reasoning_tokens": {
+                "known_records": 4,
+                "sum": 3011,
+                "unknown_records": 0
+              }
+            }
+          },
+          "stage:provider_request:QuestionDraft": {
+            "count": 1,
+            "duration_ms": {
+              "max": 11298,
+              "median": 11298,
+              "min": 11298,
+              "p95": 11298
+            },
+            "event": "stage",
+            "failure_classes": {},
+            "kind": "provider_request",
+            "outcomes": {
+              "received": 1
+            },
+            "stage": "QuestionDraft",
+            "usage": {
+              "cost_nano": {
+                "known_records": 1,
+                "sum": 166607,
+                "unknown_records": 0
+              },
+              "input_tokens": {
+                "known_records": 1,
+                "sum": 7838,
+                "unknown_records": 0
+              },
+              "lookup_bytes": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 1
+              },
+              "lookup_duration_ms": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 1
+              },
+              "lookup_requests": {
+                "known_records": 0,
+                "sum": null,
+                "unknown_records": 1
+              },
+              "output_tokens": {
+                "known_records": 1,
+                "sum": 634,
+                "unknown_records": 0
+              },
+              "reasoning_tokens": {
+                "known_records": 1,
+                "sum": 574,
+                "unknown_records": 0
+              }
+            }
+          }
+        }
+      },
+      "case_ids": [
+        "mixed-long-bisaya",
+        "qualitative-bisaya",
+        "quantitative-en",
+        "theoretical-long-en"
+      ],
+      "in_flight_requests": 0,
+      "provider_identified_requests": 18,
+      "provider_unknown_requests": 3,
+      "retry_wait_ms": 0,
+      "stages": {
+        "stage:provider_request:CombinedSubmissionDraft": {
+          "count": 7,
+          "duration_ms": {
+            "max": 22610,
+            "median": 10047,
+            "min": 5070,
+            "p95": 22610
+          },
+          "event": "stage",
+          "failure_classes": {},
+          "kind": "provider_request",
+          "outcomes": {
+            "received": 7
+          },
+          "stage": "CombinedSubmissionDraft",
+          "usage": {
+            "cost_nano": {
+              "known_records": 7,
+              "sum": 9621093,
+              "unknown_records": 0
+            },
+            "input_tokens": {
+              "known_records": 7,
+              "sum": 74010,
+              "unknown_records": 0
+            },
+            "lookup_bytes": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 7
+            },
+            "lookup_duration_ms": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 7
+            },
+            "lookup_requests": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 7
+            },
+            "output_tokens": {
+              "known_records": 7,
+              "sum": 6188,
+              "unknown_records": 0
+            },
+            "reasoning_tokens": {
+              "known_records": 7,
+              "sum": 5155,
+              "unknown_records": 0
+            }
+          }
+        },
+        "stage:provider_request:PlanDraft": {
+          "count": 4,
+          "duration_ms": {
+            "max": 12309,
+            "median": 7564.5,
+            "min": 4440,
+            "p95": 12309
+          },
+          "event": "stage",
+          "failure_classes": {},
+          "kind": "provider_request",
+          "outcomes": {
+            "received": 4
+          },
+          "stage": "PlanDraft",
+          "usage": {
+            "cost_nano": {
+              "known_records": 4,
+              "sum": 748676,
+              "unknown_records": 0
+            },
+            "input_tokens": {
+              "known_records": 4,
+              "sum": 18959,
+              "unknown_records": 0
+            },
+            "lookup_bytes": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 4
+            },
+            "lookup_duration_ms": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 4
+            },
+            "lookup_requests": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 4
+            },
+            "output_tokens": {
+              "known_records": 4,
+              "sum": 3275,
+              "unknown_records": 0
+            },
+            "reasoning_tokens": {
+              "known_records": 4,
+              "sum": 3011,
+              "unknown_records": 0
+            }
+          }
+        },
+        "stage:provider_request:QuestionDraft": {
+          "count": 10,
+          "duration_ms": {
+            "max": 15240,
+            "median": 3819.5,
+            "min": 1166,
+            "p95": 15240
+          },
+          "event": "stage",
+          "failure_classes": {
+            "HTTP429": 3
+          },
+          "kind": "provider_request",
+          "outcomes": {
+            "failed": 3,
+            "received": 7
+          },
+          "stage": "QuestionDraft",
+          "usage": {
+            "cost_nano": {
+              "known_records": 7,
+              "sum": 6043350,
+              "unknown_records": 3
+            },
+            "input_tokens": {
+              "known_records": 7,
+              "sum": 56992,
+              "unknown_records": 3
+            },
+            "lookup_bytes": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 10
+            },
+            "lookup_duration_ms": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 10
+            },
+            "lookup_requests": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 10
+            },
+            "output_tokens": {
+              "known_records": 7,
+              "sum": 2843,
+              "unknown_records": 3
+            },
+            "reasoning_tokens": {
+              "known_records": 7,
+              "sum": 2258,
+              "unknown_records": 3
+            }
+          }
+        }
+      },
+      "target": {
+        "attempted": 7,
+        "fraction_within_15_seconds": 0.42857142857142855,
+        "within_10_seconds": 0,
+        "within_15_seconds": 3
+      },
+      "transition_timing": {
+        "total:transition": {
+          "count": 11,
+          "duration_ms": {
+            "max": 34019,
+            "median": 13472,
+            "min": 5759,
+            "p95": 34019
+          },
+          "event": "total",
+          "failure_classes": {
+            "ProviderStatusError": 3,
+            "QuestionGenerationError": 1
+          },
+          "kind": "transition",
+          "outcomes": {
+            "failed": 4,
+            "succeeded": 7
+          },
+          "stage": null,
+          "usage": {
+            "cost_nano": {
+              "known_records": 8,
+              "sum": 15823424,
+              "unknown_records": 3
+            },
+            "input_tokens": {
+              "known_records": 8,
+              "sum": 135732,
+              "unknown_records": 3
+            },
+            "lookup_bytes": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 11
+            },
+            "lookup_duration_ms": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 11
+            },
+            "lookup_requests": {
+              "known_records": 0,
+              "sum": null,
+              "unknown_records": 11
+            },
+            "output_tokens": {
+              "known_records": 8,
+              "sum": 9708,
+              "unknown_records": 3
+            },
+            "reasoning_tokens": {
+              "known_records": 8,
+              "sum": 8039,
+              "unknown_records": 3
+            }
+          }
+        }
+      }
+    }
+  },
+  "evidence": "actual-provider",
+  "executed_base_commit": "4a6be545c497be57f2a8d32a3d12d6eecad47dc6",
+  "executed_uncommitted_scope_hashes": {
+    ".scratch/defense-turn-responsiveness/reviews/08-impact-probe-fixtures.json": "fc8f40f990656677edea9af9d7ae341be8d1c85ce253be29b3f9cef9333a032a",
+    ".scratch/defense-turn-responsiveness/reviews/08-provider-routing-plan.json": "b27ac394119de89d07db640264a9ce50e03412e207277d34303f6569c54bfda4",
+    "tests/benchmark_transport.py": "11d380e58c7158aebd7b9dd2970a6453d077ca5046e3688cd430047e984894d5",
+    "tests/impact_route_probe.py": "2f73198f029cdc040a4c4af05fb73ae2ff67b8d0bcd8503d05d20eed8cf8635f",
+    "tests/reviewer_benchmark.py": "b4efee2dba0ec35959abf8fb670d88091edc55b5aca6f282f63a8e91a95f5ee3",
+    "tests/test_complete_reviewer_benchmark.py": "2190b678f2caf79497bbe990824301d1e08c72bd830d69dde24df27560ca9430",
+    "tests/test_impact_reasoning_probe.py": "08e6936fdfbdfd9c93c71e7a95d7894608d4507320f2b9b3a3af74d8f9da55a4",
+    "tests/test_impact_route_probe.py": "755f33b1a9fab8d607ae23ee7b727b9c1b3488cafa210df58305007defc57f49",
+    "tests/test_provider_routing_benchmark.py": "a4bc8c1daff0bfa1688382a98e47bdf20c451787a96f3921c71cd409431d7a51"
+  },
+  "failures": [
+    {
+      "case_id": "quantitative-en",
+      "duration_ms": 16499,
+      "failure_class": "QuestionGenerationError",
+      "failure_code": "unclassified",
+      "failure_stage": "CombinedSubmissionDraft",
+      "phase": "answer"
+    },
+    {
+      "case_id": "qualitative-bisaya",
+      "duration_ms": 5759,
+      "failure_class": "ProviderStatusError",
+      "failure_code": "http_429",
+      "failure_stage": "QuestionDraft",
+      "phase": "opening"
+    },
+    {
+      "case_id": "theoretical-long-en",
+      "duration_ms": 8018,
+      "failure_class": "ProviderStatusError",
+      "failure_code": "http_429",
+      "failure_stage": "QuestionDraft",
+      "phase": "opening"
+    },
+    {
+      "case_id": "mixed-long-bisaya",
+      "duration_ms": 9730,
+      "failure_class": "ProviderStatusError",
+      "failure_code": "http_429",
+      "failure_stage": "QuestionDraft",
+      "phase": "opening"
+    }
+  ],
+  "in_flight_requests_at_final_capture": 0,
+  "limitations": [
+    "Four exploratory attempts, one fixed candidate, no same-campaign baseline or causal speed claim.",
+    "Typed/provider flow; no hosted multiplayer, financial settlement, browser or native readiness claim.",
+    "Target denominator is original-answer processing attempts including same-question outcomes; replies/completion separate.",
+    "Validated citations/schema do not certify semantic scrutiny or native-language fluency.",
+    "Longer fixtures are mostly repetitive background, not arbitrary difficult long papers.",
+    "Runtime defaults and earlier campaign reservations remain unchanged."
+  ],
+  "not_run": [],
+  "preparation": {
+    "cases": 4,
+    "conditions": [
+      "complete-candidate"
+    ],
+    "evidence": "plan-only",
+    "ordinary_bound_nano": 4611214200,
+    "protocol": {
+      "answered_turns": 8,
+      "baseline": "none; candidate completion gate",
+      "coaching": "funded overview and all bounded answer sections",
+      "focused_response_contract": "nested-result-v2",
+      "maximum_same_question_replies": 1,
+      "notes": "identical sources/answer scripts; adaptive dialogue paths may differ",
+      "order": "fixed four-case order, one attempt each; no statistical speed comparison",
+      "preparation": "identical locally validated synthetic maps; no provider mapping call",
+      "processing": "interactive 45-second processing cap; existing coaching 90-second request deadline",
+      "quality": "manual review required for every role and condition",
+      "question_budget": 8,
+      "script_version": "approach-grounded-v2"
+    },
+    "provider_gate": "not-run",
+    "provider_routes": {
+      "complete-candidate": {
+        "deepseek/deepseek-v4.1-flash-1017": "deepinfra",
+        "qwen/qwen3.8-flash": {
+          "ignore": [
+            "alibaba/us-east-1"
+          ],
+          "only": [
+            "alibaba"
+          ]
+        }
+      }
+    },
+    "runs": [
+      {
+        "admission_problem": null,
+        "approach": "quantitative",
+        "case_fingerprint": "1c306526bd04381b7914a08c58dc5fc7f30035bd106e40b64430205add25064f",
+        "case_id": "quantitative-en",
+        "coaching_bound_nano": 327612000,
+        "condition": "complete-candidate",
+        "defense_type": "research",
+        "field": "Service operations",
+        "language": "english",
+        "ordinary_bound_nano": 859976400,
+        "policy": {
+          "ceiling_nano": 5000000000,
+          "coaching_model": "anthropic/claude-haiku-5.5",
+          "coaching_output_tokens": 8192,
+          "coaching_reasoning": {
+            "effort": "high"
+          },
+          "coaching_request_reserve": 0,
+          "coaching_reserve_nano": 327612000,
+          "combined_output_tokens": 6144,
+          "context_tokens": 1000000,
+          "evidence_limits": {
+            "excerpt_bytes": 16000,
+            "excerpts": 14,
+            "expansion_bytes": 24000,
+            "expansion_windows": 6,
+            "lookups": 1,
+            "neighbour_lines": 3,
+            "study_bytes": 6000,
+            "study_lines": 8
+          },
+          "evidence_policy": "focused-v2",
+          "input_nano_per_token": 300,
+          "interaction_output_tokens": 2048,
+          "interaction_reasoning": {
+            "Critical Judge": {
+              "effort": "low"
+            },
+            "Ethics Reviewer": {
+              "effort": "low"
+            },
+            "Impact Reviewer": {
+              "max_tokens": 1024
+            },
+            "Methodology Reviewer": {
+              "effort": "low"
+            }
+          },
+          "output_nano_per_token": 1200,
+          "planner_model": "z-ai/glm-5.3-flash",
+          "planner_output_tokens": 4096,
+          "planner_reasoning": {
+            "effort": "low"
+          },
+          "planning_contract": "combined-v1",
+          "provider_only": null,
+          "request_limit": null,
+          "reviewer_models": {
+            "Critical Judge": "z-ai/glm-5.3-flash",
+            "Ethics Reviewer": "anthropic/claude-haiku-5.5",
+            "Impact Reviewer": "qwen/qwen3.8-flash",
+            "Methodology Reviewer": "deepseek/deepseek-v4.1-flash-1017"
+          },
+          "reviewer_output_tokens": 8192,
+          "reviewer_reasoning": {
+            "Critical Judge": {
+              "effort": "high"
+            },
+            "Ethics Reviewer": {
+              "effort": "medium"
+            },
+            "Impact Reviewer": {
+              "enabled": false
+            },
+            "Methodology Reviewer": {
+              "effort": "high"
+            }
+          },
+          "tier": "standard"
+        },
+        "source_bytes": 842
+      },
+      {
+        "admission_problem": null,
+        "approach": "qualitative",
+        "case_fingerprint": "f355ccbe01a466eb364d898244e24557ee71bbbb4611e5e5ca51650ab1ab3484",
+        "case_id": "qualitative-bisaya",
+        "coaching_bound_nano": 327462000,
+        "condition": "complete-candidate",
+        "defense_type": "research",
+        "field": "Education",
+        "language": "modern-bisaya",
+        "ordinary_bound_nano": 859571400,
+        "policy": {
+          "ceiling_nano": 5000000000,
+          "coaching_model": "anthropic/claude-haiku-5.5",
+          "coaching_output_tokens": 8192,
+          "coaching_reasoning": {
+            "effort": "high"
+          },
+          "coaching_request_reserve": 0,
+          "coaching_reserve_nano": 327462000,
+          "combined_output_tokens": 6144,
+          "context_tokens": 1000000,
+          "evidence_limits": {
+            "excerpt_bytes": 16000,
+            "excerpts": 14,
+            "expansion_bytes": 24000,
+            "expansion_windows": 6,
+            "lookups": 1,
+            "neighbour_lines": 3,
+            "study_bytes": 6000,
+            "study_lines": 8
+          },
+          "evidence_policy": "focused-v2",
+          "input_nano_per_token": 300,
+          "interaction_output_tokens": 2048,
+          "interaction_reasoning": {
+            "Critical Judge": {
+              "effort": "low"
+            },
+            "Ethics Reviewer": {
+              "effort": "low"
+            },
+            "Impact Reviewer": {
+              "max_tokens": 1024
+            },
+            "Methodology Reviewer": {
+              "effort": "low"
+            }
+          },
+          "output_nano_per_token": 1200,
+          "planner_model": "z-ai/glm-5.3-flash",
+          "planner_output_tokens": 4096,
+          "planner_reasoning": {
+            "effort": "low"
+          },
+          "planning_contract": "combined-v1",
+          "provider_only": null,
+          "request_limit": null,
+          "reviewer_models": {
+            "Critical Judge": "z-ai/glm-5.3-flash",
+            "Ethics Reviewer": "anthropic/claude-haiku-5.5",
+            "Impact Reviewer": "qwen/qwen3.8-flash",
+            "Methodology Reviewer": "deepseek/deepseek-v4.1-flash-1017"
+          },
+          "reviewer_output_tokens": 8192,
+          "reviewer_reasoning": {
+            "Critical Judge": {
+              "effort": "high"
+            },
+            "Ethics Reviewer": {
+              "effort": "medium"
+            },
+            "Impact Reviewer": {
+              "enabled": false
+            },
+            "Methodology Reviewer": {
+              "effort": "high"
+            }
+          },
+          "tier": "standard"
+        },
+        "source_bytes": 817
+      },
+      {
+        "admission_problem": null,
+        "approach": "theoretical",
+        "case_fingerprint": "29a70ae1975526347332356197bd1374876e101c9f9167e5a4348af6ccca6ee4",
+        "case_id": "theoretical-long-en",
+        "coaching_bound_nano": 542922000,
+        "condition": "complete-candidate",
+        "defense_type": "research",
+        "field": "Applied philosophy",
+        "language": "english",
+        "ordinary_bound_nano": 1441313400,
+        "policy": {
+          "ceiling_nano": 5000000000,
+          "coaching_model": "anthropic/claude-haiku-5.5",
+          "coaching_output_tokens": 8192,
+          "coaching_reasoning": {
+            "effort": "high"
+          },
+          "coaching_request_reserve": 0,
+          "coaching_reserve_nano": 542922000,
+          "combined_output_tokens": 6144,
+          "context_tokens": 1000000,
+          "evidence_limits": {
+            "excerpt_bytes": 16000,
+            "excerpts": 14,
+            "expansion_bytes": 24000,
+            "expansion_windows": 6,
+            "lookups": 1,
+            "neighbour_lines": 3,
+            "study_bytes": 6000,
+            "study_lines": 8
+          },
+          "evidence_policy": "focused-v2",
+          "input_nano_per_token": 300,
+          "interaction_output_tokens": 2048,
+          "interaction_reasoning": {
+            "Critical Judge": {
+              "effort": "low"
+            },
+            "Ethics Reviewer": {
+              "effort": "low"
+            },
+            "Impact Reviewer": {
+              "max_tokens": 1024
+            },
+            "Methodology Reviewer": {
+              "effort": "low"
+            }
+          },
+          "output_nano_per_token": 1200,
+          "planner_model": "z-ai/glm-5.3-flash",
+          "planner_output_tokens": 4096,
+          "planner_reasoning": {
+            "effort": "low"
+          },
+          "planning_contract": "combined-v1",
+          "provider_only": null,
+          "request_limit": null,
+          "reviewer_models": {
+            "Critical Judge": "z-ai/glm-5.3-flash",
+            "Ethics Reviewer": "anthropic/claude-haiku-5.5",
+            "Impact Reviewer": "qwen/qwen3.8-flash",
+            "Methodology Reviewer": "deepseek/deepseek-v4.1-flash-1017"
+          },
+          "reviewer_output_tokens": 8192,
+          "reviewer_reasoning": {
+            "Critical Judge": {
+              "effort": "high"
+            },
+            "Ethics Reviewer": {
+              "effort": "medium"
+            },
+            "Impact Reviewer": {
+              "enabled": false
+            },
+            "Methodology Reviewer": {
+              "effort": "high"
+            }
+          },
+          "tier": "standard"
+        },
+        "source_bytes": 36727
+      },
+      {
+        "admission_problem": null,
+        "approach": "computational/design",
+        "case_fingerprint": "561fd88b78b2b43ce5a0dacdaed959f522736e73959a13d9ac542a9ae413835e",
+        "case_id": "mixed-long-bisaya",
+        "coaching_bound_nano": 546270000,
+        "condition": "complete-candidate",
+        "defense_type": "mixed",
+        "field": "Software evaluation",
+        "language": "modern-bisaya",
+        "ordinary_bound_nano": 1450353000,
+        "policy": {
+          "ceiling_nano": 5000000000,
+          "coaching_model": "anthropic/claude-haiku-5.5",
+          "coaching_output_tokens": 8192,
+          "coaching_reasoning": {
+            "effort": "high"
+          },
+          "coaching_request_reserve": 0,
+          "coaching_reserve_nano": 546270000,
+          "combined_output_tokens": 6144,
+          "context_tokens": 1000000,
+          "evidence_limits": {
+            "excerpt_bytes": 16000,
+            "excerpts": 14,
+            "expansion_bytes": 24000,
+            "expansion_windows": 6,
+            "lookups": 1,
+            "neighbour_lines": 3,
+            "study_bytes": 6000,
+            "study_lines": 8
+          },
+          "evidence_policy": "focused-v2",
+          "input_nano_per_token": 300,
+          "interaction_output_tokens": 2048,
+          "interaction_reasoning": {
+            "Critical Judge": {
+              "effort": "low"
+            },
+            "Ethics Reviewer": {
+              "effort": "low"
+            },
+            "Impact Reviewer": {
+              "max_tokens": 1024
+            },
+            "Methodology Reviewer": {
+              "effort": "low"
+            }
+          },
+          "output_nano_per_token": 1200,
+          "planner_model": "z-ai/glm-5.3-flash",
+          "planner_output_tokens": 4096,
+          "planner_reasoning": {
+            "effort": "low"
+          },
+          "planning_contract": "combined-v1",
+          "provider_only": null,
+          "request_limit": null,
+          "reviewer_models": {
+            "Critical Judge": "z-ai/glm-5.3-flash",
+            "Ethics Reviewer": "anthropic/claude-haiku-5.5",
+            "Impact Reviewer": "qwen/qwen3.8-flash",
+            "Methodology Reviewer": "deepseek/deepseek-v4.1-flash-1017"
+          },
+          "reviewer_output_tokens": 8192,
+          "reviewer_reasoning": {
+            "Critical Judge": {
+              "effort": "high"
+            },
+            "Ethics Reviewer": {
+              "effort": "medium"
+            },
+            "Impact Reviewer": {
+              "enabled": false
+            },
+            "Methodology Reviewer": {
+              "effort": "high"
+            }
+          },
+          "tier": "standard"
+        },
+        "source_bytes": 36773
+      }
+    ]
+  },
+  "provider_gate": "failed-incomplete",
+  "provider_requests": 21,
+  "raw_artifact_sha256": {
+    "measurements.jsonl": "90e0bdd6498697d0e8aac4a4f3d70dca852971171df55378a65525b95818f837",
+    "plan.json": "417c62faaac2eebb81a3e30c4121f0a9976e0928b7636f2d5f2cd9f1f2ad8a50",
+    "quality-review.json": "f24ecc43186048ef2242f28522c2b1e4ec0d2f79b6edf3cfb4a986b3704b1534",
+    "report.json": "1dee33651f68af90631900e057a2d07dba636b59b2f86e70a17f5ad677212d3e"
+  },
+  "request_providers": {
+    "Alibaba": 4,
+    "Azure": 4,
+    "DeepInfra": 4,
+    "OpenInference": 6,
+    "unknown": 3
+  },
+  "runs": [
+    {
+      "accepted_answers": 6,
+      "cards_ready": 0,
+      "cards_required": 6,
+      "case_id": "quantitative-en",
+      "coaching_complete": false,
+      "coaching_sections": [],
+      "completion_reason": null,
+      "condition": "complete-candidate",
+      "defense_complete": false,
+      "manual_quality_gate": "unreviewed",
+      "pending_submission_retained": true,
+      "question_budget": 8,
+      "questions": 7,
+      "recovery_stage": null,
+      "roles_missing": [],
+      "roles_observed": [
+        "Critical Judge",
+        "Ethics Reviewer",
+        "Impact Reviewer",
+        "Methodology Reviewer"
+      ],
+      "run_id": "f8e3d4e9217ce1ee5faf093b"
+    },
+    {
+      "accepted_answers": 0,
+      "cards_ready": 0,
+      "cards_required": 0,
+      "case_id": "qualitative-bisaya",
+      "coaching_complete": false,
+      "coaching_sections": [],
+      "completion_reason": null,
+      "condition": "complete-candidate",
+      "defense_complete": false,
+      "manual_quality_gate": "unreviewed",
+      "pending_submission_retained": false,
+      "question_budget": 8,
+      "questions": 0,
+      "recovery_stage": "writing",
+      "roles_missing": [
+        "Critical Judge",
+        "Ethics Reviewer",
+        "Impact Reviewer",
+        "Methodology Reviewer"
+      ],
+      "roles_observed": [],
+      "run_id": "7936754a2bd187713f3345d7"
+    },
+    {
+      "accepted_answers": 0,
+      "cards_ready": 0,
+      "cards_required": 0,
+      "case_id": "theoretical-long-en",
+      "coaching_complete": false,
+      "coaching_sections": [],
+      "completion_reason": null,
+      "condition": "complete-candidate",
+      "defense_complete": false,
+      "manual_quality_gate": "unreviewed",
+      "pending_submission_retained": false,
+      "question_budget": 8,
+      "questions": 0,
+      "recovery_stage": "writing",
+      "roles_missing": [
+        "Critical Judge",
+        "Ethics Reviewer",
+        "Impact Reviewer",
+        "Methodology Reviewer"
+      ],
+      "roles_observed": [],
+      "run_id": "53167c78bc5989f426b4a360"
+    },
+    {
+      "accepted_answers": 0,
+      "cards_ready": 0,
+      "cards_required": 0,
+      "case_id": "mixed-long-bisaya",
+      "coaching_complete": false,
+      "coaching_sections": [],
+      "completion_reason": null,
+      "condition": "complete-candidate",
+      "defense_complete": false,
+      "manual_quality_gate": "unreviewed",
+      "pending_submission_retained": false,
+      "question_budget": 8,
+      "questions": 0,
+      "recovery_stage": "writing",
+      "roles_missing": [
+        "Critical Judge",
+        "Ethics Reviewer",
+        "Impact Reviewer",
+        "Methodology Reviewer"
+      ],
+      "roles_observed": [],
+      "run_id": "51ce9a9a53feeea484eb4c8b"
+    }
+  ],
+  "transition_records": 11
+}

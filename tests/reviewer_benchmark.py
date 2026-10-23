@@ -2,7 +2,7 @@
 import argparse
 from contextlib import contextmanager
 from copy import deepcopy
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from decimal import Decimal, InvalidOperation
 import hashlib
 import json
@@ -25,8 +25,9 @@ from tests.reviewer_cases import CASES, policies
 
 
 def failure_code(error):
-    code = getattr(error, 'reason_code', None)
-    if code in {'evidence_mixed_result', 'evidence_missing_result', 'response_schema_invalid'}:
+    from backend.response_diagnostics import safe_response_code
+    code = safe_response_code(error)
+    if code is not None:
         return code
     from backend.processing_policy import ProcessingWindowExpired
     from backend.openrouter_stream import ProviderStatusError
@@ -71,6 +72,9 @@ def summarize_campaign(records):
         within_15 = sum(r['outcome'] == 'succeeded' and r['duration_ms'] <= 15000 for r in ordinary)
         conditions[condition] = {
             'transition_timing': summarize(transitions),
+            **({'coaching_timing': summarize([r for r in selected if r['event'] == 'total' and
+                                             r['kind'] == 'coaching'])}
+               if any(r['kind'] == 'coaching' for r in selected) else {}),
             'stages': summarize([r for r in completed if r['event'] == 'stage']),
             'in_flight_requests': sum(r['event'] == 'stage' and r['outcome'] == 'in_flight' for r in selected),
             'target': {'attempted': len(ordinary), 'within_15_seconds': within_15,
@@ -95,39 +99,72 @@ def summarize_campaign(records):
     return {'provider_gate': 'unreviewed', 'conditions': conditions, 'comparisons': comparisons}
 
 
-def measurement_plan(cases=CASES, configured=None):
+def provider_comparison():
+    """Only the DeepSeek host changes; every captured task policy stays identical."""
+    current = policies()['current']
+    model = 'deepseek/deepseek-v4.1-flash-1017'
+    if current.provider_only or model not in current.reviewer_models.values():
+        raise ValueError('Provider comparison requires the reviewed unpinned Standard DeepSeek policy.')
+    configured = {'provider-auto': current, 'provider-deepinfra': current}
+    return configured, {'provider-auto': {}, 'provider-deepinfra': {model: 'deepinfra'}}
+
+
+def complete_candidate():
+    """The measured candidate, isolated from app defaults and existing runs."""
+    current = policies()['current']
+    if (current.provider_only or current.reviewer_models['Methodology Reviewer'] !=
+            'deepseek/deepseek-v4.1-flash-1017' or current.reviewer_models['Impact Reviewer'] !=
+            'qwen/qwen3.8-flash'):
+        raise ValueError('Re-review the candidate after changing the captured model bundle.')
+    candidate = replace(current, reviewer_reasoning={**current.reviewer_reasoning,
+        'Impact Reviewer': {'enabled': False}})
+    return {'complete-candidate': candidate}, {'complete-candidate': {
+        current.reviewer_models['Methodology Reviewer']: 'deepinfra',
+        current.reviewer_models['Impact Reviewer']: {'only': ['alibaba'], 'ignore': ['alibaba/us-east-1']}}}
+
+
+def measurement_plan(cases=CASES, configured=None, *, provider_routes=None, complete=False):
     configured = policies() if configured is None else configured
+    budget = 8 if complete else 5
     rows = []
     for case in cases:
         for condition, policy in configured.items():
-            captured = policy.snapshotted(case.files, 5)
+            captured = policy.snapshotted(case.files, budget)
             rows.append({'case_id': case.id, 'case_fingerprint': case.fingerprint,
                 'condition': condition, 'field': case.field, 'approach': case.approach,
                 'language': case.language, 'source_bytes': sum(len(f.content.encode()) for f in case.files),
                 'defense_type': 'mixed' if case.mixed else 'research',
-                'policy': asdict(captured), 'ordinary_bound_nano': captured.question_bound(case.files, 5),
-                'admission_problem': captured.viability_problem(case.files, 5)})
+                'policy': asdict(captured),
+                **({'coaching_bound_nano': captured.coaching_bound(case.files, budget)} if complete else {}),
+                'ordinary_bound_nano': captured.question_bound(case.files, budget) +
+                    (captured.coaching_bound(case.files, budget) if complete else 0),
+                'admission_problem': captured.viability_problem(case.files, budget)})
     return {'evidence': 'plan-only', 'provider_gate': 'not-run', 'runs': rows,
+        **({'provider_routes': provider_routes} if provider_routes else {}),
         'conditions': list(configured), 'cases': len(cases),
-        'protocol': {'question_budget': 5, 'answered_turns': 4, 'maximum_same_question_replies': 1,
+        'protocol': {'question_budget': budget, 'answered_turns': budget if complete else 4, 'maximum_same_question_replies': 1,
             'script_version': 'approach-grounded-v2', 'focused_response_contract': 'nested-result-v2',
             'preparation': 'identical locally validated synthetic maps; no provider mapping call',
-            'coaching': 'protected funds retained; no provider coaching call',
-            'processing': 'same current 45-second policy in all conditions',
-            'order': 'conditions rotated per case; one repeat is exploratory, not a power claim',
-            'baseline': 'previous separate/full OpenRouter policy, not GPT Luna',
+            'coaching': ('funded overview and all bounded answer sections' if complete else
+                         'protected funds retained; no provider coaching call'),
+            'processing': ('interactive 45-second processing cap; existing coaching 90-second request deadline'
+                           if complete else 'same current 45-second policy in all conditions'),
+            'order': ('fixed four-case order, one attempt each; no statistical speed comparison' if complete else
+                      'conditions rotated per case; one repeat is exploratory, not a power claim'),
+            'baseline': 'none; candidate completion gate' if complete else 'previous separate/full OpenRouter policy, not GPT Luna',
             'quality': 'manual review required for every role and condition',
             'notes': 'identical sources/answer scripts; adaptive dialogue paths may differ'},
         'ordinary_bound_nano': sum(row['ordinary_bound_nano'] for row in rows)}
 
 
-def run_case(case, condition, policy, observer, *, evidence, on_measure=None):
+def run_case(case, condition, policy, observer, *, evidence, on_measure=None, complete=False):
     """Exercise actual typed/provider contracts in isolated benchmark scopes."""
-    session = ResearchDefenseSession.create(case.plan(), 5, 'mixed' if case.mixed else 'research', 'proposal')
+    budget = 8 if complete else 5
+    session = ResearchDefenseSession.create(case.plan(), budget, 'mixed' if case.mixed else 'research', 'proposal')
     identity = secrets.token_hex(12)
     scope = 'benchmark-run:'+identity
-    captured = policy.snapshotted(case.files, 5)
-    problem = captured.viability_problem(case.files, 5)
+    captured = policy.snapshotted(case.files, budget)
+    problem = captured.viability_problem(case.files, budget)
     if problem:
         raise ValueError('Synthetic case exceeds the unchanged run ceiling; do not increase it for this benchmark.')
     ProviderAllowance(scope, 'synthetic-benchmark').establish(captured.ceiling_nano, asdict(captured))
@@ -144,6 +181,8 @@ def run_case(case, condition, policy, observer, *, evidence, on_measure=None):
         'policy_fingerprint': policy_digest, 'source_bytes': sum(len(f.content.encode()) for f in case.files)}
     metadata['response_contract'] = 'flat-v1' if captured.evidence_policy == EVIDENCE_FULL else 'nested-result-v2'
     records, quality = [], []
+    coaching = None
+    coaching_reports = []
     from backend.question_generator import RESEARCH_PANELISTS
 
     def measure(phase, action, answer_index=None):
@@ -181,13 +220,15 @@ def run_case(case, condition, policy, observer, *, evidence, on_measure=None):
         supplied = take_supplied_usage(operation)
         stages, _ = observer.snapshot()
         stages = [r for r in stages if r.get('operation_id') == operation]
-        record = {**metadata, 'event': 'total', 'kind': 'transition', 'operation_id': operation,
-            'phase': 'completion' if session.completed else phase, 'duration_ms': elapsed,
+        record = {**metadata, 'event': 'total', 'kind': 'coaching' if phase == 'coaching' else 'transition',
+            'operation_id': operation,
+            'phase': 'completion' if session.completed and phase != 'coaching' else phase, 'duration_ms': elapsed,
             'outgoing_role': outgoing, 'request_count': len(stages),
             'automatic_retries': sum(text.startswith('Trying again') for _,text in statuses),
             'retry_wait_ms': round(sum((statuses[i+1][0] if i+1<len(statuses) else monotonic())-stamp
                 for i,(stamp,text) in enumerate(statuses) if text.startswith('Waiting to retry'))*1000),
-            'outcome': 'failed' if failure else 'same_question' if result in {'clarified', 'probed'} else 'succeeded',
+            'outcome': 'failed' if failure else 'same_question' if isinstance(result, str) and
+                result in {'clarified', 'probed'} else 'succeeded',
             **({'failure_class': failure, 'failure_code': reason,
                 'failure_stage': stages[-1]['stage'] if stages else 'before_dispatch'} if failure else {})}
         for field in USAGE:
@@ -218,7 +259,7 @@ def run_case(case, condition, policy, observer, *, evidence, on_measure=None):
 
     with patch('httpx.Client', side_effect=observer.client):
         if measure('opening', lambda notify: flow.advance(notify=notify)):
-            for _ in range(4):
+            for _ in range(budget if complete else 4):
                 if session.completed or not session.awaiting_answer:
                     break
                 turn = len(session.turns)
@@ -230,11 +271,60 @@ def run_case(case, condition, policy, observer, *, evidence, on_measure=None):
                         break
                 if len(session.turns) == turn and not session.completed:
                     break
+        if complete and session.completed:
+            from backend.coaching_progress import CoachingInput, CoachingProgress
+            from backend.question_generator import generate_coaching_report
+            from backend.research_coaching import validate_complete
+            history = tuple(session.coaching_history())
+            coaching = CoachingProgress(CoachingInput(tuple(case.files), history, session.context(),
+                session.defense_type, session.research_stage,
+                provider_scope=scope, provider_owner=practice.owner))
+            for section in coaching.sections:
+                def coach(notify):
+                    coaching.begin(section)
+                    notify('Preparing coaching…')
+                    report = generate_coaching_report(list(case.files), list(history), None,
+                        client=practice.client(session, case.files).coaching(),
+                        defense_type=session.defense_type, research_stage=session.research_stage,
+                        research_context=session.context(), overview_only=section.turns is None,
+                        section_turns=section.turns)
+                    coaching.accept(section, report)
+                    coaching_reports.append({'section': section.id,
+                        **{key: getattr(report, key) for key in
+                           ('summary', 'strengths', 'improvements', 'next_step', 'closing')},
+                        # Original contributions remain in the synthetic scripts,
+                        # never copied into timing/quality exports.
+                        'answer_cards': [{'probe_id': (card.get('probe') or {}).get('id'),
+                            **{key: card[key] for key in ('turn', 'feedback', 'probe_feedback')}}
+                            for card in (report.answer_cards or [])]})
+                    if coaching.complete_sections:
+                        validate_complete(coaching.assembled(), history, session.defense_type, batched=True)
+                        coaching.completion_status = 'ready'
+                if not measure('coaching', coach):
+                    section.status = 'failed'
+                    break  # No unapproved manual section retry in this campaign.
+        if complete and quality:
+            roles = sorted({turn.panelist for turn in session.turns})
+            quality[-1]['run_result'] = {
+                'defense_complete': session.completed, 'completion_reason': session.completion_reason,
+                'questions': len(session.turns), 'question_budget': budget,
+                'accepted_answers': sum(bool(turn.answer) for turn in session.turns),
+                'pending_submission_retained': flow.pending is not None,
+                'recovery_stage': practice.question_recovery.stage,
+                'roles_observed': roles, 'roles_missing': sorted(set(RESEARCH_PANELISTS)-set(roles)),
+                'coaching_complete': coaching is not None and coaching.completion_status == 'ready',
+                'cards_ready': coaching.snapshot()['cards_ready'] if coaching else 0,
+                'cards_required': len(session.coaching_history()),
+                'coaching_sections': coaching.snapshot()['sections'] if coaching else [],
+                'coaching_reports': coaching_reports,
+                'manual_quality_gate': 'unreviewed'}
+            if on_measure:
+                on_measure(records, quality)
     practice.cancel()
     return records, quality
 
 
-def run_campaign(observer, *, evidence, on_case=None, cases=CASES, configured=None):
+def run_campaign(observer, *, evidence, on_case=None, cases=CASES, configured=None, complete=False):
     records, quality = [], []
     configured = policies() if configured is None else configured
     conditions = list(configured)
@@ -242,7 +332,8 @@ def run_campaign(observer, *, evidence, on_case=None, cases=CASES, configured=No
         order = conditions[index % len(conditions):] + conditions[:index % len(conditions)]
         for condition in order:
             rows, review = run_case(case, condition, configured[condition], observer, evidence=evidence,
-                on_measure=(lambda new, review: on_case(records+new, quality+review)) if on_case else None)
+                on_measure=(lambda new, review: on_case(records+new, quality+review)) if on_case else None,
+                complete=complete)
             records.extend(rows); quality.extend(review)
             if on_case:
                 on_case(records, quality)
@@ -268,11 +359,24 @@ def main(argv=None):
     parser.add_argument('--output', type=Path)
     parser.add_argument('--cases', nargs='+', choices=[case.id for case in CASES], help='built-in synthetic cases only')
     parser.add_argument('--conditions', nargs='+', choices=list(policies()), help='captured comparison conditions')
+    parser.add_argument('--provider-comparison', action='store_true',
+                        help='compare current routing against DeepInfra for DeepSeek only; fixed reasoning')
+    parser.add_argument('--complete-candidate', action='store_true',
+                        help='attempt full eight-question candidate defenses and protected coaching')
     args = parser.parse_args(argv)
+    if args.provider_comparison and args.conditions:
+        parser.error('--provider-comparison has its own fixed conditions')
+    if args.complete_candidate and (args.conditions or args.provider_comparison):
+        parser.error('--complete-candidate has its own fixed condition and routes')
     cases = tuple(case for case in CASES if args.cases is None or case.id in args.cases)
     configured = {name: policy for name, policy in policies().items()
                   if args.conditions is None or name in args.conditions}
-    plan = measurement_plan(cases, configured)
+    routes = None
+    if args.provider_comparison:
+        configured, routes = provider_comparison()
+    if args.complete_candidate:
+        configured, routes = complete_candidate()
+    plan = measurement_plan(cases, configured, provider_routes=routes, complete=args.complete_candidate)
     if not args.execute:
         print(json.dumps(plan, indent=2, sort_keys=True))
         return 0
@@ -298,14 +402,18 @@ def main(argv=None):
         report = summarize_campaign(reconciled)
         report.update(evidence='actual-provider', in_flight_requests=active,
                       funding={k: int(v) for k,v in observer.allowance.snapshot().items()})
+        if args.complete_candidate:
+            report['run_results'] = [{key: item[key] for key in
+                ('case_id', 'condition', 'run_id', 'run_result')} for item in quality if 'run_result' in item]
         observed = {(r['case_id'], r['condition']) for r in records}
         report['not_run'] = [{'case_id': row['case_id'], 'condition': row['condition']}
                              for row in plan['runs'] if (row['case_id'],row['condition']) not in observed]
         (args.output/'report.json').write_text(json.dumps(report, indent=2, sort_keys=True)+'\n')
     with local_ledger(args.output):
-        observer = CampaignObserver(secrets.token_hex(16), int(cap*1_000_000_000), policies()['current'])
+        observer = CampaignObserver(secrets.token_hex(16), int(cap*1_000_000_000), policies()['current'],
+                                    provider_routes=routes)
         records, quality, active = run_campaign(observer, evidence='actual-provider', on_case=write,
-                                               cases=cases, configured=configured)
+                                               cases=cases, configured=configured, complete=args.complete_candidate)
         # run_campaign returns stage rows too; write takes transition rows only.
         write([r for r in records if r['event'] == 'total'], quality)
     print('Evidence written. Provider gate remains unreviewed; no production setting was changed.')

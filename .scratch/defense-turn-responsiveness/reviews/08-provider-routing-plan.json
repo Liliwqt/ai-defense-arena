@@ -1,0 +1,360 @@
+{
+  "cases": 2,
+  "conditions": [
+    "provider-auto",
+    "provider-deepinfra"
+  ],
+  "evidence": "plan-only",
+  "ordinary_bound_nano": 1047946800,
+  "protocol": {
+    "answered_turns": 4,
+    "baseline": "previous separate/full OpenRouter policy, not GPT Luna",
+    "coaching": "protected funds retained; no provider coaching call",
+    "focused_response_contract": "nested-result-v2",
+    "maximum_same_question_replies": 1,
+    "notes": "identical sources/answer scripts; adaptive dialogue paths may differ",
+    "order": "conditions rotated per case; one repeat is exploratory, not a power claim",
+    "preparation": "identical locally validated synthetic maps; no provider mapping call",
+    "processing": "same current 45-second policy in all conditions",
+    "quality": "manual review required for every role and condition",
+    "question_budget": 5,
+    "script_version": "approach-grounded-v2"
+  },
+  "provider_gate": "not-run",
+  "provider_routes": {
+    "provider-auto": {},
+    "provider-deepinfra": {
+      "deepseek/deepseek-v4.1-flash-1017": "deepinfra"
+    }
+  },
+  "runs": [
+    {
+      "admission_problem": null,
+      "approach": "quantitative",
+      "case_fingerprint": "1c306526bd04381b7914a08c58dc5fc7f30035bd106e40b64430205add25064f",
+      "case_id": "quantitative-en",
+      "condition": "provider-auto",
+      "defense_type": "research",
+      "field": "Service operations",
+      "language": "english",
+      "ordinary_bound_nano": 262069200,
+      "policy": {
+        "ceiling_nano": 5000000000,
+        "coaching_model": "anthropic/claude-haiku-5.5",
+        "coaching_output_tokens": 8192,
+        "coaching_reasoning": {
+          "effort": "high"
+        },
+        "coaching_request_reserve": 0,
+        "coaching_reserve_nano": 177718800,
+        "combined_output_tokens": 6144,
+        "context_tokens": 1000000,
+        "evidence_limits": {
+          "excerpt_bytes": 16000,
+          "excerpts": 14,
+          "expansion_bytes": 24000,
+          "expansion_windows": 6,
+          "lookups": 1,
+          "neighbour_lines": 3,
+          "study_bytes": 6000,
+          "study_lines": 8
+        },
+        "evidence_policy": "focused-v2",
+        "input_nano_per_token": 300,
+        "interaction_output_tokens": 2048,
+        "interaction_reasoning": {
+          "Critical Judge": {
+            "effort": "low"
+          },
+          "Ethics Reviewer": {
+            "effort": "low"
+          },
+          "Impact Reviewer": {
+            "max_tokens": 1024
+          },
+          "Methodology Reviewer": {
+            "effort": "low"
+          }
+        },
+        "output_nano_per_token": 1200,
+        "planner_model": "z-ai/glm-5.3-flash",
+        "planner_output_tokens": 4096,
+        "planner_reasoning": {
+          "effort": "low"
+        },
+        "planning_contract": "combined-v1",
+        "provider_only": null,
+        "request_limit": null,
+        "reviewer_models": {
+          "Critical Judge": "z-ai/glm-5.3-flash",
+          "Ethics Reviewer": "anthropic/claude-haiku-5.5",
+          "Impact Reviewer": "qwen/qwen3.8-flash",
+          "Methodology Reviewer": "deepseek/deepseek-v4.1-flash-1017"
+        },
+        "reviewer_output_tokens": 8192,
+        "reviewer_reasoning": {
+          "Critical Judge": {
+            "effort": "high"
+          },
+          "Ethics Reviewer": {
+            "effort": "medium"
+          },
+          "Impact Reviewer": {
+            "max_tokens": 2048
+          },
+          "Methodology Reviewer": {
+            "effort": "high"
+          }
+        },
+        "tier": "standard"
+      },
+      "source_bytes": 842
+    },
+    {
+      "admission_problem": null,
+      "approach": "quantitative",
+      "case_fingerprint": "1c306526bd04381b7914a08c58dc5fc7f30035bd106e40b64430205add25064f",
+      "case_id": "quantitative-en",
+      "condition": "provider-deepinfra",
+      "defense_type": "research",
+      "field": "Service operations",
+      "language": "english",
+      "ordinary_bound_nano": 262069200,
+      "policy": {
+        "ceiling_nano": 5000000000,
+        "coaching_model": "anthropic/claude-haiku-5.5",
+        "coaching_output_tokens": 8192,
+        "coaching_reasoning": {
+          "effort": "high"
+        },
+        "coaching_request_reserve": 0,
+        "coaching_reserve_nano": 177718800,
+        "combined_output_tokens": 6144,
+        "context_tokens": 1000000,
+        "evidence_limits": {
+          "excerpt_bytes": 16000,
+          "excerpts": 14,
+          "expansion_bytes": 24000,
+          "expansion_windows": 6,
+          "lookups": 1,
+          "neighbour_lines": 3,
+          "study_bytes": 6000,
+          "study_lines": 8
+        },
+        "evidence_policy": "focused-v2",
+        "input_nano_per_token": 300,
+        "interaction_output_tokens": 2048,
+        "interaction_reasoning": {
+          "Critical Judge": {
+            "effort": "low"
+          },
+          "Ethics Reviewer": {
+            "effort": "low"
+          },
+          "Impact Reviewer": {
+            "max_tokens": 1024
+          },
+          "Methodology Reviewer": {
+            "effort": "low"
+          }
+        },
+        "output_nano_per_token": 1200,
+        "planner_model": "z-ai/glm-5.3-flash",
+        "planner_output_tokens": 4096,
+        "planner_reasoning": {
+          "effort": "low"
+        },
+        "planning_contract": "combined-v1",
+        "provider_only": null,
+        "request_limit": null,
+        "reviewer_models": {
+          "Critical Judge": "z-ai/glm-5.3-flash",
+          "Ethics Reviewer": "anthropic/claude-haiku-5.5",
+          "Impact Reviewer": "qwen/qwen3.8-flash",
+          "Methodology Reviewer": "deepseek/deepseek-v4.1-flash-1017"
+        },
+        "reviewer_output_tokens": 8192,
+        "reviewer_reasoning": {
+          "Critical Judge": {
+            "effort": "high"
+          },
+          "Ethics Reviewer": {
+            "effort": "medium"
+          },
+          "Impact Reviewer": {
+            "max_tokens": 2048
+          },
+          "Methodology Reviewer": {
+            "effort": "high"
+          }
+        },
+        "tier": "standard"
+      },
+      "source_bytes": 842
+    },
+    {
+      "admission_problem": null,
+      "approach": "qualitative",
+      "case_fingerprint": "f355ccbe01a466eb364d898244e24557ee71bbbb4611e5e5ca51650ab1ab3484",
+      "case_id": "qualitative-bisaya",
+      "condition": "provider-auto",
+      "defense_type": "research",
+      "field": "Education",
+      "language": "modern-bisaya",
+      "ordinary_bound_nano": 261904200,
+      "policy": {
+        "ceiling_nano": 5000000000,
+        "coaching_model": "anthropic/claude-haiku-5.5",
+        "coaching_output_tokens": 8192,
+        "coaching_reasoning": {
+          "effort": "high"
+        },
+        "coaching_request_reserve": 0,
+        "coaching_reserve_nano": 177613800,
+        "combined_output_tokens": 6144,
+        "context_tokens": 1000000,
+        "evidence_limits": {
+          "excerpt_bytes": 16000,
+          "excerpts": 14,
+          "expansion_bytes": 24000,
+          "expansion_windows": 6,
+          "lookups": 1,
+          "neighbour_lines": 3,
+          "study_bytes": 6000,
+          "study_lines": 8
+        },
+        "evidence_policy": "focused-v2",
+        "input_nano_per_token": 300,
+        "interaction_output_tokens": 2048,
+        "interaction_reasoning": {
+          "Critical Judge": {
+            "effort": "low"
+          },
+          "Ethics Reviewer": {
+            "effort": "low"
+          },
+          "Impact Reviewer": {
+            "max_tokens": 1024
+          },
+          "Methodology Reviewer": {
+            "effort": "low"
+          }
+        },
+        "output_nano_per_token": 1200,
+        "planner_model": "z-ai/glm-5.3-flash",
+        "planner_output_tokens": 4096,
+        "planner_reasoning": {
+          "effort": "low"
+        },
+        "planning_contract": "combined-v1",
+        "provider_only": null,
+        "request_limit": null,
+        "reviewer_models": {
+          "Critical Judge": "z-ai/glm-5.3-flash",
+          "Ethics Reviewer": "anthropic/claude-haiku-5.5",
+          "Impact Reviewer": "qwen/qwen3.8-flash",
+          "Methodology Reviewer": "deepseek/deepseek-v4.1-flash-1017"
+        },
+        "reviewer_output_tokens": 8192,
+        "reviewer_reasoning": {
+          "Critical Judge": {
+            "effort": "high"
+          },
+          "Ethics Reviewer": {
+            "effort": "medium"
+          },
+          "Impact Reviewer": {
+            "max_tokens": 2048
+          },
+          "Methodology Reviewer": {
+            "effort": "high"
+          }
+        },
+        "tier": "standard"
+      },
+      "source_bytes": 817
+    },
+    {
+      "admission_problem": null,
+      "approach": "qualitative",
+      "case_fingerprint": "f355ccbe01a466eb364d898244e24557ee71bbbb4611e5e5ca51650ab1ab3484",
+      "case_id": "qualitative-bisaya",
+      "condition": "provider-deepinfra",
+      "defense_type": "research",
+      "field": "Education",
+      "language": "modern-bisaya",
+      "ordinary_bound_nano": 261904200,
+      "policy": {
+        "ceiling_nano": 5000000000,
+        "coaching_model": "anthropic/claude-haiku-5.5",
+        "coaching_output_tokens": 8192,
+        "coaching_reasoning": {
+          "effort": "high"
+        },
+        "coaching_request_reserve": 0,
+        "coaching_reserve_nano": 177613800,
+        "combined_output_tokens": 6144,
+        "context_tokens": 1000000,
+        "evidence_limits": {
+          "excerpt_bytes": 16000,
+          "excerpts": 14,
+          "expansion_bytes": 24000,
+          "expansion_windows": 6,
+          "lookups": 1,
+          "neighbour_lines": 3,
+          "study_bytes": 6000,
+          "study_lines": 8
+        },
+        "evidence_policy": "focused-v2",
+        "input_nano_per_token": 300,
+        "interaction_output_tokens": 2048,
+        "interaction_reasoning": {
+          "Critical Judge": {
+            "effort": "low"
+          },
+          "Ethics Reviewer": {
+            "effort": "low"
+          },
+          "Impact Reviewer": {
+            "max_tokens": 1024
+          },
+          "Methodology Reviewer": {
+            "effort": "low"
+          }
+        },
+        "output_nano_per_token": 1200,
+        "planner_model": "z-ai/glm-5.3-flash",
+        "planner_output_tokens": 4096,
+        "planner_reasoning": {
+          "effort": "low"
+        },
+        "planning_contract": "combined-v1",
+        "provider_only": null,
+        "request_limit": null,
+        "reviewer_models": {
+          "Critical Judge": "z-ai/glm-5.3-flash",
+          "Ethics Reviewer": "anthropic/claude-haiku-5.5",
+          "Impact Reviewer": "qwen/qwen3.8-flash",
+          "Methodology Reviewer": "deepseek/deepseek-v4.1-flash-1017"
+        },
+        "reviewer_output_tokens": 8192,
+        "reviewer_reasoning": {
+          "Critical Judge": {
+            "effort": "high"
+          },
+          "Ethics Reviewer": {
+            "effort": "medium"
+          },
+          "Impact Reviewer": {
+            "max_tokens": 2048
+          },
+          "Methodology Reviewer": {
+            "effort": "high"
+          }
+        },
+        "tier": "standard"
+      },
+      "source_bytes": 817
+    }
+  ]
+}

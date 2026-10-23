@@ -55,7 +55,7 @@ class _EvidenceEnvelope(BaseModel):
 def lookup_format(schema):
     response = create_model(schema.__name__, __base__=_EvidenceEnvelope,
                             lookup=(EvidenceLookup | None, None), result=(schema | None, None))
-    response._normal_fields = frozenset(schema.model_fields)
+    response._normal_fields = frozenset(schema.model_fields) | getattr(schema, 'legacy_response_fields', frozenset())
     return response
 
 

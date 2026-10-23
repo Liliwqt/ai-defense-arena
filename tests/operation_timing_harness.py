@@ -175,9 +175,9 @@ class _SyntheticProvider:
                     "reason": "The defender explained a bounded proposal decision."}
                 complete = context["budget_exhausted"]
                 output.update(assessment=assessment,
-                              **({"panelist": None, "topic_id": None, "is_follow_up": False} if complete
-                                 else next(option for option in context["question_options"]
-                                           if not option["is_follow_up"])))
+                              next_move=None if complete else next(
+                                  option["choice_id"] for option in context["question_options"]
+                                  if not option["is_follow_up"]))
         elif name in {"CoachingDraft", "ResearchCoachingDraft"}:
             milliseconds = self.case.coaching_ms
             output = {"summary": "The team discussed the proposal's scope.", "strengths": [],

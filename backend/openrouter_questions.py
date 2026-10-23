@@ -38,6 +38,7 @@ from backend.focused_evidence import EvidenceLimits, FocusedEvidence
 from backend.evidence_response import EvidenceLookup, LOOKUP_GUIDANCE, lookup_format, read_result
 from backend.research_panel import research_panel_guidance
 from backend.room_operations import record_supplied_usage
+from backend.response_diagnostics import classify_rejection
 from backend.turn_recovery import QuestionPlanLease
 from backend.practice_tiers import FREE, FREE_MODEL, FREE_PROVIDER, FREE_CONTEXT_TOKENS, validate_tier, validate_tier_budget
 
@@ -241,8 +242,9 @@ PLANNER_GUIDANCE = (
 )
 
 COMBINED_PLANNING_GUIDANCE = (
-    "This request also plans the next move after the submission. If the submission is clarify or probe, "
-    "leave assessment, panelist, topic_id null and is_follow_up false. If it is an answer, assess the "
+    "This request also plans the next move after the submission. Return exactly one action shape: "
+    "answer has only action, assessment and next_move; clarify has only action and clarification; "
+    "probe has only action and probe. Omit every other action's fields. If it is an answer, assess the "
     "separate Latest submission for the current question, not the prior resolved transcript. "
     "Use exactly planning context previous_turn and previous_topic as the assessment turn and topic_id. "
     "For a probe reply, assess the original answer and the attributed probe reply together, "
@@ -250,10 +252,12 @@ COMBINED_PLANNING_GUIDANCE = (
     "Assess actual discussion, not whether the research is proven correct: addressed means a sufficient "
     "explanation of the objective, discussed means a partial explanation, and needs clarification means "
     "a material unresolved gap. Give a short evidence-based reason. "
-    "Choose one exact allowed question option, using a follow-up only for a material gap; otherwise "
+    "Set next_move to one exact choice_id from the planning context question_options; that ID selects "
+    "the complete reviewer/topic/follow-up option together. Use a follow-up only for a material gap; otherwise "
     "prioritize untouched topics, then unresolved topics. Complete only when the budget is exhausted "
     "or all topics are addressed after this assessment and all four reviewers have spoken. "
-    "A completed plan has a valid assessment, panelist and topic_id null, and is_follow_up false. "
+    "A completed plan has a valid assessment and next_move null. Do not emit separate panelist, "
+    "topic_id or is_follow_up selection fields. "
     "Never invent an option or question in this stage."
 )
 
@@ -433,7 +437,8 @@ class RunQuestionClient:
             if not isinstance(result, EvidenceLookup):
                 return result
             if evidence.expansion is not None:
-                raise QuestionGenerationError('Evidence remains insufficient after the bounded lookup. Saved work is retained; retry or revise the preparation.')
+                raise classify_rejection(QuestionGenerationError('Evidence remains insufficient after the bounded lookup. Saved work is retained; retry or revise the preparation.'),
+                                         'evidence_lookup_exhausted')
             started = monotonic()
             report = evidence.expand(result.query, source_files=result.source_files)
             record_supplied_usage({'lookup_bytes': report['bytes'], 'lookup_requests': 1,
@@ -442,7 +447,8 @@ class RunQuestionClient:
             if self.recovery:
                 self.recovery.remember_evidence(evidence)
             if not report['windows']:
-                raise QuestionGenerationError('No additional supported evidence matched the bounded lookup. Saved work is retained; retry or revise the preparation.')
+                raise classify_rejection(QuestionGenerationError('No additional supported evidence matched the bounded lookup. Saved work is retained; retry or revise the preparation.'),
+                                         'evidence_lookup_empty')
 
     def interaction(self, panelist: str, *, combined=False) -> ReviewerInteractionClient:
         """A funded client bound to the current speaking reviewer."""

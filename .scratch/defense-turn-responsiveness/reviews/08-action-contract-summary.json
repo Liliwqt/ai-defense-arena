@@ -1,0 +1,134 @@
+{
+  "approved_campaign_cap_nano": 60000000,
+  "billing": {
+    "known_plus_holds_nano": 532864,
+    "missing_receipts": 0,
+    "requests": 2,
+    "retained_unknown_cost_holds_nano": 0,
+    "scope": "this approved campaign only; supplied receipts, not an audited invoice",
+    "supplied_cost_nano": 532864,
+    "supplied_receipts": 2
+  },
+  "evidence": "actual-provider",
+  "executed_base_commit": "4a6be545c497be57f2a8d32a3d12d6eecad47dc6",
+  "executed_scope_hashes": {
+    ".scratch/defense-turn-responsiveness/reviews/08-complete-candidate-plan.json": "417c62faaac2eebb81a3e30c4121f0a9976e0928b7636f2d5f2cd9f1f2ad8a50",
+    ".scratch/defense-turn-responsiveness/reviews/08-critical-replay-fixture.json": "15d62911685c354c0bc5dc6e42a3580ce90a138b475fd090e33d76e777d242dc",
+    ".scratch/defense-turn-responsiveness/reviews/08-impact-probe-fixtures.json": "fc8f40f990656677edea9af9d7ae341be8d1c85ce253be29b3f9cef9333a032a",
+    ".scratch/defense-turn-responsiveness/reviews/08-provider-routing-plan.json": "b27ac394119de89d07db640264a9ce50e03412e207277d34303f6569c54bfda4",
+    "backend/defense_session.py": "8b8c93edce135418265b585348fb484f64660f3b8d4f904f9915b6014680a121",
+    "backend/evidence_response.py": "3c1b78720650d3ed947a8853d4c3e0ca51eebe747f6155059e5ee9f3d9d10cc3",
+    "backend/openrouter_questions.py": "50eb817a81adac0518b7d5d400aecd8e3607a2358e0cda004c840eec7d0d2ee7",
+    "backend/question_generator.py": "bab52a99bbee0f0831d5275cadb530ecbd327ddb4fb905a5e5fbc5fc38d057a5",
+    "backend/response_diagnostics.py": "84eea08e6037077edc4c146b2fad827a626de28e2d71b312ed6b8d8cb4358cef",
+    "tests/benchmark_transport.py": "11d380e58c7158aebd7b9dd2970a6453d077ca5046e3688cd430047e984894d5",
+    "tests/critical_review_probe.py": "98b6f95f5dcf71567a0cbac9aa075bbda697c0d7b99bc1748091fc90b0401bbe",
+    "tests/impact_route_probe.py": "2f73198f029cdc040a4c4af05fb73ae2ff67b8d0bcd8503d05d20eed8cf8635f",
+    "tests/operation_timing_harness.py": "1c0eaf09f2da9a5a23ddcbf5d20a2aa7ee131e7a24938fb0958c32c6e5d4b57c",
+    "tests/reviewer_benchmark.py": "df3df702205072e0b079e093ab9238e7bece9f39e73626680196adee8f7c04a8",
+    "tests/test_assessment_response_contract.py": "859fb05e1712d5a0d4a7efef4791f69f07b5e959f519a28aae9d15657c7e3fc0",
+    "tests/test_combined_planning.py": "e52d2648d4b1d66659145a926b936f65e5e64fb7bcb8a096a082da3966db3ae3",
+    "tests/test_complete_reviewer_benchmark.py": "2190b678f2caf79497bbe990824301d1e08c72bd830d69dde24df27560ca9430",
+    "tests/test_critical_review_probe.py": "5bf07443f6c153ccc5c4bbcb648683de9005286bb9b4f9205b9f0341ca3deefa",
+    "tests/test_impact_reasoning_probe.py": "08e6936fdfbdfd9c93c71e7a95d7894608d4507320f2b9b3a3af74d8f9da55a4",
+    "tests/test_impact_route_probe.py": "755f33b1a9fab8d607ae23ee7b727b9c1b3488cafa210df58305007defc57f49",
+    "tests/test_openrouter_questions.py": "690435ade4274d528fa11e95cf4c01958891b03b326e2a04a66a82098977259c",
+    "tests/test_openrouter_streamlit.py": "4e96be7646de571b0a5b13572dd0f3f15df9f64ebb14b38609f19728f7e149b4",
+    "tests/test_provider_routing_benchmark.py": "a4bc8c1daff0bfa1688382a98e47bdf20c451787a96f3921c71cd409431d7a51",
+    "tests/test_review_rejections.py": "0387133461afb6f9432c028e3032b6cf21b5bc0c25d7a6e77f6ada900ac60b1f"
+  },
+  "final_in_flight": 0,
+  "funding": {
+    "ceiling": 60000000,
+    "remaining": 59467136,
+    "used": 532864
+  },
+  "limitations": [
+    "Two isolated reviews from one synthetic English state; no stable success-rate or speed estimate.",
+    "One answer/prospective plan and one same-question probe; not two accepted answers or next-question transitions.",
+    "Probe appropriateness and semantic quality unreviewed; raw content deliberately not retained.",
+    "Both review stages exceed15s before next writing. No complete defense, coaching or provider-capacity proof.",
+    "Historical failures, prior campaign holds and runtime defaults unchanged."
+  ],
+  "measurements_sha256": "1535ba1670f07adef1ed3472f2094df9ee13d2a856496b2b6e7ed080262eb7e8",
+  "outcomes": [
+    {
+      "attempt": 0,
+      "case_fingerprint": "1c306526bd04381b7914a08c58dc5fc7f30035bd106e40b64430205add25064f",
+      "case_id": "quantitative-en",
+      "condition": "critical-replay",
+      "duration_ms": 19263,
+      "operation_id": "460f1260c18d408a26751291",
+      "outcome": "succeeded",
+      "validated_action": "answer"
+    },
+    {
+      "attempt": 1,
+      "case_fingerprint": "1c306526bd04381b7914a08c58dc5fc7f30035bd106e40b64430205add25064f",
+      "case_id": "quantitative-en",
+      "condition": "critical-replay",
+      "duration_ms": 18665,
+      "operation_id": "c41da0952bfdaf4f36a00a04",
+      "outcome": "succeeded",
+      "validated_action": "probe"
+    }
+  ],
+  "prepared_plan_sha256": "ed8e10f8613fd3e1fbba763583c5d2a69918e1cf4f16e344432bf429f23becf6",
+  "provider_gate": "incomplete",
+  "raw_results_sha256": "ec07572f19ef14aa5f456d2c01dbba95c8ffbec25bbc458b5ca202df3a972b97",
+  "requests": [
+    {
+      "attempt": 0,
+      "case_fingerprint": "1c306526bd04381b7914a08c58dc5fc7f30035bd106e40b64430205add25064f",
+      "case_id": "quantitative-en",
+      "condition": "critical-replay",
+      "cost_nano": 286679,
+      "duration_ms": 19198,
+      "event": "stage",
+      "http_status": 200,
+      "input_tokens": 10010,
+      "kind": "provider_request",
+      "max_tokens": 6144,
+      "model": "z-ai/glm-5.3-flash",
+      "operation_id": "460f1260c18d408a26751291",
+      "outcome": "received",
+      "output_tokens": 1182,
+      "provider": "OpenInference",
+      "reasoning": {
+        "effort": "low"
+      },
+      "reasoning_tokens": 1119,
+      "request_id": "fe50621f3a2c06bde04dd2f5812d99ed5b224a39bd5c88ba",
+      "reserved_nano": 25588800,
+      "stage": "CombinedSubmissionDraft"
+    },
+    {
+      "attempt": 1,
+      "case_fingerprint": "1c306526bd04381b7914a08c58dc5fc7f30035bd106e40b64430205add25064f",
+      "case_id": "quantitative-en",
+      "condition": "critical-replay",
+      "cost_nano": 246185,
+      "duration_ms": 18623,
+      "event": "stage",
+      "http_status": 200,
+      "input_tokens": 10010,
+      "kind": "provider_request",
+      "max_tokens": 6144,
+      "model": "z-ai/glm-5.3-flash",
+      "operation_id": "c41da0952bfdaf4f36a00a04",
+      "outcome": "received",
+      "output_tokens": 978,
+      "provider": "OpenInference",
+      "reasoning": {
+        "effort": "low"
+      },
+      "reasoning_tokens": 869,
+      "request_id": "10c35f778dbf08e7b663ae0b8b482b882d86ebbd5d3df263",
+      "reserved_nano": 25588800,
+      "stage": "CombinedSubmissionDraft"
+    }
+  ],
+  "scoped_delta_sha256": "d2d1489f861a993d6d812d8ad61a947822a97d4f2a3eab9294970a5d16c905de",
+  "ticket_08_criteria_complete": 4,
+  "ticket_08_criteria_total": 7
+}

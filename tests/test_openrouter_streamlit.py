@@ -70,9 +70,7 @@ class SyntheticRouter:
                 'status': 'discussed', 'reason': 'The defender described a limited pilot.'}
             output = {'action': 'answer', 'clarification': None, 'probe': None,
                 'assessment': assessment,
-                'panelist': choice['panelist'] if choice else None,
-                'topic_id': choice['topic_id'] if choice else None,
-                'is_follow_up': choice['is_follow_up'] if choice else False}
+                'next_move': choice['choice_id'] if choice else None}
             if self.decisions:
                 decision = self.decisions.pop(0)
                 if decision.get('action', 'answer') == 'answer':
@@ -80,8 +78,7 @@ class SyntheticRouter:
                 else:
                     output = {'action': decision['action'],
                         'clarification': decision.get('clarification'),
-                        'probe': decision.get('probe'), 'assessment': None,
-                        'panelist': None, 'topic_id': None, 'is_follow_up': False}
+                        'probe': decision.get('probe'), 'assessment': None, 'next_move': None}
         elif name == 'SubmissionDraft':
             output = self.decisions.pop(0) if self.decisions else {'action': 'answer', 'clarification': None, 'probe': None}
         else:

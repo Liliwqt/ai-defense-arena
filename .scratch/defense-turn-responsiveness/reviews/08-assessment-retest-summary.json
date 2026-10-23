@@ -1,0 +1,129 @@
+{
+  "approved_campaign_cap_nano": 60000000,
+  "assessment_patch_sha256": "e1ba9d05e8308c2dbb30126b202fca3020d18dda786209600a3823305700439b",
+  "billing": {
+    "known_plus_holds_nano": 531543,
+    "missing_receipts": 0,
+    "requests": 2,
+    "retained_unknown_cost_holds_nano": 0,
+    "scope": "this approved campaign only; supplied receipts, not an audited invoice",
+    "supplied_cost_nano": 531543,
+    "supplied_receipts": 2
+  },
+  "evidence": "actual-provider",
+  "executed_base_commit": "4a6be545c497be57f2a8d32a3d12d6eecad47dc6",
+  "executed_scope_hashes": {
+    ".scratch/defense-turn-responsiveness/reviews/08-complete-candidate-plan.json": "417c62faaac2eebb81a3e30c4121f0a9976e0928b7636f2d5f2cd9f1f2ad8a50",
+    ".scratch/defense-turn-responsiveness/reviews/08-critical-replay-fixture.json": "15d62911685c354c0bc5dc6e42a3580ce90a138b475fd090e33d76e777d242dc",
+    ".scratch/defense-turn-responsiveness/reviews/08-impact-probe-fixtures.json": "fc8f40f990656677edea9af9d7ae341be8d1c85ce253be29b3f9cef9333a032a",
+    ".scratch/defense-turn-responsiveness/reviews/08-provider-routing-plan.json": "b27ac394119de89d07db640264a9ce50e03412e207277d34303f6569c54bfda4",
+    "backend/defense_session.py": "8b8c93edce135418265b585348fb484f64660f3b8d4f904f9915b6014680a121",
+    "backend/openrouter_questions.py": "a45a45782eaed0cc230e51be2a57f1679eb0756011a1ccccb1c03c9be3c09c09",
+    "backend/question_generator.py": "22b4b0efa886a818cf445350e299611c6ec89dbd253c703e2d6471933749ecbd",
+    "backend/response_diagnostics.py": "84eea08e6037077edc4c146b2fad827a626de28e2d71b312ed6b8d8cb4358cef",
+    "tests/benchmark_transport.py": "11d380e58c7158aebd7b9dd2970a6453d077ca5046e3688cd430047e984894d5",
+    "tests/critical_review_probe.py": "163dcda74cc01700759a32ca1c79f5db8ae0524da627ee34f2e6e4407751442f",
+    "tests/impact_route_probe.py": "2f73198f029cdc040a4c4af05fb73ae2ff67b8d0bcd8503d05d20eed8cf8635f",
+    "tests/reviewer_benchmark.py": "df3df702205072e0b079e093ab9238e7bece9f39e73626680196adee8f7c04a8",
+    "tests/test_assessment_response_contract.py": "b063ae822b04b89f394ca9a84d720d913f9821f21da983477793f87ed2ee2085",
+    "tests/test_complete_reviewer_benchmark.py": "2190b678f2caf79497bbe990824301d1e08c72bd830d69dde24df27560ca9430",
+    "tests/test_critical_review_probe.py": "e29de954d9325596c0c8fa0274d861a420ecb70943fe67334e77558fc42b56b3",
+    "tests/test_impact_reasoning_probe.py": "08e6936fdfbdfd9c93c71e7a95d7894608d4507320f2b9b3a3af74d8f9da55a4",
+    "tests/test_impact_route_probe.py": "755f33b1a9fab8d607ae23ee7b727b9c1b3488cafa210df58305007defc57f49",
+    "tests/test_provider_routing_benchmark.py": "a4bc8c1daff0bfa1688382a98e47bdf20c451787a96f3921c71cd409431d7a51",
+    "tests/test_review_rejections.py": "0391f2aa96609455374d6fb451708a6fcfb7389e4a9dc4f993097ea2cdf869ef"
+  },
+  "final_in_flight": 0,
+  "funding": {
+    "ceiling": 60000000,
+    "remaining": 59468457,
+    "used": 531543
+  },
+  "limitations": [
+    "Two isolated reviews, one synthetic English state; no stable rate or causal improvement estimate.",
+    "Both assessments passed the constrained typed contract; one next-reviewer/topic pair failed. Exact missing half unknown.",
+    "No next writer, coaching, complete defense, capacity comparison, room publication or readiness proof.",
+    "Earlier paid campaign causes/results/holds are unchanged."
+  ],
+  "measurements_sha256": "d772fde0850ccff6abb02a0f19a087eb510634e4f4157c907c48bc154bbd799a",
+  "outcomes": [
+    {
+      "attempt": 0,
+      "case_fingerprint": "1c306526bd04381b7914a08c58dc5fc7f30035bd106e40b64430205add25064f",
+      "case_id": "quantitative-en",
+      "condition": "critical-replay",
+      "duration_ms": 19262,
+      "failure_class": "QuestionGenerationError",
+      "failure_code": "submission_incomplete_selection",
+      "operation_id": "4933bfc8bded33037244bbf7",
+      "outcome": "failed"
+    },
+    {
+      "attempt": 1,
+      "case_fingerprint": "1c306526bd04381b7914a08c58dc5fc7f30035bd106e40b64430205add25064f",
+      "case_id": "quantitative-en",
+      "condition": "critical-replay",
+      "duration_ms": 14594,
+      "operation_id": "1f71c4de41b7b9cd5ac5f9aa",
+      "outcome": "succeeded",
+      "validated_action": "answer"
+    }
+  ],
+  "prepared_plan_sha256": "f25853ab40da500bf2e17fe04bd548e2e0ecec4ab0fcf8ac44ebd56a4cf54e75",
+  "provider_gate": "failed/incomplete",
+  "raw_results_sha256": "3f86dd1c18bf5dd10111258df6e7d6c1d6af8bba48f715b0ca62a7f5189a5e77",
+  "requests": [
+    {
+      "attempt": 0,
+      "case_fingerprint": "1c306526bd04381b7914a08c58dc5fc7f30035bd106e40b64430205add25064f",
+      "case_id": "quantitative-en",
+      "condition": "critical-replay",
+      "cost_nano": 286614,
+      "duration_ms": 19185,
+      "event": "stage",
+      "http_status": 200,
+      "input_tokens": 9921,
+      "kind": "provider_request",
+      "max_tokens": 6144,
+      "model": "z-ai/glm-5.3-flash",
+      "operation_id": "4933bfc8bded33037244bbf7",
+      "outcome": "received",
+      "output_tokens": 1184,
+      "provider": "OpenInference",
+      "reasoning": {
+        "effort": "low"
+      },
+      "reasoning_tokens": 1063,
+      "request_id": "779861bb89582efb35a74a5009a32b46a1f400af1950f42e",
+      "reserved_nano": 25382100,
+      "stage": "CombinedSubmissionDraft"
+    },
+    {
+      "attempt": 1,
+      "case_fingerprint": "1c306526bd04381b7914a08c58dc5fc7f30035bd106e40b64430205add25064f",
+      "case_id": "quantitative-en",
+      "condition": "critical-replay",
+      "cost_nano": 244929,
+      "duration_ms": 14551,
+      "event": "stage",
+      "http_status": 200,
+      "input_tokens": 9921,
+      "kind": "provider_request",
+      "max_tokens": 6144,
+      "model": "z-ai/glm-5.3-flash",
+      "operation_id": "1f71c4de41b7b9cd5ac5f9aa",
+      "outcome": "received",
+      "output_tokens": 974,
+      "provider": "OpenInference",
+      "reasoning": {
+        "effort": "low"
+      },
+      "reasoning_tokens": 852,
+      "request_id": "82d9b85bf489fc9a040e8a146d8d1ba9787442d9e2e3bdb0",
+      "reserved_nano": 25382100,
+      "stage": "CombinedSubmissionDraft"
+    }
+  ],
+  "ticket_08_criteria_complete": 4,
+  "ticket_08_criteria_total": 7
+}

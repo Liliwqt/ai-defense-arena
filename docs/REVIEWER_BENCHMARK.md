@@ -132,3 +132,43 @@ that a compatible endpoint satisfies the existing price/privacy constraints:
 [provider routing](https://openrouter.ai/docs/guides/routing/provider-selection),
 [reasoning controls](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens),
 [structured outputs](https://openrouter.ai/docs/guides/features/structured-outputs).
+
+## Provider-only diagnostic comparison
+
+A separate prepared comparison keeps all models/reasoning fixed and changes only
+the DeepSeek provider restriction, leaving GLM/Haiku/Qwen routing untouched:
+
+```bash
+.venv/bin/python -m tests.reviewer_benchmark --plan --provider-comparison \
+  --cases quantitative-en qualitative-bisaya
+.venv/bin/python -m unittest tests.test_provider_routing_benchmark -v
+```
+
+See [provider research and prepared pilot](REVIEWER_PROVIDER_ROUTING.md) for current
+catalog limitations and the four-run plan. The `--provider-comparison` flag has
+its own fixed conditions and cannot be combined with `--conditions`. Ordinary
+conservative bounds are US$1.0479468; proposed campaign cap US$1.25. The previous
+paid campaigns, including this separately approved four-run comparison, are
+finished; another campaign needs its own spending approval. See the
+[comparison results](../.scratch/defense-turn-responsiveness/reviews/08-provider-routing-results.md). No app settings are changed. `requested_provider` is only the requested
+family restriction, while `provider` is supplied runtime evidence if available.
+
+## Complete candidate attempt
+
+A separately prepared [complete typed-defense benchmark](COMPLETE_DEFENSE_BENCHMARK.md)
+uses `--complete-candidate` to answer every question (eight maximum) and generate
+protected overview/all answer-coaching sections. It combines the measured
+DeepInfra/Alibaba routing and Qwen writer reasoning-off candidate, with other
+reasoning unchanged. This is not the old five-question/four-answer mini-run.
+The user-approved US$5 campaign is now finished: first case reached all four
+reviewers but no case completed. [Results and remaining gates](../.scratch/defense-turn-responsiveness/reviews/08-complete-candidate-results.md)
+record six valid next-question transitions, a Critical interpretation failure and
+three DeepInfra shared-pool429s. Supplied receiptsUS$0.016413119 plus
+US$0.062592900 unknown-cost holds; no runtime settings promoted or extra campaign.
+
+The separately authorized [two-request Critical diagnostic](../.scratch/defense-turn-responsiveness/reviews/08-critical-replay-results.md)
+then validated one reconstructed answer/plan and rejected another with
+`plan_invalid_assessment`. Both used GLM/low through OpenInference; the new guard
+classification does not prove the original failure's exact cause. Two supplied
+receipts totalUS$0.000474176, no missing holds. No runtime policy promotion or
+complete-defense acceptance follows from this single-stage replay.

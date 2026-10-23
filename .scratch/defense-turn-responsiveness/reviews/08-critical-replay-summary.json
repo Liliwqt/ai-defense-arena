@@ -1,0 +1,227 @@
+{
+  "approved_campaign_cap_nano": 60000000,
+  "billing": {
+    "known_plus_holds_nano": 474176,
+    "missing_receipts": 0,
+    "requests": 2,
+    "retained_unknown_cost_holds_nano": 0,
+    "scope": "this approved campaign only; supplied receipts, not an audited invoice",
+    "supplied_cost_nano": 474176,
+    "supplied_receipts": 2
+  },
+  "evidence": "actual-provider",
+  "executed_base_commit": "4a6be545c497be57f2a8d32a3d12d6eecad47dc6",
+  "executed_scope_hashes": {
+    ".scratch/defense-turn-responsiveness/reviews/08-complete-candidate-plan.json": "417c62faaac2eebb81a3e30c4121f0a9976e0928b7636f2d5f2cd9f1f2ad8a50",
+    ".scratch/defense-turn-responsiveness/reviews/08-critical-replay-fixture.json": "15d62911685c354c0bc5dc6e42a3580ce90a138b475fd090e33d76e777d242dc",
+    ".scratch/defense-turn-responsiveness/reviews/08-impact-probe-fixtures.json": "fc8f40f990656677edea9af9d7ae341be8d1c85ce253be29b3f9cef9333a032a",
+    ".scratch/defense-turn-responsiveness/reviews/08-provider-routing-plan.json": "b27ac394119de89d07db640264a9ce50e03412e207277d34303f6569c54bfda4",
+    "backend/defense_session.py": "8b8c93edce135418265b585348fb484f64660f3b8d4f904f9915b6014680a121",
+    "backend/openrouter_questions.py": "a45a45782eaed0cc230e51be2a57f1679eb0756011a1ccccb1c03c9be3c09c09",
+    "backend/question_generator.py": "5b4492dd593d8ffc02fe80afa1874b1a5a70d635da35e4bf4e328d1d29387198",
+    "backend/response_diagnostics.py": "84eea08e6037077edc4c146b2fad827a626de28e2d71b312ed6b8d8cb4358cef",
+    "tests/benchmark_transport.py": "11d380e58c7158aebd7b9dd2970a6453d077ca5046e3688cd430047e984894d5",
+    "tests/critical_review_probe.py": "c0e386f8ba237cd52c01a87850f8179fe8625052fdfb9bfcb91193be1f08164b",
+    "tests/impact_route_probe.py": "2f73198f029cdc040a4c4af05fb73ae2ff67b8d0bcd8503d05d20eed8cf8635f",
+    "tests/reviewer_benchmark.py": "df3df702205072e0b079e093ab9238e7bece9f39e73626680196adee8f7c04a8",
+    "tests/test_complete_reviewer_benchmark.py": "2190b678f2caf79497bbe990824301d1e08c72bd830d69dde24df27560ca9430",
+    "tests/test_critical_review_probe.py": "780cf47f790eb6bf0a76e83d880e750808b6b7b456e2d930570b533e142bdb1f",
+    "tests/test_impact_reasoning_probe.py": "08e6936fdfbdfd9c93c71e7a95d7894608d4507320f2b9b3a3af74d8f9da55a4",
+    "tests/test_impact_route_probe.py": "755f33b1a9fab8d607ae23ee7b727b9c1b3488cafa210df58305007defc57f49",
+    "tests/test_provider_routing_benchmark.py": "a4bc8c1daff0bfa1688382a98e47bdf20c451787a96f3921c71cd409431d7a51",
+    "tests/test_review_rejections.py": "0391f2aa96609455374d6fb451708a6fcfb7389e4a9dc4f993097ea2cdf869ef"
+  },
+  "in_flight": 0,
+  "limitations": [
+    "Two identical reconstructed synthetic requests only, not the original retained wire response.",
+    "The new rejection occurs at prospective-plan validation; the original failure had no parsed interpretation captured, so historical identity is unproven.",
+    "plan_invalid_assessment identifies the rejected guard, not which turn/topic/status/reason predicate failed.",
+    "No earlier-stage, writer, coaching, complete-defense, hosted or native evidence.",
+    "Runtime policies and all prior campaign holds remain unchanged."
+  ],
+  "narrow_result": "one_valid_answer_decision; one_plan_invalid_assessment",
+  "outcomes": [
+    {
+      "attempt": 0,
+      "case_fingerprint": "1c306526bd04381b7914a08c58dc5fc7f30035bd106e40b64430205add25064f",
+      "case_id": "quantitative-en",
+      "condition": "critical-replay",
+      "duration_ms": 21871,
+      "operation_id": "4b2d8292e3c97e8ddf64b909",
+      "outcome": "succeeded",
+      "validated_action": "answer"
+    },
+    {
+      "attempt": 1,
+      "case_fingerprint": "1c306526bd04381b7914a08c58dc5fc7f30035bd106e40b64430205add25064f",
+      "case_id": "quantitative-en",
+      "condition": "critical-replay",
+      "duration_ms": 12206,
+      "failure_class": "QuestionGenerationError",
+      "failure_code": "plan_invalid_assessment",
+      "operation_id": "d1a15e19b2e30298541f7c0d",
+      "outcome": "failed"
+    }
+  ],
+  "preparation": {
+    "case_fingerprint": "1c306526bd04381b7914a08c58dc5fc7f30035bd106e40b64430205add25064f",
+    "case_id": "quantitative-en",
+    "evidence": "plan-only",
+    "fixture_sha256": "15d62911685c354c0bc5dc6e42a3580ce90a138b475fd090e33d76e777d242dc",
+    "max_tokens": 6144,
+    "maximum_requests": 2,
+    "model": "z-ai/glm-5.3-flash",
+    "ordinary_bound_nano": 50693400,
+    "policy": {
+      "ceiling_nano": 5000000000,
+      "coaching_model": "anthropic/claude-haiku-5.5",
+      "coaching_output_tokens": 8192,
+      "coaching_reasoning": {
+        "effort": "high"
+      },
+      "coaching_request_reserve": 0,
+      "coaching_reserve_nano": 327612000,
+      "combined_output_tokens": 6144,
+      "context_tokens": 1000000,
+      "evidence_limits": {
+        "excerpt_bytes": 16000,
+        "excerpts": 14,
+        "expansion_bytes": 24000,
+        "expansion_windows": 6,
+        "lookups": 1,
+        "neighbour_lines": 3,
+        "study_bytes": 6000,
+        "study_lines": 8
+      },
+      "evidence_policy": "focused-v2",
+      "input_nano_per_token": 300,
+      "interaction_output_tokens": 2048,
+      "interaction_reasoning": {
+        "Critical Judge": {
+          "effort": "low"
+        },
+        "Ethics Reviewer": {
+          "effort": "low"
+        },
+        "Impact Reviewer": {
+          "max_tokens": 1024
+        },
+        "Methodology Reviewer": {
+          "effort": "low"
+        }
+      },
+      "output_nano_per_token": 1200,
+      "planner_model": "z-ai/glm-5.3-flash",
+      "planner_output_tokens": 4096,
+      "planner_reasoning": {
+        "effort": "low"
+      },
+      "planning_contract": "combined-v1",
+      "provider_only": null,
+      "request_limit": null,
+      "reviewer_models": {
+        "Critical Judge": "z-ai/glm-5.3-flash",
+        "Ethics Reviewer": "anthropic/claude-haiku-5.5",
+        "Impact Reviewer": "qwen/qwen3.8-flash",
+        "Methodology Reviewer": "deepseek/deepseek-v4.1-flash-1017"
+      },
+      "reviewer_output_tokens": 8192,
+      "reviewer_reasoning": {
+        "Critical Judge": {
+          "effort": "high"
+        },
+        "Ethics Reviewer": {
+          "effort": "medium"
+        },
+        "Impact Reviewer": {
+          "enabled": false
+        },
+        "Methodology Reviewer": {
+          "effort": "high"
+        }
+      },
+      "tier": "standard"
+    },
+    "protocol": {
+      "earlier_stages": "reconstructed synthetic history only; no mapping/planning/question/coaching request",
+      "limitation": "new stable synthetic map ID; not original retained wire bytes or proof of historical cause",
+      "lookup": "report without expansion or another request",
+      "operation": "two identical reconstructed Critical combined-review requests",
+      "retry": "none",
+      "validation": "unchanged submission and prospective-plan validators, no state publication",
+      "window_ms": 45000
+    },
+    "provider": {
+      "allow_fallbacks": false,
+      "data_collection": "deny",
+      "max_price": {
+        "completion": 1.2,
+        "prompt": 0.3,
+        "request": 0
+      },
+      "require_parameters": true
+    },
+    "provider_gate": "not-run",
+    "reasoning": {
+      "effort": "low"
+    },
+    "request_sha256": "656e672c3b02d1be51a88d0eef9a50fe3a395cade091eec38b2ce5c01971493d"
+  },
+  "provider_gate": "failed-incomplete",
+  "public_measurements_sha256": "23d341cddde33955262bc4237a17c0d8c1f90e951afb8f4ed55e112b714ea8e6",
+  "raw_plan_sha256": "55978d0a742436408bd365868fce2d41740de8255baeb5af6bef4ee46c7420c7",
+  "raw_results_sha256": "3514a14163ca9ab8e8d3ab6b3028e930919f0a3618f4b35574f3100a369b79ec",
+  "requests": [
+    {
+      "attempt": 0,
+      "case_fingerprint": "1c306526bd04381b7914a08c58dc5fc7f30035bd106e40b64430205add25064f",
+      "case_id": "quantitative-en",
+      "condition": "critical-replay",
+      "cost_nano": 301898,
+      "duration_ms": 21715,
+      "event": "stage",
+      "http_status": 200,
+      "input_tokens": 9921,
+      "kind": "provider_request",
+      "max_tokens": 6144,
+      "model": "z-ai/glm-5.3-flash",
+      "operation_id": "4b2d8292e3c97e8ddf64b909",
+      "outcome": "received",
+      "output_tokens": 1261,
+      "provider": "OpenInference",
+      "reasoning": {
+        "effort": "low"
+      },
+      "reasoning_tokens": 1154,
+      "request_id": "11baf85eaa0e2bd824bbc29e3744a4416c2cda2d0fe32bf7",
+      "reserved_nano": 25346700,
+      "stage": "CombinedSubmissionDraft"
+    },
+    {
+      "attempt": 1,
+      "case_fingerprint": "1c306526bd04381b7914a08c58dc5fc7f30035bd106e40b64430205add25064f",
+      "case_id": "quantitative-en",
+      "condition": "critical-replay",
+      "cost_nano": 172278,
+      "duration_ms": 12167,
+      "event": "stage",
+      "http_status": 200,
+      "input_tokens": 9921,
+      "kind": "provider_request",
+      "max_tokens": 6144,
+      "model": "z-ai/glm-5.3-flash",
+      "operation_id": "d1a15e19b2e30298541f7c0d",
+      "outcome": "received",
+      "output_tokens": 608,
+      "provider": "OpenInference",
+      "reasoning": {
+        "effort": "low"
+      },
+      "reasoning_tokens": 493,
+      "request_id": "05616458fddd51e49c4ea72d9f6936ef509fb4e28c3aecb7",
+      "reserved_nano": 25346700,
+      "stage": "CombinedSubmissionDraft"
+    }
+  ],
+  "scoped_runtime_patch_sha256": "7656af4cfcd4cf894a7e41ede9c3d5ef84b700b04171326748f74050ccf0da48"
+}
