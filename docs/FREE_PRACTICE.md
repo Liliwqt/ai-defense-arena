@@ -24,11 +24,11 @@ availability or conversational quality.
 
 | Task | Reasoning token bound | Total output bound |
 | --- | ---: | ---: |
-| Mapping | 4,096 | 16,384 |
+| Mapping | 512 | 16,384 |
 | Planner | 512 | 4,096 |
-| Each reviewer question | 2,048 | 8,192 |
+| Each reviewer question | 512 | 8,192 |
 | Clarification / probe | 512 | 2,048 |
-| Overview / answer coaching | 2,048 | 8,192 |
+| Overview / answer coaching | 512 | 8,192 |
 
 Every request requires the explicit `:free` model, zero maximum prompt,
 completion and request prices, supported parameters, strict JSON schema,

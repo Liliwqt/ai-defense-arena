@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 if [[ ! -x .venv/bin/python ]]; then
-  printf 'Install Python dependencies using the README first.\n' >&2
+  printf 'Install Python dependencies using docs/LOCAL_DEVELOPMENT.md first.\n' >&2
   exit 1
 fi
 if [[ ! -d game/node_modules ]]; then

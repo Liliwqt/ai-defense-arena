@@ -92,8 +92,8 @@ class FundedQuestionPolicyTests(IsolatedAllowanceTests):
         self.assertEqual(policy.ceiling_nano, 5_000_000_000)
         self.assertEqual(policy.planner_model, 'z-ai/glm-5.3-flash')
         self.assertEqual(policy.planner_reasoning, {'effort': 'low'})
-        self.assertEqual(policy.reviewer_reasoning[IMPACT], {'max_tokens': 2048})
-        self.assertEqual(policy.reviewer_reasoning[JUDGE], {'effort': 'high'})
+        self.assertEqual(policy.reviewer_reasoning[IMPACT], {'max_tokens': 512})
+        self.assertEqual(policy.reviewer_reasoning[JUDGE], {'effort': 'low'})
         for value in ('0', '-1', 'not-money', '100.01', 'NaN'):
             with self.subTest(value=value), patch.dict(os.environ, {'OPENROUTER_RUN_USD': value}):
                 with self.assertRaisesRegex(QuestionGenerationError, 'OPENROUTER_RUN_USD'):
@@ -148,7 +148,7 @@ class FundedQuestionClientTests(IsolatedAllowanceTests):
         move = self.call(client)
         self.assertEqual([call['model'] for call in self.calls],
                          ['z-ai/glm-5.3-flash', 'deepseek/deepseek-v4.1-flash-1017'])
-        self.assertEqual([call['reasoning'] for call in self.calls], [{'effort': 'low'}, {'effort': 'high'}])
+        self.assertEqual([call['reasoning'] for call in self.calls], [{'effort': 'low'}, {'effort': 'low'}])
         self.assertEqual([call['max_tokens'] for call in self.calls], [4096, 8192])
         self.assertEqual([call['response_format']['json_schema']['name'] for call in self.calls],
                          ['PlanDraft', 'QuestionDraft'])
@@ -650,9 +650,9 @@ class FundedQuestionRoundsTests(coverage.CoverageProtocolTests):
                           'CombinedSubmissionDraft', 'QuestionDraft',
                           'CombinedSubmissionDraft'])
         self.assertEqual([call['reasoning'] for call in calls],
-                         [{'effort': 'low'}, {'effort': 'high'}, {'effort': 'low'},
-                          {'effort': 'medium'}, {'effort': 'low'}, {'max_tokens': 2048},
-                          {'max_tokens': 1024}, {'effort': 'high'}, {'effort': 'low'}])
+                         [{'effort': 'low'}, {'effort': 'low'}, {'effort': 'low'},
+                          {'effort': 'low'}, {'effort': 'low'}, {'max_tokens': 512},
+                          {'max_tokens': 512}, {'effort': 'low'}, {'effort': 'low'}])
         account = self._offline_credentials[2]
         room = game_server.rooms[code]
         self.assertEqual(room.planning_contract, COMBINED_PLANNING)

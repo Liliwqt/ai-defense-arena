@@ -52,10 +52,10 @@ EVIDENCE_FOCUSED = 'focused-v2'
 # advertises supports_max_tokens with no named efforts, while GLM is mandatory
 # reasoning whose default effort is max, so its effort is always explicit.
 REVIEWER_REASONING = {
-    METHODOLOGY_REVIEWER: {'effort': 'high'},
-    ETHICS_REVIEWER: {'effort': 'medium'},
-    IMPACT_REVIEWER: {'max_tokens': 2048},
-    CRITICAL_JUDGE: {'effort': 'high'},
+    METHODOLOGY_REVIEWER: {'effort': 'low'},
+    ETHICS_REVIEWER: {'effort': 'low'},
+    IMPACT_REVIEWER: {'max_tokens': 512},
+    CRITICAL_JUDGE: {'effort': 'low'},
 }
 REVIEWER_MODELS = {
     METHODOLOGY_REVIEWER: 'deepseek/deepseek-v4.1-flash-1017',
@@ -63,13 +63,13 @@ REVIEWER_MODELS = {
     IMPACT_REVIEWER: 'qwen/qwen3.8-flash',
     CRITICAL_JUDGE: 'z-ai/glm-5.3-flash',
 }
-# Same-reviewer exchanges use the supported low effort where the catalog names
-# one. Qwen names no effort, so it gets a smaller explicit reasoning-token
-# budget than its question budget instead of an invented selector.
+# Temporary low-reasoning trial (2026-10-24): new questions and exchanges
+# request low effort. Qwen uses a 512-token budget because it exposes no named
+# effort selector. Existing runs retain their captured settings.
 INTERACTION_REASONING = {
     METHODOLOGY_REVIEWER: {'effort': 'low'},
     ETHICS_REVIEWER: {'effort': 'low'},
-    IMPACT_REVIEWER: {'max_tokens': 1024},
+    IMPACT_REVIEWER: {'max_tokens': 512},
     CRITICAL_JUDGE: {'effort': 'low'},
 }
 INTERACTION_OUTPUT_TOKENS = 2048
@@ -125,7 +125,7 @@ class RunQuestionPolicy:
             object.__setattr__(self, 'interaction_reasoning', {
                 role: dict(value) for role, value in INTERACTION_REASONING.items()})
         if self.coaching_reasoning is None:
-            object.__setattr__(self, 'coaching_reasoning', {'effort': 'high'})
+            object.__setattr__(self, 'coaching_reasoning', {'effort': 'low'})
 
     @classmethod
     def configured(cls, tier='standard'):
@@ -133,9 +133,9 @@ class RunQuestionPolicy:
         if tier == FREE:
             return cls(tier=FREE, planner_model=FREE_MODEL, planner_reasoning={'max_tokens': 512},
                 reviewer_models={role: FREE_MODEL for role in RESEARCH_PANELISTS},
-                reviewer_reasoning={role: {'max_tokens': 2048} for role in RESEARCH_PANELISTS},
+                reviewer_reasoning={role: {'max_tokens': 512} for role in RESEARCH_PANELISTS},
                 interaction_reasoning={role: {'max_tokens': 512} for role in RESEARCH_PANELISTS},
-                coaching_model=FREE_MODEL, coaching_reasoning={'max_tokens': 2048},
+                coaching_model=FREE_MODEL, coaching_reasoning={'max_tokens': 512},
                 request_limit=80, coaching_request_reserve=12,
                 context_tokens=FREE_CONTEXT_TOKENS, provider_only=[FREE_PROVIDER])
         try:

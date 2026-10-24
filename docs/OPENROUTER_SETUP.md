@@ -47,14 +47,14 @@ this transport setting does not change models, reasoning, output caps or prices.
 | --- | --- | --- | --- |
 | Mapping | `z-ai/glm-5.3-flash` | low for new preparations |65536|
 | Planner | `z-ai/glm-5.3-flash` | low |4096|
-| Methodology | `deepseek/deepseek-v4.1-flash-1017` | high |8192|
-| Ethics | `anthropic/claude-haiku-5.5` | medium |8192|
-| Impact | `qwen/qwen3.8-flash` | reasoning max_tokens2048 |8192|
-| Critical | `z-ai/glm-5.3-flash` | high |8192|
-| Overview/answer coaching | `anthropic/claude-haiku-5.5` | high |8192|
+| Methodology | `deepseek/deepseek-v4.1-flash-1017` | low |8192|
+| Ethics | `anthropic/claude-haiku-5.5` | low |8192|
+| Impact | `qwen/qwen3.8-flash` | reasoning max_tokens512 |8192|
+| Critical | `z-ai/glm-5.3-flash` | low |8192|
+| Overview/answer coaching | `anthropic/claude-haiku-5.5` | low |8192|
 
 Same-reviewer clarification/probes use the assigned reviewer model, low reasoning
-for Methodology/Ethics/Critical and reasoning max_tokens1024 for Impact, within a
+for Methodology/Ethics/Critical and reasoning max_tokens512 for Impact, within a
 2048 total-output bound. Qwen's catalog advertises token-budget reasoning, not a
 named effort. Actual selected-route support still requires account tests.
 
@@ -63,8 +63,8 @@ unnecessary thinking time. The user selected GLM 5.3 Flash for the mapping trial
 the server explicitly selects it for new preparations. The complete paper, map schema, coverage instructions,
 streaming progress, citation checks and output capacity are unchanged. This is
 an effort request, not an exact reasoning-token cap or a measured speed guarantee.
-Reviewer/coaching settings and Free practice's existing token-budget request
-are unchanged. Create a new room (or a new Streamlit preparation session) to use
+The temporary low-reasoning trial also lowers reviewer/coaching defaults and
+requests a 512-token reasoning budget for all Free tasks. Create a new room (or a new Streamlit preparation session) to use
 the new setting; retrying an existing preparation keeps its saved effort.
 Legacy preparations keep DeepSeek, including older saved policies without an
 explicit model field. Set OPENROUTER_MAPPING_MODEL to the DeepSeek ID to roll
@@ -72,6 +72,18 @@ back future preparations; this does not rewrite active rooms or enable automatic
 fallback. Actual GLM mapping speed and source coverage still need a live check.
 See [mapping speed research](OPENROUTER_MAPPING_SPEED_RESEARCH.md) for candidate
 models, published throughput and the pending same-paper quality/timing check.
+
+## Temporary low-reasoning trial (2026-10-24)
+
+New Standard runs request low for every named-effort task, including coaching.
+Qwen questions and interactions request reasoning max_tokens512; Free mapping,
+planning, questions, interactions and coaching also request max_tokens512.
+These are requested settings, not measured latency or quality improvements.
+Mapping already defaults to low; an explicit OPENROUTER_MAPPING_REASONING_EFFORT
+operator override still applies. Existing preparation/run snapshots are preserved;
+create a new room/preparation and run to use these defaults. Models, total output
+limits, prices, citations and spending/recovery rules are unchanged. Revert this
+trial commit to restore the preceding defaults for future runs.
 
 ## Allowances and recovery
 

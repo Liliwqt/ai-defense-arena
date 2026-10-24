@@ -162,7 +162,7 @@ class OpenRouterFallbackTests(IsolatedAllowanceTests):
             self.assertEqual([body['model'] for body in questions], list(REVIEWER_MODELS.values()))
             coaching = [body for body in calls if 'CoachingDraft' in body['response_format']['json_schema']['name']]
             self.assertEqual(len(coaching), 3)
-            self.assertTrue(all(body['model'] == 'anthropic/claude-haiku-5.5' and body['reasoning'] == {'effort': 'high'} for body in coaching))
+            self.assertTrue(all(body['model'] == 'anthropic/claude-haiku-5.5' and body['reasoning'] == {'effort': 'low'} for body in coaching))
             interactive = [body['response_format']['json_schema']['name'] for body in calls
                            if 'Coaching' not in body['response_format']['json_schema']['name']]
             self.assertEqual(interactive, ['ResearchPlanDraft', 'PlanDraft', 'QuestionDraft',

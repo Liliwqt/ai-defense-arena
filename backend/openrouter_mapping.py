@@ -51,7 +51,7 @@ class MappingPolicy:
         validate_tier(tier)
         if tier == FREE:
             return cls(max_output_tokens=16384, tier=FREE, model=FREE_MODEL,
-                       reasoning_tokens=4096, request_limit=3,
+                       reasoning_tokens=512, request_limit=3,
                        context_tokens=FREE_CONTEXT_TOKENS, provider_only=[FREE_PROVIDER])
         try:
             output = int(os.getenv('OPENROUTER_MAPPING_MAX_OUTPUT_TOKENS', '65536'))

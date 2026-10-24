@@ -86,7 +86,7 @@ class CompleteReviewerBenchmarkTests(IsolatedAllowanceTests):
         for body in impact:
             self.assertEqual(body['provider']['ignore'], ['alibaba/us-east-1'])
             self.assertEqual(body['reasoning'], {'enabled': False} if
-                body['response_format']['json_schema']['name'] == 'QuestionDraft' else {'max_tokens': 1024})
+                body['response_format']['json_schema']['name'] == 'QuestionDraft' else {'max_tokens': 512})
         self.assertNotIn(case.answers[0], json.dumps(records))
         self.assertNotIn('original_answer', json.dumps(quality))
 

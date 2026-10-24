@@ -8,7 +8,7 @@ import { purchaseLabel, runLabel, refundReviewLabel } from "../lib/paymentHistor
 export function GoogleSignIn({ googleEnabled }: { googleEnabled: boolean }) {
   return googleEnabled
     ? <a className="button-primary account-login" href="/api/auth/google/login?return_to=%2F%3Faccount%3D1">Sign in with Google</a>
-    : <p role="status">Google sign-in needs server configuration. Follow the README’s local account setup.</p>;
+    : <p role="status">Google sign-in needs server configuration. See docs/LOCAL_DEVELOPMENT.md for account setup.</p>;
 }
 
 export function AccountPanel({ account, refresh, error, previewMode = false }: {

@@ -106,6 +106,7 @@ class FreePolicyTests(IsolatedAllowanceTests):
                 MappingClient('free-map', 'owner', tier='free').parse(input=[], text_format=ResearchPlanDraft)
         self.assertEqual(len(bodies), 3)
         self.assertTrue(all(body['model'] == FREE_MODEL for body in bodies))
+        self.assertTrue(all(body['reasoning'] == {'max_tokens': 512, 'exclude': True} for body in bodies))
         self.assertTrue(all(body['provider']['max_price']['completion'] == 0 for body in bodies))
         self.assertEqual(client.allowance.snapshot()['used'], 0)
         with self.assertRaisesRegex(QuestionGenerationError, 'tier is fixed'):

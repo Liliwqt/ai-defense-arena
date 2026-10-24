@@ -97,7 +97,7 @@ class InteractionClientTests(unittest.TestCase):
                 self.assertEqual(call['reasoning'],
                                  RunQuestionPolicy().interaction_reasoning[role])
                 self.assertIn(call['reasoning'],
-                              ({'effort': 'low'}, {'max_tokens': 1024}))
+                              ({'effort': 'low'}, {'max_tokens': 512}))
                 self.assertEqual(call['max_tokens'], INTERACTION_OUTPUT_TOKENS)
                 self.assertEqual(call['response_format']['json_schema']['name'], 'SubmissionDraft')
                 self.assertEqual(parsed.output_parsed.action, 'answer')
@@ -258,9 +258,9 @@ class FundedInteractionProtocolTests(FundedInteractionRooms):
                           'deepseek/deepseek-v4.1-flash-1017',
                           'anthropic/claude-haiku-5.5'])
         self.assertEqual([call['reasoning'] for call in calls],
-                         [{'effort': 'low'}, {'effort': 'high'}, {'effort': 'low'},
+                         [{'effort': 'low'}, {'effort': 'low'}, {'effort': 'low'},
                           {'effort': 'low'}, {'effort': 'low'},
-                          {'effort': 'medium'}])
+                          {'effort': 'low'}])
         self.assertEqual([call['response_format']['json_schema']['name'] for call in calls[2:5]],
                          ['CombinedSubmissionDraft'] * 3)
         self.assertEqual([call['max_tokens'] for call in calls[2:5]],
