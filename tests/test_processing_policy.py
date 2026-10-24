@@ -402,7 +402,7 @@ class BoundedWorkTests(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(coordinator.shutdown)
         await coordinator.execute(GenerateQuestion(2, False))
         for _ in range(100):
-            if room.phase == 'voting':
+            if states and states[-1]['phase'] == 'voting':
                 break
             await asyncio.sleep(0.01)
         self.assertEqual(len(requests), 2)
