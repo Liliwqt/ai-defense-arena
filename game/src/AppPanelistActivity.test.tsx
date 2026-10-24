@@ -117,3 +117,11 @@ it("renders source phrases as text and retires highlights when a run is ended or
   app.rerender(<App />);
   expect(screen.queryByText(/研究 scope/)).toBeNull();
 });
+
+it("uses the same research reviewer name in the heading and activity for a legacy role", () => {
+  socket.roomState = waitingRoom({ panelist_activity: { ...waitingRoom().panelist_activity!, reviewer: "Critical Judge" } });
+  render(<App />);
+  expect(screen.getByRole("heading", { name: "Critical Reviewer" })).toBeVisible();
+  expect(within(screen.getByRole("region", { name: "Panelist activity" })).getByText("Critical Reviewer")).toBeVisible();
+  expect(screen.queryByRole("heading", { name: "Critical Judge" })).toBeNull();
+});

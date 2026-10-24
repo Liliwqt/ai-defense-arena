@@ -425,7 +425,7 @@ export function deriveRoomPresentation(state: Readonly<RoomState> | null) {
   const currentActivity = suppliedActivity?.operation_id === state?.operation?.id
     && suppliedActivity?.view_id === state?.defense_view_id ? suppliedActivity : null;
   const activity = liveActivity ? {
-    reviewer: currentActivity?.reviewer ?? null,
+    reviewer: currentActivity?.reviewer ? displayRole(currentActivity.reviewer) : null,
     context: currentActivity?.context ?? null,
   } : null;
   return {

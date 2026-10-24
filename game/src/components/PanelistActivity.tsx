@@ -9,7 +9,7 @@ export function PanelistActivity({ presentation, serverNowMs }: {
   return <section className="panelist-activity" aria-label="Panelist activity">
     <span className="activity-gutter" aria-hidden="true"><span>◇</span><i /></span>
     <div className="activity-content">
-      {activity.reviewer && <p className="activity-reviewer">{activity.reviewer === "Critical Judge" ? "Critical Reviewer" : activity.reviewer}</p>}
+      {activity.reviewer && <p className="activity-reviewer">{activity.reviewer}</p>}
       <WaitingIndicator label={waiting.label} detail={waiting.detail} context={activity.context}
         active={waiting.active} startedAtMs={waiting.startedAtMs} serverNowMs={serverNowMs} />
     </div>
