@@ -76,7 +76,8 @@ class TypedDefenseFlow:
         turn = self.session.turns[-1] if self.session.turns else None
         key = (kind, len(self.session.turns))
         cap = limit('AI_INTERPRETATION_ATTEMPTS', 6, 20) if kind == 'interpretation' else limit('AI_QUESTION_ATTEMPTS', 3, 10)
-        stage = ('Reviewing your reply…' if turn and turn.probe else 'Reviewing your answer…') if kind == 'interpretation' else (
+        stage = ('Reviewing your probe reply or clarification…' if turn and turn.probe
+                 else 'Reviewing your answer or clarification…') if kind == 'interpretation' else (
             'Answer saved. Preparing your next question…' if turn and turn.resolved and turn.answer else
             'Preparing your next question…' if turn else 'Preparing your first question…')
         retrying = False

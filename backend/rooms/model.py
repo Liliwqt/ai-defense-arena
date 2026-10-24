@@ -211,9 +211,24 @@ class Room(TimedTurn):
     def panelist_activity(self, operation: RoomOperation | None) -> dict | None:
         """Expose current public discussion context, never prospective AI work."""
         if (self.defense_type == "code" or operation is None
-                or operation.kind not in {"question", "interpretation", "mapping"}
+                or operation.kind not in {"question", "interpretation", "mapping", "coaching"}
                 or operation.stage == "retry_wait"):
             return None
+        if operation.kind == "coaching":
+            job = self.coaching_progress
+            if job is None or job.cancelled or operation.stage_finished:
+                return None
+            section = next((section for section in job.sections if section.status == "generating"), None)
+            if section is not None:
+                numbers = ", ".join(str(turn + 1) for turn in section.turns or ())
+                context = "Team overview" if section.turns is None else ("Question " if len(section.turns) == 1 else "Questions ") + numbers
+                section_id = section.id
+            elif operation.stage == "saving_completion" and job.complete_sections:
+                context, section_id = "Completed coaching sections", "saving_completion"
+            else:
+                return None
+            return {"operation_id": operation.id, "view_id": self.defense_view_id,
+                    "reviewer": None, "context": context, "job_id": job.id, "section_id": section_id}
         if operation.kind == "mapping":
             # Accepted upload identity is already public to joined defenders.
             # Streamed topics remain provisional, including during validation.

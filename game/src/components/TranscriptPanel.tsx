@@ -106,6 +106,7 @@ export function TranscriptPanel({ roomState, previewMode = false, connected = tr
             closingPanelist={presentation.closingPanelist || null}
             progress={roomState?.coaching_progress}
             waiting={presentation.waiting}
+            activity={presentation.activity}
             serverNowMs={roomState?.server_now_ms}
             onRetry={roomState?.self_is_host && onSendEvent ? ()=>onSendEvent({type:'retry_coaching'}) : undefined}
             retryDisabled={!connected || previewMode}

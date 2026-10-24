@@ -194,7 +194,7 @@ export interface ResearchPlan {
 }
 
 export interface RoomState {
-  panelist_activity?: { operation_id: string; view_id: string; reviewer: string | null; context: string | null } | null;
+  panelist_activity?: { operation_id: string; view_id: string; reviewer: string | null; context: string | null; job_id?: string; section_id?: string } | null;
   operation?: RoomOperation | null;
   coaching_progress?: CoachingProgress | null;
   my_voice_draft?: {attempt_id: string; text: string; turn: number; probe_id: string | null; view_id: string} | null;

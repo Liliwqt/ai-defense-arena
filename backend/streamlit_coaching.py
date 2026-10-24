@@ -1,5 +1,6 @@
 """Typed fallback presentation of the shared validated research coaching cards."""
 import streamlit as st
+from backend.streamlit_activity import temporary_activity
 
 
 def render_feedback(feedback, title):
@@ -102,7 +103,9 @@ def advance_research_report(api_key, model):
         job.begin(section)
         request = job.request
         try:
-            with st.spinner('Preparing the next coaching section…'):
+            numbers = ', '.join(str(turn + 1) for turn in section.turns or ())
+            context = 'Team overview' if section.turns is None else ('Question ' if len(section.turns) == 1 else 'Questions ') + numbers
+            with temporary_activity('Preparing your coaching overview…' if section.turns is None else 'Preparing your answer coaching…', context):
                 if not request.provider_scope or not request.provider_owner:
                     raise QuestionGenerationError('This retained report has no funded provider scope. Keep its ready cards or start a new practice.')
                 client = RunQuestionClient(request.provider_scope, request.provider_owner, None, request.files,
@@ -115,7 +118,8 @@ def advance_research_report(api_key, model):
             section.status = 'failed'
             section.error = str(error) if isinstance(error,QuestionGenerationError) else describe_openai_error(error,model,api_key) if isinstance(error,OpenAIError) else 'The coaching section could not be prepared. Retry when the service recovers.'
         if job.complete_sections:
-            validate_complete(job.assembled(), request.history, request.defense_type, batched=True)
-            job.completion_status = 'ready'
+            with temporary_activity('Saving your coaching…', 'Completed coaching sections'):
+                validate_complete(job.assembled(), request.history, request.defense_type, batched=True)
+                job.completion_status = 'ready'
         st.session_state['research_coaching'] = job.assembled()
         st.rerun()

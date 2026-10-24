@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+from contextlib import nullcontext
 from typing import get_args
 
 import streamlit as st
@@ -10,6 +11,7 @@ from openai import OpenAIError
 from backend import defense_availability
 from backend.openrouter_mapping import MODEL as MAPPING_MODEL
 from backend.streamlit_provider import provider_for
+from backend.streamlit_activity import temporary_activity
 
 from backend.defense_session import (
     MAX_ANSWER_CHARS,
@@ -51,10 +53,10 @@ def generation_error_message(error: Exception, model: str, api_key: str) -> str:
 
 def generate_next_question(session, files, api_key, model):
     try:
-        with st.spinner("Preparing your next question…"):
-            if isinstance(session, ResearchDefenseSession):
-                research_action(session, files, 'advance')
-            else:
+        if isinstance(session, ResearchDefenseSession):
+            research_action(session, files, 'advance')
+        else:
+            with st.spinner("Preparing your next question…"):
                 advance_defense(session, files, api_key, model=model)
     except Exception as error:
         st.session_state["defense_error"] = generation_error_message(error, model, api_key)
@@ -66,14 +68,14 @@ def generate_next_question(session, files, api_key, model):
 
 def research_action(session, files, action, text=None):
     flow = st.session_state['research_provider'].flow(session, files)
-    stage = st.empty()
-    try:
-        with st.spinner('Working on this defense turn…', show_time=True):
-            if action == 'submit':
-                return flow.submit(text, notify=stage.info)
-            return flow.advance(notify=stage.info)
-    finally:
-        stage.empty()
+    turn = session.turns[-1] if session.turns else None
+    topic = next((topic for topic in session.plan.topics if turn and topic.id == turn.topic_id), None)
+    label = ('Reviewing your probe reply or clarification…' if turn and turn.probe
+             else 'Reviewing your answer or clarification…') if action == 'submit' else 'Thinking… Preparing your question…'
+    with temporary_activity(label, topic.title if topic else None) as update:
+        if action == 'submit':
+            return flow.submit(text, notify=update)
+        return flow.advance(notify=update)
 
 
 def prepare_research_scope(files, api_key, model, mode, research_stage):
@@ -91,7 +93,8 @@ def prepare_research_scope(files, api_key, model, mode, research_stage):
     st.session_state["research_plan_approved"] = False
     st.session_state["research_profile_dirty"] = False
     try:
-        with st.spinner("Mapping your paper…"):
+        paper = next((file for file in files if file.kind.startswith('research')), None)
+        with temporary_activity("Mapping your paper…", paper.name if paper else None):
             client = st.session_state["research_provider"].mapping()
             plan = generate_research_plan(files, client.api_key, MAPPING_MODEL, client=client, defense_type=mode, research_stage=research_stage,
                     profile_correction=st.session_state.get("research_profile_correction"))
@@ -308,7 +311,7 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
             st.info("Prepare the research map and confirm its question budget before starting.")
         if st.button(button_label, disabled=not bool(api_key) or not research_ready):
             try:
-                with st.spinner("Preparing your first question…"):
+                with st.spinner("Preparing your first question…") if mode == "code" else nullcontext():
                     if mode == "code":
                         request = prepare_progression(None, defense_type=mode, research_stage=research_stage)
                         new_session = request.apply(request.generate(files, api_key, model, first_question=generate_first_question))

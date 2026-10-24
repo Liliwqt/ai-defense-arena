@@ -125,6 +125,8 @@ function deriveWaiting(state: Readonly<RoomState> | null): WaitingPresentation |
         detail: mappingDetail(state) };
     }
     if (operation.kind === "coaching") {
+      if (state.coaching_progress && operation.stage !== "saving_completion"
+          && !state.coaching_progress.sections.some(section => section.status === "generating")) return null;
       return { active: true, retryWait: false, startedAtMs,
         label: coachingLabel(operation.stage, operation.retrying),
         detail: "Finished sections remain available while the rest are prepared." };
@@ -147,6 +149,7 @@ function deriveWaiting(state: Readonly<RoomState> | null): WaitingPresentation |
       detail: mappingDetail(state) };
   }
   if (state.feedback_status === "generating") {
+    if (state.coaching_progress && !state.coaching_progress.sections.some(section => section.status === "generating")) return null;
     return { active: true, retryWait: false, startedAtMs: null,
       label: coachingLabel("", false) };
   }
@@ -432,11 +435,16 @@ export function deriveRoomPresentation(state: Readonly<RoomState> | null) {
   const waiting = deriveWaiting(state);
   const liveActivity = !!state && state.defense_type !== "code" && !!state.defense_type
     && (phase === "generating" || phase === "interpreting"
-      || phase === "lobby" && state.research_planning_status === "planning")
+      || phase === "lobby" && state.research_planning_status === "planning"
+      || phase === "complete" && state.feedback_status === "generating")
     && !!waiting?.active;
+  const coachingSection = state?.coaching_progress?.sections.find(section => section.status === "generating");
+  const coachingScopeMatches = state?.operation?.kind !== "coaching" || !!state.coaching_progress
+      && state.panelist_activity?.job_id === state.coaching_progress.job_id
+      && state.panelist_activity?.section_id === (state.operation.stage === "saving_completion" ? "saving_completion" : coachingSection?.id);
   const suppliedActivity = state?.panelist_activity;
   const currentActivity = suppliedActivity?.operation_id === state?.operation?.id
-    && suppliedActivity?.view_id === state?.defense_view_id ? suppliedActivity : null;
+    && suppliedActivity?.view_id === state?.defense_view_id && coachingScopeMatches ? suppliedActivity : null;
   const activity = liveActivity ? {
     reviewer: currentActivity?.reviewer ? displayRole(currentActivity.reviewer) : null,
     context: currentActivity?.context ?? null,

@@ -200,6 +200,27 @@ if (submissionPreview && !completePreview && !planPreview) {
   }
 }
 const coachingPreview = previewParams.get("coaching");
+if (completePreview && researchPreview && coachingPreview === "partial" && previewState.feedback) {
+  previewState.defense_view_id = "preview-coaching";
+  previewState.feedback_status = "generating";
+  previewState.feedback.answer_cards = previewState.turns.slice(0, 3).map((turn, index) => ({
+    turn: index, question: turn.question, panelist: turn.panelist, original_answer: turn.answer,
+    speaker_name: turn.answered_by, timed_out: false, ended_early: false, probe: null, probe_feedback: null,
+    citation: { filename: turn.filename, evidence_line: turn.evidence_line, evidence_text: turn.evidence_text },
+    feedback: { strengths: ["You stated a concrete pilot decision."], improvements: ["Connect that decision to its source before adding detail."],
+      stronger_answer: "If supported, explain [the decision], [why it fits] and [the paper evidence].", wording_basis: "conditional",
+      practice_task: "Practice a direct answer, reason and source.", wording_examples: [] },
+  }));
+  previewState.coaching_progress = { job_id: "preview-job", overview_status: "ready", cards_ready: 3, cards_required: 4,
+    completion_status: "pending", completion_error: null, can_retry: false, sections: [
+      { id: "overview", turns: null, status: "ready", attempts_left: 2, error: null },
+      { id: "answers-0", turns: [0, 1, 2], status: "ready", attempts_left: 2, error: null },
+      { id: "answers-3", turns: [3], status: "generating", attempts_left: 2, error: null },
+    ] };
+  previewState.operation = { id: "coaching:1", kind: "coaching", stage: "answers", started_at_ms: Date.now() - 4000, attempt: 1, retrying: false };
+  previewState.panelist_activity = { operation_id: "coaching:1", view_id: "preview-coaching", reviewer: null, context: "Question 4",
+    job_id: "preview-job", section_id: "answers-3" };
+}
 if (completePreview && ["none", "generating", "failed"].includes(coachingPreview ?? "")) {
   previewState.feedback_status = coachingPreview as "none" | "generating" | "failed";
   previewState.feedback = null;

@@ -2,7 +2,7 @@ import type { RoomPresentation } from "../lib/roomPresentation";
 import { WaitingIndicator } from "./WaitingIndicator";
 
 export function PanelistActivity({ presentation, serverNowMs }: {
-  presentation: RoomPresentation; serverNowMs?: number;
+  presentation: Pick<RoomPresentation, "activity" | "waiting">; serverNowMs?: number;
 }) {
   const { activity, waiting } = presentation;
   if (!activity || !waiting) return null;

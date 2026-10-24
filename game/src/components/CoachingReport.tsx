@@ -1,7 +1,8 @@
 import { AnswerCoaching } from "./AnswerCoaching";
 import { WaitingIndicator } from "./WaitingIndicator";
+import { PanelistActivity } from "./PanelistActivity";
 import type { CoachingFeedback, CoachingProgress, FeedbackStatus } from "../types";
-import type { WaitingPresentation } from "../lib/roomPresentation";
+import type { WaitingPresentation, RoomPresentation } from "../lib/roomPresentation";
 
 interface CoachingReportProps {
   failureGuidance?: string;
@@ -10,21 +11,26 @@ interface CoachingReportProps {
   closingPanelist?: string | null;
   progress?: CoachingProgress | null;
   waiting?: WaitingPresentation | null;
+  activity?: RoomPresentation["activity"];
   serverNowMs?: number;
   onRetry?: () => boolean;
   retryDisabled?: boolean;
 }
 
-export function CoachingReport({ feedbackStatus, feedback, closingPanelist, progress, waiting, serverNowMs, onRetry, retryDisabled, failureGuidance = "Review Controls for recovery options." }: CoachingReportProps) {
+export function CoachingReport({ feedbackStatus, feedback, closingPanelist, progress, waiting, activity, serverNowMs, onRetry, retryDisabled, failureGuidance = "Review Controls for recovery options." }: CoachingReportProps) {
   if (feedbackStatus === "none" && !progress) return null;
+  const queuedLabel = progress?.overview_status === "ready" && progress.cards_ready === progress.cards_required
+    ? "Waiting for coaching completion…" : "Waiting for the next coaching section…";
 
   return (
     <section className="coaching-report" aria-label="Coaching report">
       <h3>Coaching Report</h3>
-      {feedbackStatus === "generating" && (waiting
+      {feedbackStatus === "generating" && (activity && waiting
+        ? <PanelistActivity presentation={{ activity, waiting }} serverNowMs={serverNowMs} />
+        : waiting
         ? <WaitingIndicator label={waiting.label} detail={waiting.detail} active={waiting.active}
             startedAtMs={waiting.startedAtMs} retryAtMs={waiting.retryAtMs} serverNowMs={serverNowMs} />
-        : <p className="report-status" role="status">Preparing your coaching report…</p>)}
+        : <p className="report-status" role="status">{progress ? queuedLabel : "Preparing your coaching report…"}</p>)}
       {feedbackStatus === "failed" && <p className="report-error" role="alert">The coaching report could not be generated. {failureGuidance}</p>}
       {progress && <section className="coaching-progress" aria-label="Coaching progress">
         <p role="status">{progress.cards_ready} of {progress.cards_required} answers coached</p>
