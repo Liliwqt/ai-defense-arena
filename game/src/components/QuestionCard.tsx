@@ -2,7 +2,6 @@ import { ProbeExchange } from "./ProbeExchange";
 import { PageCitation } from "./PageCitation";
 import { useEffect, useRef, useState } from "react";
 import { PDFViewer } from "./PDFViewer";
-import { PaperMappingProgress } from "./PaperMappingProgress";
 import { WaitingIndicator } from "./WaitingIndicator";
 import { PanelistActivity } from "./PanelistActivity";
 import { ResearchPreparationCard } from "./ResearchPreparationCard";
@@ -86,7 +85,6 @@ export function QuestionCard({ roomState, playerToken, presentation = deriveRoom
       {roomState?.current_topic && <p className="question-topic">Topic: {roomState.research_plan?.topics.find(t => t.id === roomState.current_topic)?.title}</p>}
       {clarification && <p className="clarification-request"><strong>Defender asks:</strong> {clarification.request}</p>}
       <p id="question-text" className={content.mapping ? "mapping-intro" : undefined} aria-live={clarification ? "polite" : undefined}>{clarification?.reply ?? content.question}</p>
-      {content.mapping && roomState && <PaperMappingProgress roomState={roomState} />}
       {content.initialAnswer && <p className="question-previous-answer"><strong>Original answer:</strong> <span>{content.initialAnswer}</span></p>}
       <ProbeExchange probe={content.probe} panelist={content.name} />
       {content.previousAnswer && <p className="question-previous-answer">{content.previousAnswer}</p>}

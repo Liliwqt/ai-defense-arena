@@ -281,9 +281,9 @@ class RoomCoordinator:
                 and room.answer_deadline_ms is not None
                 and self._workflows.now() < room.answer_deadline_ms)
 
-    def _schedule_interpretation(self, interpretation_id: int) -> asyncio.Task | None:
+    def _schedule_interpretation(self, interpretation_id: int, *, retrying: bool = False) -> asyncio.Task | None:
         room = self._room
-        work = InterpretationWork(interpretation_id, room.run_id, room.pending_submission)
+        work = InterpretationWork(interpretation_id, room.run_id, room.pending_submission, retrying)
         if not self._interpretation_current(work):
             return None
         key = (work.run_id, work.interpretation_id)
@@ -296,8 +296,8 @@ class RoomCoordinator:
         return self._retain_work_task(self._interpretation_tasks, key,
                                       asyncio.create_task(run_interpretation(self, work, request)))
 
-    def _schedule_question(self, generation_id: int, first: bool) -> asyncio.Task | None:
-        work = QuestionWork(generation_id, first, self._room.run_id)
+    def _schedule_question(self, generation_id: int, first: bool, *, retrying: bool = False) -> asyncio.Task | None:
+        work = QuestionWork(generation_id, first, self._room.run_id, retrying)
         if not self._question_current(work):
             return None
         key = (work.run_id, work.generation_id)

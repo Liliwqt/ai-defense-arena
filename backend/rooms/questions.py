@@ -37,6 +37,7 @@ class QuestionWork:
     generation_id: int
     first: bool
     run_id: str | None
+    retrying: bool = False
 
 
 QuestionResult = GroundedQuestion | PanelMove | ResearchMove
@@ -83,6 +84,7 @@ async def run_question(owner: "RoomCoordinator", work: QuestionWork) -> None:
                 if attempt == 0:
                     room.begin_operation(kind="question", operation_id=f"question:{work.generation_id}",
                                          stage="generating", now=now,
+                                         retrying=work.retrying,
                                          window_deadline_ms=room.next_processing_deadline(now))
                     room.revision += 1
                     started = True

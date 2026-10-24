@@ -71,6 +71,7 @@ async def handle_lifecycle(owner: "RoomCoordinator", actor: VerifiedActor, comma
     generate_first = None
     generation_id = None
     feedback_generation_id = None
+    retrying_question = False
     async with room.lock:
         if room.closed:
             return CommandResult(False, "Room not found. Create a fresh room.")
@@ -195,6 +196,7 @@ async def handle_lifecycle(owner: "RoomCoordinator", actor: VerifiedActor, comma
                 owner._retire_work(keep_question_plan=True)
                 room.clear_interaction_window()
                 generate_first = room.defense is None or not room.defense.turns
+                retrying_question = True
                 room.phase = "generating"
                 room.error = None
                 generation_id = room.generation_id
@@ -206,7 +208,7 @@ async def handle_lifecycle(owner: "RoomCoordinator", actor: VerifiedActor, comma
     await owner._publish()
     if generate_first is not None and generation_id is not None:
         room.begin_interaction_window(owner._workflows.now())
-        owner._schedule_question(generation_id, generate_first)
+        owner._schedule_question(generation_id, generate_first, retrying=retrying_question)
     if feedback_generation_id is not None:
         owner._schedule_coaching(feedback_generation_id)
 

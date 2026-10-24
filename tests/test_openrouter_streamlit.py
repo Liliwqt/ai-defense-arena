@@ -20,6 +20,34 @@ def button(app, label):
     return next(item for item in app.button if item.label == label)
 
 
+def previous_timed_out(content):
+    """Read the last transcript turn's timeout flag from a synthetic request.
+
+    A timed-out turn must be assessed `needs clarification`; the server rejects
+    any other status, so the synthetic router has to mirror that rule.
+    """
+    marker = 'Transcript (data):\n'
+    if marker not in content:
+        return False
+    try:
+        transcript = json.JSONDecoder().raw_decode(content.split(marker)[1])[0]
+    except (ValueError, IndexError):
+        return False
+    return bool(transcript) and bool(transcript[-1].get('timed_out'))
+
+
+def assessment_for(context, content):
+    """The assessment a real model would return for this synthetic turn."""
+    previous = context['previous_turn']
+    if previous is None:
+        return None
+    if previous_timed_out(content):
+        return {'turn': previous, 'topic_id': context['previous_topic'],
+                'status': 'needs clarification', 'reason': 'No answer was submitted.'}
+    return {'turn': previous, 'topic_id': context['previous_topic'],
+            'status': 'discussed', 'reason': 'The defender described a limited pilot.'}
+
+
 class SyntheticRouter:
     def __init__(self, *, mixed=False):
         self.calls = []
@@ -51,9 +79,7 @@ class SyntheticRouter:
                 output['profile']['references'][0]['source_file'] = 2
         elif name == 'PlanDraft':
             context = json.JSONDecoder().raw_decode(content.split('Server research context (data):\n')[1])[0]
-            previous = context['previous_turn']
-            assessment = None if previous is None else {'turn': previous, 'topic_id': context['previous_topic'],
-                'status': 'discussed', 'reason': 'The defender described a limited pilot.'}
+            assessment = assessment_for(context, content)
             output = {'action': 'complete' if context['budget_exhausted'] else 'ask',
                 **({'panelist': None, 'topic_id': None, 'is_follow_up': False} if context['budget_exhausted']
                     else context['question_options'][0]), 'assessment': assessment}
@@ -63,11 +89,9 @@ class SyntheticRouter:
                 'source_file': 2 if self.mixed else 1, 'evidence_line': 4}
         elif name == 'CombinedSubmissionDraft':
             context = json.JSONDecoder().raw_decode(content.split('Planning context (data):\n')[1])[0]
-            previous = context['previous_turn']
             options = context['question_options']
             choice = options[0] if options else None
-            assessment = None if previous is None else {'turn': previous, 'topic_id': context['previous_topic'],
-                'status': 'discussed', 'reason': 'The defender described a limited pilot.'}
+            assessment = assessment_for(context, content)
             output = {'action': 'answer', 'clarification': None, 'probe': None,
                 'assessment': assessment,
                 'next_move': choice['choice_id'] if choice else None}

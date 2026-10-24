@@ -1,0 +1,22 @@
+Ticket 09 browser measurements — synthetic preview, no AI call
+Chromium, local server 127.0.0.1:8899, 2026-10-24
+
+Case      Size       Visible activity   Overflow  aria-live  aria-busy  elapsed aria-hidden  Context
+waiting   desktop    1059x112           no        polite     true       true                Participant recruitment
+waiting   portrait   325x118            no        polite     true       true                Participant recruitment
+waiting   landscape  791x47             no        polite     true       true                Participant recruitment
+mapping   desktop    879x112 (visible)  no        polite     true       true                campus-queue-proposal.pdf
+mapping   portrait   reflows            no        polite     true       true                campus-queue-proposal.pdf
+mapping   landscape  reflows            no        polite     true       true                campus-queue-proposal.pdf
+coaching  desktop    879x112 (visible)  no        polite     true       true                Question 4
+coaching  portrait   reflows            no        polite     true       true                Question 4
+coaching  landscape  reflows            no        polite     true       true                Question 4
+
+Note: the room screen stays mounted behind Results, so a second
+[aria-label="Panelist activity"] node exists inside a [hidden] ancestor and
+measures 0x0. Only the visible node is reported above. This is the existing
+keep-mounted-across-screens behavior, not a duplicate render.
+
+Screenshots in this directory were captured but render scaled down by the
+browser tooling in this environment; the DOM measurements above are the
+authoritative evidence for layout and accessibility.

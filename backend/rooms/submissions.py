@@ -37,6 +37,7 @@ class InterpretationWork:
     interpretation_id: int
     run_id: str | None
     pending: PendingSubmission | None
+    retrying: bool = False
 
 
 @dataclass(frozen=True)
@@ -150,7 +151,8 @@ async def run_interpretation(owner: "RoomCoordinator", work: InterpretationWork,
             return
         room.begin_operation(kind="interpretation", operation_id=f"interpretation:{work.interpretation_id}",
                              stage="reviewing_reply" if work.pending.probe_id else "reviewing_answer",
-                             now=now, window_deadline_ms=room.next_processing_deadline(now))
+                             now=now, window_deadline_ms=room.next_processing_deadline(now),
+                             retrying=work.retrying)
         room.revision += 1
     await owner._publish()
     failure_class = None
@@ -405,7 +407,7 @@ async def handle_submission(owner: "RoomCoordinator", actor: VerifiedActor,
             if interpretation_id is not None:
                 owner._schedule_clock(room.clock_id, room.active_deadline_ms)
                 # Claim task identity and capture inputs before publication awaits.
-                owner._schedule_interpretation(interpretation_id)
+                owner._schedule_interpretation(interpretation_id, retrying=isinstance(command, RetryInterpretation))
             room.revision += 1
     if expired:
         await owner._expire_deadline()

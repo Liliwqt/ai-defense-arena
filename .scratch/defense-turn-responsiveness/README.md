@@ -46,11 +46,16 @@ See [fix verification](reviews/01-fixes.md) and [interface evidence](reviews/01-
 | [06 — Focused evidence and bounded broader lookup](issues/06-focused-evidence-and-bounded-broader-lookup.md) | 05 | ready-for-human |
 | [07 — Typed Streamlit optimized-flow parity](issues/07-typed-streamlit-optimized-flow-parity.md) | 06 | ready-for-human |
 | [08 — Measured reviewer settings and provider gate](issues/08-measured-reviewer-settings-and-provider-gate.md) | 06 | ready-for-human (provider gate open) |
-| [09 — Integrated defenses and local review handoff](issues/09-integrated-defenses-and-local-review-handoff.md) | 07, 08 | ready-for-agent |
+| [09 — Integrated defenses and local review handoff](issues/09-integrated-defenses-and-local-review-handoff.md) | 07, 08 | ready-for-human |
 
 Checkpoint 1 ends at 03. Checkpoint 2 joins typed fallback 07 and measured
 provider gate 08 in the final review 09. Pending live evidence must stay explicit;
 a blocked or failed provider gate is not a live-ready completion.
+
+All nine tickets have local implementation. The revised mapping layout is user
+accepted; ticket09 final verification is being rechecked, with its fresh local
+PostgreSQL gate unverified in the current environment. Ticket 08's actual-provider gate is still failed/incomplete and
+is carried forward in [review 09](reviews/09.md), not repaired.
 
 Start with [the confirmed specification](spec.md). Each ticket has its own
 acceptance checks; integrated verification does not replace those checks.
