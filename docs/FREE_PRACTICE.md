@@ -15,12 +15,13 @@ topics when the question limit is reached. Code-only and voice remain disabled.
 
 ## Models and cost boundary
 
-All free-tier tasks use `xingchen-agi/xing4.0-29b-a4b:free`, with separate role
-prompts, pinned to Phala. Its public catalog and endpoint metadata checked on
-2026-10-20 list zero prompt/completion prices, a 262,144-token context, reasoning
-and JSON-schema structured outputs. OpenRouter lists Phala as no-training and
-zero-retention. The app retains `data_collection: deny` and zero-price caps. These facts do not prove account availability, privacy-route
-availability or conversational quality.
+New free-tier preparations and runs use `dots-studio/dots-3-note-preview:free`,
+with separate role prompts, pinned to AtlasCloud. The public endpoint catalog
+checked on 2026-10-25 lists zero prompt/completion prices, a 512,000-token context,
+reasoning and structured-output parameters. A synthetic mapping request through
+this route succeeded under the unchanged `data_collection: deny` and zero-price
+caps. This is one account/request observation, not a blanket provider-policy,
+capacity or full-defense quality guarantee.
 
 | Task | Reasoning token bound | Total output bound |
 | --- | ---: | ---: |
@@ -34,8 +35,8 @@ Every request requires the explicit `:free` model, zero maximum prompt,
 completion and request prices, supported parameters, strict JSON schema,
 `data_collection: deny`, and no provider fallback. There is no automatic paid
 model upgrade or privacy relaxation. If no endpoint satisfies these constraints,
-the existing retry/recovery flow retains work. Actual deployment-account route
-compatibility and quality still require a live synthetic-paper check.
+the existing retry/recovery flow retains work. Hosted-account compatibility and complete-defense quality still require
+separate live checks.
 
 Models and task bounds are saved with preparation/run policies. Existing paid
 assignments and credit/voucher rules remain available under Standard practice.
@@ -44,23 +45,25 @@ for missing receipts; they are not charges to the user. Explicit zero-cost
 receipts settle them to zero. Any reported nonzero free-provider cost blocks
 that scope for operator review. Request quotas count independently of receipts.
 
-## Existing rooms after the routing correction
+## Existing rooms after the routing corrections
 
 The original NVIDIA free route conflicts with the app's no-collection rule:
 OpenRouter lists NVIDIA as retaining prompts/training on them. That can reject
-mapping with HTTP404 even with a valid API key. New rooms now select Xing4 via
+mapping with HTTP 404 even with a valid API key. The earlier correction selected Xing4 via
 Phala; the application never enables NVIDIA collection to work around the error.
 
-After deploying this correction, create another room and select Free practice.
-Retried old rooms keep their immutable saved model; they now explain why a new
-room is required before sending another request. They do not silently change
-models, debit credits or reset daily quotas. For Streamlit, start a new browser
-session to obtain a fresh preparation scope. No new API key variable is needed.
+A subsequent Activity screenshot showed Xing4/Phala returning 429 repeatedly.
+Its catalog lists only Phala for that exact Free model, so changing providers for
+Standard does not repair it. New Free preparations now use the successful Dots
+route. Existing Xing/Phala preparation and run snapshots retain their model,
+provider, context and counters; they are not silently upgraded or rewritten.
 
-The new route has a smaller context. Oversized mapping, questions/interactions
-and coaching refuse before dispatch rather than truncating source or exceeding
-the model limit. Actual account availability and model quality still need a
-live synthetic-paper check; catalog compatibility alone is not a completed run.
+After deploying the routing change, create another room and select Free practice.
+For Streamlit, use a fresh preparation session. No new API key variable is needed.
+New Dots policies use the verified 512,000-token endpoint context; older Xing
+policies keep 262,144. Oversized requests still fail before dispatch instead of
+truncating sources. Restarting or reconnecting does not refill local or upstream
+quotas. A complete live Dots defense has not been verified.
 
 ## Usage limits
 
@@ -110,12 +113,14 @@ capacity. The app's separate configured quotas still apply.
 
 Local tests use mocked provider HTTP, disposable SQLite/PostgreSQL and controlled
 room clocks. They check routing/cost fences, bounded attempts, zero-credit access,
-two-client completion, coaching and UI controls. Public catalog metadata is the
-only external model check so far. No actual inference, hosted check or installed
-device check is implied. No push or deployment is part of this change.
+two-client completion, coaching and UI controls. The approved 2026-10-25 synthetic mapping check is separate live evidence:
+Dots/AtlasCloud succeeded in 85.653s with a reportedUS$0 receipt; a Recursive Free
+candidate failed HTTP 404 and was not selected. This does not prove a complete defense,
+large-paper coverage, load capacity, hosted behavior or installed-device behavior.
+No push or deployment is part of this local change.
 
-Sources: [model details](https://openrouter.ai/xingchen-agi/xing4.0-29b-a4b:free),
-[public endpoint metadata](https://openrouter.ai/api/v1/models/xingchen-agi/xing4.0-29b-a4b:free/endpoints),
+Sources: [model details](https://openrouter.ai/dots-studio/dots-3-note-preview:free),
+[public endpoint metadata](https://openrouter.ai/api/v1/models/dots-studio/dots-3-note-preview:free/endpoints),
 [provider routing](https://openrouter.ai/docs/guides/routing/provider-selection),
 [account and free-model limits](https://openrouter.ai/docs/api_reference/limits).
 

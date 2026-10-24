@@ -36,8 +36,8 @@ class FreePolicyTests(IsolatedAllowanceTests):
             if body['model'] == 'nvidia/nemotron-3.5-super-vl:free' and body['provider']['data_collection'] == 'deny':
                 return httpx.Response(404, json={'error': {'code': 404,
                     'message': 'No endpoints found matching your data policy.'}})
-            self.assertEqual(body['model'], 'xingchen-agi/xing4.0-29b-a4b:free')
-            self.assertEqual(body['provider']['only'], ['phala'])
+            self.assertEqual(body['model'], 'dots-studio/dots-3-note-preview:free')
+            self.assertEqual(body['provider']['only'], ['atlas-cloud'])
             self.assertEqual(body['provider']['data_collection'], 'deny')
             self.assertEqual(body['provider']['max_price'], {'prompt': 0, 'completion': 0, 'request': 0})
             return stream_response(maps.draft(), usage={'cost': 0})
@@ -52,12 +52,34 @@ class FreePolicyTests(IsolatedAllowanceTests):
         self.assertEqual(set(policy.reviewer_models.values()), {FREE_MODEL})
         self.assertEqual(policy.planner_model, FREE_MODEL)
         self.assertEqual(policy.coaching_model, FREE_MODEL)
-        self.assertEqual(policy.provider_only, ['phala'])
+        self.assertEqual(policy.provider_only, ['atlas-cloud'])
         self.assertEqual(policy.context_tokens, FREE_CONTEXT_TOKENS)
         with self.assertRaisesRegex(ValueError, 'up to 8'):
             establish_run_allowance('too-long', 'owner', self.files, 9, tier='free')
         with self.assertRaisesRegex(QuestionGenerationError, 'tier is fixed'):
             establish_run_allowance('free-run', 'owner', self.files, 8)
+
+    def test_retained_xing_mapping_and_run_keep_their_original_route(self):
+        from dataclasses import replace
+        old_model = 'xingchen-agi/xing4.0-29b-a4b:free'
+        saved = asdict(MappingPolicy.configured('free'))
+        saved.update(model=old_model, provider_only=['phala'], context_tokens=262144)
+        ProviderAllowance('xing-map', 'owner').establish(saved['allowance_nano'], saved)
+        bodies = []
+        def provider(request):
+            bodies.append(json.loads(request.content))
+            return stream_response(maps.draft(), usage={'cost': 0})
+        with patch('httpx.Client', side_effect=lambda **kw: HTTPClient(transport=httpx.MockTransport(provider))):
+            MappingClient('xing-map', 'owner', tier='free').parse(input=[], text_format=ResearchPlanDraft)
+        self.assertEqual(bodies[0]['model'], old_model)
+        self.assertEqual(bodies[0]['provider']['only'], ['phala'])
+        self.assertEqual(ProviderAllowance('xing-map', 'owner').policy(), saved)
+        old_run = replace(RunQuestionPolicy.configured('free'), planner_model=old_model,
+            coaching_model=old_model, reviewer_models={role: old_model for role in RunQuestionPolicy.configured('free').reviewer_models},
+            provider_only=['phala'], context_tokens=262144).snapshotted(self.files, 4)
+        ProviderAllowance('xing-run', 'owner').establish(old_run.ceiling_nano, asdict(old_run))
+        reopened = establish_run_allowance('xing-run', 'owner', self.files, 4, tier='free')
+        self.assertEqual(asdict(reopened), asdict(old_run))
 
     def test_legacy_preparation_stays_fixed_and_requires_new_room_without_dispatch(self):
         saved = asdict(MappingPolicy.configured('free'))
@@ -279,7 +301,7 @@ class FreeRoomTests(unittest.TestCase):
                 self.assertEqual(states[0]['feedback'], states[1]['feedback'])
                 self.assertEqual(len(states[0]['feedback']['answer_cards']), 4)
         self.assertTrue(all(body['model'] == FREE_MODEL for body in router.calls))
-        self.assertTrue(all(body['provider']['only'] == ['phala'] for body in router.calls))
+        self.assertTrue(all(body['provider']['only'] == ['atlas-cloud'] for body in router.calls))
         self.assertTrue(all(body['provider']['max_price'] == {'prompt': 0, 'completion': 0, 'request': 0} for body in router.calls))
         with account_store.connect_store(account_store.database_path()) as db:
             row = db.execute('SELECT cost FROM defense_runs WHERE id=?', (room.run_id,)).fetchone()

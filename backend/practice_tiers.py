@@ -2,9 +2,9 @@
 
 STANDARD = 'standard'
 FREE = 'free'
-FREE_MODEL = 'xingchen-agi/xing4.0-29b-a4b:free'
-FREE_PROVIDER = 'phala'
-FREE_CONTEXT_TOKENS = 262144
+FREE_MODEL = 'dots-studio/dots-3-note-preview:free'
+FREE_PROVIDER = 'atlas-cloud'
+FREE_CONTEXT_TOKENS = 512000
 RETIRED_FREE_MODEL = 'nvidia/nemotron-3.5-super-vl:free'
 FREE_QUESTION_LIMIT = 8
 

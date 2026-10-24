@@ -54,15 +54,33 @@ class OpenRouterMappingContractTests(unittest.TestCase):
             plan = maps.generate_research_plan(files, mapping.api_key, MODEL, client=mapping)
         self.assertEqual(calls[0]['reasoning'], {'effort': 'low', 'exclude': True})
         self.assertEqual(calls[0]['model'], 'z-ai/glm-5.3-flash')
+        self.assertEqual(calls[0]['provider']['only'], ['deepinfra'])
         self.assertIn(maps.PAPER.splitlines()[3], calls[0]['messages'][1]['content'])
         self.assertEqual(plan.topics[0].references[0].evidence_text, maps.PAPER.splitlines()[3])
         with patch.dict(os.environ, {'OPENROUTER_MAPPING_REASONING_EFFORT': 'high',
-                                     'OPENROUTER_MAPPING_MODEL': 'deepseek/deepseek-v4.1-flash-1017'}):
+                                     'OPENROUTER_MAPPING_MODEL': 'deepseek/deepseek-v4.1-flash-1017',
+                                     'OPENROUTER_MAPPING_PROVIDER': 'wafer'}):
             reopened = MappingClient('fast-preparation', 'owner')
         with patch('httpx.Client', side_effect=client):
             maps.generate_research_plan(files, reopened.api_key, MODEL, client=reopened)
         self.assertEqual(calls[1]['reasoning'], calls[0]['reasoning'])
         self.assertEqual(calls[1]['model'], 'z-ai/glm-5.3-flash')
+        self.assertEqual(calls[1]['provider']['only'], ['deepinfra'])
+
+    def test_mapping_provider_override_applies_only_to_new_standard_preparations(self):
+        from backend.openrouter_mapping import MappingClient, MappingPolicy
+        for provider in ('deepinfra', 'wafer', 'z-ai', 'auto'):
+            with self.subTest(provider=provider), patch.dict(os.environ, {'OPENROUTER_MAPPING_PROVIDER': provider}):
+                policy = MappingClient('route-' + provider, 'owner').policy
+                self.assertEqual(policy.provider_only, None if provider == 'auto' else [provider])
+                self.assertEqual(MappingPolicy.configured('free').provider_only, ['atlas-cloud'])
+        for provider in ('', 'private-invalid-setting', 'deepinfra,wafer'):
+            with self.subTest(provider=provider), patch.dict(os.environ, {'OPENROUTER_MAPPING_PROVIDER': provider}), \
+                 patch('httpx.Client') as upstream:
+                with self.assertRaisesRegex(maps.QuestionGenerationError, 'OPENROUTER_MAPPING_PROVIDER') as raised:
+                    MappingClient('invalid-provider', 'owner')
+                self.assertNotIn('private-invalid-setting', str(raised.exception))
+                upstream.assert_not_called()
 
     def test_retained_legacy_mapping_keeps_high_reasoning_and_explicit_high_is_supported(self):
         from dataclasses import asdict
@@ -360,6 +378,7 @@ class OpenRouterMappingProtocolTests(unittest.TestCase):
                 self.assertEqual(room.files, uploads)
         self.assertEqual(len(calls), 2)
         self.assertTrue(all(body['model'] == 'z-ai/glm-5.3-flash' for body in calls))
+        self.assertTrue(all(body['provider']['only'] == ['deepinfra'] for body in calls))
         self.assertTrue(all(body['provider']['max_price']['prompt'] > 0 for body in calls))
 
     def test_provider_error_is_redacted_and_never_falls_back(self):

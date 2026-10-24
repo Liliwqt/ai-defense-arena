@@ -62,9 +62,14 @@ class MappingPolicy:
             model = os.getenv('OPENROUTER_MAPPING_MODEL', MODEL)
             if model not in {MODEL, LEGACY_MODEL}:
                 raise QuestionGenerationError('Check OPENROUTER_MAPPING_MODEL on the server (z-ai/glm-5.3-flash or deepseek/deepseek-v4.1-flash-1017).')
+            provider = os.getenv('OPENROUTER_MAPPING_PROVIDER', 'deepinfra' if model == MODEL else 'auto')
+            if provider not in {'auto', 'deepinfra', 'wafer', 'z-ai'}:
+                raise QuestionGenerationError('Check OPENROUTER_MAPPING_PROVIDER on the server (deepinfra, wafer, z-ai or auto).')
             if not 1024 <= output <= 131072 or not ceiling.is_finite() or not Decimal('0') < ceiling <= 10:
                 raise ValueError
-            return cls(output, int((ceiling * 1_000_000_000).to_integral_value(rounding=ROUND_CEILING)), model=model, reasoning_effort=effort)
+            return cls(output, int((ceiling * 1_000_000_000).to_integral_value(rounding=ROUND_CEILING)),
+                       model=model, reasoning_effort=effort,
+                       provider_only=None if provider == 'auto' else [provider])
         except (ValueError, InvalidOperation):
             raise QuestionGenerationError('Check OPENROUTER_MAPPING_MAX_OUTPUT_TOKENS and OPENROUTER_PREPARATION_USD on the server.') from None
 

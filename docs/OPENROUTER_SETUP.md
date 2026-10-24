@@ -26,6 +26,7 @@ keep their existing setup. Keep exactly one worker and one instance.
 | `OPENROUTER_MAPPING_TIMEOUT_SECONDS` | `300` | Total mapping deadline, configurable 30–600 seconds. Applies to each new attempt, including retained preparations; model/reasoning/allowance snapshots stay fixed. |
 | `OPENROUTER_MAPPING_REASONING_EFFORT` | `low` | Mapping-only effort for new preparations: `low` or `high`. Saved preparations retain their effort; retained policies predating this setting stay high. |
 | `OPENROUTER_MAPPING_MODEL` | `z-ai/glm-5.3-flash` | Mapping-only model for new Standard preparations. Explicit rollback: `deepseek/deepseek-v4.1-flash-1017`. Saved preparations keep their model. |
+| `OPENROUTER_MAPPING_PROVIDER` | `deepinfra` for GLM, `auto` for legacy DeepSeek | Provider for new Standard maps: `deepinfra`, `wafer`, `z-ai` or `auto`. Retained preparations keep their saved route. |
 | `OPENROUTER_RUN_USD` | `5.00` | Full per-run ceiling including coaching, positive decimal up to USD100. |
 
 These are finite local admission settings, not measured bills, universal input
@@ -135,3 +136,12 @@ Primary sources checked2026-10-20:
 - [Provider parameter, fallback, data-policy and price controls](https://openrouter.ai/docs/guides/routing/provider-selection).
 - [Reasoning tokens and billed output](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens).
 - [Structured output](https://openrouter.ai/docs/guides/features/structured-outputs).
+
+## Mapping provider recovery
+
+New Standard GLM maps select DeepInfra after repeated Darkbloom rate limits.
+New Free preparations/runs select Dots through AtlasCloud after Xing/Phala rate
+limits. Both replacement mapping payloads passed one live synthetic-paper check;
+complete-defense quality, capacity and hosted operation remain separate.
+Create a fresh room/preparation after deployment; existing policies and quotas
+are preserved. See [route recovery and measurements](MAPPING_PROVIDER_RECOVERY.md).
