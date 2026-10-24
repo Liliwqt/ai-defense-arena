@@ -132,6 +132,14 @@ if (planPreview) {
   previewState.research_plan_error = requestedStatus === "failed" ? "The AI cited an invalid source line. Retry preparing the defense." : null;
   previewState.files = ["campus-queue-proposal.pdf"];
   previewState.accepted_files = [{ name: "campus-queue-proposal.pdf", kind: "research_pdf", detail: "7 pages · synthetic visual fixture" }];
+  if (previewState.research_planning_status === "planning") {
+    previewState.defense_view_id = "preview-preparation";
+    previewState.server_now_ms = Date.now();
+    previewState.operation = { id: "mapping:1", kind: "mapping", stage: "mapping",
+      started_at_ms: previewState.server_now_ms - 4000, attempt: 1, retrying: false };
+    previewState.panelist_activity = { operation_id: "mapping:1", view_id: "preview-preparation",
+      reviewer: null, context: "campus-queue-proposal.pdf" };
+  }
 }
 
 // Synthetic visual fixture for the longer policy; never used by live rooms.

@@ -21,6 +21,7 @@ export function QuestionCard({ roomState, playerToken, presentation = deriveRoom
   const [paperTab, setPaperTab] = useState("question");
   const [expanded, setExpanded] = useState(false);
   const content = presentation.card;
+  const showActivity = !!presentation.activity && !content.mapping;
   const { clarification } = presentation;
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -52,7 +53,7 @@ export function QuestionCard({ roomState, playerToken, presentation = deriveRoom
       <div className="question-heading">
         <div>
           <p className="question-kicker">{clarification ? "THE PANEL CLARIFIES" : "THE PANEL ASKS"}</p>
-          <h2 id="panelist-name">{presentation.activity ? presentation.activity.reviewer ?? "The panel" : content.name}</h2>
+          <h2 id="panelist-name">{showActivity ? presentation.activity?.reviewer ?? "The panel" : content.name}</h2>
         </div>
         <span className="question-number">{content.number}</span>
       </div>
@@ -66,7 +67,7 @@ export function QuestionCard({ roomState, playerToken, presentation = deriveRoom
           onClick={() => { setPaperTab(tab); if (tab === "question") setExpanded(false); }}>{tab === "paper" ? "Paper" : "Question"}</button>)}
       </div>}
       </div>
-      {!presentation.activity && (presentation.waiting && !content.mapping
+      {!showActivity && (presentation.waiting && !content.mapping
         ? <div className="question-review-status">
           <WaitingIndicator label={presentation.waiting.label} detail={presentation.waiting.detail}
             active={presentation.waiting.active} startedAtMs={presentation.waiting.startedAtMs}
@@ -75,7 +76,7 @@ export function QuestionCard({ roomState, playerToken, presentation = deriveRoom
         </div>
         : content.reviewStatus && <p className="question-review-status" aria-live="polite">{content.reviewStatus}</p>)}
       <div className="question-scroll" ref={scrollRef} tabIndex={0} aria-label="Question and cited source">
-      {presentation.activity && <>
+      {showActivity && <>
         <PanelistActivity presentation={presentation} serverNowMs={roomState?.server_now_ms} />
         {content.reviewStatus?.includes("Timer") && <p className="question-review-status">{content.reviewStatus}</p>}
       </>}
@@ -83,8 +84,7 @@ export function QuestionCard({ roomState, playerToken, presentation = deriveRoom
       {roomState?.current_topic && <p className="question-topic">Topic: {roomState.research_plan?.topics.find(t => t.id === roomState.current_topic)?.title}</p>}
       {clarification && <p className="clarification-request"><strong>Defender asks:</strong> {clarification.request}</p>}
       <p id="question-text" className={content.mapping ? "mapping-intro" : undefined} aria-live={clarification ? "polite" : undefined}>{clarification?.reply ?? content.question}</p>
-      {content.mapping && <PaperMappingProgress progress={roomState?.research_plan_progress}
-        startedAtMs={presentation.waiting?.startedAtMs} serverNowMs={roomState?.server_now_ms} />}
+      {content.mapping && roomState && <PaperMappingProgress roomState={roomState} />}
       {content.initialAnswer && <p className="question-previous-answer"><strong>Original answer:</strong> <span>{content.initialAnswer}</span></p>}
       <ProbeExchange probe={content.probe} panelist={content.name} />
       {content.previousAnswer && <p className="question-previous-answer">{content.previousAnswer}</p>}

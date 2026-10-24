@@ -178,8 +178,7 @@ export function ResearchPlanPanel({ roomState: state, connected, previewMode, on
       <h3 id="research-plan-heading">Research coverage plan</h3>
     </div>
     {status === "none" && <p className="control-help">{state.self_is_host ? "Prepare an AI map of the accepted papers and any accompanying code." : "The host can prepare the research map. It will appear here for the whole team."}</p>}
-    {status === "planning" && <PaperMappingProgress progress={state.research_plan_progress}
-      startedAtMs={state.operation?.started_at_ms ?? null} serverNowMs={state.server_now_ms} />}
+    {status === "planning" && <PaperMappingProgress roomState={state} />}
     {status === "failed" && <p role="alert" className="drawer-error">{state.research_plan_error ?? "The research map could not be prepared."} Your uploads are retained. {state.self_is_host ? "Retry when ready." : "The host can retry."}</p>}
     {actionContainer ? createPortal(actions, actionContainer) : startControl ? <div className="research-next-action">{actions}</div> : null}
     {plan?.profile && <ResearchProfileReview profile={plan.profile} confirmed={Boolean(state.research_plan_approved && !profileDirty)} />}

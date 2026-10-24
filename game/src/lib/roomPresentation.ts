@@ -74,6 +74,11 @@ export function mappingLabel(stage?: string | null): string {
   return stage === "validating" ? "Checking source references…" : "Mapping your paper…";
 }
 
+function mappingDetail(state: Readonly<RoomState>): string {
+  const count = state.research_plan_progress?.topics.length ?? 0;
+  return `${count ? `${count} draft ${count === 1 ? "topic" : "topics"} received. ` : ""}No defense question has started. Draft topics stay provisional until the map passes validation.`;
+}
+
 function coachingLabel(stage: string, retrying: boolean): string {
   const label = stage === "overview" ? "Preparing your coaching overview…"
     : stage === "answers" ? "Preparing your answer coaching…"
@@ -110,7 +115,7 @@ function deriveWaiting(state: Readonly<RoomState> | null): WaitingPresentation |
     if (operation.kind === "mapping") {
       return { active: true, retryWait: false, startedAtMs,
         label: mappingLabel(operation.stage),
-        detail: "Draft topics stay provisional until the map passes validation." };
+        detail: mappingDetail(state) };
     }
     if (operation.kind === "coaching") {
       return { active: true, retryWait: false, startedAtMs,
@@ -132,7 +137,7 @@ function deriveWaiting(state: Readonly<RoomState> | null): WaitingPresentation |
   if (state.research_planning_status === "planning") {
     return { active: true, retryWait: false, startedAtMs: null,
       label: mappingLabel(state.research_plan_progress?.stage),
-      detail: "Draft topics stay provisional until the map passes validation." };
+      detail: mappingDetail(state) };
   }
   if (state.feedback_status === "generating") {
     return { active: true, retryWait: false, startedAtMs: null,
@@ -419,7 +424,8 @@ export function deriveRoomPresentation(state: Readonly<RoomState> | null) {
     : lifecycleGuidance(state);
   const waiting = deriveWaiting(state);
   const liveActivity = !!state && state.defense_type !== "code" && !!state.defense_type
-    && (phase === "generating" || phase === "interpreting" && !current?.probe)
+    && (phase === "generating" || phase === "interpreting" && !current?.probe
+      || phase === "lobby" && state.research_planning_status === "planning")
     && !!waiting?.active;
   const suppliedActivity = state?.panelist_activity;
   const currentActivity = suppliedActivity?.operation_id === state?.operation?.id

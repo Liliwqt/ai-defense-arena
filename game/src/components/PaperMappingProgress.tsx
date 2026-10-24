@@ -1,6 +1,7 @@
 import type { RoomState } from "../types";
-import { mappingLabel } from "../lib/roomPresentation";
+import { deriveRoomPresentation } from "../lib/roomPresentation";
 import { WaitingIndicator } from "./WaitingIndicator";
+import { PanelistActivity } from "./PanelistActivity";
 
 const stages = [
   { id: "preparing", label: "Preparing accepted documents" },
@@ -8,21 +9,18 @@ const stages = [
   { id: "validating", label: "Checking the complete map" },
 ] as const;
 
-export function PaperMappingProgress({ progress, startedAtMs = null, serverNowMs }: {
-  progress?: RoomState["research_plan_progress"];
-  startedAtMs?: number | null;
-  serverNowMs?: number;
-}) {
+export function PaperMappingProgress({ roomState }: { roomState: RoomState }) {
+  const presentation = deriveRoomPresentation(roomState);
+  const progress = roomState.research_plan_progress;
+  const waiting = presentation.waiting;
   const stage = progress?.stage ?? "mapping";
   const topics = progress?.topics ?? [];
   const step = stages.findIndex(item => item.id === stage);
   const validating = stage === "validating";
-  const label = mappingLabel(stage);
-  const received = topics.length > 0
-    ? `${topics.length} draft ${topics.length === 1 ? "topic" : "topics"} received. No defense question has started.`
-    : "No defense question has started.";
   return <div className="room-create-progress paper-mapping-progress" aria-busy="true">
-    <WaitingIndicator label={label} detail={received} startedAtMs={startedAtMs} serverNowMs={serverNowMs} />
+    {presentation.activity ?
+      <PanelistActivity presentation={presentation} serverNowMs={roomState.server_now_ms} />
+      : waiting && <WaitingIndicator {...waiting} serverNowMs={roomState.server_now_ms} />}
     <div className="room-create-progress-track" role="progressbar" aria-label="Paper mapping progress" aria-valuetext={stage === "preparing" ? "Preparing accepted documents" : validating ? "Checking the complete map" : "Mapping in progress"}>
       <span className="room-create-progress-fill is-indeterminate" aria-hidden="true" />
     </div>
