@@ -34,7 +34,7 @@ describe("deriveWaiting", () => {
       operation: { id: "interpretation:4", kind: "interpretation" as const,
         stage: "reviewing_answer", started_at_ms: 9000, attempt: 2, retrying: true } };
     expect(deriveRoomPresentation(interpretation).waiting?.label)
-      .toBe("Trying again… Evaluating your answer…");
+      .toBe("Trying again… Reviewing your answer or clarification…");
   });
 
   it("freezes the active indicator during automatic retry backoff", () => {
@@ -51,8 +51,8 @@ describe("deriveWaiting", () => {
     const state: RoomState = { ...previewState, phase: "interpreting",
       my_pending_submission: "Keep this saved answer.", server_now_ms: 5000 };
     expect(deriveRoomPresentation(state).waiting).toMatchObject({
-      active: true, label: "Evaluating your answer…",
-      detail: "Submission saved, not yet accepted.",
+      active: true, label: "Reviewing your answer or clarification…",
+      detail: "Submission saved, not yet accepted. The panel may clarify the question or ask for one detail.",
     });
   });
 
@@ -61,7 +61,7 @@ describe("deriveWaiting", () => {
       probe: { id: "p1", request: "Which list?", status: "pending" as const,
         references: [], reply: null, clarifications: [] } };
     const probe = deriveRoomPresentation({ ...previewState, phase: "interpreting", turns: [probeTurn] });
-    expect(probe.waiting?.label).toBe("Reviewing your probe reply…");
+    expect(probe.waiting?.label).toBe("Reviewing your probe reply or clarification…");
     const mapping = deriveRoomPresentation({ ...previewState, phase: "lobby",
       research_planning_status: "planning",
       research_plan_progress: { stage: "validating", topics: [] } });

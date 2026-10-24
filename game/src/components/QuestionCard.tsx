@@ -26,12 +26,12 @@ export function QuestionCard({ roomState, playerToken, presentation = deriveRoom
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
-  }, [roomState?.room_code, roomState?.turns.length, content.clarifications?.length]);
+  }, [roomState?.room_code, roomState?.turns.length, content.clarifications?.length, showActivity]);
   useEffect(() => {
     const scroll = scrollRef.current;
     const probe = scroll?.querySelector<HTMLElement>(".panelist-probe");
-    if (scroll && probe) scroll.scrollTop += probe.getBoundingClientRect().top - scroll.getBoundingClientRect().top;
-  }, [content.probe?.id, content.probe?.clarifications.length]);
+    if (scroll && probe && !showActivity) scroll.scrollTop += probe.getBoundingClientRect().top - scroll.getBoundingClientRect().top;
+  }, [content.probe?.id, content.probe?.clarifications.length, showActivity]);
   if (presentation.reaction) {
     const { name, text, closing } = presentation.reaction;
     return (

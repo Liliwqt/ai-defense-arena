@@ -190,6 +190,14 @@ if (submissionPreview && !completePreview && !planPreview) {
   previewState.selected_seat = 0;
   previewState.my_pending_submission = "We would compare the pilot with the existing workflow.";
   previewState.interpretation_attempts_left = submissionPreview === "retry" ? 0 : 5;
+  if (researchPreview && previewState.phase === "interpreting") {
+    previewState.defense_view_id = "preview-same-question";
+    previewState.operation = { id: "interpretation:1", kind: "interpretation",
+      stage: previewState.turns[0].probe ? "reviewing_reply" : "reviewing_answer",
+      started_at_ms: Date.now() - 4000, attempt: 1, retrying: false };
+    previewState.panelist_activity = { operation_id: "interpretation:1", view_id: "preview-same-question",
+      reviewer: previewState.turns[0].panelist, context: researchPlanPreview.topics[0].title };
+  }
 }
 const coachingPreview = previewParams.get("coaching");
 if (completePreview && ["none", "generating", "failed"].includes(coachingPreview ?? "")) {

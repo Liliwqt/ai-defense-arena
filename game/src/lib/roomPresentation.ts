@@ -66,8 +66,15 @@ function questionLabel(retrying: boolean): string {
 }
 
 function interpretationLabel(probePending: boolean, retrying = false): string {
-  const label = probePending ? "Reviewing your probe reply…" : "Evaluating your answer…";
+  const label = probePending ? "Reviewing your probe reply or clarification…" : "Reviewing your answer or clarification…";
   return retrying ? `Trying again… ${label}` : label;
+}
+
+function interpretationDetail(state: Readonly<RoomState>): string {
+  const saved = state.my_pending_submission ? "Submission saved, not yet accepted. " : "";
+  return saved + (state.turns.at(-1)?.probe?.status === "pending"
+    ? "This reply stays on the current question."
+    : "The panel may clarify the question or ask for one detail.");
 }
 
 export function mappingLabel(stage?: string | null): string {
@@ -110,7 +117,7 @@ function deriveWaiting(state: Readonly<RoomState> | null): WaitingPresentation |
     if (operation.kind === "interpretation") {
       return { active: true, retryWait: false, startedAtMs,
         label: interpretationLabel(operation.stage === "reviewing_reply", operation.retrying),
-        detail: state.my_pending_submission ? "Submission saved, not yet accepted." : undefined };
+        detail: interpretationDetail(state) };
     }
     if (operation.kind === "mapping") {
       return { active: true, retryWait: false, startedAtMs,
@@ -132,7 +139,7 @@ function deriveWaiting(state: Readonly<RoomState> | null): WaitingPresentation |
   if (state.phase === "interpreting") {
     return { active: true, retryWait: false, startedAtMs: null,
       label: interpretationLabel(state.turns.at(-1)?.probe?.status === "pending"),
-      detail: state.my_pending_submission ? "Submission saved, not yet accepted." : undefined };
+      detail: interpretationDetail(state) };
   }
   if (state.research_planning_status === "planning") {
     return { active: true, retryWait: false, startedAtMs: null,
@@ -424,7 +431,7 @@ export function deriveRoomPresentation(state: Readonly<RoomState> | null) {
     : lifecycleGuidance(state);
   const waiting = deriveWaiting(state);
   const liveActivity = !!state && state.defense_type !== "code" && !!state.defense_type
-    && (phase === "generating" || phase === "interpreting" && !current?.probe
+    && (phase === "generating" || phase === "interpreting"
       || phase === "lobby" && state.research_planning_status === "planning")
     && !!waiting?.active;
   const suppliedActivity = state?.panelist_activity;

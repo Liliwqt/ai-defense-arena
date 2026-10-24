@@ -221,9 +221,6 @@ class Room(TimedTurn):
             context = " ".join(paper.name.split())[:160] or None if paper else None
             return {"operation_id": operation.id, "view_id": self.defense_view_id,
                     "reviewer": None, "context": context}
-        if (operation.kind == "interpretation" and self.pending_submission
-                and self.pending_submission.probe_id is not None):
-            return None  # Same-question probe activity is a separate delivery slice.
         session = self.defense
         previous = session.turns[-1] if session and session.turns else None
         reviewer = (previous.panelist if previous and operation.kind == "interpretation"
