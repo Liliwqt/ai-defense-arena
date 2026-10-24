@@ -72,7 +72,7 @@ class TypedDefenseFlow:
         self.status = text
         self._notify(text)
 
-    def _call(self, kind, request, attempt):
+    def _call(self, kind, request, attempt, *, retrying=False):
         turn = self.session.turns[-1] if self.session.turns else None
         key = (kind, len(self.session.turns))
         cap = limit('AI_INTERPRETATION_ATTEMPTS', 6, 20) if kind == 'interpretation' else limit('AI_QUESTION_ATTEMPTS', 3, 10)
@@ -80,7 +80,6 @@ class TypedDefenseFlow:
                  else 'Reviewing your answer or clarification…') if kind == 'interpretation' else (
             'Answer saved. Preparing your next question…' if turn and turn.resolved and turn.answer else
             'Preparing your next question…' if turn else 'Preparing your first question…')
-        retrying = False
         while True:
             self._check(attempt)
             used = self.attempts.get(key, 0)
@@ -148,26 +147,26 @@ class TypedDefenseFlow:
         self._check(attempt)
         return self.provider.client(self.session, self.files, stopped=lambda: self._stopped(attempt))
 
-    def advance(self, *, notify=lambda text: None):
+    def advance(self, *, notify=lambda text: None, retrying=False):
         with self._operation(notify) as attempt:
-            self._advance(attempt)
+            self._advance(attempt, retrying=retrying)
 
-    def _advance(self, attempt):
+    def _advance(self, attempt, *, retrying=False):
         request = prepare_progression(self.session)
         move = self._call('question', lambda: request.generate(list(self.files), None,
             client=self._client(attempt), next_move=defense_session.generate_next_move,
-            research_move=defense_session.generate_research_move), attempt)
+            research_move=defense_session.generate_research_move), attempt, retrying=retrying)
         candidate = request.apply(move)
         with self.provider.publishing(self.session, lambda: self._stopped(attempt)):
             self._check(attempt)
             commit_progression(self.session, candidate)
             self.pending = None
 
-    def submit(self, text, *, notify=lambda text: None):
+    def submit(self, text, *, notify=lambda text: None, retrying=False):
         with self._operation(notify) as attempt:
-            return self._submit(text, attempt)
+            return self._submit(text, attempt, retrying=retrying)
 
-    def _submit(self, text, attempt):
+    def _submit(self, text, attempt, *, retrying=False):
         session = self.session
         if not session.awaiting_answer:
             raise ValueError('There is no question awaiting an answer.')
@@ -196,7 +195,7 @@ class TypedDefenseFlow:
                     'original_speaker_name': turn.speaker_name} if turn.probe else {}),
                 **({'text_format': CombinedSubmissionDraft, 'planning_context': context,
                     'planning_guidance': COMBINED_PLANNING_GUIDANCE} if combined else {}))
-        decision = self._call('interpretation', interpret, attempt)
+        decision = self._call('interpretation', interpret, attempt, retrying=retrying)
         self._check(attempt)
         planned = identity = None
         if decision.action == 'clarify':

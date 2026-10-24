@@ -51,10 +51,10 @@ def generation_error_message(error: Exception, model: str, api_key: str) -> str:
     return "The request could not be completed. Retry when the service or storage recovers."
 
 
-def generate_next_question(session, files, api_key, model):
+def generate_next_question(session, files, api_key, model, *, retrying=False):
     try:
         if isinstance(session, ResearchDefenseSession):
-            research_action(session, files, 'advance')
+            research_action(session, files, 'advance', retrying=retrying)
         else:
             with st.spinner("Preparing your next question…"):
                 advance_defense(session, files, api_key, model=model)
@@ -66,16 +66,16 @@ def generate_next_question(session, files, api_key, model):
         st.session_state.pop("defense_error", None)
 
 
-def research_action(session, files, action, text=None):
+def research_action(session, files, action, text=None, *, retrying=False):
     flow = st.session_state['research_provider'].flow(session, files)
     turn = session.turns[-1] if session.turns else None
     topic = next((topic for topic in session.plan.topics if turn and topic.id == turn.topic_id), None)
     label = ('Reviewing your probe reply or clarification…' if turn and turn.probe
              else 'Reviewing your answer or clarification…') if action == 'submit' else 'Thinking… Preparing your question…'
-    with temporary_activity(label, topic.title if topic else None) as update:
+    with temporary_activity(('Trying again… ' if retrying else '') + label, topic.title if topic else None) as update:
         if action == 'submit':
-            return flow.submit(text, notify=update)
-        return flow.advance(notify=update)
+            return flow.submit(text, notify=update, retrying=retrying)
+        return flow.advance(notify=update, retrying=retrying)
 
 
 def prepare_research_scope(files, api_key, model, mode, research_stage):
@@ -395,7 +395,7 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                 retry_label = ('Retry question writing' if recovery and recovery.question_recovery.stage == 'writing'
                                else 'Retry next question')
                 if st.button(retry_label, disabled=not bool(api_key)):
-                    generate_next_question(session, files, api_key, model)
+                    generate_next_question(session, files, api_key, model, retrying=True)
                     st.rerun()
             elif session.awaiting_answer:
                 run_id = st.session_state["defense_run_id"]
@@ -435,7 +435,7 @@ if (mode == "code" and uploads) or (mode == "research" and papers) or (mode == "
                         st.error("Write an answer or clarification request before continuing.")
                     elif isinstance(session, ResearchDefenseSession):
                         try:
-                            research_action(session, files, 'submit', answer)
+                            research_action(session, files, 'submit', answer, retrying=retry_saved)
                         except Exception as error:
                             st.session_state['defense_error'] = generation_error_message(error, model, api_key)
                             if session.needs_question:

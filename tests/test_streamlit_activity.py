@@ -15,6 +15,47 @@ class StreamlitActivityTests(unittest.TestCase):
     prepare = fixtures.OpenRouterFallbackTests.prepare
     send = fixtures.OpenRouterFallbackTests.send
 
+    def test_manual_submission_and_writer_retries_are_named_without_marking_the_next_stage_as_retry(self):
+        router = fixtures.SyntheticRouter()
+        labels = []
+        native_status = st.status
+
+        def observe_status(label, **kwargs):
+            labels.append(label)
+            status = native_status(label, **kwargs)
+            native_update = status.update
+            def update(*args, **options):
+                if 'label' in options:
+                    labels.append(options['label'])
+                return native_update(*args, **options)
+            status.update = update
+            return status
+
+        with patch('streamlit.status', side_effect=observe_status):
+            app = self.connect(router)
+            self.prepare(app, 4)
+            fixtures.button(app, 'Start defense').click().run()
+            router.fail_name = 'CombinedSubmissionDraft'
+            self.send(app)
+            self.assertEqual(app.get('status'), [])
+            app.run()
+            labels.clear()
+            router.fail_name = 'QuestionDraft'
+            fixtures.button(app, 'Retry saved submission').click().run()
+            self.assertFalse(app.exception)
+            self.assertIn('Trying again… Reviewing your answer or clarification…', labels)
+            self.assertIn('Answer saved. Preparing your next question…', labels)
+            self.assertNotIn('Trying again… Answer saved. Preparing your next question…', labels)
+            self.assertEqual(app.get('status'), [])
+            labels.clear()
+            fixtures.button(app, 'Retry question writing').click().run()
+            self.assertFalse(app.exception)
+            self.assertIn('Trying again… Answer saved. Preparing your next question…', labels)
+            self.assertEqual(app.get('status'), [])
+            names = [body['response_format']['json_schema']['name'] for body in router.calls]
+            self.assertEqual(names.count('CombinedSubmissionDraft'), 2)
+            self.assertEqual(names.count('QuestionDraft'), 3)
+
     def test_mapping_and_remapping_use_native_status_without_leaving_an_activity_history(self):
         router = fixtures.SyntheticRouter()
         with patch('httpx.Client', side_effect=lambda **kwargs: fixtures.HTTPClient(transport=httpx.MockTransport(router))), \
@@ -73,7 +114,7 @@ class StreamlitActivityTests(unittest.TestCase):
             'OPENROUTER_FREE_DAILY_REQUESTS': '1000', 'OPENROUTER_FREE_OWNER_DAILY_REQUESTS': '1000'}))
         router = fixtures.SyntheticRouter(mixed=True)
         router.usage = {'cost': 0}
-        with patch('streamlit.status', wraps=st.status):
+        with patch('streamlit.status', wraps=st.status) as statuses:
             app = self.connect(router)
             next(box for box in app.selectbox if box.label == 'Practice tier').select('Free practice').run()
             self.prepare(app, 4)
@@ -90,5 +131,6 @@ class StreamlitActivityTests(unittest.TestCase):
             self.assertEqual(app.get('status'), [])
             self.assertEqual(app.session_state['research_coaching_job'].completion_status, 'ready')
             self.assertEqual(app.session_state['research_coaching'].answer_cards[:3], before)
+            self.assertIn('Trying again… Preparing your answer coaching…', [call.args[0] for call in statuses.call_args_list])
             names = [body['response_format']['json_schema']['name'] for body in router.calls]
             self.assertEqual(sum('CoachingDraft' in name for name in names), 4)

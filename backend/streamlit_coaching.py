@@ -105,7 +105,8 @@ def advance_research_report(api_key, model):
         try:
             numbers = ', '.join(str(turn + 1) for turn in section.turns or ())
             context = 'Team overview' if section.turns is None else ('Question ' if len(section.turns) == 1 else 'Questions ') + numbers
-            with temporary_activity('Preparing your coaching overview…' if section.turns is None else 'Preparing your answer coaching…', context):
+            label = 'Preparing your coaching overview…' if section.turns is None else 'Preparing your answer coaching…'
+            with temporary_activity(('Trying again… ' if section.attempts > 1 else '') + label, context):
                 if not request.provider_scope or not request.provider_owner:
                     raise QuestionGenerationError('This retained report has no funded provider scope. Keep its ready cards or start a new practice.')
                 client = RunQuestionClient(request.provider_scope, request.provider_owner, None, request.files,
