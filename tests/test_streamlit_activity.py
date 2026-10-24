@@ -64,15 +64,22 @@ class StreamlitActivityTests(unittest.TestCase):
             router.app = app
             app.file_uploader[0].set_value([('study.md', fixtures.PAPER.encode(), 'text/markdown')]).run()
             self.assertEqual(router.calls, [])
+            router.fail_name = 'ResearchPlanDraft'
             fixtures.button(app, 'Prepare defense').click().run()
             self.assertFalse(app.exception)
             self.assertTrue(any(call.args[0] == 'Mapping your paper…' for call in statuses.call_args_list))
             self.assertEqual(app.get('status'), [])
             self.assertEqual(len(router.calls), 1)
-            fixtures.button(app, 'Prepare map again').click().run()
+            fixtures.button(app, 'Retry research map').click().run()
             self.assertFalse(app.exception)
+            self.assertEqual(statuses.call_args_list[-1].args[0], 'Trying again… Mapping your paper…')
             self.assertEqual(app.get('status'), [])
             self.assertEqual(len(router.calls), 2)
+            fixtures.button(app, 'Prepare map again').click().run()
+            self.assertFalse(app.exception)
+            self.assertEqual(statuses.call_args_list[-1].args[0], 'Mapping your paper…')
+            self.assertEqual(app.get('status'), [])
+            self.assertEqual(len(router.calls), 3)
             self.assertIsNotNone(app.session_state['research_plan'])
 
     def test_complete_typed_research_uses_temporary_exchange_and_coaching_status_without_extra_requests(self):
