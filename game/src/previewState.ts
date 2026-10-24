@@ -67,6 +67,16 @@ export const previewState: RoomState = {
   chat: [],
 };
 
+// AI-free research review fixture: the topic describes the displayed discussion,
+// never a prospective question. Used by the existing local preview route only.
+if (researchPreview && reviewPreview) {
+  previewState.defense_view_id = "preview-research-review";
+  previewState.operation = { id: "preview-question", kind: "question", stage: "generating",
+    started_at_ms: previewState.server_now_ms! - 4000, attempt: 1, retrying: false };
+  previewState.panelist_activity = { operation_id: "preview-question", view_id: "preview-research-review",
+    reviewer: null, context: "Participant recruitment" };
+}
+
 if (completePreview) {
   const roles = researchPreview
     ? ["Methodology Reviewer", "Ethics Reviewer", "Impact Reviewer", "Critical Reviewer"]

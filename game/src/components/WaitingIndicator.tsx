@@ -8,6 +8,7 @@ interface WaitingIndicatorProps {
   retryAtMs?: number | null;
   serverNowMs?: number;
   className?: string;
+  context?: string | null;
 }
 
 function elapsedText(milliseconds: number): string {
@@ -16,12 +17,13 @@ function elapsedText(milliseconds: number): string {
 }
 
 export function WaitingIndicator({ label, detail, active = true, startedAtMs = null,
-                                    retryAtMs = null, serverNowMs, className }: WaitingIndicatorProps) {
-  const anchor = useRef({ wall: Date.now(), server: serverNowMs ?? 0 });
+                                    retryAtMs = null, serverNowMs, className, context }: WaitingIndicatorProps) {
+  const anchor = useRef({ wall: Date.now(), server: serverNowMs ?? 0, startedAtMs, retryAtMs });
   const [, tick] = useState(0);
-  useEffect(() => {
-    anchor.current = { wall: Date.now(), server: serverNowMs ?? 0 };
-  }, [serverNowMs, startedAtMs, retryAtMs]);
+  if (anchor.current.server !== (serverNowMs ?? 0)
+      || anchor.current.startedAtMs !== startedAtMs || anchor.current.retryAtMs !== retryAtMs) {
+    anchor.current = { wall: Date.now(), server: serverNowMs ?? 0, startedAtMs, retryAtMs };
+  }
   useEffect(() => {
     if ((!active || startedAtMs === null || serverNowMs === undefined)
         && (retryAtMs === null || serverNowMs === undefined)) return;
@@ -42,6 +44,7 @@ export function WaitingIndicator({ label, detail, active = true, startedAtMs = n
       {elapsed !== null && <span className="waiting-elapsed" aria-hidden="true">{elapsedText(elapsed)}</span>}
       {retryIn !== null && <span className="waiting-retry" aria-hidden="true">{retryIn > 0 ? `Retrying in ${Math.ceil(retryIn / 1000)}s` : "Retrying now…"}</span>}
       {detail && <span className="waiting-detail">{detail}</span>}
+      {context && <span className="waiting-context"><span>Current context</span><mark>{context}</mark></span>}
     </span>
   );
 }

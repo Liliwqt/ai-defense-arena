@@ -208,6 +208,29 @@ class Room(TimedTurn):
         }
         return operation if visible.get(operation.kind, False) else None
 
+    def panelist_activity(self, operation: RoomOperation | None) -> dict | None:
+        """Expose current public discussion context, never prospective AI work."""
+        if (self.defense_type == "code" or operation is None
+                or operation.kind not in {"question", "interpretation"}
+                or operation.stage == "retry_wait"):
+            return None
+        if (operation.kind == "interpretation" and self.pending_submission
+                and self.pending_submission.probe_id is not None):
+            return None  # Same-question probe activity is a separate delivery slice.
+        session = self.defense
+        previous = session.turns[-1] if session and session.turns else None
+        reviewer = (previous.panelist if previous and operation.kind == "interpretation"
+                    else session.pending_panelist if session else None)
+        context = None
+        if isinstance(session, ResearchDefenseSession) and session.plan and previous:
+            # Only the already-published turn's topic is suitable. A validated
+            # next-move plan is still private until its question is accepted.
+            topic = next((topic for topic in session.plan.topics if topic.id == previous.topic_id), None)
+            if topic and isinstance(topic.title, str):
+                context = " ".join(topic.title.split())[:160] or None
+        return {"operation_id": operation.id, "view_id": self.defense_view_id,
+                "reviewer": reviewer, "context": context}
+
     def expire(self, now, online, session, expected_id=None, choose=None):
         if expected_id is not None and self.clock_id != expected_id:
             return None
@@ -296,6 +319,8 @@ class Room(TimedTurn):
             "opening_candidate": self.opening_candidate.preview() if self.opening_candidate and recipient and recipient.is_host else None,
             "question_retrying": self.phase == "generating" and self.question_retry_generation_id == self.generation_id,
             "operation": operation.snapshot() if operation else None,
+            "panelist_activity": self.panelist_activity(operation) if recipient is not None
+                and self.players.get(recipient.token) is recipient else None,
             "processing_policy": self.processing_policy.snapshot(),
             "coaching_attempts_left": (1 if self.coaching_progress.can_retry else 0) if self.coaching_progress else self.ai_budget.remaining('coaching', limit('AI_COACHING_ATTEMPTS', 3, 10)),
             "plan_attempts_left": self.ai_budget.remaining('plan', limit('AI_PLAN_ATTEMPTS', 3, 10)),

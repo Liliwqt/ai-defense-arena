@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { PDFViewer } from "./PDFViewer";
 import { PaperMappingProgress } from "./PaperMappingProgress";
 import { WaitingIndicator } from "./WaitingIndicator";
+import { PanelistActivity } from "./PanelistActivity";
 import { isResearchCitation } from "../lib/citation";
 import type { RoomState } from "../types";
 
@@ -51,7 +52,7 @@ export function QuestionCard({ roomState, playerToken, presentation = deriveRoom
       <div className="question-heading">
         <div>
           <p className="question-kicker">{clarification ? "THE PANEL CLARIFIES" : "THE PANEL ASKS"}</p>
-          <h2 id="panelist-name">{content.name}</h2>
+          <h2 id="panelist-name">{presentation.activity ? presentation.activity.reviewer ?? "The panel" : content.name}</h2>
         </div>
         <span className="question-number">{content.number}</span>
       </div>
@@ -65,15 +66,19 @@ export function QuestionCard({ roomState, playerToken, presentation = deriveRoom
           onClick={() => { setPaperTab(tab); if (tab === "question") setExpanded(false); }}>{tab === "paper" ? "Paper" : "Question"}</button>)}
       </div>}
       </div>
-      {presentation.waiting && !content.mapping
+      {!presentation.activity && (presentation.waiting && !content.mapping
         ? <div className="question-review-status">
           <WaitingIndicator label={presentation.waiting.label} detail={presentation.waiting.detail}
             active={presentation.waiting.active} startedAtMs={presentation.waiting.startedAtMs}
             retryAtMs={presentation.waiting.retryAtMs} serverNowMs={roomState?.server_now_ms} />
           {content.reviewStatus?.includes("Timer") && <p>{content.reviewStatus}</p>}
         </div>
-        : content.reviewStatus && <p className="question-review-status" aria-live="polite">{content.reviewStatus}</p>}
+        : content.reviewStatus && <p className="question-review-status" aria-live="polite">{content.reviewStatus}</p>)}
       <div className="question-scroll" ref={scrollRef} tabIndex={0} aria-label="Question and cited source">
+      {presentation.activity && <>
+        <PanelistActivity presentation={presentation} serverNowMs={roomState?.server_now_ms} />
+        {content.reviewStatus?.includes("Timer") && <p className="question-review-status">{content.reviewStatus}</p>}
+      </>}
       <div className="question-copy" id="paper-question-panel" role={hasPaper ? "tabpanel" : undefined} aria-labelledby={hasPaper ? "paper-tab-question" : undefined}>
       {roomState?.current_topic && <p className="question-topic">Topic: {roomState.research_plan?.topics.find(t => t.id === roomState.current_topic)?.title}</p>}
       {clarification && <p className="clarification-request"><strong>Defender asks:</strong> {clarification.request}</p>}

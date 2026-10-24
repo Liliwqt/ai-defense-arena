@@ -84,7 +84,12 @@ function coachingLabel(stage: string, retrying: boolean): string {
 
 function deriveWaiting(state: Readonly<RoomState> | null): WaitingPresentation | null {
   if (!state) return null;
-  const operation = state.operation;
+  const operation = state.operation && (
+    state.operation.kind === "question" && state.phase === "generating"
+    || state.operation.kind === "interpretation" && state.phase === "interpreting"
+    || state.operation.kind === "mapping" && state.research_planning_status === "planning"
+    || state.operation.kind === "coaching" && state.feedback_status === "generating"
+  ) ? state.operation : null;
   if (operation) {
     const startedAtMs = typeof operation.started_at_ms === "number" ? operation.started_at_ms : null;
     if (operation.stage === "retry_wait") {
@@ -412,13 +417,24 @@ export function deriveRoomPresentation(state: Readonly<RoomState> | null) {
     : reviewing ? submission.reviewGuidance
     : phase === "question" || phase === "probe" ? chosenSelf ? `${answerPrompt} in the bottom dock.` : teammateInstruction
     : lifecycleGuidance(state);
+  const waiting = deriveWaiting(state);
+  const liveActivity = !!state && state.defense_type !== "code" && !!state.defense_type
+    && (phase === "generating" || phase === "interpreting" && !current?.probe)
+    && !!waiting?.active;
+  const suppliedActivity = state?.panelist_activity;
+  const currentActivity = suppliedActivity?.operation_id === state?.operation?.id
+    && suppliedActivity?.view_id === state?.defense_view_id ? suppliedActivity : null;
+  const activity = liveActivity ? {
+    reviewer: currentActivity?.reviewer ?? null,
+    context: currentActivity?.context ?? null,
+  } : null;
   return {
     currentIndex, answerTurnIndex, acceptedCount, resolvedCount, card, clarification, reaction, closingPanelist, panelists, defenders,
     guidance,
     controls: { questionRetry: phase === "retry", questionRetryAvailable: state?.question_attempts_left !== 0,
       coachingRetry: phase === "complete" && state?.feedback_status === "failed", coachingRetryAvailable: state?.coaching_attempts_left !== 0 },
     voting, chosenSelf, chosenName, submission, timer: deriveTimer(state), status: closing ? "Panelist closing…" : interpretationStatus(state) ?? roomStatus(state), progress,
-    waiting: deriveWaiting(state),
+    waiting, activity,
     coverage: { addressed: Object.values(state?.coverage ?? {}).filter(item => item.status === "addressed").length,
       total: state?.research_plan?.topics.length ?? 0 },
     voteInstruction, answerPrompt, teammateInstruction,
