@@ -157,6 +157,10 @@ class FundedQuestionClientTests(IsolatedAllowanceTests):
         self.assertTrue(guard['require_parameters'])
         self.assertEqual(guard['data_collection'], 'deny')
         self.assertEqual(guard['max_price'], {'prompt': .30, 'completion': 1.20, 'request': 0})
+        # GLM question calls (planner here) pin only DeepInfra; the Darkbloom
+        # auto route returned 429. Non-GLM reviewers stay on auto.
+        self.assertEqual(guard['only'], ['deepinfra'])
+        self.assertNotIn('only', self.calls[1]['provider'])
         self.assertIn('Do not write the question', self.calls[0]['messages'][0]['content'])
         self.assertIn('topic-1', self.calls[1]['messages'][1]['content'])
         self.assertEqual(move.panelist, METHODOLOGY)

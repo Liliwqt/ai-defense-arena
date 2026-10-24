@@ -119,7 +119,15 @@ class ProviderRoutingBenchmarkTests(IsolatedAllowanceTests):
         self.assertEqual(len(quality), 10)
         self.assertTrue(all(r['outcome'] == 'succeeded' for r in records if r['event'] == 'total'))
         for condition, body in received:
-            expected = ['deepinfra'] if condition == 'provider-deepinfra' and body['model'] == DEEPSEEK else None
+            if body['model'] == DEEPSEEK:
+                # Only the DeepSeek host changes between conditions.
+                expected = ['deepinfra'] if condition == 'provider-deepinfra' else None
+            elif body['model'] == 'z-ai/glm-5.3-flash':
+                # GLM question calls (planner, Critical Judge) are always pinned
+                # to DeepInfra by the app; the route stays in both conditions.
+                expected = ['deepinfra']
+            else:
+                expected = None
             self.assertEqual(body['provider'].get('only'), expected)
         routed = [r for r in records if r.get('requested_provider')]
         self.assertTrue(routed)

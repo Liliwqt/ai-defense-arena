@@ -44,6 +44,10 @@ from backend.practice_tiers import FREE, FREE_MODEL, FREE_PROVIDER, FREE_CONTEXT
 
 PLANNER_MODEL = 'z-ai/glm-5.3-flash'
 PLANNER_REASONING = {'effort': 'low'}
+# GLM 5.3 Flash serves the planner and Critical Judge question calls. Its auto
+# route (Darkbloom) returned HTTP 429 on 2026-10-25, so standard question calls
+# pin only GLM to DeepInfra; other reviewers and coaching stay on auto.
+GLM_PROVIDER = 'deepinfra'
 SEPARATE_PLANNING = 'separate-v1'
 COMBINED_PLANNING = 'combined-v1'
 EVIDENCE_FULL = 'full-v1'
@@ -63,6 +67,7 @@ REVIEWER_MODELS = {
     IMPACT_REVIEWER: 'qwen/qwen3.8-flash',
     CRITICAL_JUDGE: 'z-ai/glm-5.3-flash',
 }
+GLM_MODELS = {PLANNER_MODEL, REVIEWER_MODELS[CRITICAL_JUDGE]}
 # Temporary low-reasoning trial (2026-10-24): new questions and exchanges
 # request low effort. Qwen uses a 512-token budget because it exposes no named
 # effort selector. Existing runs retain their captured settings.
@@ -370,8 +375,14 @@ class RunQuestionClient:
         if not self.api_key or any(char.isspace() for char in self.api_key):
             raise QuestionGenerationError('Set a clean OPENROUTER_API_KEY on the server to generate defense questions.')
         policy = self._load_policy()
+        # Route GLM question calls only to DeepInfra; the auto route (Darkbloom)
+        # returned 429. Other reviewers and coaching keep their own/auto routes,
+        # so a blanket run provider pin would wrongly route them here.
+        provider_only = policy.provider_only
+        if policy.tier != FREE and model in GLM_MODELS:
+            provider_only = [GLM_PROVIDER]
         body = payload(model, messages, schema, reasoning=reasoning, max_tokens=max_tokens,
-                       free=policy.tier == FREE, provider_only=policy.provider_only)
+                       free=policy.tier == FREE, provider_only=provider_only)
         input_bound = len(json.dumps({'messages': messages, 'schema': body['response_format']}, ensure_ascii=False).encode()) + FRAMING_BYTES
         if input_bound + max_tokens > policy.context_tokens:
             raise QuestionGenerationError('The accepted material exceeds the bounded OpenRouter question context. Reduce the material; it was not truncated.')

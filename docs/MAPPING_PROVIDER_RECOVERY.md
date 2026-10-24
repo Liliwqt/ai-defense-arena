@@ -33,8 +33,11 @@ maximum input/output prices.
 After deployment, create a new room/preparation to use a changed provider.
 Retrying an existing preparation preserves its saved route, model and allowance;
 configuration changes do not refill spending or request limits. Streamlit also
-requires a new preparation scope. This setting affects mapping only: reviewer
-questions and coaching retain their existing policies.
+requires a new preparation scope. This setting affects mapping only: the
+planner and Critical Judge question calls that use GLM are pinned separately to
+DeepInfra in `backend/openrouter_questions.py` (their auto route, Darkbloom,
+also returned 429), while other reviewers and coaching keep their existing
+routes.
 
 On Render, use the default DeepInfra route or set the variable explicitly, then
 deploy the correction. This document does not establish that deployment happened
