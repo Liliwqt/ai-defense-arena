@@ -5,6 +5,7 @@ import { PDFViewer } from "./PDFViewer";
 import { PaperMappingProgress } from "./PaperMappingProgress";
 import { WaitingIndicator } from "./WaitingIndicator";
 import { PanelistActivity } from "./PanelistActivity";
+import { ResearchPreparationCard } from "./ResearchPreparationCard";
 import { isResearchCitation } from "../lib/citation";
 import type { RoomState } from "../types";
 
@@ -32,6 +33,7 @@ export function QuestionCard({ roomState, playerToken, presentation = deriveRoom
     const probe = scroll?.querySelector<HTMLElement>(".panelist-probe");
     if (scroll && probe && !showActivity) scroll.scrollTop += probe.getBoundingClientRect().top - scroll.getBoundingClientRect().top;
   }, [content.probe?.id, content.probe?.clarifications.length, showActivity]);
+  if (content.mapping && roomState) return <ResearchPreparationCard roomState={roomState} playerToken={playerToken} />;
   if (presentation.reaction) {
     const { name, text, closing } = presentation.reaction;
     return (

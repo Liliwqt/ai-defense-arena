@@ -217,7 +217,7 @@ it("gives truthful shared mapping, preparation, missed-turn and exhausted recove
   snapshot(state);
   const view = render(<App />);
   expect(screen.getByRole("status", { name: "Room status" })).toHaveTextContent("Mapping research…");
-  expect(within(screen.getByRole("region", { name: "Answer area" })).getByText(/Mapping your paper/)).toBeTruthy();
+  expect(within(screen.getByRole("region", { name: "Answer area" })).getByText(/Your team can keep reading the paper/)).toBeTruthy();
   expect(screen.queryByRole("timer")).toBeNull();
   expect(screen.getByRole("progressbar", { name: "Paper mapping progress" })).toHaveAttribute("aria-valuetext", "Mapping in progress");
   snapshot({ ...state, phase: "generating", research_planning_status: "ready" });

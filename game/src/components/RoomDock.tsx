@@ -120,7 +120,9 @@ export function RoomDock({ active = true, playerToken, roomState, connected, pre
       </div>
       {roomState?.voice?.enabled && <p className="voice-remaining">{formatCountdown(Math.ceil(roomState.voice.remaining_ms / 1000))} shared voice time left</p>}
       <div id="dock-action" role="tabpanel" hidden={tab !== "action"} className="dock-content">
-        {presentation.voting && roomState ? <VotePanel state={roomState} connected={connected} previewMode={previewMode}
+        {roomState?.phase === "lobby" && roomState.research_planning_status === "planning"
+          ? <section id="answer-composer" aria-label="Answer area"><p className="mapping-reading-note" role="status">Your team can keep reading the paper while the map is prepared.</p></section>
+          : presentation.voting && roomState ? <VotePanel state={roomState} connected={connected} previewMode={previewMode}
           actionError={actionError} onSendEvent={onSendEvent} instruction={presentation.voteInstruction} /> :
           <AnswerComposer active={active && tab === "action"} playerToken={playerToken} presentation={presentation} roomState={roomState} connected={connected} previewMode={previewMode}
             waitingForAnswerAck={waitingForAnswerAck} actionError={actionError} actionErrorReason={actionErrorReason} onSendEvent={onSendEvent} />}

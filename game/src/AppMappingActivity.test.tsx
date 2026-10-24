@@ -8,6 +8,7 @@ import type { RoomState } from "./types";
 
 vi.mock("./hooks/useAccount", () => ({ useAccount: vi.fn() }));
 vi.mock("./hooks/useRoomSocket", () => ({ useRoomSocket: vi.fn() }));
+vi.mock("./components/PDFViewer", () => ({ PDFViewer: () => <section aria-label="Original PDF">Accepted PDF pages</section> }));
 let socket: RoomSocketState;
 function mappingRoom(extra: Partial<RoomState> = {}): RoomState {
   return {
@@ -51,6 +52,24 @@ it("shows accepted-upload activity beside provisional progress and removes it wh
   expect(screen.queryByRole("progressbar", { name: "Paper mapping progress" })).toBeNull();
   expect(screen.getByRole("region", { name: "Research profile" })).toBeVisible();
   expect(screen.getByRole("button", { name: "Confirm profile and budget" })).toBeDisabled();
+  expect(socket.sendEvent).not.toHaveBeenCalled();
+});
+
+it("shows the selected room layout during host mapping, then restores profile review when ready", () => {
+  socket.roomState = mappingRoom({ documents: [{ id: "accepted-paper", filename: "paper.pdf", page_count: 7 }] });
+  const app = render(<App />);
+  expect(screen.getByRole("heading", { name: "Research preparation" })).toBeVisible();
+  expect(screen.getByText("Preparing research")).toBeVisible();
+  expect(screen.getByRole("region", { name: "Panelists" })).toBeVisible();
+  expect(screen.getByRole("region", { name: "Defenders" })).toBeVisible();
+  expect(screen.getByRole("region", { name: "Accepted research upload" })).toHaveTextContent("paper.pdf");
+  expect(screen.getByRole("region", { name: "Original PDF" })).toBeVisible();
+  expect(screen.queryByRole("button", { name: /Start defense/ })).toBeNull();
+  socket.roomState = mappingRoom({ research_planning_status: "ready", research_plan: researchPlanPreview,
+    research_plan_progress: null, operation: null, panelist_activity: null });
+  app.rerender(<App />);
+  expect(screen.getByRole("region", { name: "Research profile" })).toBeVisible();
+  expect(screen.queryByRole("region", { name: "Panelist activity" })).toBeNull();
   expect(socket.sendEvent).not.toHaveBeenCalled();
 });
 

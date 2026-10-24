@@ -255,7 +255,8 @@ export function App() {
   const firstScreen = useRef(true);
   useEffect(() => {
     if (firstScreen.current) { firstScreen.current = false; return; }
-    document.getElementById(screen === "room" ? "room-screen-title" : "app-screen-title")?.focus();
+    const mappingRoom = screen === "prepare" && roomState?.research_planning_status === "planning";
+    document.getElementById(screen === "room" || mappingRoom ? "room-screen-title" : "app-screen-title")?.focus();
   }, [screen]);
 
   // Follow meaningful server stage changes once; snapshots never own manual navigation.
@@ -290,6 +291,8 @@ export function App() {
   // A bare preparation address with no room falls back to setup rather than
   // showing preparation controls a route alone cannot authorize.
   const prepareReady = isPrepare && hasRoom;
+  const mappingInRoom = prepareReady && roomState?.phase === "lobby"
+    && roomState.defense_type !== "code" && roomState.research_planning_status === "planning";
   const pageTitle = isControls ? "Live controls" : prepareReady ? (roomState?.defense_type && roomState.defense_type !== "code" ? "Shape your defense." : "Prepare your defense")
     : hasRoom ? (newRoomSetup ? "Create another room" : "Your material")
     : setupRequest.tab === "join" ? "Join a room" : "Bring your work.";
@@ -321,8 +324,8 @@ export function App() {
       if (href) { event.preventDefault(); navigateHref(href); }
     }}>
       {stageNotice && <p className="navigation-notice" role="status">{stageNotice}</p>}
-      <div className="room-screen" hidden={screen !== "room"}>
-        <div className="arena-shell" data-speaker-desk={!!roomState?.voice?.enabled && roomState.defense_type !== "code"} data-compact-viewport={viewport.compact} style={{ "--room-viewport-height": `${viewport.height}px` } as React.CSSProperties}>
+      <div className="room-screen" hidden={screen !== "room" && !mappingInRoom}>
+        <div className="arena-shell" data-research-mapping={roomState?.phase === "lobby" && roomState.research_planning_status === "planning"} data-speaker-desk={!!roomState?.voice?.enabled && roomState.defense_type !== "code"} data-compact-viewport={viewport.compact} style={{ "--room-viewport-height": `${viewport.height}px` } as React.CSSProperties}>
           <div id="stage" className="arena-stage">
             <HUD presentation={presentation} roomState={roomState} roomCode={roomCode} previewMode={previewMode} onOpenControls={openControls} onOpenTranscript={() => navigate("results")}
               onOpenAccount={() => navigate("account")} onOpenHome={() => navigate("home")} onPreviewMoment={previewPresenter} />
@@ -335,7 +338,7 @@ export function App() {
         </div>
       </div>
       {/* Keep preparation content mounted across screens to preserve FileList and drafts. */}
-      <PreparationPage open={pageScreen} title={pageTitle}
+      <PreparationPage open={pageScreen && !mappingInRoom} title={pageTitle}
         kicker={pageKicker}
         introContent={isControls && <section className="live-controls-overview" aria-label="Current defense controls">
           <LiveRoomStatus state={roomState} presentation={presentation} />

@@ -9,7 +9,7 @@ const stages = [
   { id: "validating", label: "Checking the complete map" },
 ] as const;
 
-export function PaperMappingProgress({ roomState }: { roomState: RoomState }) {
+export function PaperMappingProgress({ roomState, compact = false }: { roomState: RoomState; compact?: boolean }) {
   const presentation = deriveRoomPresentation(roomState);
   const progress = roomState.research_plan_progress;
   const waiting = presentation.waiting;
@@ -17,10 +17,7 @@ export function PaperMappingProgress({ roomState }: { roomState: RoomState }) {
   const topics = progress?.topics ?? [];
   const step = stages.findIndex(item => item.id === stage);
   const validating = stage === "validating";
-  return <div className="room-create-progress paper-mapping-progress" aria-busy="true">
-    {presentation.activity ?
-      <PanelistActivity presentation={presentation} serverNowMs={roomState.server_now_ms} />
-      : waiting && <WaitingIndicator {...waiting} serverNowMs={roomState.server_now_ms} />}
+  const details = <>
     <div className="room-create-progress-track" role="progressbar" aria-label="Paper mapping progress" aria-valuetext={stage === "preparing" ? "Preparing accepted documents" : validating ? "Checking the complete map" : "Mapping in progress"}>
       <span className="room-create-progress-fill is-indeterminate" aria-hidden="true" />
     </div>
@@ -40,5 +37,11 @@ export function PaperMappingProgress({ roomState }: { roomState: RoomState }) {
       </li>)}</ol>
     </>}
     <p className="control-help">Your uploads are retained. Review the finished map before starting.</p>
+  </>;
+  return <div className="room-create-progress paper-mapping-progress" aria-busy="true">
+    {presentation.activity ?
+      <PanelistActivity presentation={presentation} serverNowMs={roomState.server_now_ms} />
+      : waiting && <WaitingIndicator {...waiting} serverNowMs={roomState.server_now_ms} />}
+    {compact ? <details className="mapping-progress-details"><summary>Mapping progress and draft topics</summary>{details}</details> : details}
   </div>;
 }

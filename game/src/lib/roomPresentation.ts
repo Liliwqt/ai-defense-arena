@@ -420,7 +420,8 @@ export function deriveRoomPresentation(state: Readonly<RoomState> | null) {
     return { seat, name, self: !!player && seat === state?.self_seat, online: !!player?.online, selected, label,
       accessibleLabel: `Defender seat ${seat + 1}: ${description}${selected ? ", chosen to answer" : ""}${voting && player?.online ? `, ${votes} votes` : ""}` };
   });
-  const progress = phase === "complete" ? "COMPLETE" : state
+  const progress = phase === "lobby" && state?.research_planning_status === "planning" ? "Preparing research"
+    : phase === "complete" ? "COMPLETE" : state
     ? state.question_budget ? turns.length === 0 ? `0 of ${state.question_budget} questions generated` : `Question ${turns.length} of ${state.question_budget} · ${displayRole(state.active_panelist ?? "Reviewing").replace(" Reviewer", "").replace(" Judge", "")}` : `${resolvedCount} RESOLVED`
     : "READY";
   const voteInstruction = "Choose a speaker. You can change your vote until the clock reaches zero.";
