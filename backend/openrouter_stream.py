@@ -123,7 +123,11 @@ def status_error(status, error=None, retry_after: int | None = None):
         if message.startswith('rate limit exceeded: free-models-per-min'):
             return ProviderStatusError(status, 'OpenRouter’s per-minute free-model request limit was reached (HTTP 429). Wait at least a minute before retrying. Repeated retries also consume free requests.',
                                        retry_after_seconds=retry_after)
-        return ProviderStatusError(status, 'OpenRouter or the selected provider reached a rate or capacity limit (HTTP 429). Wait before retrying. If it persists, ask the operator to check OpenRouter Activity and the account’s free-model allowance.',
+        metadata = error.get('metadata') if isinstance(error, dict) else None
+        if isinstance(metadata, dict) and metadata.get('limit_source') == 'upstream_provider_shared_pool':
+            return ProviderStatusError(status, 'The selected upstream provider reached a shared rate or capacity limit (HTTP 429). Wait before retrying. If it persists, ask the operator to check provider availability in OpenRouter Activity.',
+                                       retry_after_seconds=retry_after)
+        return ProviderStatusError(status, 'OpenRouter or the selected provider reached a rate or capacity limit (HTTP 429). Wait before retrying. If it persists, ask the operator to check the failed request and account limits in OpenRouter Activity.',
                                    retry_after_seconds=retry_after)
     if status == 404:
         message = error.get('message', '') if isinstance(error, dict) else ''

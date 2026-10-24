@@ -332,6 +332,36 @@ class OpenRouterMappingProtocolTests(unittest.TestCase):
         self.assertEqual(result.status_code, 503)
         self.assertIn('temporarily unavailable', result.json()['detail'])
 
+    def test_standard_capacity_failure_keeps_paid_route_and_uploads_on_retry(self):
+        from backend import game_server
+        calls = []
+        def provider(request):
+            calls.append(json.loads(request.content))
+            return httpx.Response(429, json={'error': {'code': 429,
+                'message': 'PRIVATE-PROVIDER-PAYLOAD',
+                'metadata': {'limit_source': 'upstream_provider_shared_pool'}}})
+        def client(*args, **kwargs):
+            return HTTPClient(transport=httpx.MockTransport(provider))
+        host = self.create()
+        room = game_server.rooms[host['room_code']]
+        uploads = list(room.files)
+        with patch.dict(os.environ, {'OPENROUTER_MAPPING_MODEL': 'z-ai/glm-5.3-flash'}), \
+             patch('httpx.Client', side_effect=client), \
+             self.client.websocket_connect(f"/ws/{host['room_code']}") as socket:
+            self.hello(socket, host['player_token'])
+            for action in ('prepare_research_plan', 'retry_research_plan'):
+                state = self.map_state(socket, action)
+                self.assertEqual(state['research_planning_status'], 'failed')
+                self.assertEqual(state['practice_tier'], 'standard')
+                self.assertIn('upstream provider', state['research_plan_error'])
+                self.assertNotIn('free-model', state['research_plan_error'])
+                self.assertNotIn('PRIVATE-PROVIDER-PAYLOAD', state['research_plan_error'])
+                self.assertIsNone(state['panelist_activity'])
+                self.assertEqual(room.files, uploads)
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(all(body['model'] == 'z-ai/glm-5.3-flash' for body in calls))
+        self.assertTrue(all(body['provider']['max_price']['prompt'] > 0 for body in calls))
+
     def test_provider_error_is_redacted_and_never_falls_back(self):
         calls=[]
         def provider(request):

@@ -24,6 +24,27 @@ class ProviderErrorTests(unittest.TestCase):
                     self.assertNotIn('Check server configuration', str(error))
                     self.assertFalse(error.retryable)
 
+    def test_unknown_rate_limit_does_not_imply_a_free_model_was_used(self):
+        for http_status in (429, 200):
+            with self.subTest(http_status=http_status):
+                error = self.failure({'code': 429, 'message': 'private upstream details'},
+                                     http_status=http_status)
+                self.assertIn('rate or capacity limit', str(error))
+                self.assertNotIn('free-model', str(error))
+                self.assertIn('OpenRouter Activity', str(error))
+
+    def test_explicit_upstream_capacity_has_distinct_safe_guidance(self):
+        for http_status in (429, 200):
+            with self.subTest(http_status=http_status):
+                error = self.failure({'code': 429, 'message': 'private upstream details',
+                    'metadata': {'limit_source': 'upstream_provider_shared_pool',
+                                 'raw': 'private upstream details'}},
+                    http_status=http_status, headers={'Retry-After': '2'})
+                self.assertIn('upstream provider', str(error))
+                self.assertNotIn('free-model', str(error))
+                self.assertTrue(error.retryable)
+                self.assertEqual(error.retry_after_seconds, 2)
+
     def test_retry_after_makes_only_bounded_429s_retryable(self):
         for http_status in (429, 200):
             with self.subTest(http_status=http_status):
