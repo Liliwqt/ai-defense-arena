@@ -135,7 +135,11 @@ class MappingClient:
             raise QuestionGenerationError(str(error)) from None
         try:
             current()
-            with httpx.Client(timeout=httpx.Timeout(30, connect=10, read=30), follow_redirects=False) as client:
+            # The app deadline above is the real limit; the transport read
+            # timeout is only a backstop for a dead connection, so it must not
+            # abort a slow but healthy stream before that deadline.
+            with httpx.Client(timeout=httpx.Timeout(timeout_seconds, connect=10, read=timeout_seconds),
+                    follow_redirects=False) as client:
                 with open_stream(client, api_key=self.api_key, body=body, schema=text_format,
                         current=current, on_usage=lambda usage: self._settle_usage(identity, usage)) as stream:
                     yield stream

@@ -23,7 +23,7 @@ keep their existing setup. Keep exactly one worker and one instance.
 | --- | --- | --- |
 | `OPENROUTER_PREPARATION_USD` | `0.75` | Separate per-preparation ceiling, positive decimal up to USD10. |
 | `OPENROUTER_MAPPING_MAX_OUTPUT_TOKENS` | `65536` | Mapping reasoning plus visible output, configurable1024–131072. |
-| `OPENROUTER_MAPPING_TIMEOUT_SECONDS` | `300` | Total mapping deadline, configurable 30–600 seconds. Applies to each new attempt, including retained preparations; model/reasoning/allowance snapshots stay fixed. |
+| `OPENROUTER_MAPPING_TIMEOUT_SECONDS` | `300` | Total mapping deadline, configurable 30–600 seconds. Applies to each new attempt, including retained preparations; model/reasoning/allowance snapshots stay fixed. The HTTP read timeout matches this value, so a slow but healthy stream is never cut off before the deadline. |
 | `OPENROUTER_MAPPING_REASONING_EFFORT` | `low` | Mapping-only effort for new preparations: `low` or `high`. Saved preparations retain their effort; retained policies predating this setting stay high. |
 | `OPENROUTER_MAPPING_MODEL` | `z-ai/glm-5.3-flash` | Mapping-only model for new Standard preparations. Explicit rollback: `deepseek/deepseek-v4.1-flash-1017`. Saved preparations keep their model. |
 | `OPENROUTER_MAPPING_PROVIDER` | `deepinfra` for GLM, `auto` for legacy DeepSeek | Provider for new Standard maps: `deepinfra`, `wafer`, `z-ai` or `auto`. Retained preparations keep their saved route. |
@@ -36,8 +36,9 @@ legacy effort variables do not override funded-run assignments.
 
 Mapping previously stopped after 90 seconds even when structured output was
 still arriving. High-reasoning maps can take longer. The default now permits
-five minutes, with a separate 30-second network inactivity timeout and bounded
-connection/write waits. Streaming topic progress remains provisional until the
+five minutes, and the HTTP read timeout matches that deadline so a slow but
+healthy stream is not cut off early; connection and write waits stay bounded.
+Streaming topic progress remains provisional until the
 complete map validates. This extends the waiting window; it does not establish
 faster generation or successful completion on a particular paper. A failed or
 cancelled attempt retains uploads and does not reset its spending reservation.

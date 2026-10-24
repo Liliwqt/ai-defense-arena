@@ -400,7 +400,11 @@ class RunQuestionClient:
                 raise QuestionGenerationError(str(error)) from None
 
         current()
-        with httpx.Client(timeout=httpx.Timeout(90, read=15), follow_redirects=False) as client:
+        # Reasoning is excluded from the stream, so a thinking model can stay
+        # silent for a long time before its first content token. The deadline
+        # above is the real limit; the transport read timeout must not abort a
+        # slow but healthy stream before it.
+        with httpx.Client(timeout=httpx.Timeout(90, connect=10, read=90), follow_redirects=False) as client:
             with open_stream(client, api_key=self.api_key, body=body, schema=schema, current=current,
                     on_usage=settle) as stream:
                 yield stream

@@ -200,6 +200,24 @@ class OpenRouterMappingContractTests(unittest.TestCase):
                 with self.assertRaisesRegex(maps.QuestionGenerationError, 'OPENROUTER_MAPPING_TIMEOUT_SECONDS'):
                     mapping_timeout_seconds()
 
+    def test_transport_read_timeout_never_undercuts_the_operator_deadline(self):
+        # A read timeout shorter than the deadline aborts a slow but healthy
+        # stream, which surfaces as a mapping failure rather than a timeout.
+        from backend.openrouter_mapping import MappingClient, MODEL
+        seen = []
+        def provider(request):
+            return stream_response(maps.draft())
+        def client(*args, **kwargs):
+            seen.append(kwargs['timeout'])
+            return HTTPClient(transport=httpx.MockTransport(provider))
+        mapping = MappingClient('preparation', 'owner')
+        with patch.dict(os.environ, {'OPENROUTER_MAPPING_TIMEOUT_SECONDS': '180'}), \
+             patch('httpx.Client', side_effect=client):
+            maps.generate_research_plan([maps.ProjectFile('study.md', maps.PAPER, 'research_text')],
+                mapping.api_key, MODEL, client=mapping)
+        self.assertEqual(seen[0].read, 180)
+        self.assertEqual(seen[0].connect, 10)
+
     def test_conflicting_stream_cost_receipts_freeze_further_dispatch(self):
         from backend.openrouter_mapping import MappingClient, MODEL
         calls = []

@@ -79,6 +79,38 @@ class StreamedMapTests(unittest.TestCase):
         with self.assertRaises(QuestionGenerationError):
             CompletedTopicDecoder().feed("x" * 1_000_001)
 
+    def test_topics_are_decoded_whatever_order_the_provider_emits_keys(self):
+        # Strict schema mode requires every property but does not fix their
+        # order, so a provider may emit profile first. The decoder must still
+        # find the topics array, or the final comparison rejects a valid map.
+        output = draft()
+        orders = {
+            "topics first": {"topics": output["topics"], "uncertainties": output["uncertainties"],
+                             "profile": output["profile"]},
+            "profile first": {"profile": output["profile"], "uncertainties": output["uncertainties"],
+                              "topics": output["topics"]},
+            "uncertainties first": {"uncertainties": output["uncertainties"], "topics": output["topics"],
+                                    "profile": output["profile"]},
+        }
+        for name, ordered in orders.items():
+            text = json.dumps(ordered)
+            for size in (1, 7, 17, len(text)):
+                with self.subTest(order=name, chunk=size):
+                    decoder = CompletedTopicDecoder()
+                    topics = []
+                    for start in range(0, len(text), size):
+                        topics.extend(decoder.feed(text[start:start + size]))
+                    self.assertEqual(topics, output["topics"])
+
+    def test_profile_first_stream_completes_instead_of_reporting_a_changed_map(self):
+        output = draft()
+        ordered = {"profile": output["profile"], "uncertainties": output["uncertainties"],
+                   "topics": output["topics"]}
+        client, events = StreamingClient(ordered), []
+        plan = self.generate(client, events)
+        self.assertEqual(len(plan.topics), 4)
+        self.assertEqual(events[-1].topics, plan.topics)
+
     def test_invalid_reference_stops_stream_without_publishing_that_topic(self):
         output = draft()
         output["topics"][1]["references"][0]["evidence_line"] = 999
